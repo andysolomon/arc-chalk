@@ -1287,6 +1287,14 @@ class Component extends DCLogic {
   }
   depthYd(p){ return (this.FIELD.losY - p.y)/this.FIELD.ppy; }
   yToPx(yd){ return Math.round(this.FIELD.losY - yd*this.FIELD.ppy); }
+  // depthYd/yToPx are the absolute pair — a point's depth measured from the line of scrimmage.
+  // These four are spans: a distance in drawing units to the same distance in yards, per axis.
+  // The field is drawn 18.3 units per yard across and 12 down, so the axis you are measuring
+  // decides the divisor. Getting this wrong is silent: the number just comes out 53% too big.
+  xToYd(px){ return px/this.PPX; }
+  ydToX(yd){ return yd*this.PPX; }
+  yToYd(px){ return px/this.FIELD.ppy; }
+  ydToY(yd){ return yd*this.FIELD.ppy; }
   fmtYd(v){ const r=Math.round(v*2)/2; return r===Math.round(r) ? String(Math.round(r)) : r.toFixed(1); }
 
   componentDidMount(){
@@ -1778,8 +1786,13 @@ class Component extends DCLogic {
     const on = this.snapOn() !== !!(ev && ev.shiftKey);
     if(!on || !ref) return this.clampPt(p);
     const dx=p.x-ref.x, dy=p.y-ref.y; if(dx===0&&dy===0) return this.clampPt(p);
-    const ang=Math.atan2(dy,dx), s=Math.round(ang/(Math.PI/4))*(Math.PI/4), d=Math.hypot(dx,dy);
-    return this.clampPt({ x:ref.x+Math.cos(s)*d, y:ref.y+Math.sin(s)*d });
+    // Snap the angle in yards, not in drawing units. The field is drawn 1.53x wider than it
+    // is deep, so 45 degrees on screen is 33 on the grass — and the readout beside the cursor
+    // would then disagree with the angle the coach believes he just drew. A snapped 45 now
+    // means equal yards out and downfield, which is what a coach means by it.
+    const ax=this.xToYd(dx), ay=this.yToYd(dy);
+    const ang=Math.atan2(ay,ax), s=Math.round(ang/(Math.PI/4))*(Math.PI/4), d=Math.hypot(ax,ay);
+    return this.clampPt({ x:ref.x+this.ydToX(Math.cos(s)*d), y:ref.y+this.ydToY(Math.sin(s)*d) });
   }
   snapPoint(p, exceptId){
     if(!this.snapOn()) return { p, guides:[] };
@@ -1821,7 +1834,7 @@ class Component extends DCLogic {
     const out=[this.fmtYd(this.depthYd(q))+' yds'];
     const origin = (bIdx===undefined||bIdx==='main') ? pts[0] : r.points[r.branches[bIdx].fromIdx];
     if(idx>0){
-      const lat=Math.abs(q.x-origin.x)/this.FIELD.ppy;
+      const lat=this.xToYd(Math.abs(q.x-origin.x));
       if(lat>=0.5){
         const away=Math.abs(q.x-this.FIELD.midX) > Math.abs(origin.x-this.FIELD.midX);
         out.push(this.fmtYd(lat)+' '+(away?'out':'in'));
@@ -2182,7 +2195,7 @@ class Component extends DCLogic {
       const c=r.points[r.points.length-1];
       r.zone={ rx:Math.round(Math.max(12, Math.min(230, Math.abs(p.x-c.x)))),
                ry:Math.round(Math.max(9, Math.min(150, Math.abs(p.y-c.y)))) };
-      this._readout={ x:c.x, y:c.y-r.zone.ry-10, text:this.fmtYd(this.pxToYdSpan?this.pxToYdSpan(r.zone.rx*2):r.zone.rx*2/12)+' yds wide' };
+      this._readout={ x:c.x, y:c.y-r.zone.ry-10, text:this.fmtYd(this.xToYd(r.zone.rx*2))+' yds wide' };
     } else if(g.kind==='ctrl'){
       const r=d.routes.find(x=>x.id===g.id);
       const pts=this.routePts(r,g.bIdx);

@@ -27,7 +27,7 @@ Add a column as each new review lands. Findings flagged independently by more th
 | B2 | Switching library plays replaces unsaved work without a guard | High | behavioral | **fixed** |
 | 1 | Coverage zones missing from all export/print paths | High | static | **fixed** |
 | 2 | Saves fail silently while UI shows "Saved" | High | static | **fixed** |
-| 3 | Lateral yardage ~53% too large (two-scale field) | High | static | open |
+| 3 | Lateral yardage ~53% too large (two-scale field) | High | static | **fixed** |
 | 4 | Live text/drag edits bypass `commit`, `dirty` not set | High | static | **fixed** |
 | B3 | Intentional clear is auto-undone on reload | Med-High | behavioral | open |
 | 5 | Formation role matching is first-match | Med | static | open |
