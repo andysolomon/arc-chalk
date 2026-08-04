@@ -54,5 +54,5 @@ feat!: replace an incompatible document contract
 Validate release calculation without publishing:
 
 ```sh
-bun run release:dry-run
+GH_TOKEN=$(gh auth token) bun run release:dry-run
 ```
