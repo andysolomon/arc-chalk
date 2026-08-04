@@ -17,10 +17,12 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "lint": "eslint apps packages convex scripts tests --max-warnings=0",
-    "format": "prettier --write apps packages convex scripts tests package.json tsconfig.json tsconfig.base.json eslint.config.js vitest.config.ts",
-    "format:check": "prettier --check apps packages convex scripts tests package.json tsconfig.json tsconfig.base.json eslint.config.js vitest.config.ts",
+    "format": "prettier --write apps packages convex scripts tests package.json tsconfig.json tsconfig.base.json eslint.config.js vitest.config.ts .releaserc.json",
+    "format:check": "prettier --check apps packages convex scripts tests package.json tsconfig.json tsconfig.base.json eslint.config.js vitest.config.ts .releaserc.json",
     "check:boundaries": "bun scripts/check-boundaries.ts",
-    "check": "bun run format:check && bun run lint && bun run check:boundaries && bun run test && bun run test:e2e && bun run build"
+    "check": "bun run format:check && bun run lint && bun run check:boundaries && bun run test && bun run test:e2e && bun run build",
+    "release": "semantic-release",
+    "release:dry-run": "semantic-release --dry-run --no-ci"
   },
   "dependencies": {
     "@tanstack/react-query": "latest",
@@ -34,6 +36,9 @@
   "devDependencies": {
     "@eslint/js": "latest",
     "@playwright/test": "latest",
+    "@semantic-release/commit-analyzer": "latest",
+    "@semantic-release/github": "latest",
+    "@semantic-release/release-notes-generator": "latest",
     "@tailwindcss/vite": "latest",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
@@ -49,11 +54,13 @@
     "globals": "latest",
     "jsdom": "latest",
     "prettier": "latest",
+    "semantic-release": "latest",
     "tailwindcss": "latest",
     "typescript": "5.9.3",
     "typescript-eslint": "latest",
     "vite": "latest",
     "vite-plugin-pwa": "latest",
-    "vitest": "latest"
+    "vitest": "latest",
+    "conventional-changelog-conventionalcommits": "latest"
   }
 }

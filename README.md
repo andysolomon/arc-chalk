@@ -38,3 +38,21 @@ bun run check:boundaries
 - `convex` — cloud replica and server functions
 
 Dependency direction is checked in CI-ready form with `bun run check:boundaries`.
+
+## Versioning and commits
+
+The primary development branch is `main`. Commit messages follow Conventional Commits:
+
+```text
+fix: correct route endpoint placement
+feat(editor): add choice-route branches
+feat!: replace an incompatible document contract
+```
+
+`fix` releases a patch, `feat` releases a minor, and a `BREAKING CHANGE` or `!` releases a major version. semantic-release analyzes commits on `main`, creates the authoritative Git tag and GitHub Release notes, and does not publish this private workspace to npm or write release commits back to protected `main`.
+
+Validate release calculation without publishing:
+
+```sh
+bun run release:dry-run
+```

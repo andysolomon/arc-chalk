@@ -325,8 +325,9 @@ Deliverables:
 - Secret scanning, dependency and supply-chain review, CSP and security-header tests, and a documented incident runbook.
 - Daily Convex backups, weekly off-platform backups retained 90 days, content-addressed R2 retention/lock policy, and restore tooling.
 - Monthly restore drill procedure proving 24-hour RPO and four-hour RTO targets.
+- `main` as the primary development/release branch, Conventional Commit history, Bun-based PR and merge gates, and semantic-release-driven Git tags and GitHub Release notes. Tags are authoritative; the private workspace is never published to npm and release automation does not write commits back to protected `main`.
 
-Dependencies: Phases 7–10.
+Dependencies: Phases 7–10 for production operations; remote `main`, GitHub Actions, and branch protection are required for automated releases.
 
 Risks: telemetry or backup systems can become an unintended copy of private Play content.
 
@@ -335,6 +336,7 @@ Acceptance criteria:
 - Production-like staging proves authorization, redaction, backup, and restore behavior with synthetic data.
 - A timed restore drill meets RPO/RTO and documents evidence and corrective actions.
 - Promotion to production is explicit and cannot occur from an unreviewed preview deployment.
+- A semantic-release dry run calculates the expected version from Conventional Commits without publishing, and the release workflow can run only from `main`.
 
 ### Phase 12 — Beta validation and controlled release
 

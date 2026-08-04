@@ -1,6 +1,6 @@
 chalk-beta - Chalk Production Beta - Progress
 Generated: 2026-08-04 16:50:45 EDT
-Updated: 2026-08-04 18:08:00 EDT
+Updated: 2026-08-04 18:18:00 EDT
 On completion, move this file and the plan to docs/archive/.
 
 [ ] 0.0 - Phase 0 - Canonical prototype inventory and parity lock
@@ -77,6 +77,8 @@ On completion, move this file and the plan to docs/archive/.
     [ ] 11.3 - Implement privacy-scrubbed Sentry reporting and content-free operational metrics
     [ ] 11.4 - Implement daily Convex, weekly off-platform, R2 retention, and restore tooling
     [ ] 11.5 - Run and document a timed restore drill against the 24-hour RPO and four-hour RTO
+    [ ] 11.6 - Configure local main, Conventional Commits, private-package semantic-release, and a non-publishing dry run
+    [ ] 11.7 - Establish remote main, Bun-based PR and merge gates, protected-branch rules, and CI-driven GitHub releases
 [ ] 12.0 - Phase 12 - Beta validation and controlled release
     [ ] 12.1 - Pass end-to-end critical journeys across normal, offline, reconnect, conflict, sharing, and recovery states
     [ ] 12.2 - Pass automated and manual accessibility, keyboard, screen-reader, touch, and Pencil gates
