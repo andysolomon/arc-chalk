@@ -1316,8 +1316,9 @@ class Component extends DCLogic {
     const lostWork = curBroken || (restored && curDoc && !(curDoc.players||[]).length && !(curDoc.routes||[]).length);
     if(lostWork && hist0.length){
       const e0=hist0[0];
+      // recovered work is by definition not what the library holds — it opens unsaved
       this.setState({doc:this.clone(e0.doc), playName:e0.name||curName||'Untitled play',
-        recovered:{at:e0.at}}, ()=>this.autosave());
+        dirty:true, recovered:{at:e0.at}}, ()=>this.autosave());
       restored=true;
     }
     this.setState({hist:hist0});
@@ -1461,11 +1462,13 @@ class Component extends DCLogic {
   undo(){ this.endEditNow(); if(!this.past.length) return;
     const d=this.past.pop();
     if(d && d.__lib){ this.future.push({__lib:this.clone(this.state.saved)}); this.writeLib(d.__lib, this.libSync(d.__lib), ()=>this.autosave()); this.libSay('Undone'); return; }
-    this.future.push(this.state.doc); this.setState({doc:d, sel:[], segSel:'all', branchSel:'main', drawing:null}, ()=>this.autosave()); }
+    // stepping the document away from what was last written to the library makes it unsaved,
+    // the same as any other edit — restoreSnap already says so, undo and redo have to agree
+    this.future.push(this.state.doc); this.setState({doc:d, sel:[], segSel:'all', branchSel:'main', drawing:null, dirty:true}, ()=>this.autosave()); }
   redo(){ this.endEditNow(); if(!this.future.length) return;
     const d=this.future.pop();
     if(d && d.__lib){ this.past.push({__lib:this.clone(this.state.saved)}); this.writeLib(d.__lib, this.libSync(d.__lib), ()=>this.autosave()); return; }
-    this.past.push(this.state.doc); this.setState({doc:d, sel:[], segSel:'all', branchSel:'main', drawing:null}, ()=>this.autosave()); }
+    this.past.push(this.state.doc); this.setState({doc:d, sel:[], segSel:'all', branchSel:'main', drawing:null, dirty:true}, ()=>this.autosave()); }
 
   pt(e){
     if(!this.svgEl) return {x:0,y:0};
@@ -2189,7 +2192,7 @@ class Component extends DCLogic {
       if(Math.hypot(p.x-midx,p.y-midy)<5){ delete q.cx; delete q.cy; }
       else { q.cx=Math.round(2*p.x-midx); q.cy=Math.round(2*p.y-midy); }
     }
-    this.setState({drag:Object.assign({},g,{moved:true}), doc:d, guides:this._guides||null, readout:this._readout||null});
+    this.liveEdit(d, {drag:Object.assign({},g,{moved:true}), guides:this._guides||null, readout:this._readout||null});
   }
   onSvgUp(e){
     this.notePtr(e);
@@ -2345,17 +2348,22 @@ class Component extends DCLogic {
   // ---------- live-edit fields ----------
   beginEdit(){ if(!this.editStart) this.editStart=this.state.doc; }
   endEditNow(){ if(this.editStart && this.editStart!==this.state.doc){ this.past.push(this.editStart); if(this.past.length>120) this.past.shift(); this.future=[]; this.autosave(); } this.editStart=null; this.flushRouteBcast(); }
+  // An edit still in progress — a keystroke in a field, a pointer mid-drag — changes the
+  // document without closing an undo entry, so it cannot go through commit(). It must still
+  // mark the play unsaved: the status line and the 90-second history timer both read `dirty`,
+  // and neither can see a bare setState({doc}). Autosaving is left to whoever ends the burst.
+  liveEdit(doc, extra){ this.setState(Object.assign({doc, dirty:true}, extra||{})); }
   editPlayer(field,val){
     const s=this.one('player'); if(!s) return;
     this.beginEdit();
     const d=this.clone(this.state.doc); const p=d.players.find(x=>x.id===s.id); if(!p) return;
-    p[field]=val; this.setState({doc:d});
+    p[field]=val; this.liveEdit(d);
   }
   editLabel(field,val){
     const s=this.one('label'); if(!s) return;
     this.beginEdit();
     const d=this.clone(this.state.doc); const l=d.labels.find(x=>x.id===s.id); if(!l) return;
-    l[field]=val; this.setState({doc:d});
+    l[field]=val; this.liveEdit(d);
   }
   setPlayerProp(k,v){
     const ps=this.selArr().filter(s=>s.type==='player'); if(!ps.length) return;
@@ -2385,7 +2393,7 @@ class Component extends DCLogic {
     // a typing burst is one broadcast, sent when he leaves the field
     const pf=(this.pendRoute && this.pendRoute.id===r.id) ? this.pendRoute.fields : {};
     pf[field]=1; this.pendRoute={id:r.id, fields:pf};
-    this.setState({doc:d});
+    this.liveEdit(d);
   }
   // The field shows a measured number, so re-rendering used to fight the typing (delete the
   // 1 of 12 and it snapped back). Hold the raw text while he is in the box, commit as he goes.
@@ -2405,7 +2413,7 @@ class Component extends DCLogic {
     if(i===0) return;
     this.beginEdit();
     r.points[i].y=Math.max(6, Math.min(614, this.yToPx(yd)));
-    this.setState({doc:d});
+    this.liveEdit(d);
   }
   applyLineStyle(v){
     const d=this.clone(this.state.doc); const t=this.target(d); if(!t) return;
