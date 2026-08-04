@@ -23,8 +23,8 @@ Add a column as each new review lands. Findings flagged independently by more th
 
 | ID | Finding | Sev | Flagged by | Status |
 |---|---|---|---|---|
-| B1 | Opening a demo can overwrite the active library play | **Critical** | behavioral | open |
-| B2 | Switching library plays replaces unsaved work without a guard | High | behavioral | open |
+| B1 | Opening a demo can overwrite the active library play | **Critical** | behavioral | **fixed** |
+| B2 | Switching library plays replaces unsaved work without a guard | High | behavioral | **fixed** |
 | 1 | Coverage zones missing from all export/print paths | High | static | open |
 | 2 | Saves fail silently while UI shows "Saved" | High | static | open |
 | 3 | Lateral yardage ~53% too large (two-scale field) | High | static | open |

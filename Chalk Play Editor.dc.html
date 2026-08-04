@@ -1184,6 +1184,19 @@ input,select,button{font-family:inherit}
       </div>
     </div>
   </sc-if>
+  <sc-if value="{{ showNavGuard }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onNavGuardCancel }}" style="position:absolute;inset:0;background:rgba(23,23,23,0.16);display:flex;align-items:center;justify-content:center;z-index:30">
+      <div onClick="{{ stopProp }}" role="dialog" aria-modal="true" aria-label="Unsaved changes" style="width:404px;max-width:92vw;background:#FFFFFF;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08),0 18px 40px -12px rgba(0,0,0,0.28);padding:20px">
+        <div style="font-size:14px;font-weight:600;color:#171717;margin-bottom:6px">Unsaved changes</div>
+        <div style="font-size:12.5px;color:#4D4D4D;line-height:18px;margin-bottom:18px">You have unsaved changes to <span style="color:#171717">{{ navGuardName }}</span>. Save them before {{ navGuardWhat }}?</div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px">
+          <button onClick="{{ onNavGuardCancel }}" style="height:32px;padding:0 13px;border:none;border-radius:6px;background:transparent;font-size:12.5px;color:#4D4D4D;cursor:pointer" style-hover="background:#F2F2F2">Cancel</button>
+          <button onClick="{{ onNavGuardDiscard }}" style="height:32px;padding:0 13px;border:none;border-radius:6px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(0,0,0,0.08);font-size:12.5px;color:#E5484D;cursor:pointer" style-hover="background:#FEF2F2">Discard changes</button>
+          <button onClick="{{ onNavGuardSave }}" ref="{{ navGuardRef }}" style="height:32px;padding:0 13px;border:none;border-radius:6px;background:#171717;font-size:12.5px;color:#FFFFFF;cursor:pointer" style-hover="background:#000000">Save and continue</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;angleSnap&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Drawing&quot;},&quot;routeMeta&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Drawing&quot;},&quot;routeWidth&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:2.5,&quot;min&quot;:1.5,&quot;max&quot;:4.5,&quot;step&quot;:0.5,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Drawing&quot;},&quot;fieldStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;lines&quot;,&quot;options&quot;:[&quot;lines&quot;,&quot;blank&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Field&quot;},&quot;hashStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;hs&quot;,&quot;options&quot;:[&quot;nfl&quot;,&quot;college&quot;,&quot;hs&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Field&quot;},&quot;pace&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:8,&quot;min&quot;:5,&quot;max&quot;:11,&quot;step&quot;:0.5,&quot;unit&quot;:&quot;yds/s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Animation&quot;},&quot;ghostTrails&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Animation&quot;}}">
@@ -1202,7 +1215,8 @@ class Component extends DCLogic {
     curPlayId:null, palette:false, paletteQ:'', shortcuts:false, exportMenu:false, exportSub:null, wristPick:null,
     editScope:'play', pickIds:[], libOpen:{}, libHover:null, libVar:null, libVarDraft:'', libNote:null, libReport:null,
     animT:0, animPlay:false, animRate:1, tDraft:{},
-    hist:[], histOpen:false, recovered:null, saveMenu:null, snapDraft:'', ctxMenu:null, ptrType:'mouse', clearMenu:false };
+    hist:[], histOpen:false, recovered:null, saveMenu:null, snapDraft:'', ctxMenu:null, ptrType:'mouse', clearMenu:false,
+    navGuard:null, fresh:false };
   past = []; future = []; editStart = null;
   // ---------- product identity ----------
   // Renaming the product is a one-constant change: header, exports, print footers and
@@ -1278,7 +1292,7 @@ class Component extends DCLogic {
   componentDidMount(){
     this.migrateKeys();
     let restored=false, curName='', curId=null, curBroken=false, curDoc=null;
-    try{ const cur=JSON.parse(localStorage.getItem(this.K('current.v1'))||'null'); if(cur&&cur.doc){ curDoc=cur.doc; if(!Array.isArray(cur.doc.labels)) cur.doc.labels=[]; this.setState({doc:cur.doc, playName:cur.playName||'Untitled play', cat:cur.cat||'Pass'}); restored=true; curName=cur.playName||''; curId=cur.curPlayId||null; } }catch(e){ curBroken=true; }
+    try{ const cur=JSON.parse(localStorage.getItem(this.K('current.v1'))||'null'); if(cur&&cur.doc){ curDoc=cur.doc; if(!Array.isArray(cur.doc.labels)) cur.doc.labels=[]; this.setState({doc:cur.doc, playName:cur.playName||'Untitled play', cat:cur.cat||'Pass', fresh:!!cur.fresh}); restored=true; curName=cur.playName||''; curId=cur.curPlayId||null; } }catch(e){ curBroken=true; }
     let saved=[];
     try{ const s=JSON.parse(localStorage.getItem(this.K('plays.v1'))||'null'); if(Array.isArray(s)) saved=s; }catch(e){}
     let v3=false; try{ v3=!!localStorage.getItem(this.K('examples.v15')); }catch(e){}
@@ -1368,7 +1382,7 @@ class Component extends DCLogic {
       if(label) this.snapshot(label);
     });
   }
-  autosave(){ this.setDocTitle(); try{ localStorage.setItem(this.K('current.v1'), JSON.stringify({doc:this.state.doc, playName:this.state.playName, cat:this.state.cat, curPlayId:this.state.curPlayId, cam:this.state.cam})); }catch(e){} }
+  autosave(){ this.setDocTitle(); try{ localStorage.setItem(this.K('current.v1'), JSON.stringify({doc:this.state.doc, playName:this.state.playName, cat:this.state.cat, curPlayId:this.state.curPlayId, fresh:this.state.fresh, cam:this.state.cam})); }catch(e){} }
   // ---------- version history ----------
   // The undo stack dies with the tab. This is the copy that does not: a per-play ring of
   // 20 states, written on a timer and on every action worth a name.
@@ -1843,6 +1857,7 @@ class Component extends DCLogic {
       return;
     }
     if(e.key==='Escape'){
+      if(this.state.navGuard){ this.navGuardCancel(); return; }
       if(this.state.defs){ this.closeDefs(); return; }
       if(this.state.forms){ this.closeForms(); return; }
       if(this.state.clearMenu){ this.setState({clearMenu:false}); return; }
@@ -3684,10 +3699,17 @@ class Component extends DCLogic {
     return { tools:['Stick — Thunder','Pass'], quick:['Quick Routes — Four Verts','Pass'], block:['Outside Zone — Pull','Run'],
       air:['7-on-7 — Mesh','Pass'], defense:['Cover 3 — Fire Zone','Defense'] }[k];
   }
-  demoLoadPlay(){
+  demoLoadPlay(){ this.guardTransition('opening the demo play', ()=>this.demoLoadPlayNow()); }
+  // A demo is a starting point, never an edit of whatever happened to be open before it.
+  // It arrives as an unsaved new play — curPlayId cleared — so the first Save writes a new
+  // record instead of overwriting the play the coach was working on.
+  demoLoadPlayNow(){
     const doc=this.clone(this.demoData().doc), m=this.demoMeta();
-    this.past.push(this.state.doc); this.future=[];
-    this.setState({view:'edit', doc, playName:m[0], cat:m[1], sel:[], segSel:'all', branchSel:'main', nodeSel:null}, ()=>this.autosave());
+    this.past.push(this.state.doc); if(this.past.length>120) this.past.shift(); this.future=[];
+    cancelAnimationFrame(this._animRaf);
+    this.setState({view:'edit', doc, playName:m[0], cat:m[1], sel:[], segSel:'all', branchSel:'main', nodeSel:null,
+      curPlayId:null, dirty:true, fresh:true, drawing:null, libVar:null, libNote:null, pickIds:[],
+      animT:0, animPlay:false, demoPlaying:false}, ()=>this.autosave());
   }
   buildDemoCanvas(){
     const h=React.createElement;
@@ -4281,7 +4303,10 @@ class Component extends DCLogic {
   // ---------- saving, naming, detaching ----------
   savePlay(){
     const st=this.state, list=this.clone(st.saved);
-    let rec=list.filter(p=>p.id===st.curPlayId)[0] || list.filter(p=>p.name===st.playName)[0];
+    // A fresh document — a demo handed to the editor, or New — belongs to no record yet.
+    // Matching it to a library play by name would overwrite that play, and the demos ship
+    // under the same names as the seeded examples, so the collision is the normal case.
+    let rec=list.filter(p=>p.id===st.curPlayId)[0] || (st.fresh ? null : list.filter(p=>p.name===st.playName)[0]);
     if(rec){
       rec.cat=st.cat; rec.doc=this.clone(st.doc); rec.at=Date.now(); rec.cam=Object.assign({}, st.cam);
       if(rec.parentId && list.some(p=>p.id===rec.parentId)){
@@ -4310,7 +4335,7 @@ class Component extends DCLogic {
       }
     }
     this.pushLibHistory();
-    this.writeLib(list, {playName:rec.name, savedFlash:true, dirty:false, curPlayId:rec.id},
+    this.writeLib(list, {playName:rec.name, savedFlash:true, dirty:false, fresh:false, curPlayId:rec.id},
       ()=>{ this.autosave(); this.snapshot('Saved'); });
     clearTimeout(this.sfT); this.sfT=setTimeout(()=>this.setState({savedFlash:false}),1400);
   }
@@ -4348,7 +4373,7 @@ class Component extends DCLogic {
       cat:st.cat, doc:this.clone(st.doc), at:Date.now() };
     list.splice(list.map(p=>p.id).indexOf(cid)+1, 0, rec);
     this.pushLibHistory();
-    this.writeLib(list, {playName:rec.name, curPlayId:rec.id, dirty:false, savedFlash:true, libVar:null, libVarDraft:''});
+    this.writeLib(list, {playName:rec.name, curPlayId:rec.id, dirty:false, fresh:false, savedFlash:true, libVar:null, libVarDraft:''});
     this.expandFamily(cid);
     clearTimeout(this.sfT); this.sfT=setTimeout(()=>this.setState({savedFlash:false}),1400);
     this.autosave();
@@ -4433,7 +4458,30 @@ class Component extends DCLogic {
     this.libSay(skipped.length ? ('Pushed to '+n+' of '+kids.length+' — '+skipped[0])
       : ('Alignment pushed to '+n+(n===1?' variation':' variations')));
   }
-  loadPlay(id){
+  // ---------- whole-document transitions ----------
+  // Replacing the document is the one action that can lose work a coach cannot get back:
+  // undo only survives the tab, and current.v1 is overwritten by whatever arrives next.
+  // Every whole-document replacement routes through here, so the question is asked once
+  // and in one place rather than remembered at each call site.
+  guardTransition(label, run){
+    if(!this.state.dirty){ run(); return; }
+    this.setState({navGuard:{label, run}});
+  }
+  navGuardSave(){
+    const g=this.state.navGuard; if(!g) return;
+    this.savePlay();
+    this.setState({navGuard:null}, ()=>g.run());
+  }
+  navGuardDiscard(){
+    const g=this.state.navGuard; if(!g) return;
+    // the discarded document is worth one history entry even though the coach said drop it
+    this.snapshot('Before '+g.label);
+    this.setState({navGuard:null}, ()=>g.run());
+  }
+  navGuardCancel(){ this.setState({navGuard:null}); }
+
+  loadPlay(id){ this.guardTransition('opening another play', ()=>this.loadPlayNow(id)); }
+  loadPlayNow(id){
     const p=this.state.saved.filter(x=>x.id===id)[0]; if(!p) return;
     this.past.push(this.state.doc); if(this.past.length>120) this.past.shift(); this.future=[];
     const doc=this.clone(p.doc); if(!Array.isArray(doc.labels)) doc.labels=[];
@@ -4441,7 +4489,7 @@ class Component extends DCLogic {
     this.expandFamily(this.conceptIdOf(p));
     cancelAnimationFrame(this._animRaf);
     this.setState({doc, playName:p.name, cat:p.cat, sel:[], segSel:'all', branchSel:'main', drawing:null,
-      dirty:false, curPlayId:p.id, libVar:null, libNote:null, pickIds:[], animT:0, animPlay:false,
+      dirty:false, fresh:false, curPlayId:p.id, libVar:null, libNote:null, pickIds:[], animT:0, animPlay:false,
       cam:(p.cam&&p.cam.w) ? {w:p.cam.w, h:p.cam.w/this.camAsp(), x:p.cam.x, y:p.cam.y} : this.fitCam()},
       ()=>{ this.setCam(this.state.cam); this.autosave(); });
   }
@@ -4494,8 +4542,9 @@ class Component extends DCLogic {
     return [concept].concat(vars.map(v=>({ id:this.uid('play'), parentId:cid, variantName:v.variantName,
       name:concept.name+' — '+v.variantName, cat:'Pass', doc:v.doc, at:Date.now() })));
   }
-  newPlay(){ cancelAnimationFrame(this._animRaf);
-    this.commit({players:[],routes:[],labels:[]}, {sel:[], drawing:null, playName:'Untitled play', curPlayId:null, animT:0, animPlay:false}); }
+  newPlay(){ this.guardTransition('starting a new play', ()=>this.newPlayNow()); }
+  newPlayNow(){ cancelAnimationFrame(this._animRaf);
+    this.commit({players:[],routes:[],labels:[]}, {sel:[], drawing:null, playName:'Untitled play', curPlayId:null, fresh:true, animT:0, animPlay:false}); }
 
   // ---------- geometry & rendering ----------
   zigPath(pts){
@@ -6114,6 +6163,13 @@ class Component extends DCLogic {
         fg:d[0]==='Delete'?'#E5484D':'#171717',
         hover:d[0]==='Delete'?'#FEF2F2':'#F2F2F2',
         onRun:()=>{ this.setState({ctxMenu:null}); d[2](); } })),
+      showNavGuard:!!st.navGuard,
+      navGuardWhat:st.navGuard ? st.navGuard.label : '',
+      navGuardName:st.playName||'Untitled play',
+      navGuardRef:(el)=>{ if(el && this._ngel!==el){ this._ngel=el; setTimeout(()=>{ try{ el.focus(); }catch(err){} },30); } },
+      onNavGuardSave:()=>this.navGuardSave(),
+      onNavGuardDiscard:()=>this.navGuardDiscard(),
+      onNavGuardCancel:()=>this.navGuardCancel(),
       showPalette:st.palette, showShortcuts:st.shortcuts,
       cmds, shortcutRows,
       paletteQ:st.paletteQ,
