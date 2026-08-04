@@ -1,0 +1,86 @@
+chalk-beta - Chalk Production Beta - Progress
+Generated: 2026-08-04 16:50:45 EDT
+On completion, move this file and the plan to docs/archive/.
+
+[x] 0.0 - Phase 0 - Design validation prototype
+    [x] 0.1 - Review the current prototype against the production beta plan
+    [x] 0.2 - Create a self-contained single-file plan-aligned design prototype
+    [x] 0.3 - Demonstrate Playbook, editor, playback, sharing, system states, and design tokens
+    [x] 0.4 - Verify direct-open behavior and responsive desktop, tablet, and phone layouts
+[ ] 1.0 - Phase 1 - Workspace and architectural guardrails
+    [ ] 1.1 - Scaffold the Bun workspace, Vite React TypeScript web shell, and root Convex directory
+    [ ] 1.2 - Create domain, contracts, editor, render, local-db, sync, exports, and test-fixtures packages
+    [ ] 1.3 - Add shared typecheck, lint, format, unit, browser, and build commands
+    [ ] 1.4 - Enforce inward dependency rules and document local setup/environment contracts
+[ ] 2.0 - Phase 2 - Domain, geometry, and deterministic rendering core
+    [ ] 2.1 - Implement Zod Mini domain schemas, stable IDs, envelopes, migrations, canonical hashing, and serialization
+    [ ] 2.2 - Implement Field Profiles, yard geometry, landmarks, snapping, and exact mirroring
+    [ ] 2.3 - Implement structured paths and absolute integer-millisecond evaluation
+    [ ] 2.4 - Build framework-free RenderScene and accessible SVG primitives
+    [ ] 2.5 - Add golden fixtures, round-trip tests, property tests, and deterministic-render tests
+[ ] 3.0 - Phase 3 - Local database, durability, and recovery
+    [ ] 3.1 - Implement typed Dexie repositories and all authoritative and derived stores
+    [ ] 3.2 - Implement transactional local commits and continuous save-state acknowledgement
+    [ ] 3.3 - Implement bounded persistent hash-guarded per-Play undo and redo
+    [ ] 3.4 - Implement named versions, Trash retention, startup recovery, quota handling, and persistent-storage UX
+    [ ] 3.5 - Add real IndexedDB migration fixtures and interrupted-write recovery tests
+    [ ] 3.6 - Implement and verify encrypted backup export/import
+[ ] 4.0 - Phase 4 - Production editor and responsive interaction model
+    [ ] 4.1 - Build the Tailwind 4, shadcn/ui, Base UI, and Lucide responsive editor shell
+    [ ] 4.2 - Implement EditorStore transient/committed state separation and unified input state machine
+    [ ] 4.3 - Implement selection, placement, paths, labels, assignments, alignment, and snapping
+    [ ] 4.4 - Implement multi-select, pan/zoom, mirror, copy/paste, delete/clear, and Formation apply/reapply
+    [ ] 4.5 - Complete keyboard, screen-reader, reduced-motion, touch, Pencil, and phone read-only behavior
+    [ ] 4.6 - Prove editor frame-rate and input-to-paint budgets on target devices
+[ ] 5.0 - Phase 5 - Deterministic animation and playback
+    [ ] 5.1 - Implement timing authoring for pre-snap motion, routes, segments, and coordinated Play duration
+    [ ] 5.2 - Implement deterministic play, pause, restart, speed, and scrub controls
+    [ ] 5.3 - Share one playback evaluator between editor and read-only presentation
+    [ ] 5.4 - Verify deterministic timestamps, offline responsiveness, keyboard control, and reduced motion
+[ ] 6.0 - Phase 6 - Playbook library, organization, and retrieval
+    [ ] 6.1 - Implement Playbook and Play CRUD, Units, Concepts, Play Types, Personnel Labels, and Tags
+    [ ] 6.2 - Implement Formation and Field Profile management and explicit reapplication
+    [ ] 6.3 - Build virtualized paged metadata lists/grids with focus and scroll restoration
+    [ ] 6.4 - Build Worker-based local search projections, filtering, and disposable indexes
+    [ ] 6.5 - Build lazy cancelable revision-keyed thumbnails
+    [ ] 6.6 - Verify the 10-Playbook and 2,000-Plays-per-Playbook performance fixture
+[ ] 7.0 - Phase 7 - Authentication, Convex replica, and conflict-safe sync
+    [ ] 7.1 - Implement invite-only Clerk email-code authentication and optional passkeys
+    [ ] 7.2 - Implement strict Convex schemas, authorization, validators, revisions, tombstones, and payload limits
+    [ ] 7.3 - Implement durable idempotent push, cursor pull, acknowledgement, retry, and sync-head signaling
+    [ ] 7.4 - Implement the non-blocking Conflict Inbox and all resolution paths
+    [ ] 7.5 - Verify offline, intermittent, replayed, out-of-order, revoked-session, and two-device convergence cases
+[ ] 8.0 - Phase 8 - Private assets and immutable Share Links
+    [ ] 8.1 - Implement image validation, EXIF stripping, resizing, thumbnailing, hashing, and local-first storage
+    [ ] 8.2 - Implement private content-addressed R2 synchronization with short-lived signed access
+    [ ] 8.3 - Implement sanitized immutable Share Publications and curated Play sets
+    [ ] 8.4 - Implement stable fragment-capability links, keyed hashes, revocation, republishing, expiry, and audits
+    [ ] 8.5 - Harden the static share shell CSP and verify no secret or private-data leakage
+    [ ] 8.6 - Implement external Film References without hosting or caching video
+[ ] 9.0 - Phase 9 - Authoritative static coaching outputs
+    [ ] 9.1 - Implement deterministic SVG and high-resolution PNG export
+    [ ] 9.2 - Implement single-Play and Playbook PDF output
+    [ ] 9.3 - Implement position sheets, scout cards, wristbands, and print layouts
+    [ ] 9.4 - Verify pagination, overflow, fonts, accessibility, offline behavior, and golden fixtures
+[ ] 10.0 - Phase 10 - PWA lifecycle, offline UX, and device hardening
+    [ ] 10.1 - Implement the Workbox injectManifest app-shell-only service worker
+    [ ] 10.2 - Implement install, offline, sync, storage-health, recovery, and explicit-update UX
+    [ ] 10.3 - Verify schema-compatible update, rollback, and cached-shell recovery paths
+    [ ] 10.4 - Execute the supported browser, iPad, Pencil, touch, keyboard, and phone matrix
+    [ ] 10.5 - Prove warm/offline and cold-online startup budgets
+[ ] 11.0 - Phase 11 - Security, observability, backup, and environment operations
+    [ ] 11.1 - Isolate development, PR preview, staging, and production service configuration
+    [ ] 11.2 - Complete authorization, rate-limit, abuse, CSP, headers, secret, dependency, and supply-chain checks
+    [ ] 11.3 - Implement privacy-scrubbed Sentry reporting and content-free operational metrics
+    [ ] 11.4 - Implement daily Convex, weekly off-platform, R2 retention, and restore tooling
+    [ ] 11.5 - Run and document a timed restore drill against the 24-hour RPO and four-hour RTO
+[ ] 12.0 - Phase 12 - Beta validation and controlled release
+    [ ] 12.1 - Pass end-to-end critical journeys across normal, offline, reconnect, conflict, sharing, and recovery states
+    [ ] 12.2 - Pass automated and manual accessibility, keyboard, screen-reader, touch, and Pencil gates
+    [ ] 12.3 - Capture performance evidence at the full beta data scale on both target devices
+    [ ] 12.4 - Document beta support, feedback, incident, export, deletion, rollback, and release procedures
+    [ ] 12.5 - Resolve every severity-one durability, privacy, accessibility, and data-loss defect
+    [ ] 12.6 - Obtain explicit approval and record any production promotion separately
+[ ] 13.0 - Phase 13 - Ship and archive
+    [ ] 13.1 - Complete final verification, release notes, and deferred-work record
+    [ ] 13.2 - On merge: move docs/chalk-beta-IMPLEMENTATION_PLAN.md + docs/chalk-beta-progress.txt to docs/archive/
