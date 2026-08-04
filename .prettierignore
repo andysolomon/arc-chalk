@@ -1,0 +1,6 @@
+**/dist/
+node_modules/
+.playwright-cli/
+Chalk Football Play Editor-2/
+Chalk Play Editor.dc.html
+Chalk Beta Design Prototype.html

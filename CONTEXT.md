@@ -2,6 +2,10 @@
 
 Chalk is a football play-design and playbook product for an individual coach. The beta keeps each coach's football work private and independently owned.
 
+## Product constraint
+
+`Chalk Football Play Editor-2/Chalk Play Editor.dc.html` is the canonical visual and behavioral specification. The production app is a faithful clone-and-extend reimplementation: preserve every original feature and the established design, fix verified defects, and add production capabilities without redesigning the Coach's workflow.
+
 ## Language
 
 **Coach**:

@@ -1,0 +1,14 @@
+{
+  "name": "@chalk/sync",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@chalk/contracts": "workspace:*",
+    "@chalk/domain": "workspace:*",
+    "@chalk/local-db": "workspace:*"
+  }
+}

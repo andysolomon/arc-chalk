@@ -1,5 +1,7 @@
 # Current Prototype Review Against the Chalk Beta Plan
 
+> **Status: superseded as a design direction.** The product owner confirmed that the original prototype is already design- and feature-complete. Chalk's production app will faithfully clone and extend that prototype rather than adopt the alternate visual direction proposed at the end of this review. The gap observations remain historical review input only; they are not authorization to reorganize, restyle, or remove original behavior.
+
 Date: 2026-08-04  
 Artifact reviewed: `Chalk Play Editor.dc.html`  
 Target: `docs/chalk-beta-IMPLEMENTATION_PLAN.md` and ADRs 0001–0038
@@ -87,6 +89,6 @@ The companion `Chalk Beta Design Prototype.html` explores a “quiet sideline in
 - an inspectable design-system panel with tokens and component states;
 - responsive tablet behavior and an intentionally read-only phone composition.
 
-## Recommendation
+## Superseded recommendation
 
-Use the new HTML to decide visual character, density, navigation hierarchy, and component language. Continue using the existing Design Component as the detailed interaction oracle for drawing behaviors. Do not evolve either single-file prototype into the production implementation.
+The earlier recommendation to use the alternate HTML to choose a new visual character is rejected. Use `Chalk Play Editor.dc.html` as the canonical visual and behavioral specification. Reimplement its full experience on the production architecture, fix verified defects without changing expected workflows, and add new local-first/cloud capabilities in the same established visual language.

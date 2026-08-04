@@ -1,0 +1,20 @@
+{
+  "name": "@chalk/web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@chalk/domain": "workspace:*",
+    "@chalk/render": "workspace:*",
+    "@tanstack/react-query": "*",
+    "@tanstack/react-router": "*",
+    "react": "*",
+    "react-dom": "*",
+    "zustand": "*"
+  }
+}

@@ -12,6 +12,7 @@ Code reviews of the Chalk Football Play Editor. Each review is one file; this in
 |---|---|---|---|---|
 | 2026-08-04 | [Static read — full file](review-2026-08-04-chalk-play-editor.md) | Line-by-line read, no app run | 13 + 5 notes | Claude Opus 5 |
 | 2026-08-04 | [Behavioral pass](review-2026-08-04-behavioral-pass.md) | Chromium, state transitions | 7 (B1–B7) | *unattributed — fill in* |
+| 2026-08-04 | [Prototype against beta plan](review-2026-08-04-prototype-against-beta-plan.md) | Visual/source comparison | Superseded redesign; historical gaps only | Codex |
 
 > **Note on the behavioral pass.** Its content was originally appended into the static review and has been split out to keep the two evidence bases distinct. Its author isn't recorded and its runtime reproductions haven't been independently re-run — three of its *code* claims were spot-checked and all held. See the provenance note at the top of that file before acting on it.
 

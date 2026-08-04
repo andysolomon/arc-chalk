@@ -1,0 +1,16 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/domain" },
+    { "path": "./packages/contracts" },
+    { "path": "./packages/render" },
+    { "path": "./packages/editor" },
+    { "path": "./packages/local-db" },
+    { "path": "./packages/sync" },
+    { "path": "./packages/exports" },
+    { "path": "./packages/test-fixtures" },
+    { "path": "./apps/web" },
+    { "path": "./convex" },
+    { "path": "./tsconfig.tools.json" }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@chalk/domain",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./product": "./src/product.ts",
+    "./seed-stick-thunder": "./src/seed-stick-thunder.ts"
+  },
+  "dependencies": {
+    "zod": "*"
+  }
+}

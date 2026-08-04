@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist"
+  },
+  "references": [
+    { "path": "../contracts" },
+    { "path": "../domain" },
+    { "path": "../local-db" }
+  ],
+  "include": ["src"]
+}

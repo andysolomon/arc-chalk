@@ -7,6 +7,15 @@
 # Local tooling artifacts
 .playwright-cli/
 .thumbnail
+node_modules/
+dist/
+*.tsbuildinfo
+apps/web/dev-dist/
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example
 
 # Redundant re-extraction of the source archive (identical to the repo root copy)
 Chalk Football Play Editor-2/

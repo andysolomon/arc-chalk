@@ -1,41 +1,49 @@
 # Chalk Production Beta Implementation Plan
 
-Status: planned  
-Mode: greenfield production build  
+Status: in progress
+Mode: parity-first replatform and production gap build
 Companion tracker: `docs/chalk-beta-progress.txt`
 
 ## 1. Product goal and scope boundaries
 
-Build an invite-only, production-quality Chalk beta for individual football coaches. A Coach can create durable private Playbooks, design and animate Plays offline, organize and retrieve them quickly, synchronize safely across devices, publish revocable read-only presentations, and generate authoritative static coaching outputs.
+Build an invite-only, production-quality Chalk beta for individual football coaches by faithfully reimplementing the design- and feature-complete `Chalk Football Play Editor-2/Chalk Play Editor.dc.html` on the accepted production architecture. A Coach must retain every familiar original workflow while gaining stronger durability, deployment, privacy, offline behavior, performance, and multi-device continuity.
+
+The restored `Chalk Football Play Editor-2/` directory is the canonical source package. The original prototype is the visual and behavioral specification. The production build must be user-facing identical: a Coach should not need to relearn, rediscover, or reinterpret existing behavior. This is not a redesign and not a reduced MVP. No original feature, mode, menu action, shortcut, Formation/defense behavior, animation capability, library workflow, or coaching output may be omitted or materially changed without explicit product-owner approval.
 
 The product must feel immediate on a ninth-generation iPad and a five-year-old laptop. Local editing and saving never wait for authentication, Convex, object storage, or any other network service.
 
 Beta includes:
 
+- Full visual and behavioral parity with every capability recorded in `docs/original-prototype-parity-matrix.md`.
 - Offense, Defense, and Special Teams Plays in one consistent model.
 - Optional Concepts, built-in and custom Play Types, Personnel Labels, flexible Tags, reusable Formations, and versioned Field Profiles.
 - Mouse, touch, Apple Pencil/stylus, and keyboard editing on desktop and tablet.
 - Deterministic route timing, pre-snap motion, playback, pause, speed control, and scrubbing in the editor and Share Links.
 - Continuous device-local persistence, explicit named versions, persistent per-Play undo, multi-device cloud synchronization, and preserved conflicts.
 - Private image attachments and external Film References.
-- PNG, SVG, single-Play PDF, Playbook PDF, position sheets, scout cards, wristbands, and print output.
+- Every original output: PNG, SVG, field print, practice cards, call sheet, install page, position view, quiz/answer key, slide, wristband, scout card, progression strip, full Playbook, and frame-sequence animation export.
 - Phone read-only, presentation, Share Link, and export workflows.
 
-Beta excludes teams, organizations, shared editing, roster management, comments, public discovery, recipient accounts, hosted video, live collaboration, CRDTs, end-to-end encryption, GIF/MP4/frame-sequence export, quizzes, and slide-deck generation.
+Beta excludes teams, organizations, shared editing, roster management, comments, public discovery, recipient accounts, hosted video, live collaboration, CRDTs, end-to-end encryption, GIF/MP4 encoding, and automated play recommendations. An item is not excluded if the original prototype already implements it.
 
 ## 2. Current baseline
 
-- `Chalk Play Editor.dc.html` is a functional single-file prototype and behavioral reference, not a production foundation.
-- The two reviews in `docs/reviews/` document correctness, durability, offline, accessibility, and maintainability gaps in that prototype.
+- `Chalk Football Play Editor-2/Chalk Play Editor.dc.html` is the design- and feature-complete canonical product specification. Its single-file implementation is not the production foundation, but its visible and behavioral result is the required target.
+- The reviews in `docs/reviews/` document defects to fix and evidence gaps to close; they do not authorize a redesign.
 - `CONTEXT.md` defines the accepted domain language.
-- ADRs 0001–0038 define the production architecture, including local-first behavior, SVG rendering, Convex, Clerk, R2, deterministic geometry and animation, privacy, testing, deployment, and recovery.
-- The repository has no production package manifest, application workspace, Convex functions, automated test harness, or deployment configuration yet.
-- Existing `plans/phase-*` documents describe enhancements to the prototype. They are historical input and do not override this production plan or accepted ADRs.
+- ADRs 0001–0039 define the production architecture and the non-negotiable prototype-parity rule.
+- Phase 1 is implemented: the repository now has a boundary-oriented Bun workspace, Vite/React/TypeScript PWA shell, root Convex boundary, all accepted package seams, strict shared tooling, dependency-direction enforcement, and Vitest plus Chromium/WebKit Playwright smoke coverage.
+- The first production editor-shell slice recreates the original header, modes, field-first workspace, tool rail, seeded `Stick — Thunder` field, inspector, timeline, and status treatment. It is comparison scaffolding, not a claim that Phase 4 visual or behavioral parity is complete.
+- `docs/parity/` contains the first named original-versus-production desktop baseline. The exhaustive Phase 0 inventory and golden set remain incomplete.
+- The first Phase 2 tracer extracts the original runtime's seeded `Stick — Thunder` Play into a strict Zod Mini production document, migrates its 12-units-per-yard canvas into centered LOS-relative yard space, and proves canonical serialization/SHA-256, exact double mirroring, integer-millisecond movement evaluation, and deterministic framework-free `RenderScene` construction. The remaining Phase 2 schemas, curves, snapping, landmarks, primitives, and golden coverage are still open.
+- The restored `plans/phase-*` documents record features already landed in the prototype and are parity evidence alongside direct source/runtime capture.
+- `Chalk Beta Design Prototype.html` is a rejected alternate design exploration and is not a production target.
 
 ## 3. Full capability map
 
 | Capability | Beta target | Primary boundary |
 |---|---|---|
+| Prototype parity | Original visuals, workflows, controls, modes, shortcuts, outputs, and coaching language remain intact | workspace-wide parity suite |
 | Domain | Stable IDs, immutable revisions, strict schemas, explicit migrations | `packages/domain`, `packages/contracts` |
 | Geometry | Yard-space truth, versioned fields, structured paths, exact mirroring and snapping | `packages/domain`, `packages/editor` |
 | Rendering | One deterministic `RenderScene` for editor, animation, sharing, and exports | `packages/render` |
@@ -51,26 +59,28 @@ Beta excludes teams, organizations, shared editing, roster management, comments,
 
 ## 4. Milestones and phases
 
-### Phase 0 — Design validation prototype
+### Phase 0 — Canonical prototype inventory and parity lock
 
-Goal: validate the production product's information architecture, visual language, responsive shell, and core states before committing to the major implementation.
+Goal: turn the complete restored prototype into an auditable visual, behavioral, data, shortcut, and output specification before production implementation.
 
 Deliverables:
 
-- A plan-aligned review of the existing Design Component prototype, preserving its strongest interaction and coaching-language choices while identifying product-level design gaps.
-- A disposable, self-contained `Chalk Beta Design Prototype.html` with no build step, backend, or external runtime dependency.
-- High-fidelity Playbook, editor, playback, sharing, and design-system surfaces that communicate the intended production hierarchy and states.
-- Responsive desktop, tablet, and phone-read-only layouts plus lightweight prototype interactions for review.
+- ADR 0039 and `docs/original-prototype-parity-matrix.md` establishing the restored prototype as the canonical specification.
+- Screenshot baselines for every top-level view, panel, menu, modal, selection state, and supported viewport.
+- A source-and-runtime-verified inventory of every control, action, mode, shortcut, gesture, persistence transition, sample, and output.
+- Golden serialized documents and generated output samples spanning every supported primitive and workflow.
+- Automated behavior scripts for the original happy paths and corrected expectations for each verified defect.
 
-Dependencies: accepted product decisions, ADRs, and the current prototype as a behavioral reference.
+Dependencies: accepted product decisions, the restored source package, the running original prototype, existing tests, phase plans, and reviews.
 
-Risks: prototype interactions can imply production behavior they do not actually implement; the artifact must label itself clearly and remain separate from production architecture.
+Risks: source-only inventory can miss runtime states, while screenshot-only parity can miss behavior. Both evidence types are required.
 
 Acceptance criteria:
 
-- The HTML opens directly in a modern browser and remains useful without network access.
-- The prototype exposes design tokens, component patterns, responsive behavior, local/cloud save language, and the primary Coach navigation model.
-- The review maps visible prototype decisions to the beta plan and identifies what should not carry forward.
+- Every reachable original capability maps to an owned production phase and parity test.
+- Every top-level visual state and output has a named golden baseline.
+- Known prototype bugs are distinguished explicitly from intended behavior.
+- No redesign exploration is referenced as a production target.
 
 ### Phase 1 — Workspace and architectural guardrails
 
@@ -147,10 +157,12 @@ Goal: deliver the core diagramming workflow with fast, accessible input across d
 
 Deliverables:
 
-- Tailwind CSS 4 shell with shadcn/ui, Base UI primitives, and Lucide icons.
+- A faithful recreation of the original shell, palette, type, density, iconography, field proportions, panels, and control states. Tailwind CSS 4, shadcn/ui, Base UI, and Lucide may support internals but must not impose a different default appearance.
 - Chalk-owned vanilla Zustand `EditorStore` separating transient gestures from committed domain state.
 - Unified pointer state machine for mouse, touch, Pencil/stylus, and keyboard operations.
-- Selection, multi-select, pan/zoom, player placement, paths, labels, assignments, alignment, snapping, mirror, copy/paste, delete/clear, Formation apply, and previewed reapply.
+- Every original direct-manipulation behavior: selection/marquee/multi-select, pan/zoom/pinch/minimap, player and label tools, route nodes/curves/segments/branches/alternates, route kinds and styling, assignments/reads/conversions/notes, snapping, mirroring, copy/paste, contextual actions, and clear-by-layer.
+- Every original football workflow: Formation/defense libraries and favorites, pinned previews, role-aware realignment, semantic strength flip, ball hash, line calls, quick routes/blocks/defensive presets, Concepts, edit scopes, and route rules.
+- Original Editor, Demo/Tour, Present, and Print modes; panel/focus behavior; command palette; keyboard shortcuts; help; typography presets; annotation layers; and status feedback.
 - Keyboard navigation, visible focus, meaningful SVG accessibility, reduced-motion behavior, and screen-reader-compatible controls.
 - Desktop and iPad full-editor layouts plus safe read-only phone behavior.
 
@@ -163,6 +175,7 @@ Acceptance criteria:
 - Each completed gesture creates exactly one local transaction and undo entry.
 - Editor interaction sustains 60 FPS and p95 input-to-paint below 50 ms on target devices.
 - Core editing workflows pass keyboard, touch, Pencil, and automated accessibility checks.
+- Golden screenshots and interaction scripts match the canonical prototype within approved defect and accessibility exceptions.
 
 ### Phase 5 — Deterministic animation and playback
 
@@ -187,7 +200,7 @@ Acceptance criteria:
 
 ### Phase 6 — Playbook library, organization, and retrieval
 
-Goal: keep season-scale Playbooks fast and easy to navigate.
+Goal: preserve the original in-editor Concept/variation library exactly while extending it safely to season scale.
 
 Deliverables:
 
@@ -197,6 +210,8 @@ Deliverables:
 - Worker-built local full-text search projections and filters with under-50-ms response at 2,000 Plays.
 - Lazy, cancelable, revision-keyed derived thumbnails generated behind interactive work.
 - Formation and Field Profile management with explicit version and reapply behavior.
+- Original Concept tree, variation creation/naming, collapse state, edit scopes, propagation/skip feedback, detach, rename, delete, save/update, and guarded transitions.
+- The original library panel remains available; any dedicated Playbook browser is additive rather than a replacement.
 
 Dependencies: Phases 2–4.
 
@@ -260,8 +275,8 @@ Goal: generate accurate, reusable coaching materials from the same rendering mod
 Deliverables:
 
 - SVG and high-resolution PNG export with deterministic dimensions and fonts.
-- Single-Play and multi-Play Playbook PDF generation.
-- Position sheets, scout cards, wristband layouts, and print-specific presentation controls.
+- Print the field, practice cards, call sheet, install page, position view, quiz with answer key, slide, wristband, scout card, progression strip, and full Playbook generation with original options and semantics.
+- Frame-sequence animation export and manifest matching original behavior, without adding GIF or MP4 encoding.
 - Pagination, repeated headers, overflow handling, and accessible export dialogs.
 - Golden-image, structural SVG, and PDF content tests using representative fixtures.
 
@@ -274,6 +289,7 @@ Acceptance criteria:
 - Static exports match the current immutable revision and remain authoritative when animation exists.
 - Export works offline for locally available data and never mutates the Play.
 - Dense beta fixtures paginate without clipped diagrams or coaching text.
+- Every original Export-menu action has a parity fixture and produces an equivalent or corrected output.
 
 ### Phase 10 — PWA lifecycle, offline UX, and device hardening
 
@@ -332,6 +348,7 @@ Deliverables:
 - Physical-device test evidence for a ninth-generation iPad and a five-year-old laptop.
 - Beta support, feedback, incident, data export, account deletion, and rollback procedures.
 - Explicit release checklist and production promotion record.
+- Completed feature, visual, interaction, shortcut, gesture, data-migration, and output parity matrix with evidence links.
 
 Dependencies: all preceding phases.
 
@@ -341,6 +358,7 @@ Acceptance criteria:
 
 - All ADR 0021 release gates pass with recorded evidence and no unresolved severity-one durability, privacy, accessibility, or data-loss defect.
 - A Coach can complete the full critical journey under normal, offline, and reconnect conditions.
+- No original capability is missing, materially relocated, or materially restyled without an explicit approved exception.
 - Production promotion is approved explicitly; deployment is not implied by completing this plan.
 
 ### Phase 13 — Ship and archive planning artifacts
@@ -367,16 +385,17 @@ Acceptance criteria:
 - Hosted film upload, transcoding, streaming, downloads, or offline film.
 - Public galleries, discovery, marketplace, and recipient accounts.
 - End-to-end encrypted cloud content.
-- GIF, MP4, and frame-sequence animation exports.
-- Quizzes, presentation slides, and automated play recommendations.
+- GIF and MP4 encoding; the original frame-sequence export remains in scope.
+- Automated play recommendations. Original quiz and presentation-slide outputs remain in scope.
+- Any unapproved redesign, feature reduction, workflow consolidation, or removal of an original mode, control, or output.
 - Native iOS/Android apps; the installable web app is the beta client.
 - SQL/PostgreSQL, Supabase, Dexie Cloud, CRDTs, and an external search service.
 
 ## 6. Immediate next steps
 
-1. Review `Chalk Beta Design Prototype.html` and record the accepted visual direction before production scaffolding.
-2. Treat Phase 1 as the first major implementation ticket only after the design direction is accepted.
-3. Land one vertical tracer bullet through Phases 1–3: create, edit, commit, close, reopen, and undo one offline Play.
-4. Measure that slice against local open/save budgets before expanding editor tools.
-5. Update `docs/chalk-beta-progress.txt` in the same change whenever a task or phase becomes complete.
-6. Split later phases into independently verifiable work items only when the preceding boundary is stable.
+1. Continue the item-level parity inventory and golden captures from the restored original; do not use the rejected alternate design as a target.
+2. Begin Phase 2 with canonical Play/Player/Path fixtures extracted from the original, then implement yard geometry and deterministic `RenderScene` output behind the current shell.
+3. Replace the shell's illustrative SVG only through tested render/domain seams while preserving its original appearance.
+4. Record only explicit product-owner-approved parity exceptions; implementation convenience is not an exception.
+5. Close each parity group end-to-end with Coach-visible tests and original-versus-production evidence.
+6. Keep `docs/chalk-beta-progress.txt` synchronized as each executable slice lands.
