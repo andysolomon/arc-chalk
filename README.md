@@ -22,7 +22,10 @@ Useful checks:
 bun run check
 bun run test:watch
 bun run check:boundaries
+bun run test:parity
 ```
+
+`bun run capture:parity` deliberately updates the canonical prototype screenshots. Use it only after confirming that the restored original is the intended source state; ordinary verification uses `bun run test:parity` and fails on visual drift.
 
 ## Workspace boundaries
 

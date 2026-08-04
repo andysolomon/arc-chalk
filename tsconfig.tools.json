@@ -3,7 +3,7 @@
   "compilerOptions": {
     "composite": true,
     "noEmit": true,
-    "types": ["node", "vitest/globals"]
+    "types": ["bun", "node", "vitest/globals"]
   },
   "include": [
     "scripts/**/*.ts",
