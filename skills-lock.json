@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "skills": {
+    "arc-conventional-commits": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "skillPath": "arc-conventional-commits/SKILL.md",
+      "computedHash": "dcf5be9370020dc058da29e8f44c26cd3e6d0b14860de154be784b084f7bd18c"
+    },
+    "arc-creating-user-stories": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "skillPath": "arc-creating-user-stories/SKILL.md",
+      "computedHash": "8b99ba7cd85914a65ee73a21a3536827097063536491406a11d4eece33906f6e"
+    },
+    "arc-defining-work": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "skillPath": "arc-defining-work/SKILL.md",
+      "computedHash": "b5147fa0f7d4fd398bf76fe14dd388d289d173eca1bcc095d39784abcc15143d"
+    },
+    "arc-git-pr-check": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "skillPath": "arc-git-pr-check/SKILL.md",
+      "computedHash": "dca14a5e64e6ab26fc6a77adbe0bf67228e9b52ac4b9a9aace69351c1b874b5a"
+    },
+    "arc-implementation-plan-progress": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "skillPath": "arc-implementation-plan-progress/SKILL.md",
+      "computedHash": "14d2ee138ac83cc50e45683ba8296f768b5cea8ba73ca52478c9956fbb0f98aa"
+    },
+    "arc-parallel-implement": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "skillPath": "arc-parallel-implement/SKILL.md",
+      "computedHash": "46f3734511b6d0c74101c446cadd3ab45b7490da5885db60fa389fc90831df6d"
+    },
+    "arc-planning-work": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "skillPath": "arc-planning-work/SKILL.md",
+      "computedHash": "538fabb83d8cb2cb0eeb4f0a9307d10e6a4ebd929fb4d804480c9a8bdf26718e"
+    },
+    "arc-prd-to-issues": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "skillPath": "arc-prd-to-issues/SKILL.md",
+      "computedHash": "eb1f07b90db2c39afc183bf8b40bce81038ff8c5fbddda20a5d8328916316814"
+    },
+    "arc-work-issue": {
+      "source": "andysolomon/arc-skills",
+      "sourceType": "github",
+      "skillPath": "arc-work-issue/SKILL.md",
+      "computedHash": "8602e314e305e9141bfb8890b5b712198464d4f508af48041e180dbe33cd293f"
+    },
+    "codebase-design": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/codebase-design/SKILL.md",
+      "computedHash": "6d9d51d8caa01633fd00cf87089c5618c982321f942ac69f62565dc001c6b22f"
+    },
+    "domain-modeling": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/domain-modeling/SKILL.md",
+      "computedHash": "363cb0f53b0b431e7c00086ad1f823500b7e1b70b5616ee969c979f0934e9e6e"
+    },
+    "grill-me": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/grill-me/SKILL.md",
+      "computedHash": "f361db4e15e6bfd562a9282b1dccda513910a50061f9e838ce017be9c69dde3f"
+    },
+    "grill-with-docs": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
+      "computedHash": "9c460cbd94fd3c63cdef967dbdb6e66ca687103cdc380cd37834e4d10b738f78"
+    },
+    "grilling": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/grilling/SKILL.md",
+      "computedHash": "368d3dd7251247c69f3656d93dc83c8f1577792eacac2111f1e7981db2ece49b"
+    },
+    "handoff": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/handoff/SKILL.md",
+      "computedHash": "ad03e8d4ea3cbbff66420eb7ba3cc375b5cbe1821a2449b53e863256cf5b5cde"
+    },
+    "implement": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/implement/SKILL.md",
+      "computedHash": "2139cfedf24791adbc839aaab6019cff158af1e28bfead020ec6e0ce01b3e74d"
+    },
+    "research": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/research/SKILL.md",
+      "computedHash": "bd3e2c6826671d82c86ed0da3dac3370ebcf63b0fe847f91bb444e1fb7dac21b"
+    },
+    "to-spec": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/to-spec/SKILL.md",
+      "computedHash": "0f544cd0c099c06f0dd0b7b9ee98b4237218e7e95fd3d3c02e791efbaf74bacb"
+    },
+    "to-tickets": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/to-tickets/SKILL.md",
+      "computedHash": "0349eee265e7005e667b4543de849672106c46d545e998f37d3319300bb07751"
+    },
+    "triage": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/triage/SKILL.md",
+      "computedHash": "7c923b6a677cfe689500721f08307e2a4c46797ff169dc55ef6c34a431a0d533"
+    },
+    "wayfinder": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/wayfinder/SKILL.md",
+      "computedHash": "c9e18cefd77b6b5b0ee35f59ce2fd96359aa2d2f02e3479e12c873c5402d9d43"
+    }
+  }
+}
