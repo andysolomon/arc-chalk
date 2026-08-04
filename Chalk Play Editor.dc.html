@@ -1216,7 +1216,7 @@ class Component extends DCLogic {
     editScope:'play', pickIds:[], libOpen:{}, libHover:null, libVar:null, libVarDraft:'', libNote:null, libReport:null,
     animT:0, animPlay:false, animRate:1, tDraft:{},
     hist:[], histOpen:false, recovered:null, saveMenu:null, snapDraft:'', ctxMenu:null, ptrType:'mouse', clearMenu:false,
-    navGuard:null, fresh:false };
+    navGuard:null, fresh:false, saveError:null };
   past = []; future = []; editStart = null;
   // ---------- product identity ----------
   // Renaming the product is a one-constant change: header, exports, print footers and
@@ -1382,7 +1382,15 @@ class Component extends DCLogic {
       if(label) this.snapshot(label);
     });
   }
-  autosave(){ this.setDocTitle(); try{ localStorage.setItem(this.K('current.v1'), JSON.stringify({doc:this.state.doc, playName:this.state.playName, cat:this.state.cat, curPlayId:this.state.curPlayId, fresh:this.state.fresh, cam:this.state.cam})); }catch(e){} }
+  autosave(){
+    this.setDocTitle();
+    const ok=this.persist('current.v1', {doc:this.state.doc, playName:this.state.playName, cat:this.state.cat,
+      curPlayId:this.state.curPlayId, fresh:this.state.fresh, cam:this.state.cam});
+    // autosave may squeeze in where a full library write cannot — it must be able to raise
+    // the alarm but never to clear one, or a failed Save would look resolved a moment later
+    if(!ok && !this.state.saveError) this.setState({saveError:'full'});
+    return ok;
+  }
   // ---------- version history ----------
   // The undo stack dies with the tab. This is the copy that does not: a per-play ring of
   // 20 states, written on a timer and on every action worth a name.
@@ -4135,9 +4143,26 @@ class Component extends DCLogic {
   // A playbook is not a flat list: it is a handful of concepts, each run from several
   // formations. A record with no parentId is the concept; its children are variations, and a
   // variation is named by what distinguishes it — the formation, or the situation.
+  // localStorage is the only durable store this app has. A write that fails and is reported
+  // as a save is worse than no save at all — the coach closes the tab believing the work is
+  // safe. Every durable write goes through persist() and every caller is told whether it landed.
+  persist(key, val){
+    const put=()=>{ localStorage.setItem(this.K(key), JSON.stringify(val)); return true; };
+    try{ return put(); }catch(e){}
+    // Out of room. History is the cheapest thing to give up — it exists to protect the
+    // library, so it goes first rather than the library going unsaved.
+    const h=this.loadHistory(), lean={};
+    Object.keys(h).forEach(k=>{ const a=h[k]||[]; lean[k]=a.slice(0, Math.max(1, Math.ceil(a.length/2))); });
+    try{ localStorage.setItem(this.K('history.v1'), JSON.stringify(lean)); }catch(e2){}
+    try{ return put(); }catch(e3){ return false; }
+  }
+  // extra may be an object, or a function of whether the write landed
   writeLib(list, extra, done){
-    this.setState(Object.assign({saved:list}, extra||{}), done);
-    try{ localStorage.setItem(this.K('plays.v1'), JSON.stringify(list)); }catch(e){}
+    const ok=this.persist('plays.v1', list);
+    const add=(typeof extra==='function') ? extra(ok) : (extra||{});
+    this.setState(Object.assign({saved:list, saveError:ok?null:'full'}, add), done);
+    if(!ok) this.flashToast('Not saved', '— this browser’s storage is full. Export the play to keep it.');
+    return ok;
   }
   pushLibHistory(){
     this.past.push({__lib:this.clone(this.state.saved)});
@@ -4335,9 +4360,15 @@ class Component extends DCLogic {
       }
     }
     this.pushLibHistory();
-    this.writeLib(list, {playName:rec.name, savedFlash:true, dirty:false, fresh:false, curPlayId:rec.id},
-      ()=>{ this.autosave(); this.snapshot('Saved'); });
-    clearTimeout(this.sfT); this.sfT=setTimeout(()=>this.setState({savedFlash:false}),1400);
+    // the play stays dirty and unflashed unless the write actually landed
+    const ok=this.writeLib(list, o=>o
+      ? {playName:rec.name, savedFlash:true, dirty:false, fresh:false, curPlayId:rec.id}
+      : {playName:rec.name, curPlayId:rec.id},
+      ()=>{ this.autosave(); });
+    if(ok){
+      this.snapshot('Saved');
+      clearTimeout(this.sfT); this.sfT=setTimeout(()=>this.setState({savedFlash:false}),1400);
+    }
   }
   // ⌘S on a play that does not exist yet has one meaning. On one that does, it has three.
   saveKey(){
@@ -4373,9 +4404,10 @@ class Component extends DCLogic {
       cat:st.cat, doc:this.clone(st.doc), at:Date.now() };
     list.splice(list.map(p=>p.id).indexOf(cid)+1, 0, rec);
     this.pushLibHistory();
-    this.writeLib(list, {playName:rec.name, curPlayId:rec.id, dirty:false, fresh:false, savedFlash:true, libVar:null, libVarDraft:''});
+    const ok=this.writeLib(list, o=>Object.assign({playName:rec.name, curPlayId:rec.id, libVar:null, libVarDraft:''},
+      o ? {dirty:false, fresh:false, savedFlash:true} : {}));
     this.expandFamily(cid);
-    clearTimeout(this.sfT); this.sfT=setTimeout(()=>this.setState({savedFlash:false}),1400);
+    if(ok){ clearTimeout(this.sfT); this.sfT=setTimeout(()=>this.setState({savedFlash:false}),1400); }
     this.autosave();
   }
   saveVariant(){ this.startVariation(); }
@@ -5109,9 +5141,18 @@ class Component extends DCLogic {
     const emitLine=(d,col,dash,mk)=>{ s+='<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="'+rw+'" stroke-linecap="round" stroke-linejoin="round"'+(dash?' stroke-dasharray="'+dash+'"':'')+(mk||'')+'/>'; };
     doc.routes.forEach(r=>{
       const col=this.COL[r.color]||'#171717';
-      const mk=r.endMarker&&r.endMarker!=='none' ? ' marker-end="url(#mk-'+r.endMarker+'-'+(this.COL[r.color]?r.color:'k')+')"' : '';
+      let mk=r.endMarker&&r.endMarker!=='none' ? ' marker-end="url(#mk-'+r.endMarker+'-'+(this.COL[r.color]?r.color:'k')+')"' : '';
       const n=r.points.length;
       if(r.__op) s+='<g opacity="'+r.__op+'">';
+      // A coverage area is the whole point of a zone defender — it belongs on paper as much
+      // as on screen. Emitted before the lines so it sits underneath them, as on the canvas.
+      const zn=this.zoneOf(r);
+      if(zn && zn.sized){
+        const zc=r.points[n-1], zcol=this.tp().flat ? '#171717' : zn.col;
+        mk='';  // the ellipse replaces the bubble marker, exactly as buildCanvas does
+        s+='<ellipse cx="'+zc.x+'" cy="'+zc.y+'" rx="'+zn.rx+'" ry="'+zn.ry+'" fill="'+zcol+'" opacity="0.26"/>';
+        s+='<ellipse cx="'+zc.x+'" cy="'+zc.y+'" rx="'+zn.rx+'" ry="'+zn.ry+'" fill="none" stroke="'+zcol+'" stroke-width="1.9" stroke-dasharray="5 4"/>';
+      }
       if(this.hasSegStyles(r)||this.hasNodeEnds(r)){ const ck=this.COL[r.color]?r.color:'k';
         for(let i=1;i<n;i++){ const em=r.points[i].em; const ls=r.points[i].ls||r.lineStyle;
           emitLine(this.segLinePath(r.points,i,ls), col, this.DASH[ls], i===n-1?mk:(em?' marker-end="url(#mk-'+em+'-'+ck+')"':'')); } }
@@ -6203,8 +6244,8 @@ class Component extends DCLogic {
         else if(e.key==='Escape'){ e.preventDefault(); this.setState({saveMenu:null, snapDraft:''}); } },
       onSnapCommit:()=>this.commitSnapshot(),
       onSnapCancel:()=>this.setState({saveMenu:null, snapDraft:''}),
-      saveLabel:st.savedFlash?'Saved':'Save',
-      saveBg:st.savedFlash?'#398E4A':'#171717',
+      saveLabel:st.saveError?'Not saved':(st.savedFlash?'Saved':'Save'),
+      saveBg:st.saveError?'#E5484D':(st.savedFlash?'#398E4A':'#171717'),
       statusHint:this.statusHint(),
       showBar:st.view==='edit' && this.animatable(),
       canAnimate:this.animatable(),
@@ -6248,8 +6289,8 @@ class Component extends DCLogic {
       onFit:()=>this.fitField(),
       onZoomSel:()=>this.zoomToSel(),
       onCenterBall:()=>this.centerBall(),
-      saveState:st.dirty?'unsaved':'saved',
-      saveStateFg:st.dirty?'#C2540A':'#8F8F8F',
+      saveState:st.saveError?'not saved — storage full':(st.dirty?'unsaved':'saved'),
+      saveStateFg:st.saveError?'#E5484D':(st.dirty?'#C2540A':'#8F8F8F'),
       showIdle:selLen===0,
       showMulti:selLen>1,
       msSummary:parts.join(' · ')+' selected',
@@ -6511,8 +6552,8 @@ class Component extends DCLogic {
       formations, libTree, scopeSegs, pickRows, scopeHint,
       pickOn:(st.editScope||'play')==='pick',
       scopeOn:scopeLive, scopeTag:'CONCEPT',
-      libSaveLabel:st.savedFlash?'Saved':'Save',
-      libSaveFg:st.savedFlash?'#398E4A':'#4D4D4D',
+      libSaveLabel:st.saveError?'Not saved':(st.savedFlash?'Saved':'Save'),
+      libSaveFg:st.saveError?'#E5484D':(st.savedFlash?'#398E4A':'#4D4D4D'),
       onNewVariation:()=>this.startVariation(),
       hasLibReport:!!st.libReport, libReportText:st.libReport||'',
       varInputOn:!!st.libVar, varDraft:st.libVarDraft||'',
