@@ -1,6 +1,6 @@
 chalk-beta - Chalk Production Beta - Progress
 Generated: 2026-08-04 16:50:45 EDT
-Updated: 2026-08-04 19:39:00 EDT
+Updated: 2026-08-04 19:42:00 EDT
 On completion, move this file and the plan to docs/archive/.
 
 [ ] 0.0 - Phase 0 - Canonical prototype inventory and parity lock
@@ -79,6 +79,7 @@ On completion, move this file and the plan to docs/archive/.
     [ ] 11.5 - Run and document a timed restore drill against the 24-hour RPO and four-hour RTO
     [x] 11.6 - Configure local main, Conventional Commits, private-package semantic-release, and a non-publishing dry run
     [ ] 11.7 - Establish remote main, Bun-based PR and merge gates, protected-branch rules, and CI-driven GitHub releases
+        Blocked: remote main, default-branch migration, workflows, and v1.0.0 are complete, but GitHub rejected both branch protection and repository rulesets for this private personal repository until the account has GitHub Pro or the repository is made public.
 [ ] 12.0 - Phase 12 - Beta validation and controlled release
     [ ] 12.1 - Pass end-to-end critical journeys across normal, offline, reconnect, conflict, sharing, and recovery states
     [ ] 12.2 - Pass automated and manual accessibility, keyboard, screen-reader, touch, and Pencil gates
