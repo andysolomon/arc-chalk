@@ -7,3 +7,6 @@
 # Local tooling artifacts
 .playwright-cli/
 .thumbnail
+
+# Redundant re-extraction of the source archive (identical to the repo root copy)
+Chalk Football Play Editor-2/
