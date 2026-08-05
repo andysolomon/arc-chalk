@@ -71,6 +71,22 @@ export function mirrorPlayGeometry(play: PlayDocument): PlayDocument {
     labels: play.labels.map((label) => ({
       ...label,
       position: mirrorCoordinate(label.position),
+      ...(label.leader
+        ? {
+            leader: {
+              ...label.leader,
+              endpoint: mirrorCoordinate(label.leader.endpoint),
+            },
+          }
+        : {}),
+      ...(label.binding
+        ? {
+            binding: {
+              ...label.binding,
+              offset: mirrorCoordinate(label.binding.offset),
+            },
+          }
+        : {}),
     })),
   };
 }

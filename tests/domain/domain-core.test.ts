@@ -20,6 +20,7 @@ import {
 } from "@chalk/domain";
 import {
   footballPathPrimitivePlay,
+  playerLabelPrimitivePlay,
   stickThunderPlay,
 } from "@chalk/test-fixtures";
 import fc from "fast-check";
@@ -172,6 +173,117 @@ describe("canonical Play documents", () => {
     expect(migrated.paths[1]?.variant).toBeUndefined();
     expect(migrated.paths[2]?.variant).toBe("alternate");
   });
+
+  it("preserves the original player and annotation vocabulary", () => {
+    expect(playDocumentSchema.parse(playerLabelPrimitivePlay)).toEqual(
+      playerLabelPrimitivePlay,
+    );
+    expect(
+      playerLabelPrimitivePlay.players.map(({ symbol }) => symbol),
+    ).toEqual(["circle", "square", "oval", "triangle", "x", "none"]);
+    expect(playerLabelPrimitivePlay.players.map(({ fill }) => fill)).toEqual([
+      "none",
+      "half",
+      "solid",
+      "half",
+      "none",
+      "none",
+    ]);
+    expect(playerLabelPrimitivePlay.labels.map(({ role }) => role)).toEqual([
+      "landmark",
+      "assignment",
+      "progression",
+      "adjustment",
+      "alert",
+      "coaching",
+    ]);
+  });
+
+  it("migrates rich original players, bound labels, and leaders without loss", () => {
+    const migrated = migrateLegacyPlay({
+      id: "legacy_player_label_primitives",
+      name: "Legacy player and label primitives",
+      cat: "Pass",
+      doc: {
+        players: [
+          {
+            id: "mike",
+            x: 500,
+            y: 370,
+            symbol: "oval",
+            label: "M",
+            sub: "MIKE",
+            fill: "half",
+            color: "gr",
+            side: "def",
+            role: "middle-linebacker",
+            group: "linebackers",
+          },
+        ],
+        routes: [
+          {
+            id: "mike-drop",
+            kind: "zone",
+            playerId: "mike",
+            points: [
+              { x: 500, y: 370 },
+              { x: 520, y: 300 },
+            ],
+          },
+        ],
+        labels: [
+          {
+            id: "read",
+            x: 0,
+            y: 0,
+            text: "read 1",
+            color: "b",
+            size: 12,
+            box: "circle",
+            boxColor: "b",
+            caps: true,
+            mono: true,
+            role: "progression",
+            side: "def",
+            leader: { x: 540, y: 280, style: "dashed" },
+            bind: {
+              routeId: "mike-drop",
+              segIdx: 1,
+              t: 0.5,
+              ox: 24,
+              oy: -6,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(migrated.players[0]).toMatchObject({
+      unit: "defense",
+      symbol: "oval",
+      fill: "half",
+      color: "green",
+      role: "middle-linebacker",
+      group: "linebackers",
+    });
+    expect(migrated.labels[0]).toMatchObject({
+      box: "circle",
+      caps: true,
+      mono: true,
+      role: "progression",
+      unit: "defense",
+      leader: {
+        endpoint: { lateralYards: 10 / 3, depthYards: 12.5 },
+        line: "dashed",
+      },
+      binding: {
+        pathId: "mike-drop",
+        segmentIndex: 1,
+        progress: 0.5,
+        offset: { lateralYards: 2, depthYards: 0.5 },
+      },
+    });
+  });
 });
 
 describe("versioned Field Profiles", () => {
@@ -288,5 +400,11 @@ describe("yard-space geometry invariants", () => {
     expect(
       mirrorPlayGeometry(mirrorPlayGeometry(footballPathPrimitivePlay)),
     ).toEqual(footballPathPrimitivePlay);
+  });
+
+  it("mirrors players, bound labels, and leader endpoints twice exactly", () => {
+    expect(
+      mirrorPlayGeometry(mirrorPlayGeometry(playerLabelPrimitivePlay)),
+    ).toEqual(playerLabelPrimitivePlay);
   });
 });

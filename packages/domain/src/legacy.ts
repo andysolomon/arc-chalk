@@ -27,6 +27,9 @@ type LegacyPlayer = {
   sub?: string;
   fill?: string;
   color?: string;
+  side?: string;
+  role?: string;
+  group?: string;
 };
 type LegacyRoute = LegacyStyle & {
   id: string;
@@ -51,7 +54,17 @@ type LegacyLabel = {
   box?: string;
   boxColor?: string;
   caps?: boolean;
+  mono?: boolean;
+  role?: string;
   side?: string;
+  leader?: { x: number; y: number; style?: string };
+  bind?: {
+    routeId: string;
+    segIdx: number;
+    t?: number;
+    ox?: number;
+    oy?: number;
+  };
 };
 export interface LegacyPlay {
   id: string;
@@ -76,6 +89,43 @@ const colors: Record<string, Color> = {
   g: "gray",
 };
 const color = (value = "k") => colors[value] ?? "ink";
+const playerSymbol = (value = "circle") => {
+  switch (value) {
+    case "square":
+    case "oval":
+    case "triangle":
+    case "x":
+    case "none":
+      return value;
+    default:
+      return "circle";
+  }
+};
+const playerFill = (value = "none") =>
+  value === "half" || value === "solid" ? value : "none";
+const labelBox = (value = "none") => {
+  switch (value) {
+    case "outline":
+    case "fill":
+    case "circle":
+      return value;
+    default:
+      return "none";
+  }
+};
+const labelRole = (value?: string) => {
+  switch (value) {
+    case "landmark":
+    case "assignment":
+    case "progression":
+    case "adjustment":
+    case "alert":
+    case "coaching":
+      return value;
+    default:
+      return undefined;
+  }
+};
 const line = (value = "solid"): PathLine =>
   value === "dashed" || value === "dotted" || value === "zigzag"
     ? value
@@ -157,13 +207,15 @@ export function migrateLegacyPlay(legacy: LegacyPlay): PlayDocument {
     fieldProfile: highSchoolFieldProfile,
     players: legacy.doc.players.map((player) => ({
       id: player.id,
-      unit: unitFor(legacy.cat),
+      unit: player.side === "def" ? "defense" : unitFor(legacy.cat),
       position: legacyCanvasToYards(player),
-      symbol: player.symbol ?? "circle",
+      symbol: playerSymbol(player.symbol),
       label: player.label ?? "",
       sublabel: player.sub ?? "",
-      fill: player.fill ?? "none",
+      fill: playerFill(player.fill),
       color: color(player.color),
+      ...(player.role === undefined ? {} : { role: player.role }),
+      ...(player.group === undefined ? {} : { group: player.group }),
     })),
     paths: legacy.doc.routes.map((route, routeIndex) => ({
       id: route.id,
@@ -212,16 +264,42 @@ export function migrateLegacyPlay(legacy: LegacyPlay): PlayDocument {
           }
         : {}),
     })),
-    labels: legacy.doc.labels.map((label) => ({
-      id: label.id,
-      position: legacyCanvasToYards(label),
-      text: label.text,
-      color: color(label.color),
-      size: label.size ?? 11,
-      box: label.box ?? "none",
-      boxColor: color(label.boxColor ?? "y"),
-      ...(label.caps === undefined ? {} : { caps: label.caps }),
-      ...(label.side === "def" ? { unit: "defense" } : {}),
-    })),
+    labels: legacy.doc.labels.map((label) => {
+      const role = labelRole(label.role);
+      return {
+        id: label.id,
+        position: legacyCanvasToYards(label),
+        text: label.text,
+        color: color(label.color),
+        size: label.size ?? 11,
+        box: labelBox(label.box),
+        boxColor: color(label.boxColor ?? "y"),
+        ...(label.caps === undefined ? {} : { caps: label.caps }),
+        ...(label.mono === undefined ? {} : { mono: label.mono }),
+        ...(role === undefined ? {} : { role }),
+        ...(label.side === "def" ? { unit: "defense" } : {}),
+        ...(label.leader === undefined
+          ? {}
+          : {
+              leader: {
+                endpoint: legacyCanvasToYards(label.leader),
+                line: label.leader.style === "dashed" ? "dashed" : "solid",
+              },
+            }),
+        ...(label.bind === undefined
+          ? {}
+          : {
+              binding: {
+                pathId: label.bind.routeId,
+                segmentIndex: label.bind.segIdx,
+                progress: label.bind.t ?? 0.5,
+                offset: {
+                  lateralYards: (label.bind.ox ?? 0) / 12,
+                  depthYards: -(label.bind.oy ?? 0) / 12,
+                },
+              },
+            }),
+      };
+    }),
   });
 }

@@ -1,4 +1,7 @@
-import { footballPathPrimitivePlay } from "@chalk/test-fixtures";
+import {
+  footballPathPrimitivePlay,
+  playerLabelPrimitivePlay,
+} from "@chalk/test-fixtures";
 import { buildRenderScene, buildSvgRenderScene } from "@chalk/render";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -76,5 +79,40 @@ describe("Chalk application shell", () => {
     expect(
       container.querySelector('[data-scene-path="path-zone"]'),
     ).not.toHaveAttribute("marker-end");
+  });
+
+  it("renders accessible player and label primitives from prepared SVG data", () => {
+    const scene = buildSvgRenderScene(
+      buildRenderScene(playerLabelPrimitivePlay),
+    );
+    const { container } = render(<FieldDiagram scene={scene} />);
+
+    expect(
+      screen.getByRole("img", {
+        name: "Player and label primitive coverage football play",
+      }),
+    ).toBeVisible();
+    expect(screen.getByRole("img", { name: "M defense player" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "progression: 1" })).toBeVisible();
+    expect(container.querySelectorAll("[data-scene-player]")).toHaveLength(6);
+    expect(container.querySelectorAll("[data-scene-label]")).toHaveLength(6);
+    expect(
+      container.querySelector("[data-scene-player='player-oval'] ellipse"),
+    ).toBeTruthy();
+    expect(
+      container.querySelector("[data-scene-player='player-triangle'] path"),
+    ).toBeTruthy();
+    expect(
+      container.querySelector("[data-scene-player='player-x'] path"),
+    ).toBeTruthy();
+    expect(
+      container.querySelector("[data-scene-player='player-letter'] > circle"),
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-label-role='progression'] > circle"),
+    ).toBeTruthy();
+    expect(
+      container.querySelector("[data-label-leader='label-alert']"),
+    ).toHaveAttribute("stroke-dasharray", "4 3");
   });
 });
