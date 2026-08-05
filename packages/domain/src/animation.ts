@@ -1,4 +1,4 @@
-import { pathLength, pointAtDistance } from "./geometry";
+import { buildPathGeometry, pointAtGeometryDistance } from "./geometry";
 import type { Coordinate, MovementPath } from "./schema";
 
 export interface MovementFrame {
@@ -9,13 +9,25 @@ export interface MovementFrame {
   readonly durationMs: number;
 }
 
+function durationForLength(
+  path: MovementPath,
+  lengthYards: number,
+  baseSpeedYardsPerSecond: number,
+): number {
+  if (path.timing?.durationMs !== undefined) return path.timing.durationMs;
+  const speed = baseSpeedYardsPerSecond * (path.timing?.speedMultiplier ?? 1);
+  return Math.max(1, Math.round((lengthYards / speed) * 1000));
+}
+
 export function movementDurationMs(
   path: MovementPath,
   baseSpeedYardsPerSecond = 8,
 ): number {
-  if (path.timing?.durationMs !== undefined) return path.timing.durationMs;
-  const speed = baseSpeedYardsPerSecond * (path.timing?.speedMultiplier ?? 1);
-  return Math.max(1, Math.round((pathLength(path) / speed) * 1000));
+  return durationForLength(
+    path,
+    buildPathGeometry(path).lengthYards,
+    baseSpeedYardsPerSecond,
+  );
 }
 
 export function evaluateMovement(
@@ -27,10 +39,18 @@ export function evaluateMovement(
     throw new TypeError("Animation time must use integer milliseconds.");
   const delayMs = path.timing?.delayMs ?? 0;
   const holdMs = path.timing?.holdMs ?? 0;
-  const durationMs = movementDurationMs(path, baseSpeedYardsPerSecond);
+  const geometry = buildPathGeometry(path);
+  const durationMs = durationForLength(
+    path,
+    geometry.lengthYards,
+    baseSpeedYardsPerSecond,
+  );
   const movingMs = Math.max(0, Math.min(durationMs, atMs - delayMs));
   const progress = movingMs / durationMs;
-  const position = pointAtDistance(path, pathLength(path) * progress);
+  const position = pointAtGeometryDistance(
+    geometry,
+    geometry.lengthYards * progress,
+  );
   const endMs = delayMs + durationMs;
   const phase =
     atMs < delayMs

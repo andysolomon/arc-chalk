@@ -1,4 +1,11 @@
-import type { Coordinate, FieldProfile } from "@chalk/domain";
+import type {
+  Color,
+  Coordinate,
+  FieldProfile,
+  PathLine,
+  PathPoint,
+  PathStyle,
+} from "@chalk/domain";
 
 import type { RenderScene, ScenePath } from "./index";
 
@@ -45,19 +52,17 @@ function pointCommand(point: SvgPoint): string {
   return `${formatNumber(point.x)} ${formatNumber(point.y)}`;
 }
 
-function pathData(
-  points: ScenePath["points"],
+function standardPathData(
+  points: readonly PathPoint[],
   viewport: SvgViewport,
-  start?: Coordinate,
 ): string {
-  const first = start ?? points[0];
+  const first = points[0];
   if (!first) throw new RangeError("Cannot project an empty movement path.");
 
   const startPoint = projectCoordinate(first, viewport);
-  const firstPointIndex = start ? 0 : 1;
   let data = `M ${pointCommand(startPoint)}`;
 
-  for (let index = firstPointIndex; index < points.length; index += 1) {
+  for (let index = 1; index < points.length; index += 1) {
     const point = points[index]!;
     const projected = projectCoordinate(point, viewport);
     data += point.control
@@ -68,6 +73,52 @@ function pathData(
   return data;
 }
 
+function zigzagPathData(
+  points: readonly PathPoint[],
+  viewport: SvgViewport,
+): string {
+  const first = points[0];
+  if (!first) throw new RangeError("Cannot project an empty movement path.");
+
+  const projected = points.map((point) => projectCoordinate(point, viewport));
+  let data = `M ${pointCommand(projected[0]!)}`;
+  for (let index = 1; index < projected.length; index += 1) {
+    const start = projected[index - 1]!;
+    const end = projected[index]!;
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    if (length < 1) continue;
+
+    const samples = Math.min(4096, Math.max(2, Math.round(length / 11)));
+    const unitX = (end.x - start.x) / length;
+    const unitY = (end.y - start.y) / length;
+    const perpendicularX = -unitY;
+    const perpendicularY = unitX;
+    for (let sample = 1; sample <= samples; sample += 1) {
+      const progress = sample / samples;
+      const offset = sample === samples ? 0 : sample % 2 === 1 ? 4.5 : -4.5;
+      data += ` L ${pointCommand({
+        x: Math.round(
+          start.x + unitX * length * progress + perpendicularX * offset,
+        ),
+        y: Math.round(
+          start.y + unitY * length * progress + perpendicularY * offset,
+        ),
+      })}`;
+    }
+  }
+  return data;
+}
+
+function pathData(
+  points: readonly PathPoint[],
+  line: PathLine,
+  viewport: SvgViewport,
+): string {
+  return line === "zigzag"
+    ? zigzagPathData(points, viewport)
+    : standardPathData(points, viewport);
+}
+
 export interface SvgTick {
   readonly x1: number;
   readonly y1: number;
@@ -76,7 +127,7 @@ export interface SvgTick {
 }
 
 function buildTicks(
-  points: ScenePath["points"],
+  points: readonly PathPoint[],
   viewport: SvgViewport,
 ): readonly SvgTick[] {
   return points.flatMap((point, index) => {
@@ -101,14 +152,76 @@ function buildTicks(
 
 export interface SvgScenePath {
   readonly id: string;
-  readonly d: string;
-  readonly style: ScenePath["style"];
-  readonly ticks: readonly SvgTick[];
+  readonly kind: ScenePath["kind"];
+  readonly variant?: ScenePath["variant"];
+  readonly strokes: readonly SvgPathStroke[];
+  readonly ticks: readonly (SvgTick & { readonly color: Color })[];
+  readonly coverageArea?: SvgCoverageArea;
   readonly branches: readonly {
     readonly id: string;
-    readonly d: string;
-    readonly style: ScenePath["branches"][number]["style"];
+    readonly strokes: readonly SvgPathStroke[];
+    readonly ticks: readonly (SvgTick & { readonly color: Color })[];
   }[];
+}
+
+export interface SvgPathStroke {
+  readonly id: string;
+  readonly d: string;
+  readonly style: PathStyle;
+}
+
+export interface SvgCoverageArea {
+  readonly id: string;
+  readonly type: NonNullable<ScenePath["coverageArea"]>["type"];
+  readonly center: SvgPoint;
+  readonly radiusX: number;
+  readonly radiusY: number;
+  readonly fill: string;
+}
+
+const coverageFills: Record<SvgCoverageArea["type"], string> = {
+  deep: "#1D3FD8",
+  curl: "#8B3FE0",
+  hook: "#7C8C1E",
+  flat: "#00909B",
+  spy: "#9A5A16",
+};
+
+function hasSegmentOverrides(points: readonly PathPoint[]): boolean {
+  return points.some(
+    (point, index) =>
+      index > 0 &&
+      (point.segmentStyle?.line !== undefined ||
+        point.segmentStyle?.ending !== undefined),
+  );
+}
+
+function buildPathStrokes(
+  id: string,
+  points: readonly PathPoint[],
+  style: PathStyle,
+  viewport: SvgViewport,
+): readonly SvgPathStroke[] {
+  if (points.length < 2)
+    throw new RangeError(`Movement path ${id} needs at least two points.`);
+
+  if (!hasSegmentOverrides(points)) {
+    return [{ id, d: pathData(points, style.line, viewport), style }];
+  }
+
+  return points.slice(1).map((point, segmentIndex) => {
+    const isLast = segmentIndex === points.length - 2;
+    const line = point.segmentStyle?.line ?? style.line;
+    return {
+      id: `${id}-segment-${segmentIndex + 1}`,
+      d: pathData([points[segmentIndex]!, point], line, viewport),
+      style: {
+        line,
+        ending: isLast ? style.ending : (point.segmentStyle?.ending ?? "none"),
+        color: style.color,
+      },
+    };
+  });
 }
 
 export interface SvgLine {
@@ -270,26 +383,68 @@ export function buildSvgRenderScene(
       ...player,
       position: projectCoordinate(player.position, viewport),
     })),
-    paths: scene.paths.map((path) => ({
-      id: path.id,
-      d: pathData(path.points, viewport),
-      style: path.style,
-      ticks: buildTicks(path.points, viewport),
-      branches: path.branches.map((branch, index) => {
-        const branchStart = path.points[branch.fromIndex];
-        if (!branchStart) {
-          throw new RangeError(
-            `Movement path ${path.id} branch ${index} has no start point.`,
-          );
-        }
+    paths: scene.paths.map((path) => {
+      const endpoint = path.points.at(-1);
+      const coverageArea =
+        path.kind === "zone" &&
+        path.style.ending === "bubble" &&
+        path.coverageArea &&
+        endpoint
+          ? {
+              id: `${path.id}-coverage`,
+              type: path.coverageArea.type,
+              center: projectCoordinate(endpoint, viewport),
+              radiusX:
+                path.coverageArea.radiusLateralYards * viewport.pixelsPerYard,
+              radiusY:
+                path.coverageArea.radiusDepthYards * viewport.pixelsPerYard,
+              fill: coverageFills[path.coverageArea.type],
+            }
+          : undefined;
+      const strokes = buildPathStrokes(
+        path.id,
+        path.points,
+        path.style,
+        viewport,
+      ).map((stroke, index, all) =>
+        coverageArea &&
+        index === all.length - 1 &&
+        stroke.style.ending === "bubble"
+          ? { ...stroke, style: { ...stroke.style, ending: "none" as const } }
+          : stroke,
+      );
 
-        return {
-          id: `${path.id}-branch-${index}`,
-          d: pathData(branch.points, viewport, branchStart),
-          style: branch.style,
-        };
-      }),
-    })),
+      return {
+        id: path.id,
+        kind: path.kind,
+        ...(path.variant === undefined ? {} : { variant: path.variant }),
+        strokes,
+        ticks: buildTicks(path.points, viewport).map((tick) => ({
+          ...tick,
+          color: path.style.color,
+        })),
+        ...(coverageArea === undefined ? {} : { coverageArea }),
+        branches: path.branches.map((branch, index) => {
+          const branchStart = path.points[branch.fromIndex];
+          if (!branchStart) {
+            throw new RangeError(
+              `Movement path ${path.id} branch ${index} has no start point.`,
+            );
+          }
+
+          const id = `${path.id}-branch-${index}`;
+          const points = [branchStart, ...branch.points];
+          return {
+            id,
+            strokes: buildPathStrokes(id, points, branch.style, viewport),
+            ticks: buildTicks(points, viewport).map((tick) => ({
+              ...tick,
+              color: branch.style.color,
+            })),
+          };
+        }),
+      };
+    }),
     labels: scene.labels.map((label) => ({
       ...label,
       position: projectCoordinate(label.position, viewport),

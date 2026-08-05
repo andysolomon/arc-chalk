@@ -19,7 +19,14 @@ export interface ScenePlayer extends Pick<
 
 export type ScenePath = Pick<
   MovementPath,
-  "id" | "kind" | "playerId" | "points" | "branches" | "style"
+  | "id"
+  | "kind"
+  | "playerId"
+  | "points"
+  | "branches"
+  | "style"
+  | "variant"
+  | "coverageArea"
 >;
 
 export type SceneLabel = Pick<
@@ -69,13 +76,24 @@ export function buildRenderScene(
       }),
     ),
     paths: play.paths.map(
-      ({ id, kind, playerId, points, branches, style }) => ({
+      ({
         id,
         kind,
         playerId,
         points,
         branches,
         style,
+        variant,
+        coverageArea,
+      }) => ({
+        id,
+        kind,
+        playerId,
+        points,
+        branches,
+        style,
+        ...(variant === undefined ? {} : { variant }),
+        ...(coverageArea === undefined ? {} : { coverageArea }),
       }),
     ),
     labels: play.labels.map(

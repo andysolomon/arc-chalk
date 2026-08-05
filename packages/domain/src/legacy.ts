@@ -1,6 +1,12 @@
 import { legacyCanvasToYards } from "./geometry";
 import { highSchoolFieldProfile } from "./field-profile";
-import { playDocumentSchema, type PlayDocument } from "./schema";
+import {
+  playDocumentSchema,
+  type Color,
+  type PathEnding,
+  type PathLine,
+  type PlayDocument,
+} from "./schema";
 
 type LegacyPoint = {
   x: number;
@@ -8,6 +14,8 @@ type LegacyPoint = {
   cx?: number;
   cy?: number;
   tick?: boolean;
+  ls?: string;
+  em?: string;
 };
 type LegacyStyle = { lineStyle?: string; endMarker?: string; color?: string };
 type LegacyPlayer = {
@@ -26,6 +34,7 @@ type LegacyRoute = LegacyStyle & {
   playerId: string;
   points: LegacyPoint[];
   branches?: Array<LegacyStyle & { fromIdx: number; points: LegacyPoint[] }>;
+  zone?: { rx: number; ry: number; t?: string };
   assignment?: string;
   rule?: string;
   delay?: number;
@@ -57,14 +66,35 @@ export interface LegacyPlay {
   };
 }
 
-const colors: Record<string, "ink" | "blue" | "red" | "green" | "yellow"> = {
+const colors: Record<string, Color> = {
   k: "ink",
   b: "blue",
   r: "red",
-  g: "green",
   y: "yellow",
+  gr: "green",
+  o: "orange",
+  g: "gray",
 };
 const color = (value = "k") => colors[value] ?? "ink";
+const line = (value = "solid"): PathLine =>
+  value === "dashed" || value === "dotted" || value === "zigzag"
+    ? value
+    : "solid";
+const ending = (value = "arrow"): PathEnding => {
+  switch (value) {
+    case "bar":
+    case "dot":
+    case "none":
+    case "bubble":
+    case "hook":
+    case "chevron":
+    case "diamond":
+    case "square":
+      return value;
+    default:
+      return "arrow";
+  }
+};
 const unitFor = (category: string): "offense" | "defense" | "special-teams" =>
   category === "Defense"
     ? "defense"
@@ -77,12 +107,43 @@ const point = (value: LegacyPoint) => ({
     ? {}
     : { control: legacyCanvasToYards({ x: value.cx, y: value.cy }) }),
   ...(value.tick === undefined ? {} : { tick: value.tick }),
+  ...(value.ls === undefined && value.em === undefined
+    ? {}
+    : {
+        segmentStyle: {
+          ...(value.ls === undefined ? {} : { line: line(value.ls) }),
+          ...(value.em === undefined ? {} : { ending: ending(value.em) }),
+        },
+      }),
 });
 const style = (value: LegacyStyle) => ({
-  line: (value.lineStyle ?? "solid") as "solid",
-  ending: (value.endMarker ?? "arrow") as "arrow",
+  line: line(value.lineStyle),
+  ending: ending(value.endMarker),
   color: color(value.color),
 });
+
+function coverageType(
+  route: LegacyRoute,
+): "deep" | "curl" | "hook" | "flat" | "spy" {
+  const explicit = route.zone?.t;
+  if (
+    explicit === "deep" ||
+    explicit === "curl" ||
+    explicit === "flat" ||
+    explicit === "spy" ||
+    explicit === "hook"
+  )
+    return explicit;
+
+  const endpoint = route.points.at(-1);
+  if (!endpoint) return "hook";
+  const depthYards = legacyCanvasToYards(endpoint).depthYards;
+  const lateralPixels = Math.abs(endpoint.x - 500);
+  if ((route.zone?.rx ?? 0) >= 88 || depthYards >= 13) return "deep";
+  if (depthYards <= 2 && lateralPixels <= 70) return "spy";
+  if (lateralPixels >= 210) return "flat";
+  return depthYards >= 8 ? "curl" : "hook";
+}
 
 export function migrateLegacyPlay(legacy: LegacyPlay): PlayDocument {
   return playDocumentSchema.parse({
@@ -104,7 +165,7 @@ export function migrateLegacyPlay(legacy: LegacyPlay): PlayDocument {
       fill: player.fill ?? "none",
       color: color(player.color),
     })),
-    paths: legacy.doc.routes.map((route) => ({
+    paths: legacy.doc.routes.map((route, routeIndex) => ({
       id: route.id,
       kind: route.kind ?? "route",
       playerId: route.playerId,
@@ -115,6 +176,26 @@ export function migrateLegacyPlay(legacy: LegacyPlay): PlayDocument {
         style: style(branch),
       })),
       style: style(route),
+      ...(route.kind !== undefined && route.kind !== "route"
+        ? {}
+        : legacy.doc.routes
+              .slice(0, routeIndex)
+              .some(
+                (candidate) =>
+                  candidate.playerId === route.playerId &&
+                  (candidate.kind === undefined || candidate.kind === "route"),
+              )
+          ? { variant: "alternate" as const }
+          : {}),
+      ...(route.zone
+        ? {
+            coverageArea: {
+              type: coverageType(route),
+              radiusLateralYards: route.zone.rx / 12,
+              radiusDepthYards: route.zone.ry / 12,
+            },
+          }
+        : {}),
       ...(route.assignment ? { assignment: route.assignment } : {}),
       ...(route.rule ? { rule: route.rule } : {}),
       ...(route.delay !== undefined ||

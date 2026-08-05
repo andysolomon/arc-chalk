@@ -15,7 +15,29 @@ export const playTypeSchema = z.enum([
   "Defense",
   "Special",
 ]);
-export const colorSchema = z.enum(["ink", "blue", "red", "green", "yellow"]);
+export const colorSchema = z.enum([
+  "ink",
+  "blue",
+  "red",
+  "green",
+  "orange",
+  "gray",
+  "yellow",
+]);
+
+export const pathLineSchema = z.enum(["solid", "dashed", "dotted", "zigzag"]);
+
+export const pathEndingSchema = z.enum([
+  "arrow",
+  "bar",
+  "dot",
+  "none",
+  "bubble",
+  "hook",
+  "chevron",
+  "diamond",
+  "square",
+]);
 
 export const coordinateSchema = z.object({
   lateralYards: z.number(),
@@ -27,6 +49,12 @@ export const pathPointSchema = z.object({
   depthYards: z.number(),
   control: z.optional(coordinateSchema),
   tick: z.optional(z.boolean()),
+  segmentStyle: z.optional(
+    z.object({
+      line: z.optional(pathLineSchema),
+      ending: z.optional(pathEndingSchema),
+    }),
+  ),
 });
 
 export const playerSchema = z.object({
@@ -43,18 +71,8 @@ export const playerSchema = z.object({
 });
 
 export const pathStyleSchema = z.object({
-  line: z.enum(["solid", "dashed", "dotted", "zigzag"]),
-  ending: z.enum([
-    "arrow",
-    "bar",
-    "dot",
-    "none",
-    "bubble",
-    "hook",
-    "chevron",
-    "diamond",
-    "square",
-  ]),
+  line: pathLineSchema,
+  ending: pathEndingSchema,
   color: colorSchema,
 });
 
@@ -64,6 +82,12 @@ export const pathBranchSchema = z.object({
   style: pathStyleSchema,
 });
 
+export const coverageAreaSchema = z.object({
+  type: z.enum(["deep", "curl", "hook", "flat", "spy"]),
+  radiusLateralYards: z.number().check(z.positive()),
+  radiusDepthYards: z.number().check(z.positive()),
+});
+
 export const movementPathSchema = z.object({
   id: entityIdSchema,
   kind: z.enum(["route", "motion", "block", "zone", "blitz", "stunt", "ball"]),
@@ -71,6 +95,8 @@ export const movementPathSchema = z.object({
   points: z.array(pathPointSchema),
   branches: z.array(pathBranchSchema),
   style: pathStyleSchema,
+  variant: z.optional(z.enum(["primary", "alternate"])),
+  coverageArea: z.optional(coverageAreaSchema),
   assignment: z.optional(z.string()),
   rule: z.optional(z.string()),
   timing: z.optional(
@@ -164,7 +190,13 @@ export const playEnvelopeSchema = z.object({
 });
 
 export type Coordinate = z.infer<typeof coordinateSchema>;
+export type Color = z.infer<typeof colorSchema>;
 export type PathPoint = z.infer<typeof pathPointSchema>;
+export type PathLine = z.infer<typeof pathLineSchema>;
+export type PathEnding = z.infer<typeof pathEndingSchema>;
+export type PathStyle = z.infer<typeof pathStyleSchema>;
+export type PathBranch = z.infer<typeof pathBranchSchema>;
+export type CoverageArea = z.infer<typeof coverageAreaSchema>;
 export type Player = z.infer<typeof playerSchema>;
 export type MovementPath = z.infer<typeof movementPathSchema>;
 export type TextLabel = z.infer<typeof textLabelSchema>;

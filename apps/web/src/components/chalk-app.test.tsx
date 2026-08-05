@@ -1,8 +1,10 @@
+import { footballPathPrimitivePlay } from "@chalk/test-fixtures";
+import { buildRenderScene, buildSvgRenderScene } from "@chalk/render";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { ChalkApp } from "./chalk-app";
+import { ChalkApp, FieldDiagram } from "./chalk-app";
 
 describe("Chalk application shell", () => {
   it("preserves the original editor entry points", () => {
@@ -46,5 +48,33 @@ describe("Chalk application shell", () => {
     expect(screen.getByRole("textbox", { name: "Play name" })).toHaveValue(
       "Mesh — Alert",
     );
+  });
+
+  it("renders the complete original path vocabulary from the shared scene", () => {
+    const scene = buildSvgRenderScene(
+      buildRenderScene(footballPathPrimitivePlay),
+    );
+    const { container } = render(<FieldDiagram scene={scene} />);
+
+    expect(container.querySelectorAll("[data-scene-path]")).toHaveLength(9);
+    expect(container.querySelectorAll("[data-scene-coverage]")).toHaveLength(1);
+    expect(
+      container.querySelector('[data-scene-path="path-route-segment-1"]'),
+    ).toHaveAttribute("marker-end", "url(#chalk-diamond-ink)");
+    expect(
+      container.querySelector('[data-scene-path="path-route-segment-2"]'),
+    ).toHaveAttribute("marker-end", "url(#chalk-hook-ink)");
+    expect(
+      container.querySelector('[data-scene-path="path-route-branch-0"]'),
+    ).toHaveAttribute("marker-end", "url(#chalk-square-ink)");
+    expect(
+      container.querySelector('[data-scene-path="path-block"]'),
+    ).toHaveAttribute("marker-end", "url(#chalk-bar-green)");
+    expect(
+      container.querySelector('[data-scene-path="path-stunt"]'),
+    ).toHaveAttribute("marker-end", "url(#chalk-chevron-orange)");
+    expect(
+      container.querySelector('[data-scene-path="path-zone"]'),
+    ).not.toHaveAttribute("marker-end");
   });
 });
