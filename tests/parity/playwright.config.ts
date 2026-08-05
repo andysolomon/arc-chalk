@@ -27,10 +27,13 @@ export default defineConfig({
     timezoneId: "America/New_York",
     trace: "on-first-retry",
   },
-  webServer: {
-    command: `bun "${prototypeServer}"`,
-    url: "http://127.0.0.1:4174",
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-  },
+  webServer:
+    process.env.CHALK_PROTOTYPE_SERVER === "external"
+      ? undefined
+      : {
+          command: `bun "${prototypeServer}"`,
+          url: "http://127.0.0.1:4174",
+          reuseExistingServer: !process.env.CI,
+          timeout: 30_000,
+        },
 });
