@@ -23,6 +23,14 @@ describe("Chalk application shell", () => {
     expect(container.querySelectorAll("[data-scene-player]")).toHaveLength(11);
     expect(container.querySelectorAll("[data-scene-path]")).toHaveLength(6);
     expect(container.querySelectorAll("[data-scene-label]")).toHaveLength(12);
+    expect(container.querySelectorAll("[data-field-yard-line]")).toHaveLength(
+      9,
+    );
+    expect(container.querySelectorAll("[data-field-sideline]")).toHaveLength(2);
+    expect(container.querySelectorAll("[data-field-minor-mark]")).toHaveLength(
+      128,
+    );
+    expect(container.querySelectorAll("[data-field-number]")).toHaveLength(8);
   });
 
   it("keeps the play name editable and exposes the original modes", async () => {

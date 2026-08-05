@@ -1,10 +1,14 @@
 import type {
   Coordinate,
+  FieldLandmarks,
+  FieldProfile,
+  FieldWindow,
   MovementPath,
   PlayDocument,
   Player,
   TextLabel,
 } from "@chalk/domain";
+import { buildFieldLandmarks } from "@chalk/domain";
 
 export interface ScenePlayer extends Pick<
   Player,
@@ -24,12 +28,11 @@ export type SceneLabel = Pick<
 >;
 
 export interface RenderScene {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly playId: string;
   readonly field: {
-    readonly widthYards: number;
-    readonly endZoneDepthYards: number;
-    readonly hashOffsetYards: number;
+    readonly profile: FieldProfile;
+    readonly landmarks: FieldLandmarks;
     readonly lineOfScrimmageDepthYards: 0;
   };
   readonly players: readonly ScenePlayer[];
@@ -37,14 +40,20 @@ export interface RenderScene {
   readonly labels: readonly SceneLabel[];
 }
 
-export function buildRenderScene(play: PlayDocument): RenderScene {
+export interface RenderSceneOptions {
+  readonly fieldWindow?: FieldWindow;
+}
+
+export function buildRenderScene(
+  play: PlayDocument,
+  options: RenderSceneOptions = {},
+): RenderScene {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     playId: play.id,
     field: {
-      widthYards: play.fieldProfile.widthYards,
-      endZoneDepthYards: play.fieldProfile.endZoneDepthYards,
-      hashOffsetYards: play.fieldProfile.hashOffsetYards,
+      profile: structuredClone(play.fieldProfile),
+      landmarks: buildFieldLandmarks(play.fieldProfile, options.fieldWindow),
       lineOfScrimmageDepthYards: 0,
     },
     players: play.players.map(

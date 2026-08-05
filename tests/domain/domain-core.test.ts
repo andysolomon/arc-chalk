@@ -1,10 +1,16 @@
 import {
+  buildFieldLandmarks,
   canonicalSha256,
   canonicalStringify,
+  collegeFieldProfile,
   evaluateMovement,
+  highSchoolFieldProfile,
   legacyCanvasToYards,
+  migrateLegacyFieldProfile,
+  migratePlayDocument,
   mirrorCoordinate,
   mirrorPlayGeometry,
+  nflFieldProfile,
   pathLength,
   playDocumentSchema,
   pointAtDistance,
@@ -19,9 +25,11 @@ describe("canonical Play documents", () => {
     expect(playDocumentSchema.parse(stickThunderPlay)).toEqual(
       stickThunderPlay,
     );
+    expect(stickThunderPlay.schemaVersion).toBe(2);
     expect(stickThunderPlay.players).toHaveLength(11);
     expect(stickThunderPlay.paths).toHaveLength(5);
     expect(stickThunderPlay.labels).toHaveLength(12);
+    expect(stickThunderPlay.fieldProfile).toEqual(highSchoolFieldProfile);
     expect(
       stickThunderPlay.players.find((player) => player.id === "q")?.position,
     ).toEqual({
@@ -60,6 +68,81 @@ describe("canonical Play documents", () => {
     expect(first.phase).toBe("moving");
     expect(first.progress).toBeGreaterThan(0);
     expect(() => evaluateMovement(path, 750.5)).toThrow("integer milliseconds");
+  });
+});
+
+describe("versioned Field Profiles", () => {
+  it("stores every built-in marking in explicit yard units", () => {
+    expect(highSchoolFieldProfile).toMatchObject({
+      schemaVersion: 1,
+      revision: 1,
+      widthYards: 160 / 3,
+      hashInsetYards: (53 + 4 / 12) / 3,
+      numberInsetYards: 8,
+    });
+    expect(collegeFieldProfile.hashInsetYards).toBe(20);
+    expect(nflFieldProfile.hashInsetYards).toBe((70 + 9 / 12) / 3);
+  });
+
+  it("upgrades the released ambiguous hash property from feet to yards", () => {
+    expect(
+      migrateLegacyFieldProfile({
+        id: "field_custom_legacy",
+        name: "Legacy custom",
+        widthYards: 160 / 3,
+        endZoneDepthYards: 10,
+        hashOffsetYards: 60,
+      }),
+    ).toMatchObject({
+      schemaVersion: 1,
+      revision: 1,
+      hashInsetYards: 20,
+    });
+
+    const migratedPlay = migratePlayDocument({
+      ...stickThunderPlay,
+      schemaVersion: 1,
+      fieldProfile: {
+        id: "field_high_school",
+        name: "High school",
+        widthYards: 160 / 3,
+        endZoneDepthYards: 10,
+        hashOffsetYards: 53 + 4 / 12,
+      },
+    });
+
+    expect(migratedPlay.schemaVersion).toBe(2);
+    expect(migratedPlay.fieldProfile).toEqual(highSchoolFieldProfile);
+    expect(playDocumentSchema.parse(migratedPlay)).toEqual(migratedPlay);
+  });
+
+  it("derives deterministic lines, marks, and numbers around the LOS", () => {
+    const first = buildFieldLandmarks(highSchoolFieldProfile);
+    const second = buildFieldLandmarks(structuredClone(highSchoolFieldProfile));
+
+    expect(first).toEqual(second);
+    expect(first.yardLines.map(({ depthYards }) => depthYards)).toEqual([
+      -10, -5, 0, 5, 10, 15, 20, 25, 30,
+    ]);
+    expect(first.hashMarks).toHaveLength(64);
+    expect(first.sidelineMarks).toHaveLength(64);
+    expect(first.numbers).toHaveLength(8);
+    expect(
+      first.hashMarks.every(
+        ({ lateralYards }) =>
+          Math.abs(lateralYards) < highSchoolFieldProfile.widthYards / 2,
+      ),
+    ).toBe(true);
+  });
+
+  it("bounds custom landmark density", () => {
+    expect(() =>
+      buildFieldLandmarks({
+        ...highSchoolFieldProfile,
+        id: "field_too_dense",
+        minorMarkIntervalYards: 0.001,
+      }),
+    ).toThrow("too many field landmarks");
   });
 });
 

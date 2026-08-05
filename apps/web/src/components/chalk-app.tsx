@@ -107,8 +107,6 @@ function FieldDiagram({
 }: {
   scene?: SvgRenderScene;
 }) {
-  const yardLines = [0, 133, 267, 400, 534, 667, 801, 934, 1068];
-
   return (
     <svg
       className="field-diagram"
@@ -151,70 +149,53 @@ function FieldDiagram({
         height={scene.viewport.height}
         width={scene.viewport.width}
       />
-      {yardLines.map((x) => (
+      {scene.field.yardLines.map((line) => (
         <line
-          className="field-grid"
-          key={x}
-          x1={x}
-          x2={x}
-          y1="0"
-          y2={scene.viewport.height}
+          className={
+            line.isLineOfScrimmage ? "line-of-scrimmage" : "field-grid"
+          }
+          data-field-yard-line={line.id}
+          key={line.id}
+          x1={line.x1}
+          x2={line.x2}
+          y1={line.y1}
+          y2={line.y2}
         />
       ))}
-      {[0, 65, 131, 197, 263, 328, 394, 459, 525].map((y) => (
+      {scene.field.sidelines.map((line) => (
         <line
           className="field-grid"
-          key={y}
-          x1="0"
-          x2={scene.viewport.width}
-          y1={y}
-          y2={y}
+          data-field-sideline={line.id}
+          key={line.id}
+          x1={line.x1}
+          x2={line.x2}
+          y1={line.y1}
+          y2={line.y2}
         />
       ))}
-      {[155, 715].map((x) =>
-        Array.from({ length: 20 }, (_, index) => (
-          <line
-            className="hash"
-            key={`${x}-${index}`}
-            x1={x}
-            x2={x + 13}
-            y1={index * 26}
-            y2={index * 26}
-          />
-        )),
-      )}
-      <line
-        className="line-of-scrimmage"
-        x1="0"
-        x2={scene.viewport.width}
-        y1={scene.viewport.lineOfScrimmageY}
-        y2={scene.viewport.lineOfScrimmageY}
-      />
+      {[...scene.field.hashMarks, ...scene.field.sidelineMarks].map((line) => (
+        <line
+          className="hash"
+          data-field-minor-mark={line.id}
+          key={line.id}
+          x1={line.x1}
+          x2={line.x2}
+          y1={line.y1}
+          y2={line.y2}
+        />
+      ))}
       <g className="yard-numbers">
-        <text x="140" y="18">
-          30
-        </text>
-        <text x="890" y="18">
-          30
-        </text>
-        <text x="140" y="150">
-          20
-        </text>
-        <text x="890" y="150">
-          20
-        </text>
-        <text x="140" y="280">
-          10
-        </text>
-        <text x="890" y="280">
-          10
-        </text>
-        <text x="140" y="516">
-          10
-        </text>
-        <text x="890" y="516">
-          10
-        </text>
+        {scene.field.numbers.map((number) => (
+          <text
+            data-field-number={number.id}
+            fontSize={number.fontSize}
+            key={number.id}
+            x={number.x}
+            y={number.y}
+          >
+            {number.value}
+          </text>
+        ))}
       </g>
       <g className="routes">
         {scene.paths.map((path) => (

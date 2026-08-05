@@ -1,4 +1,4 @@
-import type { Coordinate } from "@chalk/domain";
+import type { Coordinate, FieldProfile } from "@chalk/domain";
 
 import type { RenderScene, ScenePath } from "./index";
 
@@ -8,6 +8,7 @@ export interface SvgViewport {
   readonly midfieldX: number;
   readonly lineOfScrimmageY: number;
   readonly pixelsPerYard: number;
+  readonly fieldInsetX: number;
 }
 
 export interface SvgPoint {
@@ -19,8 +20,9 @@ export const editorSvgViewport: SvgViewport = Object.freeze({
   width: 1068,
   height: 525,
   midfieldX: 532,
-  lineOfScrimmageY: 356,
+  lineOfScrimmageY: 394,
   pixelsPerYard: 13,
+  fieldInsetX: 12,
 });
 
 export function projectCoordinate(
@@ -109,10 +111,35 @@ export interface SvgScenePath {
   }[];
 }
 
+export interface SvgLine {
+  readonly id: string;
+  readonly x1: number;
+  readonly y1: number;
+  readonly x2: number;
+  readonly y2: number;
+}
+
+export interface SvgFieldScene {
+  readonly sidelines: readonly SvgLine[];
+  readonly yardLines: readonly (SvgLine & {
+    readonly isLineOfScrimmage: boolean;
+  })[];
+  readonly hashMarks: readonly SvgLine[];
+  readonly sidelineMarks: readonly SvgLine[];
+  readonly numbers: readonly {
+    readonly id: string;
+    readonly x: number;
+    readonly y: number;
+    readonly value: number;
+    readonly fontSize: number;
+  }[];
+}
+
 export interface SvgRenderScene {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly playId: string;
   readonly viewport: SvgViewport;
+  readonly field: SvgFieldScene;
   readonly players: readonly (Omit<
     RenderScene["players"][number],
     "position"
@@ -125,14 +152,120 @@ export interface SvgRenderScene {
   })[];
 }
 
+function fieldPixelsPerYard(
+  profile: FieldProfile,
+  viewport: SvgViewport,
+): number {
+  return (viewport.width - viewport.fieldInsetX * 2) / profile.widthYards;
+}
+
+function projectFieldLateral(
+  lateralYards: number,
+  profile: FieldProfile,
+  viewport: SvgViewport,
+): number {
+  return (
+    viewport.width / 2 + lateralYards * fieldPixelsPerYard(profile, viewport)
+  );
+}
+
+function projectDepth(depthYards: number, viewport: SvgViewport): number {
+  return viewport.lineOfScrimmageY - depthYards * viewport.pixelsPerYard;
+}
+
+function buildSvgField(
+  scene: RenderScene,
+  viewport: SvgViewport,
+): SvgFieldScene {
+  const { landmarks, profile } = scene.field;
+  const top = projectDepth(landmarks.window.maxDepthYards, viewport);
+  const bottom = projectDepth(landmarks.window.minDepthYards, viewport);
+  const leftSideline = projectFieldLateral(
+    -profile.widthYards / 2,
+    profile,
+    viewport,
+  );
+  const rightSideline = projectFieldLateral(
+    profile.widthYards / 2,
+    profile,
+    viewport,
+  );
+  const lateralScale = fieldPixelsPerYard(profile, viewport);
+
+  return {
+    sidelines: landmarks.sidelines.map(({ lateralYards }, index) => {
+      const x = projectFieldLateral(lateralYards, profile, viewport);
+      return {
+        id: `sideline-${index}`,
+        x1: x,
+        y1: top,
+        x2: x,
+        y2: bottom,
+      };
+    }),
+    yardLines: landmarks.yardLines.map(({ depthYards, isLineOfScrimmage }) => {
+      const y = projectDepth(depthYards, viewport);
+      return {
+        id: `yard-line-${depthYards}`,
+        x1: leftSideline,
+        y1: y,
+        x2: rightSideline,
+        y2: y,
+        isLineOfScrimmage,
+      };
+    }),
+    hashMarks: landmarks.hashMarks.map(
+      ({ lateralYards, depthYards, lengthYards }, index) => {
+        const x = projectFieldLateral(lateralYards, profile, viewport);
+        const halfLength = (lengthYards * lateralScale) / 2;
+        const y = projectDepth(depthYards, viewport);
+        return {
+          id: `hash-${index}`,
+          x1: x - halfLength,
+          y1: y,
+          x2: x + halfLength,
+          y2: y,
+        };
+      },
+    ),
+    sidelineMarks: landmarks.sidelineMarks.map(
+      ({ side, depthYards, lengthYards }, index) => {
+        const y = projectDepth(depthYards, viewport);
+        const length = lengthYards * lateralScale;
+        const x = side === "left" ? leftSideline : rightSideline;
+        return {
+          id: `sideline-mark-${index}`,
+          x1: side === "left" ? x : x - length,
+          y1: y,
+          x2: side === "left" ? x + length : x,
+          y2: y,
+        };
+      },
+    ),
+    numbers: landmarks.numbers.map(
+      ({ lateralYards, depthYards, value, heightYards }, index) => ({
+        id: `field-number-${index}`,
+        x: projectFieldLateral(lateralYards, profile, viewport),
+        y:
+          projectDepth(depthYards, viewport) +
+          (heightYards * viewport.pixelsPerYard) / 2 -
+          1,
+        value,
+        fontSize: heightYards * viewport.pixelsPerYard,
+      }),
+    ),
+  };
+}
+
 export function buildSvgRenderScene(
   scene: RenderScene,
   viewport: SvgViewport = editorSvgViewport,
 ): SvgRenderScene {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     playId: scene.playId,
     viewport,
+    field: buildSvgField(scene, viewport),
     players: scene.players.map((player) => ({
       ...player,
       position: projectCoordinate(player.position, viewport),

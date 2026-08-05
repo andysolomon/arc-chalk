@@ -96,6 +96,24 @@ export const textLabelSchema = z.object({
 });
 
 export const fieldProfileSchema = z.object({
+  schemaVersion: z.literal(1),
+  id: entityIdSchema,
+  revision: z.number().check(z.int(), z.positive()),
+  name: z.string(),
+  lengthYards: z.number().check(z.positive()),
+  widthYards: z.number().check(z.positive()),
+  endZoneDepthYards: z.number().check(z.nonnegative()),
+  hashInsetYards: z.number().check(z.nonnegative()),
+  numberInsetYards: z.number().check(z.nonnegative()),
+  goalpostWidthYards: z.number().check(z.positive()),
+  yardLineIntervalYards: z.number().check(z.positive()),
+  minorMarkIntervalYards: z.number().check(z.positive()),
+  minorMarkLengthYards: z.number().check(z.positive()),
+  numberIntervalYards: z.number().check(z.positive()),
+  numberHeightYards: z.number().check(z.positive()),
+});
+
+export const legacyFieldProfileSchema = z.object({
   id: entityIdSchema,
   name: z.string(),
   widthYards: z.number().check(z.positive()),
@@ -103,18 +121,28 @@ export const fieldProfileSchema = z.object({
   hashOffsetYards: z.number().check(z.nonnegative()),
 });
 
-export const playDocumentSchema = z.object({
-  schemaVersion: z.literal(1),
+const playDocumentFields = {
   id: entityIdSchema,
   name: z.string(),
   unit: playUnitSchema,
   playType: playTypeSchema,
   tags: z.array(z.string()),
   notes: z.string(),
-  fieldProfile: fieldProfileSchema,
   players: z.array(playerSchema),
   paths: z.array(movementPathSchema),
   labels: z.array(textLabelSchema),
+};
+
+export const playDocumentV1Schema = z.object({
+  schemaVersion: z.literal(1),
+  ...playDocumentFields,
+  fieldProfile: legacyFieldProfileSchema,
+});
+
+export const playDocumentSchema = z.object({
+  schemaVersion: z.literal(2),
+  ...playDocumentFields,
+  fieldProfile: fieldProfileSchema,
 });
 
 export const playRevisionSchema = z.object({
@@ -141,6 +169,7 @@ export type Player = z.infer<typeof playerSchema>;
 export type MovementPath = z.infer<typeof movementPathSchema>;
 export type TextLabel = z.infer<typeof textLabelSchema>;
 export type FieldProfile = z.infer<typeof fieldProfileSchema>;
+export type PlayDocumentV1 = z.infer<typeof playDocumentV1Schema>;
 export type PlayDocument = z.infer<typeof playDocumentSchema>;
 export type PlayRevision = z.infer<typeof playRevisionSchema>;
 export type PlayEnvelope = z.infer<typeof playEnvelopeSchema>;
