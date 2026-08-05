@@ -2,6 +2,7 @@ import { canonicalStringify } from "@chalk/domain";
 import { buildRenderScene, buildSvgRenderScene } from "@chalk/render";
 import {
   footballPathPrimitivePlay,
+  playerLabelPrimitivePlay,
   stickThunderPlay,
 } from "@chalk/test-fixtures";
 import { describe, expect, it } from "vitest";
@@ -113,5 +114,68 @@ describe("RenderScene", () => {
     expect(
       first.paths.find(({ id }) => id === "path-ball")?.strokes[0]?.style,
     ).toMatchObject({ ending: "dot", color: "gray" });
+  });
+
+  it("projects every original player and label primitive behind one interface", () => {
+    const first = buildSvgRenderScene(
+      buildRenderScene(playerLabelPrimitivePlay),
+    );
+    const second = buildSvgRenderScene(
+      buildRenderScene(structuredClone(playerLabelPrimitivePlay)),
+    );
+
+    expect(canonicalStringify(first)).toBe(canonicalStringify(second));
+    expect(
+      first.players.map(({ shapes }) => shapes.map(({ kind }) => kind)),
+    ).toEqual([
+      ["circle"],
+      ["rect", "path"],
+      ["ellipse"],
+      ["path", "path"],
+      ["circle", "path"],
+      [],
+    ]);
+    expect(first.players[1]?.shapes[1]).toMatchObject({
+      kind: "path",
+      d: "M0 -12 L12 -12 L12 12 L0 12 Z",
+      fill: "#0072F5",
+    });
+    expect(first.players[2]?.texts[0]).toMatchObject({
+      text: "B",
+      fill: "#FFFFFF",
+    });
+    expect(first.players[5]).toMatchObject({
+      role: "middle-linebacker",
+      group: "linebackers",
+      ariaLabel: "M defense player",
+    });
+
+    const progression = first.labels.find(
+      ({ id }) => id === "label-progression",
+    )!;
+    expect(progression.box).toMatchObject({
+      kind: "circle",
+      fill: "#FFFFFF",
+      stroke: "#0072F5",
+    });
+    expect(
+      first.labels.find(({ id }) => id === "label-assignment")?.text,
+    ).toMatchObject({
+      text: "SETTLE",
+      fontFamily: "Geist Mono, monospace",
+      letterSpacing: 0.6,
+    });
+    expect(
+      first.labels.find(({ id }) => id === "label-alert")?.leader,
+    ).toMatchObject({
+      x2: 714,
+      y2: 264,
+      stroke: "#E5484D",
+      strokeDasharray: "4 3",
+      endpointRadius: 2.6,
+    });
+    expect(
+      first.labels.find(({ id }) => id === "label-coaching")?.position,
+    ).toEqual({ x: 324, y: 303 });
   });
 });

@@ -1,6 +1,6 @@
 chalk-beta - Chalk Production Beta - Progress
 Generated: 2026-08-04 16:50:45 EDT
-Updated: 2026-08-05 01:28:40 EDT
+Updated: 2026-08-05 09:36:12 EDT
 On completion, move this file and the plan to docs/archive/.
 
 [ ] 0.0 - Phase 0 - Canonical prototype inventory and parity lock
@@ -19,12 +19,12 @@ On completion, move this file and the plan to docs/archive/.
 [ ] 2.0 - Phase 2 - Domain, geometry, and deterministic rendering core
     [ ] 2.1 - Implement Zod Mini domain schemas, stable IDs, envelopes, migrations, canonical hashing, and serialization
         Evidence: Play schema version 2 embeds versioned Field Profiles, and an explicit v1-to-v2 migration preserves the released legacy shape; remaining Coach-owned schemas and migration chain are open.
-    [ ] 2.2 - Implement Field Profiles, yard geometry, landmarks, snapping, and exact mirroring
-        Evidence: versioned NFHS, NCAA, NFL, and custom profiles now use explicit yard units and derive bounded sidelines, yard lines, hashes, numbers, and minor marks; smart snapping remains open.
+    [x] 2.2 - Implement Field Profiles, yard geometry, landmarks, snapping, and exact mirroring
+        Evidence: versioned NFHS, NCAA, NFL, and custom profiles use explicit yard units and derive bounded landmarks; exact double mirroring preserves canonical geometry; and the pure editor seam deterministically ranks ball/LOS, hashes, sidelines, yard marks, nearby player/route-node alignment, equal splits, and configurable grids at a zoom-independent screen threshold. It returns transient visible guides and group-preserving deltas, supports toggle/temporary-disable inputs, and suggests or constrains grass-true 45-degree route breaks.
     [x] 2.3 - Implement structured paths and absolute integer-millisecond evaluation
         Evidence: every original path kind, line style, ending, curve, per-segment override, choice branch, alternate, tick, and coverage area now projects from yard-space data; bounded quadratic sampling drives deterministic integer-millisecond evaluation.
-    [ ] 2.4 - Build framework-free RenderScene and accessible SVG primitives
-        Evidence: the framework-free RenderScene now projects Field Profile markings plus all original path strokes, branches, ticks, semantic coverage areas, and SVG endings deterministically into the production editor; remaining player and label primitives are open.
+    [x] 2.4 - Build framework-free RenderScene and accessible SVG primitives
+        Evidence: the framework-free render seam now projects Field Profile markings; every original path stroke, branch, tick, coverage area, and ending; all six player symbols and three fills; and deterministic role-aware labels, boxes, bound positions, and solid/dashed leaders. React paints prepared SVG geometry and exposes accessible Play, Player, and Label names without reinterpreting domain styling.
     [ ] 2.5 - Add golden fixtures, round-trip tests, property tests, and deterministic-render tests
         Evidence: Stick — Thunder and all-path-primitives fixtures now verify schema migration, bounded curve geometry, exact mirroring, deterministic projection, and Coach-visible SVG output; broader properties and workflow goldens remain open.
 [ ] 3.0 - Phase 3 - Local database, durability, and recovery

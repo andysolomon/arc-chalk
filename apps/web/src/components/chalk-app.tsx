@@ -4,6 +4,8 @@ import {
   buildSvgRenderScene,
   type SvgRenderScene,
   type SvgPathStroke,
+  type SvgShapePrimitive,
+  type SvgTextPrimitive,
 } from "@chalk/render";
 import { useState } from "react";
 
@@ -105,6 +107,66 @@ function RoutePath({
   );
 }
 
+function SceneShape({ shape }: { shape: SvgShapePrimitive }) {
+  switch (shape.kind) {
+    case "circle":
+      return (
+        <circle
+          cx={shape.cx}
+          cy={shape.cy}
+          fill={shape.fill}
+          r={shape.r}
+          stroke={shape.stroke}
+          strokeWidth={shape.strokeWidth}
+        />
+      );
+    case "rect":
+      return (
+        <rect
+          fill={shape.fill}
+          height={shape.height}
+          rx={shape.rx}
+          stroke={shape.stroke}
+          strokeWidth={shape.strokeWidth}
+          width={shape.width}
+          x={shape.x}
+          y={shape.y}
+        />
+      );
+    case "ellipse":
+      return (
+        <ellipse
+          cx={shape.cx}
+          cy={shape.cy}
+          fill={shape.fill}
+          rx={shape.rx}
+          ry={shape.ry}
+          stroke={shape.stroke}
+          strokeWidth={shape.strokeWidth}
+        />
+      );
+    case "path":
+      return (
+        <path
+          d={shape.d}
+          fill={shape.fill}
+          stroke={shape.stroke}
+          strokeLinecap={shape.strokeLinecap}
+          strokeLinejoin={shape.strokeLinejoin}
+          strokeWidth={shape.strokeWidth}
+        />
+      );
+  }
+}
+
+function SceneText({ text }: { text: SvgTextPrimitive }) {
+  return (
+    <text {...text} textAnchor="middle">
+      {text.text}
+    </text>
+  );
+}
+
 export function FieldDiagram({
   scene = stickThunderScene,
 }: {
@@ -114,7 +176,7 @@ export function FieldDiagram({
     <svg
       className="field-diagram"
       role="img"
-      aria-label="Stick — Thunder football play"
+      aria-label={`${scene.playName} football play`}
       viewBox={`0 0 ${scene.viewport.width} ${scene.viewport.height}`}
     >
       <defs>
@@ -354,62 +416,57 @@ export function FieldDiagram({
         ))}
       </g>
       <g className="field-annotations">
-        {scene.labels.map((label) => {
-          const text = label.text;
-          const width = Math.max(20, text.length * label.size * 0.6) + 14;
-          const height = label.size + 10;
-          const boxColor = sceneColors[label.boxColor];
-
-          return (
-            <g data-scene-label={label.id} key={label.id}>
-              {label.box !== "none" ? (
-                <rect
-                  fill={label.box === "fill" ? boxColor : "#fff"}
-                  height={height}
-                  rx="2"
-                  stroke={label.box === "outline" ? boxColor : "none"}
-                  strokeWidth="1.6"
-                  width={width}
-                  x={label.position.x - width / 2}
-                  y={label.position.y - label.size - 4}
+        {scene.labels.map((label) => (
+          <g
+            aria-label={label.ariaLabel}
+            data-label-role={label.role}
+            data-scene-label={label.id}
+            key={label.id}
+            role="img"
+          >
+            <title>{label.ariaLabel}</title>
+            {label.leader ? (
+              <>
+                <line
+                  data-label-leader={label.id}
+                  opacity={label.leader.opacity}
+                  stroke={label.leader.stroke}
+                  strokeDasharray={label.leader.strokeDasharray}
+                  strokeWidth={label.leader.strokeWidth}
+                  x1={label.leader.x1}
+                  x2={label.leader.x2}
+                  y1={label.leader.y1}
+                  y2={label.leader.y2}
                 />
-              ) : null}
-              <text
-                className={label.color === "blue" ? "read" : undefined}
-                fill={sceneColors[label.color]}
-                fontSize={label.size}
-                fontWeight="500"
-                textAnchor="middle"
-                x={label.position.x}
-                y={label.position.y}
-              >
-                {text}
-              </text>
-            </g>
-          );
-        })}
+                <circle
+                  cx={label.leader.x2}
+                  cy={label.leader.y2}
+                  fill={label.leader.stroke}
+                  r={label.leader.endpointRadius}
+                />
+              </>
+            ) : null}
+            {label.box ? <SceneShape shape={label.box} /> : null}
+            <SceneText text={label.text} />
+          </g>
+        ))}
       </g>
       <g className="players">
         {scene.players.map((player) => (
           <g
+            aria-label={player.ariaLabel}
             data-scene-player={player.id}
             key={player.id}
+            role="img"
             transform={`translate(${player.position.x} ${player.position.y})`}
           >
-            {player.symbol === "circle" ? <circle r="14" /> : null}
-            {player.symbol === "square" ? (
-              <rect height="27" width="27" x="-13.5" y="-13.5" />
-            ) : null}
-            {player.label ? (
-              <text className="player-label" y="4">
-                {player.label}
-              </text>
-            ) : null}
-            {player.sublabel ? (
-              <text className="player-note" y="36">
-                {player.sublabel.toUpperCase()}
-              </text>
-            ) : null}
+            <title>{player.ariaLabel}</title>
+            {player.shapes.map((shape, index) => (
+              <SceneShape key={`${player.id}-shape-${index}`} shape={shape} />
+            ))}
+            {player.texts.map((text, index) => (
+              <SceneText key={`${player.id}-text-${index}`} text={text} />
+            ))}
           </g>
         ))}
       </g>

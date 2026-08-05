@@ -23,6 +23,68 @@ export interface SvgPoint {
   readonly y: number;
 }
 
+export const svgColors: Readonly<Record<Color, string>> = Object.freeze({
+  ink: "#171717",
+  blue: "#0072F5",
+  red: "#E5484D",
+  green: "#398E4A",
+  orange: "#C2540A",
+  gray: "#8F8F8F",
+  yellow: "#F5D90A",
+});
+
+export type SvgShapePrimitive =
+  | {
+      readonly kind: "circle";
+      readonly cx: number;
+      readonly cy: number;
+      readonly r: number;
+      readonly fill: string;
+      readonly stroke?: string;
+      readonly strokeWidth?: number;
+    }
+  | {
+      readonly kind: "rect";
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+      readonly rx?: number;
+      readonly fill: string;
+      readonly stroke?: string;
+      readonly strokeWidth?: number;
+    }
+  | {
+      readonly kind: "ellipse";
+      readonly cx: number;
+      readonly cy: number;
+      readonly rx: number;
+      readonly ry: number;
+      readonly fill: string;
+      readonly stroke?: string;
+      readonly strokeWidth?: number;
+    }
+  | {
+      readonly kind: "path";
+      readonly d: string;
+      readonly fill: string;
+      readonly stroke?: string;
+      readonly strokeWidth?: number;
+      readonly strokeLinecap?: "round";
+      readonly strokeLinejoin?: "round";
+    };
+
+export interface SvgTextPrimitive {
+  readonly text: string;
+  readonly x: number;
+  readonly y: number;
+  readonly fill: string;
+  readonly fontFamily: "Geist, sans-serif" | "Geist Mono, monospace";
+  readonly fontSize: number;
+  readonly fontWeight: number;
+  readonly letterSpacing: number;
+}
+
 export const editorSvgViewport: SvgViewport = Object.freeze({
   width: 1068,
   height: 525,
@@ -251,18 +313,250 @@ export interface SvgFieldScene {
 export interface SvgRenderScene {
   readonly schemaVersion: 2;
   readonly playId: string;
+  readonly playName: string;
   readonly viewport: SvgViewport;
   readonly field: SvgFieldScene;
   readonly players: readonly (Omit<
     RenderScene["players"][number],
-    "position"
+    "position" | "color" | "label" | "sublabel" | "fill" | "symbol"
   > & {
     readonly position: SvgPoint;
+    readonly ariaLabel: string;
+    readonly shapes: readonly SvgShapePrimitive[];
+    readonly texts: readonly SvgTextPrimitive[];
   })[];
   readonly paths: readonly SvgScenePath[];
-  readonly labels: readonly (Omit<RenderScene["labels"][number], "position"> & {
+  readonly labels: readonly (Pick<
+    RenderScene["labels"][number],
+    "id" | "role" | "unit"
+  > & {
     readonly position: SvgPoint;
+    readonly ariaLabel: string;
+    readonly box?: SvgShapePrimitive;
+    readonly leader?: {
+      readonly x1: number;
+      readonly y1: number;
+      readonly x2: number;
+      readonly y2: number;
+      readonly stroke: string;
+      readonly strokeWidth: number;
+      readonly strokeDasharray?: string;
+      readonly opacity: number;
+      readonly endpointRadius: number;
+    };
+    readonly text: SvgTextPrimitive;
   })[];
+}
+
+function buildSvgPlayer(
+  player: RenderScene["players"][number],
+  viewport: SvgViewport,
+): SvgRenderScene["players"][number] {
+  const color = svgColors[player.color];
+  const base = player.fill === "solid" ? color : "#FFFFFF";
+  const shapes: SvgShapePrimitive[] = [];
+
+  switch (player.symbol) {
+    case "circle":
+      shapes.push({
+        kind: "circle",
+        cx: 0,
+        cy: 0,
+        r: 13,
+        fill: base,
+        stroke: color,
+        strokeWidth: 1.6,
+      });
+      break;
+    case "square":
+      shapes.push({
+        kind: "rect",
+        x: -12,
+        y: -12,
+        width: 24,
+        height: 24,
+        fill: base,
+        stroke: color,
+        strokeWidth: 1.6,
+      });
+      break;
+    case "oval":
+      shapes.push({
+        kind: "ellipse",
+        cx: 0,
+        cy: 0,
+        rx: 16,
+        ry: 11,
+        fill: base,
+        stroke: color,
+        strokeWidth: 1.6,
+      });
+      break;
+    case "triangle":
+      shapes.push({
+        kind: "path",
+        d: "M0 -14 L14 11 L-14 11 Z",
+        fill: base,
+        stroke: color,
+        strokeWidth: 1.6,
+        strokeLinejoin: "round",
+      });
+      break;
+    case "x":
+      shapes.push(
+        { kind: "circle", cx: 0, cy: 0, r: 12, fill: "#FFFFFF" },
+        {
+          kind: "path",
+          d: "M-9 -9 L9 9 M-9 9 L9 -9",
+          fill: "none",
+          stroke: color,
+          strokeWidth: 2.2,
+          strokeLinecap: "round",
+        },
+      );
+      break;
+    case "none":
+      break;
+  }
+
+  if (
+    player.fill === "half" &&
+    player.symbol !== "x" &&
+    player.symbol !== "none"
+  ) {
+    shapes.push({
+      kind: "path",
+      d:
+        player.symbol === "square"
+          ? "M0 -12 L12 -12 L12 12 L0 12 Z"
+          : "M0 -13 A13 13 0 0 1 0 13 Z",
+      fill: color,
+    });
+  }
+
+  const isBare = player.symbol === "none";
+  const texts: SvgTextPrimitive[] = [];
+  if (player.label && player.symbol !== "x") {
+    texts.push({
+      text: player.label,
+      x: 0,
+      y: isBare ? 6 : player.symbol === "triangle" ? 7 : 4.5,
+      fill: isBare
+        ? color
+        : player.fill === "solid"
+          ? "#FFFFFF"
+          : svgColors.ink,
+      fontFamily: "Geist, sans-serif",
+      fontSize: isBare ? 17 : 12.5,
+      fontWeight: isBare ? 600 : 500,
+      letterSpacing: 0,
+    });
+  }
+  if (player.sublabel) {
+    texts.push({
+      text: player.sublabel.toUpperCase(),
+      x: 0,
+      y: 30,
+      fill: "#4D4D4D",
+      fontFamily: "Geist Mono, monospace",
+      fontSize: 9,
+      fontWeight: 400,
+      letterSpacing: 0.8,
+    });
+  }
+
+  const description =
+    player.label || player.sublabel || player.role || "player";
+  return {
+    id: player.id,
+    unit: player.unit,
+    ...(player.role === undefined ? {} : { role: player.role }),
+    ...(player.group === undefined ? {} : { group: player.group }),
+    position: projectCoordinate(player.position, viewport),
+    ariaLabel: `${description} ${player.unit} player`,
+    shapes,
+    texts,
+  };
+}
+
+function buildSvgLabel(
+  label: RenderScene["labels"][number],
+  viewport: SvgViewport,
+): SvgRenderScene["labels"][number] {
+  const position = projectCoordinate(label.position, viewport);
+  const text = label.caps ? label.text.toUpperCase() : label.text;
+  const width = Math.max(20, text.length * label.size * 0.6) + 14;
+  const height = label.size + 10;
+  const color = svgColors[label.color];
+  const boxColor = svgColors[label.boxColor];
+  const centerY = position.y - label.size * 0.35;
+  let box: SvgShapePrimitive | undefined;
+
+  if (label.box === "circle") {
+    box = {
+      kind: "circle",
+      cx: position.x,
+      cy: centerY,
+      r: label.size * 0.95,
+      fill: "#FFFFFF",
+      stroke: boxColor,
+      strokeWidth: 1.6,
+    };
+  } else if (label.box !== "none") {
+    box = {
+      kind: "rect",
+      x: position.x - width / 2,
+      y: position.y - label.size - 4,
+      width,
+      height,
+      rx: 2,
+      fill: label.box === "fill" ? boxColor : "#FFFFFF",
+      ...(label.box === "outline"
+        ? { stroke: boxColor, strokeWidth: 1.6 }
+        : {}),
+    };
+  }
+
+  let leader: SvgRenderScene["labels"][number]["leader"];
+  if (label.leader) {
+    const endpoint = projectCoordinate(label.leader.endpoint, viewport);
+    const dx = endpoint.x - position.x;
+    const dy = endpoint.y - centerY;
+    const magnitude = Math.hypot(dx, dy) || 1;
+    const distance = Math.min(magnitude, width / 2 + 3);
+    const verticalDistance = Math.min(magnitude, height / 2 + 3);
+    leader = {
+      x1: position.x + (dx / magnitude) * distance,
+      y1: centerY + (dy / magnitude) * verticalDistance,
+      x2: endpoint.x,
+      y2: endpoint.y,
+      stroke: boxColor || color,
+      strokeWidth: 1.3,
+      ...(label.leader.line === "dashed" ? { strokeDasharray: "4 3" } : {}),
+      opacity: 0.8,
+      endpointRadius: 2.6,
+    };
+  }
+
+  return {
+    id: label.id,
+    ...(label.role === undefined ? {} : { role: label.role }),
+    ...(label.unit === undefined ? {} : { unit: label.unit }),
+    position,
+    ariaLabel: label.role ? `${label.role}: ${text}` : text,
+    ...(box === undefined ? {} : { box }),
+    ...(leader === undefined ? {} : { leader }),
+    text: {
+      text,
+      x: position.x,
+      y: position.y,
+      fill: color,
+      fontFamily: label.mono ? "Geist Mono, monospace" : "Geist, sans-serif",
+      fontSize: label.size,
+      fontWeight: 500,
+      letterSpacing: label.mono ? 0.6 : 0,
+    },
+  };
 }
 
 function fieldPixelsPerYard(
@@ -377,12 +671,10 @@ export function buildSvgRenderScene(
   return {
     schemaVersion: 2,
     playId: scene.playId,
+    playName: scene.playName,
     viewport,
     field: buildSvgField(scene, viewport),
-    players: scene.players.map((player) => ({
-      ...player,
-      position: projectCoordinate(player.position, viewport),
-    })),
+    players: scene.players.map((player) => buildSvgPlayer(player, viewport)),
     paths: scene.paths.map((path) => {
       const endpoint = path.points.at(-1);
       const coverageArea =
@@ -445,9 +737,6 @@ export function buildSvgRenderScene(
         }),
       };
     }),
-    labels: scene.labels.map((label) => ({
-      ...label,
-      position: projectCoordinate(label.position, viewport),
-    })),
+    labels: scene.labels.map((label) => buildSvgLabel(label, viewport)),
   };
 }

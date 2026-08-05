@@ -25,6 +25,25 @@ export const colorSchema = z.enum([
   "yellow",
 ]);
 
+export const playerSymbolSchema = z.enum([
+  "circle",
+  "square",
+  "oval",
+  "triangle",
+  "x",
+  "none",
+]);
+export const playerFillSchema = z.enum(["none", "half", "solid"]);
+export const labelBoxSchema = z.enum(["none", "outline", "fill", "circle"]);
+export const labelRoleSchema = z.enum([
+  "landmark",
+  "assignment",
+  "progression",
+  "adjustment",
+  "alert",
+  "coaching",
+]);
+
 export const pathLineSchema = z.enum(["solid", "dashed", "dotted", "zigzag"]);
 
 export const pathEndingSchema = z.enum([
@@ -61,10 +80,10 @@ export const playerSchema = z.object({
   id: entityIdSchema,
   unit: playUnitSchema,
   position: coordinateSchema,
-  symbol: z.enum(["circle", "square", "none"]),
+  symbol: playerSymbolSchema,
   label: z.string(),
   sublabel: z.string(),
-  fill: z.enum(["none", "solid"]),
+  fill: playerFillSchema,
   color: colorSchema,
   role: z.optional(z.string()),
   group: z.optional(z.string()),
@@ -115,10 +134,26 @@ export const textLabelSchema = z.object({
   text: z.string(),
   color: colorSchema,
   size: z.number().check(z.positive()),
-  box: z.enum(["none", "outline", "fill"]),
+  box: labelBoxSchema,
   boxColor: colorSchema,
   caps: z.optional(z.boolean()),
+  mono: z.optional(z.boolean()),
+  role: z.optional(labelRoleSchema),
   unit: z.optional(playUnitSchema),
+  leader: z.optional(
+    z.object({
+      endpoint: coordinateSchema,
+      line: z.enum(["solid", "dashed"]),
+    }),
+  ),
+  binding: z.optional(
+    z.object({
+      pathId: entityIdSchema,
+      segmentIndex: z.number().check(z.int(), z.nonnegative()),
+      progress: z.number().check(z.gte(0), z.lte(1)),
+      offset: coordinateSchema,
+    }),
+  ),
 });
 
 export const fieldProfileSchema = z.object({
@@ -191,6 +226,10 @@ export const playEnvelopeSchema = z.object({
 
 export type Coordinate = z.infer<typeof coordinateSchema>;
 export type Color = z.infer<typeof colorSchema>;
+export type PlayerSymbol = z.infer<typeof playerSymbolSchema>;
+export type PlayerFill = z.infer<typeof playerFillSchema>;
+export type LabelBox = z.infer<typeof labelBoxSchema>;
+export type LabelRole = z.infer<typeof labelRoleSchema>;
 export type PathPoint = z.infer<typeof pathPointSchema>;
 export type PathLine = z.infer<typeof pathLineSchema>;
 export type PathEnding = z.infer<typeof pathEndingSchema>;

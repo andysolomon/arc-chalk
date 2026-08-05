@@ -315,37 +315,6 @@ select:focus-visible {
 .yard-numbers text {
   text-anchor: middle;
 }
-.players circle,
-.players rect {
-  fill: #fff;
-  stroke: var(--ink);
-  stroke-width: 1.8;
-}
-.players circle:nth-of-type(n + 4):nth-of-type(-n + 8) {
-  fill: #fff;
-}
-.player-label {
-  fill: var(--ink);
-  font-family: "Geist", sans-serif;
-  font-size: 13px;
-  text-anchor: middle;
-}
-.player-note {
-  fill: #4d4d4d;
-  font-family: "Geist Mono", monospace;
-  font-size: 9px;
-  letter-spacing: 0.5px;
-  text-anchor: middle;
-}
-.field-annotations text {
-  fill: var(--ink);
-  font-size: 12px;
-}
-.field-annotations .read {
-  fill: var(--blue);
-  font-size: 13px;
-  font-weight: 600;
-}
 .red-note {
   fill: #fff;
   stroke: #ff3838;
