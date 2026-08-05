@@ -4,13 +4,19 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
-import { extname, resolve, sep } from "node:path";
+import { extname, resolve } from "node:path";
 
-const prototypeRoot = resolve(
-  import.meta.dirname,
-  "../Chalk Football Play Editor-2",
-);
+const repositoryRoot = resolve(import.meta.dirname, "..");
 const port = Number.parseInt(process.env.CHALK_PROTOTYPE_PORT ?? "4174", 10);
+
+const prototypeFiles = new Map<string, string>([
+  ["/", resolve(repositoryRoot, "Chalk Play Editor.dc.html")],
+  [
+    "/Chalk Play Editor.dc.html",
+    resolve(repositoryRoot, "Chalk Play Editor.dc.html"),
+  ],
+  ["/support.js", resolve(repositoryRoot, "support.js")],
+]);
 
 const contentTypes: Readonly<Record<string, string>> = {
   ".css": "text/css; charset=utf-8",
@@ -31,23 +37,18 @@ const servePrototype = async (
   response: ServerResponse,
 ): Promise<void> => {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
-  const requestedPath =
-    url.pathname === "/" ? "/Chalk Play Editor.dc.html" : url.pathname;
 
   let decodedPath: string;
   try {
-    decodedPath = decodeURIComponent(requestedPath);
+    decodedPath = decodeURIComponent(url.pathname);
   } catch {
     send(response, 400, "Malformed path");
     return;
   }
 
-  const filePath = resolve(prototypeRoot, `.${decodedPath}`);
-  if (
-    filePath !== prototypeRoot &&
-    !filePath.startsWith(`${prototypeRoot}${sep}`)
-  ) {
-    send(response, 403, "Forbidden");
+  const filePath = prototypeFiles.get(decodedPath);
+  if (!filePath) {
+    send(response, 404, "Not found");
     return;
   }
 

@@ -28,7 +28,7 @@ Beta excludes teams, organizations, shared editing, roster management, comments,
 
 ## 2. Current baseline
 
-- `Chalk Football Play Editor-2/Chalk Play Editor.dc.html` is the design- and feature-complete canonical product specification. Its single-file implementation is not the production foundation, but its visible and behavioral result is the required target.
+- The tracked `Chalk Play Editor.dc.html` and `support.js` files are the design- and feature-complete canonical product specification and are byte-identical to the ignored `Chalk Football Play Editor-2/` re-extraction. Their single-file implementation is not the production foundation, but its visible and behavioral result is the required target.
 - The reviews in `docs/reviews/` document defects to fix and evidence gaps to close; they do not authorize a redesign.
 - `CONTEXT.md` defines the accepted domain language.
 - ADRs 0001–0039 define the production architecture and the non-negotiable prototype-parity rule.
