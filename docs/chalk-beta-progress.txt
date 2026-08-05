@@ -7,7 +7,7 @@ On completion, move this file and the plan to docs/archive/.
     [x] 0.1 - Establish the restored original as the canonical visual and behavioral specification
     [x] 0.2 - Create the governing parity matrix and mark the alternate design exploration rejected
     [ ] 0.3 - Capture every top-level view, panel, menu, modal, selection state, and supported viewport
-        Evidence: the canonical Bun/Playwright harness now locks Editor, Demo, Present, Print, and seven global editor overlays at the first desktop viewport; remaining states and viewports are still open.
+        Evidence: the canonical Playwright harness now locks Editor, Demo, Present, Print, and seven global editor overlays at the first desktop viewport; remaining states and viewports are still open.
     [ ] 0.4 - Inventory every control, action, shortcut, gesture, persistence transition, sample, and output at item level
     [ ] 0.5 - Create golden documents, generated outputs, and behavior scripts for every parity group
     [ ] 0.6 - Review and record any explicit parity exceptions before major implementation
