@@ -3,7 +3,7 @@ import {
   buildRenderScene,
   buildSvgRenderScene,
   type SvgRenderScene,
-  type SvgScenePath,
+  type SvgPathStroke,
 } from "@chalk/render";
 import { useState } from "react";
 
@@ -61,17 +61,20 @@ const stickThunderScene = buildSvgRenderScene(
 const sceneColors = {
   ink: "#171717",
   blue: "#0072f5",
-  red: "#ff3838",
-  green: "#45a557",
-  yellow: "#ffe500",
+  red: "#E5484D",
+  green: "#398E4A",
+  orange: "#C2540A",
+  gray: "#8F8F8F",
+  yellow: "#F5D90A",
 } as const;
 
-const routeDashes: Record<SvgScenePath["style"]["line"], string | undefined> = {
-  solid: undefined,
-  dashed: "8 6",
-  dotted: "2 6",
-  zigzag: undefined,
-};
+const routeDashes: Record<SvgPathStroke["style"]["line"], string | undefined> =
+  {
+    solid: undefined,
+    dashed: "8 6",
+    dotted: "2 6",
+    zigzag: undefined,
+  };
 
 function RoutePath({
   d,
@@ -80,12 +83,12 @@ function RoutePath({
 }: {
   d: string;
   id: string;
-  style: SvgScenePath["style"];
+  style: SvgPathStroke["style"];
 }) {
   const markerEnd =
-    style.ending === "arrow" || style.ending === "dot"
-      ? `url(#chalk-${style.ending}-${style.color})`
-      : undefined;
+    style.ending === "none"
+      ? undefined
+      : `url(#chalk-${style.ending}-${style.color})`;
 
   return (
     <path
@@ -102,7 +105,7 @@ function RoutePath({
   );
 }
 
-function FieldDiagram({
+export function FieldDiagram({
   scene = stickThunderScene,
 }: {
   scene?: SvgRenderScene;
@@ -140,6 +143,103 @@ function FieldDiagram({
               viewBox="0 0 10 10"
             >
               <circle cx="5" cy="5" fill={color} r="3.6" />
+            </marker>
+            <marker
+              id={`chalk-bar-${token}`}
+              markerHeight="14"
+              markerUnits="userSpaceOnUse"
+              markerWidth="14"
+              orient="auto"
+              refX="5"
+              refY="5"
+              viewBox="0 0 10 10"
+            >
+              <path d="M5 0v10" fill="none" stroke={color} strokeWidth="2" />
+            </marker>
+            <marker
+              id={`chalk-bubble-${token}`}
+              markerHeight="20"
+              markerUnits="userSpaceOnUse"
+              markerWidth="20"
+              orient="auto"
+              refX="10"
+              refY="10"
+              viewBox="0 0 20 20"
+            >
+              <circle
+                cx="10"
+                cy="10"
+                fill="#fff"
+                r="7.5"
+                stroke={color}
+                strokeWidth="2"
+              />
+            </marker>
+            <marker
+              id={`chalk-hook-${token}`}
+              markerHeight="15"
+              markerUnits="userSpaceOnUse"
+              markerWidth="15"
+              orient="auto"
+              refX="2"
+              refY="6"
+              viewBox="0 0 12 12"
+            >
+              <path
+                d="M2 6a3.4 3.4 0 1 1 6.8 0 3.4 3.4 0 0 1-6.8 0"
+                fill="none"
+                stroke={color}
+                strokeWidth="1.8"
+              />
+            </marker>
+            <marker
+              id={`chalk-chevron-${token}`}
+              markerHeight="15"
+              markerUnits="userSpaceOnUse"
+              markerWidth="15"
+              orient="auto"
+              refX="10"
+              refY="6"
+              viewBox="0 0 12 12"
+            >
+              <path
+                d="m2 2 4 4-4 4m4-8 4 4-4 4"
+                fill="none"
+                stroke={color}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.8"
+              />
+            </marker>
+            <marker
+              id={`chalk-diamond-${token}`}
+              markerHeight="14"
+              markerUnits="userSpaceOnUse"
+              markerWidth="14"
+              orient="auto"
+              refX="6"
+              refY="6"
+              viewBox="0 0 12 12"
+            >
+              <path
+                d="m6 1.5 4.5 4.5L6 10.5 1.5 6z"
+                fill="#fff"
+                stroke={color}
+                strokeLinejoin="round"
+                strokeWidth="1.8"
+              />
+            </marker>
+            <marker
+              id={`chalk-square-${token}`}
+              markerHeight="12"
+              markerUnits="userSpaceOnUse"
+              markerWidth="12"
+              orient="auto"
+              refX="6"
+              refY="6"
+              viewBox="0 0 12 12"
+            >
+              <rect fill={color} height="7" width="7" x="2.5" y="2.5" />
             </marker>
           </g>
         ))}
@@ -200,25 +300,56 @@ function FieldDiagram({
       <g className="routes">
         {scene.paths.map((path) => (
           <g key={path.id}>
-            <RoutePath d={path.d} id={path.id} style={path.style} />
-            {path.ticks.map((tick, index) => (
+            {path.coverageArea ? (
+              <g data-scene-coverage={path.coverageArea.id}>
+                <ellipse
+                  cx={path.coverageArea.center.x}
+                  cy={path.coverageArea.center.y}
+                  fill={path.coverageArea.fill}
+                  opacity="0.26"
+                  rx={path.coverageArea.radiusX}
+                  ry={path.coverageArea.radiusY}
+                />
+                <ellipse
+                  cx={path.coverageArea.center.x}
+                  cy={path.coverageArea.center.y}
+                  fill="none"
+                  rx={path.coverageArea.radiusX}
+                  ry={path.coverageArea.radiusY}
+                  stroke={path.coverageArea.fill}
+                  strokeDasharray="5 4"
+                  strokeWidth="1.9"
+                />
+              </g>
+            ) : null}
+            {path.strokes.map((stroke) => (
+              <RoutePath {...stroke} key={stroke.id} />
+            ))}
+            {path.ticks.map(({ color, ...tick }, index) => (
               <line
                 data-scene-tick={`${path.id}-${index}`}
                 key={`${path.id}-tick-${index}`}
-                stroke={sceneColors[path.style.color]}
+                stroke={sceneColors[color]}
                 strokeLinecap="round"
                 strokeWidth="2.5"
                 {...tick}
               />
             ))}
-            {path.branches.map((branch) => (
-              <RoutePath
-                d={branch.d}
-                id={branch.id}
-                key={branch.id}
-                style={branch.style}
-              />
-            ))}
+            {path.branches.flatMap((branch) => [
+              ...branch.strokes.map((stroke) => (
+                <RoutePath {...stroke} key={stroke.id} />
+              )),
+              ...branch.ticks.map(({ color, ...tick }, index) => (
+                <line
+                  data-scene-tick={`${branch.id}-${index}`}
+                  key={`${branch.id}-tick-${index}`}
+                  stroke={sceneColors[color]}
+                  strokeLinecap="round"
+                  strokeWidth="2.5"
+                  {...tick}
+                />
+              )),
+            ])}
           </g>
         ))}
       </g>

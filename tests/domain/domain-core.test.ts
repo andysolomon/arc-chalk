@@ -1,11 +1,13 @@
 import {
   buildFieldLandmarks,
+  buildPathGeometry,
   canonicalSha256,
   canonicalStringify,
   collegeFieldProfile,
   evaluateMovement,
   highSchoolFieldProfile,
   legacyCanvasToYards,
+  migrateLegacyPlay,
   migrateLegacyFieldProfile,
   migratePlayDocument,
   mirrorCoordinate,
@@ -16,7 +18,10 @@ import {
   pointAtDistance,
   yardsToLegacyCanvas,
 } from "@chalk/domain";
-import { stickThunderPlay } from "@chalk/test-fixtures";
+import {
+  footballPathPrimitivePlay,
+  stickThunderPlay,
+} from "@chalk/test-fixtures";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
@@ -68,6 +73,104 @@ describe("canonical Play documents", () => {
     expect(first.phase).toBe("moving");
     expect(first.progress).toBeGreaterThan(0);
     expect(() => evaluateMovement(path, 750.5)).toThrow("integer milliseconds");
+  });
+
+  it("samples curved routes by yard distance using the rendered quadratic", () => {
+    const path = footballPathPrimitivePlay.paths.find(
+      ({ id }) => id === "path-route",
+    )!;
+    const chordLength = Math.hypot(2, 8) + Math.hypot(8, 4);
+    const length = pathLength(path);
+    const first = pointAtDistance(path, length / 2);
+    const second = pointAtDistance(structuredClone(path), length / 2);
+
+    expect(length).toBeGreaterThan(chordLength);
+    expect(first).toEqual(second);
+    expect(first.lateralYards).toBeGreaterThan(-18);
+    expect(first.depthYards).toBeGreaterThan(4);
+  });
+
+  it("bounds curve sampling work for extreme control geometry", () => {
+    const geometry = buildPathGeometry({
+      points: [
+        { lateralYards: 0, depthYards: 0 },
+        {
+          lateralYards: 100_000,
+          depthYards: 100_000,
+          control: { lateralYards: -100_000, depthYards: 100_000 },
+        },
+      ],
+    });
+
+    expect(geometry.points).toHaveLength(257);
+    expect(geometry.lengthYards).toBeGreaterThan(0);
+  });
+
+  it("preserves original segment styles, endings, zones, and colors", () => {
+    const migrated = migrateLegacyPlay({
+      id: "legacy_path_primitives",
+      name: "Legacy path primitives",
+      cat: "Defense",
+      doc: {
+        players: [
+          {
+            id: "defender",
+            x: 500,
+            y: 370,
+            symbol: "circle",
+            color: "g",
+          },
+        ],
+        routes: [
+          {
+            id: "drop",
+            kind: "zone",
+            playerId: "defender",
+            lineStyle: "dashed",
+            endMarker: "bubble",
+            color: "o",
+            points: [
+              { x: 500, y: 370 },
+              { x: 520, y: 300, ls: "solid", em: "diamond" },
+              { x: 540, y: 240 },
+            ],
+            zone: { rx: 64, ry: 30, t: "curl" },
+          },
+          {
+            id: "base-route",
+            kind: "route",
+            playerId: "defender",
+            points: [
+              { x: 500, y: 370 },
+              { x: 480, y: 300 },
+            ],
+          },
+          {
+            id: "alternate-route",
+            kind: "route",
+            playerId: "defender",
+            points: [
+              { x: 500, y: 370 },
+              { x: 560, y: 280 },
+            ],
+          },
+        ],
+        labels: [],
+      },
+    });
+
+    expect(migrated.players[0]?.color).toBe("gray");
+    expect(migrated.paths[0]).toMatchObject({
+      style: { line: "dashed", ending: "bubble", color: "orange" },
+      coverageArea: {
+        type: "curl",
+        radiusLateralYards: 64 / 12,
+        radiusDepthYards: 2.5,
+      },
+      points: [{}, { segmentStyle: { line: "solid", ending: "diamond" } }, {}],
+    });
+    expect(migrated.paths[1]?.variant).toBeUndefined();
+    expect(migrated.paths[2]?.variant).toBe("alternate");
   });
 });
 
@@ -179,5 +282,11 @@ describe("yard-space geometry invariants", () => {
     expect(mirrorPlayGeometry(mirrorPlayGeometry(stickThunderPlay))).toEqual(
       stickThunderPlay,
     );
+  });
+
+  it("mirrors new path semantics twice without dropping style or coverage", () => {
+    expect(
+      mirrorPlayGeometry(mirrorPlayGeometry(footballPathPrimitivePlay)),
+    ).toEqual(footballPathPrimitivePlay);
   });
 });

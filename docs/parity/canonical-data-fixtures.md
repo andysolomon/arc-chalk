@@ -23,4 +23,21 @@ Migration contract:
 - The prototype stored high-school `53′4″` hash placement in feet; the versioned production Field Profile stores the equivalent `17.777…`-yard sideline inset explicitly.
 - The raw captured fixture remains available through `originalStickThunder`; `stickThunderPlay` is its strict schema-version-2 production migration.
 
-Current automated evidence covers schema parsing, the v1-to-v2 profile migration, exact legacy-coordinate round trips, exact double mirror, canonical key ordering and SHA-256, deterministic integer-millisecond movement evaluation, deterministic `RenderScene` construction, and deterministic projection of Field Profile markings plus the seeded players, routes, branch, tick, and labels into the production editor SVG. This is the first data golden only; Phase 0.5 remains open until every primitive and parity group is represented.
+Current automated evidence covers schema parsing, the v1-to-v2 profile migration, exact legacy-coordinate round trips, exact double mirror, canonical key ordering and SHA-256, deterministic integer-millisecond movement evaluation, deterministic `RenderScene` construction, and deterministic projection of Field Profile markings plus the seeded players, routes, branch, tick, and labels into the production editor SVG.
+
+## Path primitive coverage
+
+Source: the original prototype's route editor, coverage presets, SVG marker definitions, curve evaluator, and live-canvas rendering rules.
+
+Production fixture: `packages/test-fixtures/src/football-path-primitives.ts`
+
+Captured coverage:
+
+- Route, motion, block, zone, blitz, stunt, and ball path kinds
+- Solid, dashed, dotted, and deterministic zigzag lines
+- Arrow, bar, dot, bubble, hook, chevron, diamond, square, and no-ending behavior across whole paths and segment overrides
+- Quadratic curves sampled from the same yard-space geometry used to render them
+- Choice branches, alternate routes, block ticks, and sized semantic coverage areas
+- Original ink, blue, red, green, orange, gray, and yellow color tokens
+
+The fixture verifies strict schema parsing, bounded curve sampling, yard-distance evaluation, exact double mirroring without metadata loss, deterministic scene projection, and Coach-visible React SVG output. Phase 0.5 remains open until the remaining player, label, Formation, defense, Concept, timing, and output fixtures are captured.
