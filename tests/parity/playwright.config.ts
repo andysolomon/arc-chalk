@@ -28,7 +28,7 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: `node --experimental-strip-types "${prototypeServer}"`,
+    command: `bun "${prototypeServer}"`,
     url: "http://127.0.0.1:4174",
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
