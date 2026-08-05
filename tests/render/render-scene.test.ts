@@ -9,6 +9,7 @@ describe("RenderScene", () => {
     const second = buildRenderScene(structuredClone(stickThunderPlay));
 
     expect(canonicalStringify(first)).toBe(canonicalStringify(second));
+    expect(first.schemaVersion).toBe(2);
     expect(first.playId).toBe("play-8lkpvgj");
     expect(first.players).toHaveLength(11);
     expect(first.paths.at(-1)?.branches).toHaveLength(1);
@@ -20,14 +21,14 @@ describe("RenderScene", () => {
 
     expect(scene.players.find(({ id }) => id === "q")?.position).toEqual({
       x: 532,
-      y: 408,
+      y: 446,
     });
     expect(scene.paths.find(({ id }) => id === "rx")?.d).toBe(
-      "M 332.667 379.833 L 324 340.833 L 126.833 293.167",
+      "M 332.667 417.833 L 324 378.833 L 126.833 331.167",
     );
     expect(scene.paths.find(({ id }) => id === "rz")?.branches[0]).toEqual({
       id: "rz-branch-0",
-      d: "M 950.167 210.833 L 978.333 20.167",
+      d: "M 950.167 248.833 L 978.333 58.167",
       style: {
         line: "dotted",
         ending: "arrow",
@@ -35,5 +36,15 @@ describe("RenderScene", () => {
       },
     });
     expect(scene.paths.find(({ id }) => id === "rh")?.ticks).toHaveLength(1);
+    expect(scene.field.sidelines).toHaveLength(2);
+    expect(scene.field.yardLines).toHaveLength(9);
+    expect(scene.field.hashMarks).toHaveLength(64);
+    expect(scene.field.sidelineMarks).toHaveLength(64);
+    expect(scene.field.numbers).toHaveLength(8);
+    expect(
+      scene.field.yardLines.find(({ isLineOfScrimmage }) =>
+        Boolean(isLineOfScrimmage),
+      )?.y1,
+    ).toBe(394);
   });
 });

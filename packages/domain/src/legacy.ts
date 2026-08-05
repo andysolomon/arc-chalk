@@ -1,4 +1,5 @@
 import { legacyCanvasToYards } from "./geometry";
+import { highSchoolFieldProfile } from "./field-profile";
 import { playDocumentSchema, type PlayDocument } from "./schema";
 
 type LegacyPoint = {
@@ -85,20 +86,14 @@ const style = (value: LegacyStyle) => ({
 
 export function migrateLegacyPlay(legacy: LegacyPlay): PlayDocument {
   return playDocumentSchema.parse({
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: legacy.id,
     name: legacy.name,
     unit: unitFor(legacy.cat),
     playType: legacy.cat,
     tags: legacy.tags ?? [],
     notes: legacy.notes ?? "",
-    fieldProfile: {
-      id: "field_high_school",
-      name: "High school",
-      widthYards: 160 / 3,
-      endZoneDepthYards: 10,
-      hashOffsetYards: 53 + 4 / 12,
-    },
+    fieldProfile: highSchoolFieldProfile,
     players: legacy.doc.players.map((player) => ({
       id: player.id,
       unit: unitFor(legacy.cat),
