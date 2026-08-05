@@ -40,6 +40,6 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 | Formation browser | `screenshots/original-editor-formations-desktop-1440x960.png` |
 | Defense browser | `screenshots/original-editor-defenses-desktop-1440x960.png` |
 
-The current production comparison for the Editor state is `screenshots/production-slice-editor-desktop-1440x960.png`.
+The current production comparison for the Editor state is `screenshots/production-slice-editor-desktop-1440x960.png`. Its Play content is rendered from the canonical yard-space `RenderScene`; the shell's remaining field furniture and controls are still incremental parity work.
 
 This is still an initial baseline. Phase 0 remains open until every menu, modal, panel, selection state, supported viewport, output, shortcut, and input workflow has named evidence.

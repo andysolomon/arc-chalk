@@ -82,3 +82,5 @@ export function buildRenderScene(play: PlayDocument): RenderScene {
     ),
   };
 }
+
+export * from "./svg";

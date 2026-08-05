@@ -1,4 +1,10 @@
-import { PRODUCT_NAME } from "@chalk/domain/product";
+import { PRODUCT_NAME, stickThunderPlay } from "@chalk/domain";
+import {
+  buildRenderScene,
+  buildSvgRenderScene,
+  type SvgRenderScene,
+  type SvgScenePath,
+} from "@chalk/render";
 import { useState } from "react";
 
 type View = "Editor" | "Demo" | "Present" | "Print";
@@ -48,47 +54,122 @@ function ToolIcon({ glyph }: { glyph: string }) {
   );
 }
 
-function FieldDiagram() {
+const stickThunderScene = buildSvgRenderScene(
+  buildRenderScene(stickThunderPlay),
+);
+
+const sceneColors = {
+  ink: "#171717",
+  blue: "#0072f5",
+  red: "#ff3838",
+  green: "#45a557",
+  yellow: "#ffe500",
+} as const;
+
+const routeDashes: Record<SvgScenePath["style"]["line"], string | undefined> = {
+  solid: undefined,
+  dashed: "8 6",
+  dotted: "2 6",
+  zigzag: undefined,
+};
+
+function RoutePath({
+  d,
+  id,
+  style,
+}: {
+  d: string;
+  id: string;
+  style: SvgScenePath["style"];
+}) {
+  const markerEnd =
+    style.ending === "arrow" || style.ending === "dot"
+      ? `url(#chalk-${style.ending}-${style.color})`
+      : undefined;
+
+  return (
+    <path
+      d={d}
+      data-scene-path={id}
+      fill="none"
+      markerEnd={markerEnd}
+      stroke={sceneColors[style.color]}
+      strokeDasharray={routeDashes[style.line]}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2.5"
+    />
+  );
+}
+
+function FieldDiagram({
+  scene = stickThunderScene,
+}: {
+  scene?: SvgRenderScene;
+}) {
   const yardLines = [0, 133, 267, 400, 534, 667, 801, 934, 1068];
-  const players = [
-    { x: 332, y: 417, label: "F", note: "STICK" },
-    { x: 370, y: 380, label: "X", note: "FLAT" },
-    { x: 454, y: 376, label: "", note: "" },
-    { x: 493, y: 376, label: "", note: "" },
-    { x: 532, y: 376, label: "", note: "" },
-    { x: 571, y: 376, label: "", note: "" },
-    { x: 610, y: 376, label: "", note: "" },
-    { x: 532, y: 408, label: "Q", note: "" },
-    { x: 523, y: 496, label: "H", note: "CHECK  SLOW" },
-    { x: 676, y: 380, label: "Y", note: "OVER" },
-    { x: 954, y: 380, label: "Z", note: "THUNDER" },
-  ];
 
   return (
     <svg
       className="field-diagram"
       role="img"
       aria-label="Stick — Thunder football play"
-      viewBox="0 0 1068 525"
+      viewBox={`0 0 ${scene.viewport.width} ${scene.viewport.height}`}
     >
       <defs>
-        <marker
-          id="arrow"
-          markerHeight="7"
-          markerWidth="7"
-          orient="auto"
-          refX="6"
-          refY="3.5"
-        >
-          <path d="M0 0 7 3.5 0 7z" fill="#171717" />
-        </marker>
+        {Object.entries(sceneColors).map(([token, color]) => (
+          <g key={token}>
+            <marker
+              id={`chalk-arrow-${token}`}
+              markerHeight="13"
+              markerUnits="userSpaceOnUse"
+              markerWidth="13"
+              orient="auto-start-reverse"
+              refX="8.5"
+              refY="5"
+              viewBox="0 0 10 10"
+            >
+              <path d="M0 0 10 5 0 10z" fill={color} />
+            </marker>
+            <marker
+              id={`chalk-dot-${token}`}
+              markerHeight="10"
+              markerUnits="userSpaceOnUse"
+              markerWidth="10"
+              orient="auto"
+              refX="5"
+              refY="5"
+              viewBox="0 0 10 10"
+            >
+              <circle cx="5" cy="5" fill={color} r="3.6" />
+            </marker>
+          </g>
+        ))}
       </defs>
-      <rect className="field-paper" height="525" width="1068" />
+      <rect
+        className="field-paper"
+        height={scene.viewport.height}
+        width={scene.viewport.width}
+      />
       {yardLines.map((x) => (
-        <line className="field-grid" key={x} x1={x} x2={x} y1="0" y2="525" />
+        <line
+          className="field-grid"
+          key={x}
+          x1={x}
+          x2={x}
+          y1="0"
+          y2={scene.viewport.height}
+        />
       ))}
       {[0, 65, 131, 197, 263, 328, 394, 459, 525].map((y) => (
-        <line className="field-grid" key={y} x1="0" x2="1068" y1={y} y2={y} />
+        <line
+          className="field-grid"
+          key={y}
+          x1="0"
+          x2={scene.viewport.width}
+          y1={y}
+          y2={y}
+        />
       ))}
       {[155, 715].map((x) =>
         Array.from({ length: 20 }, (_, index) => (
@@ -102,7 +183,13 @@ function FieldDiagram() {
           />
         )),
       )}
-      <line className="line-of-scrimmage" x1="0" x2="1068" y1="356" y2="356" />
+      <line
+        className="line-of-scrimmage"
+        x1="0"
+        x2={scene.viewport.width}
+        y1={scene.viewport.lineOfScrimmageY}
+        y2={scene.viewport.lineOfScrimmageY}
+      />
       <g className="yard-numbers">
         <text x="140" y="18">
           30
@@ -129,103 +216,86 @@ function FieldDiagram() {
           10
         </text>
       </g>
-      <g
-        className="routes"
-        fill="none"
-        markerEnd="url(#arrow)"
-        stroke="#171717"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2.5"
-      >
-        <path d="M332 402 350 254 281 238" />
-        <path d="M370 365 362 343 123 294" />
-        <path d="M676 365 658 326 558 226" />
-        <path d="M523 481 626 438 766 299" />
-        <path d="M954 365V217l28-151" strokeDasharray="4 6" />
+      <g className="routes">
+        {scene.paths.map((path) => (
+          <g key={path.id}>
+            <RoutePath d={path.d} id={path.id} style={path.style} />
+            {path.ticks.map((tick, index) => (
+              <line
+                data-scene-tick={`${path.id}-${index}`}
+                key={`${path.id}-tick-${index}`}
+                stroke={sceneColors[path.style.color]}
+                strokeLinecap="round"
+                strokeWidth="2.5"
+                {...tick}
+              />
+            ))}
+            {path.branches.map((branch) => (
+              <RoutePath
+                d={branch.d}
+                id={branch.id}
+                key={branch.id}
+                style={branch.style}
+              />
+            ))}
+          </g>
+        ))}
       </g>
-      <line
-        x1="632"
-        x2="643"
-        y1="438"
-        y2="460"
-        stroke="#171717"
-        strokeWidth="2.5"
-      />
       <g className="field-annotations">
-        <text className="read" x="88" y="286">
-          1
-        </text>
-        <text x="174" y="270">
-          2–3 Yds
-        </text>
-        <text className="read" x="222" y="220">
-          2
-        </text>
-        <text x="294" y="213">
-          5 Yds
-        </text>
-        <text className="read" x="525" y="214">
-          3
-        </text>
-        <text x="568" y="190">
-          5 Yds
-        </text>
-        <text className="read" x="756" y="249">
-          2X2
-        </text>
-        <text className="read" x="744" y="270">
-          OUTLET
-        </text>
-        <text x="758" y="291">
-          3 Yds
-        </text>
-        <text x="858" y="197">
-          6 Yds
-        </text>
-        <rect
-          className="red-note"
-          height="24"
-          rx="2"
-          width="78"
-          x="964"
-          y="135"
-        />
-        <text className="red-text" x="973" y="152">
-          YES / NO
-        </text>
-        <rect
-          className="yellow-note"
-          height="22"
-          rx="2"
-          width="94"
-          x="907"
-          y="436"
-        />
-        <text className="yellow-text" x="920" y="451">
-          MAX SPLIT +4
-        </text>
+        {scene.labels.map((label) => {
+          const text = label.text;
+          const width = Math.max(20, text.length * label.size * 0.6) + 14;
+          const height = label.size + 10;
+          const boxColor = sceneColors[label.boxColor];
+
+          return (
+            <g data-scene-label={label.id} key={label.id}>
+              {label.box !== "none" ? (
+                <rect
+                  fill={label.box === "fill" ? boxColor : "#fff"}
+                  height={height}
+                  rx="2"
+                  stroke={label.box === "outline" ? boxColor : "none"}
+                  strokeWidth="1.6"
+                  width={width}
+                  x={label.position.x - width / 2}
+                  y={label.position.y - label.size - 4}
+                />
+              ) : null}
+              <text
+                className={label.color === "blue" ? "read" : undefined}
+                fill={sceneColors[label.color]}
+                fontSize={label.size}
+                fontWeight="500"
+                textAnchor="middle"
+                x={label.position.x}
+                y={label.position.y}
+              >
+                {text}
+              </text>
+            </g>
+          );
+        })}
       </g>
       <g className="players">
-        {players.map((player, index) => (
-          <g key={`${player.x}-${player.y}-${index}`}>
-            <circle cx={player.x} cy={player.y} r="14" />
-            {index === 4 ? (
-              <rect
-                height="27"
-                width="27"
-                x={player.x - 13.5}
-                y={player.y - 13.5}
-              />
+        {scene.players.map((player) => (
+          <g
+            data-scene-player={player.id}
+            key={player.id}
+            transform={`translate(${player.position.x} ${player.position.y})`}
+          >
+            {player.symbol === "circle" ? <circle r="14" /> : null}
+            {player.symbol === "square" ? (
+              <rect height="27" width="27" x="-13.5" y="-13.5" />
             ) : null}
             {player.label ? (
-              <text className="player-label" x={player.x} y={player.y + 4}>
+              <text className="player-label" y="4">
                 {player.label}
               </text>
             ) : null}
-            {player.note ? (
-              <text className="player-note" x={player.x} y={player.y + 36}>
-                {player.note}
+            {player.sublabel ? (
+              <text className="player-note" y="36">
+                {player.sublabel.toUpperCase()}
               </text>
             ) : null}
           </g>
