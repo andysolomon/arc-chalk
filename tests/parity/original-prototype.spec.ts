@@ -5,7 +5,7 @@ const loadCanonicalPrototype = async (page: Page): Promise<void> => {
     window.localStorage.clear();
   });
 
-  await page.goto("/");
+  await page.goto("/Chalk%20Play%20Editor.dc.html");
   await expect(page).toHaveTitle("Stick — Thunder — Chalk", {
     timeout: 30_000,
   });

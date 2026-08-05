@@ -1,6 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 import { resolve } from "node:path";
 
+const prototypeRoot = resolve(
+  import.meta.dirname,
+  "../../Chalk Football Play Editor-2",
+);
+
 export default defineConfig({
   testDir: import.meta.dirname,
   testMatch: "original-prototype.spec.ts",
@@ -23,8 +28,8 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: `bun ${resolve(import.meta.dirname, "../../scripts/serve-prototype.ts")}`,
-    url: "http://127.0.0.1:4174",
+    command: `bunx vite "${prototypeRoot}" --host 127.0.0.1 --port 4174 --strictPort`,
+    url: "http://127.0.0.1:4174/Chalk%20Play%20Editor.dc.html",
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
   },
