@@ -22,4 +22,4 @@ Migration contract:
 - Positive depth yards point upfield.
 - The raw captured fixture remains available through `originalStickThunder`; `stickThunderPlay` is its strict schema-version-1 production migration.
 
-Current automated evidence covers schema parsing, exact legacy-coordinate round trips, exact double mirror, canonical key ordering and SHA-256, deterministic integer-millisecond movement evaluation, and deterministic `RenderScene` construction. This is the first data golden only; Phase 0.5 remains open until every primitive and parity group is represented.
+Current automated evidence covers schema parsing, exact legacy-coordinate round trips, exact double mirror, canonical key ordering and SHA-256, deterministic integer-millisecond movement evaluation, deterministic `RenderScene` construction, and deterministic projection of the seeded players, routes, branch, tick, and labels into the production editor SVG. This is the first data golden only; Phase 0.5 remains open until every primitive and parity group is represented.

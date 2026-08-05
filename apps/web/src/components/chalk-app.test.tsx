@@ -6,7 +6,7 @@ import { ChalkApp } from "./chalk-app";
 
 describe("Chalk application shell", () => {
   it("preserves the original editor entry points", () => {
-    render(<ChalkApp />);
+    const { container } = render(<ChalkApp />);
 
     expect(
       screen.getByRole("navigation", { name: "Workspace views" }),
@@ -20,6 +20,9 @@ describe("Chalk application shell", () => {
     expect(
       screen.getByRole("img", { name: "Stick — Thunder football play" }),
     ).toBeVisible();
+    expect(container.querySelectorAll("[data-scene-player]")).toHaveLength(11);
+    expect(container.querySelectorAll("[data-scene-path]")).toHaveLength(6);
+    expect(container.querySelectorAll("[data-scene-label]")).toHaveLength(12);
   });
 
   it("keeps the play name editable and exposes the original modes", async () => {

@@ -6,3 +6,4 @@ export * from "./geometry";
 export * from "./legacy";
 export * from "./product";
 export * from "./schema";
+export * from "./seed-stick-thunder";

@@ -1,6 +1,6 @@
 chalk-beta - Chalk Production Beta - Progress
 Generated: 2026-08-04 16:50:45 EDT
-Updated: 2026-08-04 19:58:36 EDT
+Updated: 2026-08-04 22:27:40 EDT
 On completion, move this file and the plan to docs/archive/.
 
 [ ] 0.0 - Phase 0 - Canonical prototype inventory and parity lock
@@ -21,7 +21,9 @@ On completion, move this file and the plan to docs/archive/.
     [ ] 2.2 - Implement Field Profiles, yard geometry, landmarks, snapping, and exact mirroring
     [ ] 2.3 - Implement structured paths and absolute integer-millisecond evaluation
     [ ] 2.4 - Build framework-free RenderScene and accessible SVG primitives
+        Evidence: the canonical Stick — Thunder RenderScene now projects players, paths, branches, block ticks, and labels deterministically into the production editor viewport; the complete original primitive set remains open.
     [ ] 2.5 - Add golden fixtures, round-trip tests, property tests, and deterministic-render tests
+        Evidence: unit, component, Chromium, and iPad/WebKit tests verify the first yard-space-to-SVG production slice; broader properties and goldens remain open.
 [ ] 3.0 - Phase 3 - Local database, durability, and recovery
     [ ] 3.1 - Implement typed Dexie repositories and all authoritative and derived stores
     [ ] 3.2 - Implement transactional local commits and continuous save-state acknowledgement

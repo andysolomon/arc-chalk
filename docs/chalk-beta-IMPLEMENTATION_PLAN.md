@@ -33,9 +33,9 @@ Beta excludes teams, organizations, shared editing, roster management, comments,
 - `CONTEXT.md` defines the accepted domain language.
 - ADRs 0001–0039 define the production architecture and the non-negotiable prototype-parity rule.
 - Phase 1 is implemented: the repository now has a boundary-oriented Bun workspace, Vite/React/TypeScript PWA shell, root Convex boundary, all accepted package seams, strict shared tooling, dependency-direction enforcement, and Vitest plus Chromium/WebKit Playwright smoke coverage.
-- The first production editor-shell slice recreates the original header, modes, field-first workspace, tool rail, seeded `Stick — Thunder` field, inspector, timeline, and status treatment. It is comparison scaffolding, not a claim that Phase 4 visual or behavioral parity is complete.
+- The first production editor-shell slice recreates the original header, modes, field-first workspace, tool rail, seeded `Stick — Thunder` field, inspector, timeline, and status treatment. Its visible players, routes, branches, ticks, and labels are now projected from the canonical yard-space `RenderScene`; the surrounding controls remain comparison scaffolding, not a claim that Phase 4 visual or behavioral parity is complete.
 - `docs/parity/` contains the first original-versus-production editor comparison plus a Playwright harness that locks the original Editor, Demo, Present, and Print desktop modes and seven global editor overlays at 1440 × 960. Remaining panels, menus, modals, selection states, additional viewports, behaviors, and outputs are incomplete.
-- The first Phase 2 tracer extracts the original runtime's seeded `Stick — Thunder` Play into a strict Zod Mini production document, migrates its 12-units-per-yard canvas into centered LOS-relative yard space, and proves canonical serialization/SHA-256, exact double mirroring, integer-millisecond movement evaluation, and deterministic framework-free `RenderScene` construction. The remaining Phase 2 schemas, curves, snapping, landmarks, primitives, and golden coverage are still open.
+- The first Phase 2 tracer extracts the original runtime's seeded `Stick — Thunder` Play into a strict Zod Mini production document, migrates its 12-units-per-yard canvas into centered LOS-relative yard space, and proves canonical serialization/SHA-256, exact double mirroring, integer-millisecond movement evaluation, deterministic framework-free `RenderScene` construction, and deterministic SVG viewport projection used by the production shell. The remaining Phase 2 schemas, full primitive set, snapping, landmarks, and golden coverage are still open.
 - The restored `plans/phase-*` documents record features already landed in the prototype and are parity evidence alongside direct source/runtime capture.
 - `Chalk Beta Design Prototype.html` is a rejected alternate design exploration and is not a production target.
 
@@ -396,8 +396,8 @@ Acceptance criteria:
 ## 6. Immediate next steps
 
 1. Continue the item-level parity inventory and golden captures from the restored original; do not use the rejected alternate design as a target.
-2. Begin Phase 2 with canonical Play/Player/Path fixtures extracted from the original, then implement yard geometry and deterministic `RenderScene` output behind the current shell.
-3. Replace the shell's illustrative SVG only through tested render/domain seams while preserving its original appearance.
+2. Continue Phase 2 by extending the canonical schemas and `RenderScene` projection across the original's complete player, path, branch, curve, ending, label, and field primitive set.
+3. Move field furniture and all later animation/export rendering through the same tested yard-space projection without changing the Coach-facing appearance.
 4. Record only explicit product-owner-approved parity exceptions; implementation convenience is not an exception.
 5. Close each parity group end-to-end with Coach-visible tests and original-versus-production evidence.
 6. Keep `docs/chalk-beta-progress.txt` synchronized as each executable slice lands.

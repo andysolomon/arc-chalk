@@ -12,6 +12,9 @@ test("opens the original field-first editor shell and its modes", async ({
   await expect(
     page.getByRole("img", { name: "Stick — Thunder football play" }),
   ).toBeVisible();
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+  await expect(page.locator("[data-scene-label]")).toHaveCount(12);
   await expect(
     page.getByRole("complementary", { name: "Play inspector" }),
   ).toBeVisible();
