@@ -16,11 +16,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:parity": "playwright test --config tests/parity/playwright.config.ts",
+    "capture:parity": "bun run test:parity --update-snapshots",
     "lint": "eslint apps packages convex scripts tests --max-warnings=0",
     "format": "prettier --write apps packages convex scripts tests package.json tsconfig.json tsconfig.base.json eslint.config.js vitest.config.ts .releaserc.json",
     "format:check": "prettier --check apps packages convex scripts tests package.json tsconfig.json tsconfig.base.json eslint.config.js vitest.config.ts .releaserc.json",
     "check:boundaries": "bun scripts/check-boundaries.ts",
-    "check": "bun run format:check && bun run lint && bun run check:boundaries && bun run test && bun run test:e2e && bun run build",
+    "check": "bun run format:check && bun run lint && bun run check:boundaries && bun run test && bun run test:e2e && bun run test:parity && bun run build",
     "release": "semantic-release",
     "release:dry-run": "semantic-release --dry-run --no-ci"
   },
@@ -43,10 +45,11 @@
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
     "@testing-library/user-event": "latest",
+    "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "@types/node": "latest",
     "@vitejs/plugin-react": "latest",
+    "conventional-changelog-conventionalcommits": "latest",
     "eslint": "latest",
     "eslint-plugin-react-hooks": "latest",
     "eslint-plugin-react-refresh": "latest",
@@ -60,7 +63,6 @@
     "typescript-eslint": "latest",
     "vite": "latest",
     "vite-plugin-pwa": "latest",
-    "vitest": "latest",
-    "conventional-changelog-conventionalcommits": "latest"
+    "vitest": "latest"
   }
 }

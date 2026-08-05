@@ -29,5 +29,21 @@ jobs:
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium webkit
 
+      - name: Start canonical prototype
+        run: |
+          bun scripts/serve-prototype.ts > "$RUNNER_TEMP/chalk-prototype.log" 2>&1 &
+          prototype_pid=$!
+          for attempt in {1..30}; do
+            if curl --fail --silent "http://127.0.0.1:4174/Chalk%20Play%20Editor.dc.html" > /dev/null 2>&1; then
+              echo "Canonical prototype ready (PID $prototype_pid)."
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/chalk-prototype.log"
+          exit 1
+
       - name: Run merge gate
+        env:
+          CHALK_PROTOTYPE_SERVER: external
         run: bun run check
