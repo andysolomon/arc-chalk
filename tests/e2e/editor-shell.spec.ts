@@ -138,11 +138,14 @@ test("names a version and restores it after a reload", async ({ page }) => {
   const playName = page.getByRole("textbox", { name: "Play name" });
   const saved = page.getByRole("button", { name: "Saved on this device" });
 
-  await page.getByRole("button", { name: "Versions" }).click();
+  await page.getByRole("banner").getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Snapshot" }).click();
   await page
-    .getByRole("textbox", { name: "Version name" })
+    .getByRole("textbox", { name: "Snapshot name" })
     .fill("Install week");
-  await page.getByRole("button", { name: "Create version" }).click();
+  // Naming replaces the menu with the original's snapshot form, whose commit
+  // button carries the same word.
+  await page.getByRole("button", { name: "Snapshot" }).click();
   await expect(page.getByText("Install week")).toBeVisible();
 
   await playName.fill("Thursday rewrite");
@@ -158,7 +161,7 @@ test("names a version and restores it after a reload", async ({ page }) => {
   );
 
   // The named version outlived the session it was created in.
-  await page.getByRole("button", { name: "Versions" }).click();
+  await page.getByRole("banner").getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Install week")).toBeVisible();
   await page.getByRole("button", { name: "Restore" }).click();
 

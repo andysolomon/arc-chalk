@@ -1,9 +1,9 @@
 import { PRODUCT_NAME, stickThunderPlay } from "@chalk/domain";
 import {
   localSaveMessage,
+  localSaveStatus,
   type EditorUndoState,
   type EditorVersionSummary,
-  type LocalSaveState,
 } from "@chalk/editor";
 import {
   buildRenderScene,
@@ -13,11 +13,21 @@ import {
   type SvgShapePrimitive,
   type SvgTextPrimitive,
 } from "@chalk/render";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import type { ChalkRuntime } from "../app/editor-runtime";
+import { type ActionMap } from "./editor-command-surface";
+import {
+  CommandPalette,
+  ExportMenu,
+  MoreMenu,
+  SaveMenu,
+  ShortcutReference,
+} from "./editor-overlays";
 
 type View = "Editor" | "Demo" | "Present" | "Print";
+type Menu = "more" | "export" | "save" | null;
+type Overlay = "palette" | "shortcuts" | null;
 type Tool =
   "select" | "player" | "route" | "motion" | "block" | "zone" | "text";
 
@@ -482,7 +492,13 @@ export function FieldDiagram({
   );
 }
 
-function Inspector() {
+function Inspector({
+  onOpenPalette,
+  onOpenShortcuts,
+}: {
+  onOpenPalette: () => void;
+  onOpenShortcuts: () => void;
+}) {
   return (
     <aside className="inspector" aria-label="Play inspector">
       <InspectorSection title="Formation">
@@ -536,7 +552,8 @@ function Inspector() {
         </div>
         <p>
           Draws the whole distribution by role — X, Z, H, Y and the back each
-          get their job, mirrored to the side they line up on.
+          get their job, mirrored to the side they line up on. Replaces their
+          routes; blocking and coverage stay.
         </p>
       </InspectorSection>
       <InspectorSection title="Defense">
@@ -546,7 +563,8 @@ function Inspector() {
         </button>
         <p>
           Each call replaces the last one and leaves the offense untouched. Just
-          the front and secondary — letter symbols only.
+          the front and secondary — letter symbols only, so you can draw your
+          own coverage on top. Press Z to add your own drop.
         </p>
       </InspectorSection>
       <section className="inspector-section library-preview">
@@ -575,6 +593,16 @@ function Inspector() {
           Four Verticals <span>Pass</span>
         </div>
       </section>
+      <InspectorSection title="Help">
+        <div className="help-row">
+          <button onClick={onOpenPalette} type="button">
+            Commands ⌘K
+          </button>
+          <button onClick={onOpenShortcuts} type="button">
+            Shortcuts ?
+          </button>
+        </div>
+      </InspectorSection>
     </aside>
   );
 }
@@ -598,6 +626,13 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   const { editorStore } = runtime;
   const [activeView, setActiveView] = useState<View>("Editor");
   const [activeTool, setActiveTool] = useState<Tool>("select");
+  const [openMenu, setOpenMenu] = useState<Menu>(null);
+  const [overlay, setOverlay] = useState<Overlay>(null);
+  // The original gives each panel its own toggle and calls hiding both "Focus
+  // mode"; it does not carry a third piece of state for focus.
+  const [railOpen, setRailOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [zonesHidden, setZonesHidden] = useState(false);
   const [recoveryDismissed, setRecoveryDismissed] = useState(false);
   const [freedStorage, setFreedStorage] = useState<ChalkRuntime["storage"]>();
   // The runtime reports storage health; freeing space supersedes that reading.
@@ -638,27 +673,116 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   const redo = () => {
     void editorStore.redo().catch(() => undefined);
   };
+  const focused = !railOpen && !inspectorOpen;
+  const toggleMenu = (menu: Exclude<Menu, null>) =>
+    setOpenMenu((current) => (current === menu ? null : menu));
+  const setPanels = (shown: boolean) => {
+    setRailOpen(shown);
+    setInspectorOpen(shown);
+  };
+
+  /**
+   * What production can run today. A command the editor cannot yet perform is
+   * deliberately absent so the menus show it as unavailable rather than
+   * accepting a click and doing nothing.
+   */
+  const actions: ActionMap = {
+    toolSelect: () => setActiveTool("select"),
+    toolPlayer: () => setActiveTool("player"),
+    toolRoute: () => setActiveTool("route"),
+    toolMotion: () => setActiveTool("motion"),
+    toolBlock: () => setActiveTool("block"),
+    toolZone: () => setActiveTool("zone"),
+    toolText: () => setActiveTool("text"),
+    focus: () => setPanels(false),
+    showPanels: () => setPanels(true),
+    toggleInspector: () => setInspectorOpen((shown) => !shown),
+    toggleRail: () => setRailOpen((shown) => !shown),
+    toggleZones: () => setZonesHidden((hidden) => !hidden),
+    present: () => setActiveView("Present"),
+    print: () => setActiveView("Print"),
+    shortcuts: () => setOverlay("shortcuts"),
+    // Chalk saves continuously (ADR 0012); an explicit Save flushes whatever
+    // the Coach is still typing rather than pretending durability is manual.
+    savePlay: () => {
+      commitPlayName();
+      setOpenMenu(null);
+    },
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target?.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "");
+
+      if (event.key === "Escape") {
+        setOverlay(null);
+        setOpenMenu(null);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setOpenMenu(null);
+        setOverlay("palette");
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        setOverlay(null);
+        setOpenMenu((current) => (current === "save" ? null : "save"));
+        return;
+      }
+      if (event.key === "?" && !typing) {
+        event.preventDefault();
+        setOverlay("shortcuts");
+      }
+    };
+
+    globalThis.addEventListener("keydown", onKeyDown);
+    return () => globalThis.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!openMenu) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".menu")) return;
+      setOpenMenu(null);
+    };
+    globalThis.addEventListener("pointerdown", onPointerDown);
+    return () => globalThis.removeEventListener("pointerdown", onPointerDown);
+  }, [openMenu]);
+
+  const header = (
+    <Header
+      actions={actions}
+      activeView={activeView}
+      commitPlayName={commitPlayName}
+      focused={focused}
+      onCloseMenu={() => setOpenMenu(null)}
+      onCreateVersion={createVersion}
+      onMenu={toggleMenu}
+      onRedo={redo}
+      onRestoreVersion={restoreVersion}
+      onUndo={undo}
+      onView={setActiveView}
+      openMenu={openMenu}
+      playName={editor.draftPlayName}
+      resetPlayName={editorStore.resetPlayNameDraft}
+      runtime={runtime}
+      setPlayName={editorStore.setPlayNameDraft}
+      undo={editor.undo}
+      versions={editor.versions}
+      zonesHidden={zonesHidden}
+    />
+  );
 
   if (activeView !== "Editor") {
     return (
       <div className={`chalk-shell view-${activeView.toLowerCase()}`}>
-        <Header
-          activeView={activeView}
-          onView={setActiveView}
-          playName={editor.draftPlayName}
-          setPlayName={editorStore.setPlayNameDraft}
-          resetPlayName={editorStore.resetPlayNameDraft}
-          commitPlayName={commitPlayName}
-          onSave={retrySave}
-          onUndo={undo}
-          onRedo={redo}
-          undo={editor.undo}
-          versions={editor.versions}
-          onCreateVersion={createVersion}
-          onRestoreVersion={restoreVersion}
-          runtime={runtime}
-          localSave={editor.localSave}
-        />
+        {header}
         <div className="mode-placeholder">
           <FieldDiagram scene={scene} />
           <div className="mode-label">{activeView} mode</div>
@@ -669,47 +793,38 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
 
   return (
     <div className="chalk-shell">
-      <Header
-        activeView={activeView}
-        onView={setActiveView}
-        playName={editor.draftPlayName}
-        setPlayName={editorStore.setPlayNameDraft}
-        resetPlayName={editorStore.resetPlayNameDraft}
-        commitPlayName={commitPlayName}
-        onSave={retrySave}
-        onUndo={undo}
-        onRedo={redo}
-        undo={editor.undo}
-        versions={editor.versions}
-        onCreateVersion={createVersion}
-        onRestoreVersion={restoreVersion}
-        runtime={runtime}
-        localSave={editor.localSave}
-      />
+      {header}
       <div className="workspace">
-        <nav className="tool-rail" aria-label="Drawing tools">
-          {tools.map((tool) => (
-            <button
-              className={activeTool === tool.id ? "active" : ""}
-              key={tool.id}
-              onClick={() => setActiveTool(tool.id)}
-              title={`${tool.label} — ${tool.shortcut}`}
-              aria-label={`${tool.label} — ${tool.shortcut}`}
-            >
-              <ToolIcon glyph={tool.glyph} />
+        {railOpen ? (
+          <nav className="tool-rail" aria-label="Drawing tools">
+            {tools.map((tool) => (
+              <button
+                className={activeTool === tool.id ? "active" : ""}
+                key={tool.id}
+                onClick={() => setActiveTool(tool.id)}
+                title={`${tool.label} — ${tool.shortcut}`}
+                aria-label={`${tool.label} — ${tool.shortcut}`}
+              >
+                <ToolIcon glyph={tool.glyph} />
+              </button>
+            ))}
+            <span className="rail-spacer" />
+            <button aria-label="Clear a layer">
+              <ToolIcon glyph="block" />
             </button>
-          ))}
-          <span className="rail-spacer" />
-          <button aria-label="Clear a layer">
-            <ToolIcon glyph="block" />
-          </button>
-          <button aria-label="Angle snap 45 degrees">
-            <ToolIcon glyph="route" />
-          </button>
-          <button className="rail-collapse" aria-label="Hide the tools">
-            ‹
-          </button>
-        </nav>
+            <button aria-label="Angle snap 45 degrees">
+              <ToolIcon glyph="route" />
+            </button>
+            <button
+              className="rail-collapse"
+              aria-label="Hide the tools"
+              onClick={() => setRailOpen(false)}
+              title="Hide the tools — ⌥2"
+            >
+              ‹
+            </button>
+          </nav>
+        ) : null}
         <main className="editor-stage">
           <DeviceNotices
             onDismissRecovery={() => setRecoveryDismissed(true)}
@@ -741,12 +856,50 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
             <span>
               − &nbsp; 100% &nbsp; + &nbsp;&nbsp; SELECTION &nbsp;&nbsp; BALL
               &nbsp;&nbsp; CUSTOM ALIGNMENT &nbsp;&nbsp; SNAP ON &nbsp;&nbsp;
-              11P · 5R &nbsp;&nbsp; {localSaveMessage(editor.localSave)}
+              11P · 5R &nbsp;&nbsp;
+              <button
+                aria-label={localSaveMessage(editor.localSave)}
+                className={`save-state ${editor.localSave.phase}`}
+                data-save-duration-ms={
+                  "durationMs" in editor.localSave
+                    ? editor.localSave.durationMs
+                    : undefined
+                }
+                data-save-within-budget={
+                  "withinBudget" in editor.localSave
+                    ? editor.localSave.withinBudget
+                    : undefined
+                }
+                disabled={editor.localSave.phase !== "error"}
+                onClick={retrySave}
+              >
+                {localSaveStatus(editor.localSave)}
+              </button>
             </span>
           </div>
         </main>
-        <Inspector />
+        {inspectorOpen ? (
+          <Inspector
+            onOpenPalette={() => setOverlay("palette")}
+            onOpenShortcuts={() => setOverlay("shortcuts")}
+          />
+        ) : (
+          <button
+            className="inspector-stub"
+            onClick={() => setInspectorOpen(true)}
+            title="Show the inspector — ⌥1"
+            type="button"
+          >
+            Inspector
+          </button>
+        )}
       </div>
+      {overlay === "palette" ? (
+        <CommandPalette actions={actions} onClose={() => setOverlay(null)} />
+      ) : null}
+      {overlay === "shortcuts" ? (
+        <ShortcutReference onClose={() => setOverlay(null)} />
+      ) : null}
     </div>
   );
 }
@@ -819,15 +972,16 @@ function BackupPanel({ runtime }: { runtime: ChalkRuntime }) {
   };
 
   return (
-    <div className="versions">
+    <div className="backup-section">
       <button
         aria-expanded={open}
+        className="menu-entry"
         onClick={() => setOpen((shown) => !shown)}
         type="button"
       >
         Backup
       </button>
-      <div className="version-panel" hidden={!open}>
+      <div className="backup-panel" hidden={!open}>
         <label className="backup-field">
           <span>Passphrase</span>
           <input
@@ -918,102 +1072,47 @@ function DeviceNotices({
   );
 }
 
-function VersionMenu({
-  onCreateVersion,
-  onRestoreVersion,
-  versions,
-}: {
-  onCreateVersion: (label: string) => void;
-  onRestoreVersion: (revisionId: string) => void;
-  versions: readonly EditorVersionSummary[];
-}) {
-  const [label, setLabel] = useState("");
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className="versions">
-      <button
-        aria-expanded={open}
-        onClick={() => setOpen((shown) => !shown)}
-        type="button"
-      >
-        Versions
-      </button>
-      <div className="version-panel" hidden={!open}>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!label.trim()) return;
-            onCreateVersion(label);
-            setLabel("");
-          }}
-        >
-          <input
-            aria-label="Version name"
-            onChange={(event) => setLabel(event.target.value)}
-            placeholder="Game Plan Final"
-            value={label}
-          />
-          <button disabled={!label.trim()} type="submit">
-            Create version
-          </button>
-        </form>
-        {versions.length === 0 ? (
-          <p className="version-empty">No versions yet on this device.</p>
-        ) : (
-          <ul>
-            {versions.map((version) => (
-              <li key={version.id}>
-                <span>{version.label ?? "Unnamed version"}</span>
-                <button
-                  onClick={() => onRestoreVersion(version.id)}
-                  type="button"
-                >
-                  Restore
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function Header({
+  actions,
   activeView,
   commitPlayName,
-  localSave,
-  onView,
-  onSave,
-  onUndo,
-  onRedo,
+  focused,
+  onCloseMenu,
   onCreateVersion,
+  onMenu,
+  onRedo,
   onRestoreVersion,
+  onUndo,
+  onView,
+  openMenu,
   playName,
   resetPlayName,
   runtime,
   setPlayName,
   undo,
   versions,
+  zonesHidden,
 }: {
+  actions: ActionMap;
   activeView: View;
   commitPlayName: () => void;
-  localSave: LocalSaveState;
-  onView: (view: View) => void;
-  onSave: () => void;
-  onUndo: () => void;
-  onRedo: () => void;
+  focused: boolean;
+  onCloseMenu: () => void;
   onCreateVersion: (label: string) => void;
+  onMenu: (menu: "more" | "export" | "save") => void;
+  onRedo: () => void;
   onRestoreVersion: (revisionId: string) => void;
+  onUndo: () => void;
+  onView: (view: View) => void;
+  openMenu: Menu;
   playName: string;
-  runtime: ChalkRuntime;
   resetPlayName: () => void;
+  runtime: ChalkRuntime;
   setPlayName: (name: string) => void;
   undo: EditorUndoState;
   versions: readonly EditorVersionSummary[];
+  zonesHidden: boolean;
 }) {
-  const saveLabel = localSaveMessage(localSave);
   return (
     <header className="topbar">
       <div className="chalk-mark" aria-hidden="true">
@@ -1076,29 +1175,47 @@ function Header({
         Redo
       </button>
       <span className="divider" />
-      <button className="more" aria-label="More actions">
-        ⋯
-      </button>
-      <button className="export">Export</button>
-      <VersionMenu
-        onCreateVersion={onCreateVersion}
-        onRestoreVersion={onRestoreVersion}
-        versions={versions}
-      />
-      <BackupPanel runtime={runtime} />
-      <button
-        className={`save ${localSave.phase}`}
-        data-save-duration-ms={
-          "durationMs" in localSave ? localSave.durationMs : undefined
-        }
-        data-save-within-budget={
-          "withinBudget" in localSave ? localSave.withinBudget : undefined
-        }
-        disabled={localSave.phase !== "error"}
-        onClick={onSave}
+      <MoreMenu
+        actions={actions}
+        focused={focused}
+        onDismiss={onCloseMenu}
+        onToggle={() => onMenu("more")}
+        open={openMenu === "more"}
+        zonesHidden={zonesHidden}
       >
-        {saveLabel}
-      </button>
+        <BackupPanel runtime={runtime} />
+      </MoreMenu>
+      <ExportMenu
+        actions={actions}
+        onDismiss={onCloseMenu}
+        onToggle={() => onMenu("export")}
+        open={openMenu === "export"}
+        playName={playName}
+      />
+      <SaveMenu
+        actions={actions}
+        onDismiss={onCloseMenu}
+        onSnapshot={onCreateVersion}
+        onToggle={() => onMenu("save")}
+        open={openMenu === "save"}
+        saveLabel="Save"
+      >
+        {versions.length > 0 ? (
+          <ul className="snapshot-list">
+            {versions.map((version) => (
+              <li key={version.id}>
+                <span>{version.label ?? "Unnamed version"}</span>
+                <button
+                  onClick={() => onRestoreVersion(version.id)}
+                  type="button"
+                >
+                  Restore
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </SaveMenu>
     </header>
   );
 }

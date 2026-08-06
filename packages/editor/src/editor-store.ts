@@ -172,6 +172,18 @@ function defaultMutationId(): string {
   return `mutation_${globalThis.crypto.randomUUID()}`;
 }
 
+/** The terse form the original shows at the end of its status bar. */
+export function localSaveStatus(localSave: LocalSaveState): string {
+  switch (localSave.phase) {
+    case "saving":
+      return "saving";
+    case "saved":
+      return "saved";
+    case "error":
+      return "save failed";
+  }
+}
+
 export function localSaveMessage(localSave: LocalSaveState): string {
   switch (localSave.phase) {
     case "saving":
