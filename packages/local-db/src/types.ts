@@ -217,6 +217,7 @@ export interface ChalkLocalRepository {
   createNamedVersion(input: CreateNamedVersionInput): Promise<PlayRevision>;
   listPlayVersions(playId: string): Promise<readonly PlayVersionSummary[]>;
 
+  upgradeStoredPlays(): Promise<readonly string[]>;
   beginSession(sessionId: string): Promise<SessionRecovery>;
   endSession(): Promise<void>;
   requestPersistentStorage(): Promise<boolean>;
