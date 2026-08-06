@@ -10,6 +10,7 @@ import {
   type EditorPersistenceCommit,
   type EditorPersistenceReceipt,
   type EditorStore,
+  type EditorVersionSummary,
 } from "@chalk/editor";
 
 function deferred<T>(): {
@@ -392,5 +393,163 @@ describe("EditorStore undo and redo", () => {
       expect.objectContaining({ status: "applied" }),
     );
     expect(store.getSnapshot().document.name).toBe("Stick — Thunder");
+  });
+});
+
+describe("EditorStore named versions", () => {
+  interface VersionHarness {
+    readonly store: EditorStore;
+    readonly commits: EditorPersistenceCommit[];
+    readonly versions: Map<string, PlayDocument>;
+  }
+
+  function versionHarness(initialHash: string): VersionHarness {
+    const versions = new Map<string, PlayDocument>();
+    const summaries: EditorVersionSummary[] = [];
+    const commits: EditorPersistenceCommit[] = [];
+    let current: PlayDocument = stickThunderPlay;
+    let clock = 1_786_000_000_000;
+
+    const store = createEditorStore({
+      initialDocument: stickThunderPlay,
+      initialDocumentHash: initialHash,
+      persistence: {
+        async commitPlay(input) {
+          commits.push(input);
+          current = input.play;
+          return {
+            playId: input.play.id,
+            documentHash: await hashPlayDocument(input.play),
+            committedAtMs: 100,
+          };
+        },
+        async createNamedVersion({ revisionId, label }) {
+          versions.set(revisionId, current);
+          const summary = {
+            id: revisionId,
+            label,
+            createdAtMs: (clock += 1_000),
+            documentHash: await hashPlayDocument(current),
+          };
+          summaries.unshift(summary);
+          return summary;
+        },
+        listPlayVersions: () => Promise.resolve([...summaries]),
+        loadVersionDocument: (revisionId) =>
+          Promise.resolve(versions.get(revisionId)),
+      },
+      createVersionId: () => `revision_${versions.size + 1}`,
+      monotonicNow: () => 0,
+    });
+    return { store, commits, versions };
+  }
+
+  it("marks the Play the Coach sees, after every pending save", async () => {
+    const initialHash = await hashPlayDocument(stickThunderPlay);
+    const { store, versions } = versionHarness(initialHash);
+
+    store.setPlayNameDraft("Install week copy");
+    const pending = store.commitPlayName();
+    const created = await store.createVersion("Install week");
+    await pending;
+
+    expect(created.status).toBe("created");
+    if (created.status !== "created") return;
+    expect(created.version.label).toBe("Install week");
+    expect(versions.get("revision_1")?.name).toBe("Install week copy");
+    expect(store.getSnapshot().versions).toEqual([
+      expect.objectContaining({ label: "Install week" }),
+    ]);
+  });
+
+  it("refuses a version the Coach did not name", async () => {
+    const initialHash = await hashPlayDocument(stickThunderPlay);
+    const { store } = versionHarness(initialHash);
+
+    await expect(store.createVersion("   ")).resolves.toEqual({
+      status: "failed",
+      reason: "Name this version.",
+    });
+    expect(store.getSnapshot().versions).toEqual([]);
+  });
+
+  it("restores a version as one undoable edit", async () => {
+    const initialHash = await hashPlayDocument(stickThunderPlay);
+    const { store, commits } = versionHarness(initialHash);
+
+    await store.createVersion("Install week");
+    store.setPlayNameDraft("Thursday rewrite");
+    await store.commitPlayName();
+    await store.applyCommand({
+      kind: "set-notes",
+      notes: "Everything changed on Thursday.",
+    });
+    expect(store.getSnapshot().undo.undoDepth).toBe(2);
+
+    const restored = await store.restoreVersion("revision_1");
+
+    expect(restored).toEqual(expect.objectContaining({ status: "restored" }));
+    expect(store.getSnapshot().document.name).toBe("Stick — Thunder");
+    expect(store.getSnapshot().document.notes).toBe(stickThunderPlay.notes);
+    // The restore is one more entry on the stack, not a rewrite of history.
+    expect(store.getSnapshot().undo.undoDepth).toBe(3);
+    expect(store.getSnapshot().undo.undoLabel).toBe("Restore version");
+    expect(commits.at(-1)?.undoHistory?.undo.at(-1)?.forward.kind).toBe(
+      "batch",
+    );
+
+    await expect(store.undo()).resolves.toEqual(
+      expect.objectContaining({ status: "applied" }),
+    );
+    expect(store.getSnapshot().document.name).toBe("Thursday rewrite");
+    expect(store.getSnapshot().document.notes).toBe(
+      "Everything changed on Thursday.",
+    );
+  });
+
+  it("does nothing when the Coach restores the version they are already on", async () => {
+    const initialHash = await hashPlayDocument(stickThunderPlay);
+    const { store, commits } = versionHarness(initialHash);
+    await store.createVersion("Install week");
+    const before = commits.length;
+
+    await expect(store.restoreVersion("revision_1")).resolves.toEqual({
+      status: "unchanged",
+    });
+    expect(commits).toHaveLength(before);
+    expect(store.getSnapshot().undo.undoDepth).toBe(0);
+  });
+
+  it("reports a version it cannot read instead of guessing", async () => {
+    const initialHash = await hashPlayDocument(stickThunderPlay);
+    const { store } = versionHarness(initialHash);
+
+    await expect(store.restoreVersion("revision_missing")).resolves.toEqual({
+      status: "failed",
+      reason: "Chalk could not read that version on this device.",
+    });
+  });
+
+  it("reports versions as unavailable when the device cannot store them", async () => {
+    const initialHash = await hashPlayDocument(stickThunderPlay);
+    const store = createEditorStore({
+      initialDocument: stickThunderPlay,
+      initialDocumentHash: initialHash,
+      persistence: {
+        commitPlay: async (input) => ({
+          playId: input.play.id,
+          documentHash: await hashPlayDocument(input.play),
+          committedAtMs: 100,
+        }),
+      },
+      monotonicNow: () => 0,
+    });
+
+    await expect(store.createVersion("Install week")).resolves.toEqual({
+      status: "unavailable",
+    });
+    await expect(store.restoreVersion("revision_1")).resolves.toEqual({
+      status: "unavailable",
+    });
   });
 });

@@ -53,6 +53,22 @@ export interface LocalConflict {
   readonly resolvedAtMs?: number;
 }
 
+/** Metadata for one point in a Play's history, without its whole document. */
+export interface PlayVersionSummary {
+  readonly id: string;
+  readonly playId: string;
+  readonly label?: string;
+  readonly createdAtMs: number;
+  readonly documentHash: string;
+  readonly parentRevisionId?: string;
+}
+
+export interface CreateNamedVersionInput {
+  readonly playId: string;
+  readonly revisionId: string;
+  readonly label: string;
+}
+
 export interface LocalPreference {
   readonly key: string;
   readonly value: JsonValue;
@@ -158,6 +174,8 @@ export interface ChalkLocalRepository {
   ): Promise<readonly PlaySearchProjection[]>;
   commitPlay(input: CommitPlayInput): Promise<CommitPlayResult>;
   getRevision(revisionId: string): Promise<PlayRevision | undefined>;
+  createNamedVersion(input: CreateNamedVersionInput): Promise<PlayRevision>;
+  listPlayVersions(playId: string): Promise<readonly PlayVersionSummary[]>;
 
   readSyncMutationBatch(limit: number): Promise<readonly SyncMutation[]>;
   acknowledgeSyncMutations(ids: readonly string[]): Promise<void>;

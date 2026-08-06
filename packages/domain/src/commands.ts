@@ -1,5 +1,6 @@
 import * as z from "zod/mini";
 
+import { canonicalStringify } from "./canonical";
 import { mirrorPlayGeometry } from "./geometry";
 import {
   assignmentSchema,
@@ -805,6 +806,150 @@ const layerLabels: Record<PlayLayer, string> = {
   labels: "Clear labels",
   assignments: "Clear Assignments",
 };
+
+/** An absent optional field is only equal to another absent one. */
+function sameValue(left: unknown, right: unknown): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  return canonicalStringify(left) === canonicalStringify(right);
+}
+
+interface LayerOps<Item extends { readonly id: string }> {
+  readonly remove: (ids: string[]) => PrimitivePlayCommand;
+  readonly insert: (insertions: Insertion<Item>[]) => PrimitivePlayCommand;
+  readonly update: (item: Item) => PrimitivePlayCommand;
+}
+
+/**
+ * Expresses one layer's difference. When the items both Plays keep no longer
+ * appear in the same relative order, the layer is replaced wholesale rather
+ * than guessing at a move script.
+ */
+function diffLayer<Item extends { readonly id: string }>(
+  from: readonly Item[],
+  to: readonly Item[],
+  ops: LayerOps<Item>,
+): PrimitivePlayCommand[] {
+  const fromById = new Map(from.map((item) => [item.id, item]));
+  const toIds = new Set(to.map(({ id }) => id));
+  const keptFrom = from.filter(({ id }) => toIds.has(id)).map(({ id }) => id);
+  const keptTo = to.filter(({ id }) => fromById.has(id)).map(({ id }) => id);
+  const insertionsFor = (items: readonly Item[]): Insertion<Item>[] =>
+    items.map((item) => ({ index: to.indexOf(item), item }));
+
+  if (!sameValue(keptFrom, keptTo)) {
+    return [
+      ...(from.length > 0 ? [ops.remove(from.map(({ id }) => id))] : []),
+      ...(to.length > 0 ? [ops.insert(insertionsFor(to))] : []),
+    ];
+  }
+
+  const removed = from.filter(({ id }) => !toIds.has(id)).map(({ id }) => id);
+  const added = to.filter(({ id }) => !fromById.has(id));
+  const changed = to.filter((item) => {
+    const previous = fromById.get(item.id);
+    return previous !== undefined && !sameValue(previous, item);
+  });
+
+  return [
+    ...(removed.length > 0 ? [ops.remove(removed)] : []),
+    ...changed.map((item) => ops.update(item)),
+    ...(added.length > 0 ? [ops.insert(insertionsFor(added))] : []),
+  ];
+}
+
+/**
+ * Expresses the whole difference between two versions of one Play as ordinary
+ * commands, so restoring a named version or an immutable revision lands as a
+ * single undoable entry instead of an out-of-band document replacement.
+ */
+export function diffPlayDocuments(
+  from: PlayDocument,
+  to: PlayDocument,
+  label?: string,
+): BatchPlayCommand {
+  if (from.id !== to.id || from.playbookId !== to.playbookId) {
+    throw new PlayCommandError(
+      "Only two versions of the same Play can be compared.",
+    );
+  }
+
+  const commands: PrimitivePlayCommand[] = [];
+  if (from.name !== to.name)
+    commands.push({ kind: "set-play-name", name: to.name });
+  if (from.unit !== to.unit) commands.push({ kind: "set-unit", unit: to.unit });
+  if (from.notes !== to.notes)
+    commands.push({ kind: "set-notes", notes: to.notes });
+  if (!sameValue(from.tags, to.tags)) {
+    commands.push({ kind: "set-tags", tags: [...to.tags] });
+  }
+  if (!sameValue(from.personnelLabel, to.personnelLabel)) {
+    commands.push({
+      kind: "set-personnel-label",
+      ...(to.personnelLabel === undefined
+        ? {}
+        : { personnelLabel: to.personnelLabel }),
+    });
+  }
+  if (!sameValue(from.playType, to.playType)) {
+    commands.push({
+      kind: "set-play-type",
+      ...(to.playType === undefined ? {} : { playType: to.playType }),
+    });
+  }
+  if (!sameValue(from.fieldProfile, to.fieldProfile)) {
+    commands.push({ kind: "set-field-profile", fieldProfile: to.fieldProfile });
+  }
+  if (!sameValue(from.conceptSource, to.conceptSource)) {
+    commands.push({
+      kind: "set-concept-source",
+      ...(to.conceptSource === undefined
+        ? {}
+        : { conceptSource: to.conceptSource }),
+    });
+  }
+  if (!sameValue(from.formationSource, to.formationSource)) {
+    commands.push({
+      kind: "set-formation-source",
+      ...(to.formationSource === undefined
+        ? {}
+        : { formationSource: to.formationSource }),
+    });
+  }
+
+  // Only the finished Play is validated, so each layer's difference is
+  // independent and the batch undoes as one step.
+  commands.push(
+    ...diffLayer(from.assignments, to.assignments, {
+      remove: (assignmentIds) => ({
+        kind: "remove-assignments",
+        assignmentIds,
+      }),
+      insert: (assignments) => ({ kind: "insert-assignments", assignments }),
+      update: (assignment) => ({ kind: "update-assignment", assignment }),
+    }),
+    ...diffLayer(from.labels, to.labels, {
+      remove: (labelIds) => ({ kind: "remove-labels", labelIds }),
+      insert: (labels) => ({ kind: "insert-labels", labels }),
+      update: (label) => ({ kind: "update-label", label }),
+    }),
+    ...diffLayer(from.paths, to.paths, {
+      remove: (pathIds) => ({ kind: "remove-paths", pathIds }),
+      insert: (paths) => ({ kind: "insert-paths", paths }),
+      update: (path) => ({ kind: "update-path", path }),
+    }),
+    ...diffLayer(from.players, to.players, {
+      remove: (playerIds) => ({ kind: "remove-players", playerIds }),
+      insert: (players) => ({ kind: "insert-players", players }),
+      update: (player) => ({ kind: "update-player", player }),
+    }),
+  );
+
+  return {
+    kind: "batch",
+    ...(label === undefined ? {} : { label }),
+    commands,
+  };
+}
 
 /** Clearing one layer is an ordinary undoable transaction, not a reset. */
 export function clearPlayLayerCommand(

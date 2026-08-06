@@ -431,6 +431,65 @@ describe("ChalkLocalRepository", () => {
     await expect(reopened.getPlay(play.id)).resolves.toBeDefined();
   });
 
+  it("creates Coach-named versions that nothing can rename or overwrite", async () => {
+    let clock = FIXED_TIME;
+    const repository = track(
+      createRepository("versions", () => (clock += 1_000)),
+    );
+    await repository.savePlaybook(offensivePlaybookGolden);
+    const play = offensivePlaybookGolden.plays[0]!;
+
+    const first = await repository.createNamedVersion({
+      playId: play.id,
+      revisionId: "revision_install_week",
+      label: "Install week",
+    });
+    expect(first.label).toBe("Install week");
+    expect(first.document).toEqual(play);
+    expect(first.parentRevisionId).toBeUndefined();
+
+    const stored = await repository.getPlay(play.id);
+    expect(stored?.currentRevisionId).toBe("revision_install_week");
+
+    const edited = { ...structuredClone(play), name: "Stick — Alert" };
+    await repository.commitPlay({
+      play: edited,
+      expectedDocumentHash: stored!.documentHash,
+      mutation: { id: "mutation_after_version" },
+    });
+    const second = await repository.createNamedVersion({
+      playId: play.id,
+      revisionId: "revision_game_plan_final",
+      label: "Game Plan Final",
+    });
+    expect(second.parentRevisionId).toBe("revision_install_week");
+
+    // An automatic process cannot reuse a version ID to rewrite the Coach's
+    // labelled point in history.
+    await expect(
+      repository.createNamedVersion({
+        playId: play.id,
+        revisionId: "revision_install_week",
+        label: "Overwritten by a background job",
+      }),
+    ).rejects.toThrow();
+    await expect(
+      repository.getRevision("revision_install_week"),
+    ).resolves.toEqual(expect.objectContaining({ label: "Install week" }));
+
+    await expect(repository.listPlayVersions(play.id)).resolves.toEqual([
+      expect.objectContaining({ id: "revision_game_plan_final" }),
+      expect.objectContaining({ id: "revision_install_week" }),
+    ]);
+    await expect(
+      repository.createNamedVersion({
+        playId: play.id,
+        revisionId: "revision_unnamed",
+        label: "   ",
+      }),
+    ).rejects.toThrow(RangeError);
+  });
+
   it("commits one Play at 2,000-Play beta scale without growing with Playbook size", async () => {
     const basePlay = offensivePlaybookGolden.plays[0]!;
     const fullHistoryFor = (play: PlayDocument): UndoHistory => ({

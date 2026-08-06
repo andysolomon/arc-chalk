@@ -17,12 +17,14 @@ import type {
   ChalkLocalRepository,
   CommitPlayInput,
   CommitPlayResult,
+  CreateNamedVersionInput,
   LocalConflict,
   LocalImageBlob,
   LocalPreference,
   LocalRepositoryOptions,
   LocalStoreCounts,
   PlaySearchProjection,
+  PlayVersionSummary,
   StoredPlay,
   SyncMutation,
   ThumbnailDerivative,
@@ -339,6 +341,94 @@ class DexieLocalRepository implements ChalkLocalRepository {
       );
     }
     return revision;
+  }
+
+  /**
+   * Marks the Play as it stands now with a Coach-chosen label. The document is
+   * untouched, and an existing version can never be renamed or overwritten
+   * because revision IDs are added, never put.
+   */
+  async createNamedVersion(
+    input: CreateNamedVersionInput,
+  ): Promise<PlayRevision> {
+    const label = input.label.trim();
+    if (!label) {
+      throw new RangeError("A named version needs a label the Coach chose.");
+    }
+    // Hashing cannot happen inside a Dexie transaction, so the Play is read and
+    // verified first and the write re-checks that it did not move underneath.
+    const stored = await this.getPlay(input.playId);
+    if (!stored) {
+      throw new CorruptLocalDataError(
+        `Cannot version Play ${input.playId} because it is not stored.`,
+      );
+    }
+    const revision = playRevisionSchema.parse({
+      schemaVersion: 1,
+      id: input.revisionId,
+      playId: stored.id,
+      ...(stored.currentRevisionId
+        ? { parentRevisionId: stored.currentRevisionId }
+        : {}),
+      createdAtMs: this.#now(),
+      label,
+      documentHash: stored.documentHash,
+      document: stored.document,
+    });
+
+    return this.#database.transaction(
+      "rw",
+      [this.#database.plays, this.#database.revisions],
+      async () => {
+        const current = await this.#database.plays.get(input.playId);
+        if (
+          !current ||
+          current.documentHash !== stored.documentHash ||
+          current.currentRevisionId !== stored.currentRevisionId
+        ) {
+          throw new StaleLocalPlayError(input.playId);
+        }
+        await this.#database.revisions.add(revision);
+        await this.#database.plays.put({
+          ...current,
+          currentRevisionId: revision.id,
+        });
+        return revision;
+      },
+    );
+  }
+
+  /** Metadata only: a Playbook's history must not load every whole document. */
+  async listPlayVersions(
+    playId: string,
+  ): Promise<readonly PlayVersionSummary[]> {
+    const revisions = await this.#database.revisions
+      .where("playId")
+      .equals(playId)
+      .toArray();
+    return revisions
+      .map(
+        ({
+          id,
+          playId: owner,
+          label,
+          createdAtMs,
+          documentHash,
+          parentRevisionId,
+        }) => ({
+          id,
+          playId: owner,
+          ...(label === undefined ? {} : { label }),
+          createdAtMs,
+          documentHash,
+          ...(parentRevisionId === undefined ? {} : { parentRevisionId }),
+        }),
+      )
+      .sort(
+        (left, right) =>
+          right.createdAtMs - left.createdAtMs ||
+          right.id.localeCompare(left.id),
+      );
   }
 
   async readSyncMutationBatch(limit: number): Promise<readonly SyncMutation[]> {

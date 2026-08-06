@@ -1,8 +1,10 @@
 import {
   applyPlayCommandWithInverse,
   canonicalSha256,
+  canonicalStringify,
   createStableId,
   describePlayCommand,
+  diffPlayDocuments,
   playCommandCoalesceKey,
   playDocumentSchema,
   type PlayCommand,
@@ -38,8 +40,23 @@ export interface EditorPersistenceReceipt {
   readonly mutationId?: string;
 }
 
+/** Metadata for one point in this Play's history. */
+export interface EditorVersionSummary {
+  readonly id: string;
+  readonly label?: string;
+  readonly createdAtMs: number;
+  readonly documentHash: string;
+}
+
 export interface EditorPersistence {
   commitPlay(input: EditorPersistenceCommit): Promise<EditorPersistenceReceipt>;
+  createNamedVersion?(input: {
+    readonly playId: string;
+    readonly revisionId: string;
+    readonly label: string;
+  }): Promise<EditorVersionSummary>;
+  listPlayVersions?(playId: string): Promise<readonly EditorVersionSummary[]>;
+  loadVersionDocument?(revisionId: string): Promise<PlayDocument | undefined>;
 }
 
 export type LocalSaveState =
@@ -72,6 +89,7 @@ export interface EditorSnapshot {
   readonly draftPlayName: string;
   readonly localSave: LocalSaveState;
   readonly undo: EditorUndoState;
+  readonly versions: readonly EditorVersionSummary[];
 }
 
 export type EditorCommitOutcome =
@@ -95,6 +113,13 @@ export type EditorUndoOutcome =
     }
   | { readonly status: "empty" }
   | { readonly status: "quarantined"; readonly reason: string };
+
+export type EditorVersionOutcome =
+  | { readonly status: "created"; readonly version: EditorVersionSummary }
+  | { readonly status: "restored"; readonly commit: EditorCommitOutcome }
+  | { readonly status: "unchanged" }
+  | { readonly status: "unavailable" }
+  | { readonly status: "failed"; readonly reason: string };
 
 export interface ApplyCommandOptions {
   /** Merge into the entry on top when the Coach is still in the same field. */
@@ -120,6 +145,9 @@ export interface EditorStore {
   retryLocalSave(this: void): Promise<EditorCommitOutcome | undefined>;
   undo(this: void): Promise<EditorUndoOutcome>;
   redo(this: void): Promise<EditorUndoOutcome>;
+  createVersion(this: void, label: string): Promise<EditorVersionOutcome>;
+  restoreVersion(this: void, revisionId: string): Promise<EditorVersionOutcome>;
+  refreshVersions(this: void): Promise<readonly EditorVersionSummary[]>;
   endCoalescing(this: void): void;
   getUndoHistory(this: void): UndoHistory;
 }
@@ -130,8 +158,10 @@ export interface CreateEditorStoreOptions {
   readonly persistence: EditorPersistence;
   /** A stored history that no longer parses is replaced with an empty one. */
   readonly initialUndoHistory?: unknown;
+  readonly initialVersions?: readonly EditorVersionSummary[];
   readonly createMutationId?: () => string;
   readonly createUndoEntryId?: () => string;
+  readonly createVersionId?: () => string;
   readonly monotonicNow?: () => number;
   readonly wallClockNow?: () => number;
   readonly saveBudgetMs?: number;
@@ -158,8 +188,10 @@ export function createEditorStore({
   initialDocumentHash,
   persistence,
   initialUndoHistory,
+  initialVersions = [],
   createMutationId = defaultMutationId,
   createUndoEntryId = () => createStableId("undo"),
+  createVersionId = () => createStableId("revision"),
   monotonicNow = performance.now.bind(performance),
   wallClockNow = Date.now,
   saveBudgetMs = LOCAL_SAVE_BUDGET_MS,
@@ -190,6 +222,7 @@ export function createEditorStore({
       budgetMs: saveBudgetMs,
     },
     undo: undoAvailability(history, initialDocumentHash),
+    versions: [...initialVersions],
   }));
 
   const publishUndo = (quarantineReason?: string): void => {
@@ -293,13 +326,18 @@ export function createEditorStore({
     }));
   };
 
-  const applyCommand = (
-    command: PlayCommand,
+  /**
+   * Commands are built from the document as it stands when the queued turn
+   * runs, so a restore diffs against the Play the Coach will actually see.
+   */
+  const runCommand = (
+    build: (document: PlayDocument) => PlayCommand,
     options: ApplyCommandOptions = {},
   ): Promise<EditorCommitOutcome> => {
     const { sequence, requestedAtMs } = startSaving();
     return enqueue(async () => {
       const before = state.getState().document;
+      const command = build(before);
       const { document: next, inverse } = applyPlayCommandWithInverse(
         before,
         command,
@@ -329,6 +367,25 @@ export function createEditorStore({
       publishUndo();
       return persist(next, sequence, requestedAtMs, history);
     });
+  };
+
+  const applyCommand = (
+    command: PlayCommand,
+    options: ApplyCommandOptions = {},
+  ): Promise<EditorCommitOutcome> => runCommand(() => command, options);
+
+  const publishVersions = (
+    versions: readonly EditorVersionSummary[],
+  ): readonly EditorVersionSummary[] => {
+    state.setState((current) => ({ ...current, versions }));
+    return versions;
+  };
+
+  const refreshVersions = async (): Promise<
+    readonly EditorVersionSummary[]
+  > => {
+    if (!persistence.listPlayVersions) return state.getState().versions;
+    return publishVersions(await persistence.listPlayVersions(document.id));
   };
 
   const commitDocument = (
@@ -418,6 +475,57 @@ export function createEditorStore({
     },
     undo: () => stepHistory("undo"),
     redo: () => stepHistory("redo"),
+    async createVersion(label) {
+      const named = label.trim();
+      if (!named) return { status: "failed", reason: "Name this version." };
+      if (!persistence.createNamedVersion) return { status: "unavailable" };
+      // Queued so the version marks the Play after every pending save lands.
+      return enqueue(async () => {
+        try {
+          const version = await persistence.createNamedVersion!({
+            playId: document.id,
+            revisionId: createVersionId(),
+            label: named,
+          });
+          publishVersions([version, ...state.getState().versions]);
+          return { status: "created", version } as const;
+        } catch {
+          return {
+            status: "failed",
+            reason: "Chalk could not create this version on this device.",
+          } as const;
+        }
+      });
+    },
+    async restoreVersion(revisionId) {
+      if (!persistence.loadVersionDocument) return { status: "unavailable" };
+      let restored: PlayDocument | undefined;
+      try {
+        restored = await persistence.loadVersionDocument(revisionId);
+      } catch {
+        restored = undefined;
+      }
+      if (!restored) {
+        return {
+          status: "failed",
+          reason: "Chalk could not read that version on this device.",
+        };
+      }
+      const target = restored;
+      if (
+        canonicalStringify(target) ===
+        canonicalStringify(state.getState().document)
+      ) {
+        return { status: "unchanged" };
+      }
+      // A restore is an ordinary hash-bound edit, so the Coach can undo it.
+      const commit = await runCommand(
+        (current) => diffPlayDocuments(current, target, "Restore version"),
+        { label: "Restore version" },
+      );
+      return { status: "restored", commit };
+    },
+    refreshVersions,
     endCoalescing() {
       history = sealUndoCoalescing(history);
     },
