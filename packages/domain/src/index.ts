@@ -1,4 +1,5 @@
 export * from "./animation";
+export * from "./backup";
 export * from "./canonical";
 export * from "./classifications";
 export * from "./commands";

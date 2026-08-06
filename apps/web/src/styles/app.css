@@ -254,6 +254,29 @@ select:focus-visible {
   padding: 4px 0;
   border-top: 1px solid var(--line);
 }
+.backup-field {
+  display: block;
+  margin-top: 8px;
+}
+.backup-field > span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+}
+.backup-field input[type="password"] {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font: inherit;
+}
+.backup-status {
+  margin: 8px 0 0;
+}
+.backup-status.error {
+  color: #c53b3f;
+}
+
 .version-empty {
   margin: 10px 0 0;
   color: var(--muted);

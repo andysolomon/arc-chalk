@@ -656,6 +656,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           versions={editor.versions}
           onCreateVersion={createVersion}
           onRestoreVersion={restoreVersion}
+          runtime={runtime}
           localSave={editor.localSave}
         />
         <div className="mode-placeholder">
@@ -682,6 +683,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         versions={editor.versions}
         onCreateVersion={createVersion}
         onRestoreVersion={restoreVersion}
+        runtime={runtime}
         localSave={editor.localSave}
       />
       <div className="workspace">
@@ -753,6 +755,122 @@ const storageMessages: Record<string, string> = {
   watch: "This device is running low on space for Chalk.",
   critical: "This device is nearly out of space for Chalk.",
 };
+
+type BackupState =
+  | { readonly phase: "idle" }
+  | { readonly phase: "working" }
+  | { readonly phase: "done"; readonly message: string }
+  | { readonly phase: "error"; readonly message: string };
+
+function BackupPanel({ runtime }: { runtime: ChalkRuntime }) {
+  const [open, setOpen] = useState(false);
+  const [passphrase, setPassphrase] = useState("");
+  const [state, setState] = useState<BackupState>({ phase: "idle" });
+
+  const download = (contents: string) => {
+    const url = URL.createObjectURL(
+      new Blob([contents], { type: "application/json" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "chalk-backup.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const backUp = () => {
+    setState({ phase: "working" });
+    runtime
+      .exportEncryptedBackup(passphrase)
+      .then((contents) => {
+        download(contents);
+        setPassphrase("");
+        setState({ phase: "done", message: "Backup saved to this device." });
+      })
+      .catch(() =>
+        setState({
+          phase: "error",
+          message: "Chalk could not write a backup.",
+        }),
+      );
+  };
+
+  const restore = (file: File) => {
+    setState({ phase: "working" });
+    file
+      .text()
+      .then((contents) => runtime.importEncryptedBackup(contents, passphrase))
+      .then((result) => {
+        setPassphrase("");
+        setState({
+          phase: "done",
+          message: `Restored ${result.plays} ${
+            result.plays === 1 ? "Play" : "Plays"
+          }. Newer work on this device was kept.`,
+        });
+      })
+      .catch(() =>
+        setState({
+          phase: "error",
+          message:
+            "That passphrase does not open this backup, or the file has been altered.",
+        }),
+      );
+  };
+
+  return (
+    <div className="versions">
+      <button
+        aria-expanded={open}
+        onClick={() => setOpen((shown) => !shown)}
+        type="button"
+      >
+        Backup
+      </button>
+      <div className="version-panel" hidden={!open}>
+        <label className="backup-field">
+          <span>Passphrase</span>
+          <input
+            aria-label="Backup passphrase"
+            autoComplete="off"
+            onChange={(event) => setPassphrase(event.target.value)}
+            type="password"
+            value={passphrase}
+          />
+        </label>
+        <p className="version-empty">
+          Chalk encrypts the backup on this device. A passphrase you lose cannot
+          be recovered.
+        </p>
+        <button
+          disabled={!passphrase || state.phase === "working"}
+          onClick={backUp}
+          type="button"
+        >
+          Back up my Playbooks
+        </button>
+        <label className="backup-field">
+          <span>Restore a backup</span>
+          <input
+            accept="application/json"
+            aria-label="Backup file"
+            disabled={!passphrase || state.phase === "working"}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) restore(file);
+            }}
+            type="file"
+          />
+        </label>
+        {state.phase === "done" || state.phase === "error" ? (
+          <p className={`backup-status ${state.phase}`} role="status">
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 function DeviceNotices({
   onDismissRecovery,
@@ -874,6 +992,7 @@ function Header({
   onRestoreVersion,
   playName,
   resetPlayName,
+  runtime,
   setPlayName,
   undo,
   versions,
@@ -888,6 +1007,7 @@ function Header({
   onCreateVersion: (label: string) => void;
   onRestoreVersion: (revisionId: string) => void;
   playName: string;
+  runtime: ChalkRuntime;
   resetPlayName: () => void;
   setPlayName: (name: string) => void;
   undo: EditorUndoState;
@@ -965,6 +1085,7 @@ function Header({
         onRestoreVersion={onRestoreVersion}
         versions={versions}
       />
+      <BackupPanel runtime={runtime} />
       <button
         className={`save ${localSave.phase}`}
         data-save-duration-ms={

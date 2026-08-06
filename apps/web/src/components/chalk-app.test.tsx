@@ -11,7 +11,7 @@ import {
 import { buildRenderScene, buildSvgRenderScene } from "@chalk/render";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ChalkRuntime } from "../app/editor-runtime";
 import { ChalkApp, FieldDiagram } from "./chalk-app";
@@ -25,6 +25,18 @@ function createTestRuntime(
     storage: { persisted: true, pressure: "healthy" },
     releaseDerivedStorage: () =>
       Promise.resolve({ persisted: true, pressure: "healthy" as const }),
+    exportEncryptedBackup: () => Promise.resolve("{}"),
+    importEncryptedBackup: () =>
+      Promise.resolve({
+        playbooks: 0,
+        concepts: 0,
+        formations: 0,
+        plays: 0,
+        revisions: 0,
+        preferences: 0,
+        skippedPlays: [],
+        skippedRevisions: [],
+      }),
     ...overrides,
   };
 }
@@ -340,5 +352,112 @@ describe("Chalk device durability surfaces", () => {
       name: "Local save failed — retry",
     });
     expect(retry).toBeEnabled();
+  });
+});
+
+describe("Chalk encrypted backups", () => {
+  it("encrypts with the Coach's passphrase and warns it cannot be recovered", async () => {
+    const user = userEvent.setup();
+    const passphrases: string[] = [];
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    globalThis.URL.createObjectURL = () => "blob:chalk";
+    globalThis.URL.revokeObjectURL = () => undefined;
+
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          exportEncryptedBackup: (passphrase) => {
+            passphrases.push(passphrase);
+            return Promise.resolve('{"kind":"chalk-encrypted-backup"}');
+          },
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Backup" }));
+    expect(
+      screen.getByText(/A passphrase you lose cannot be recovered/),
+    ).toBeVisible();
+
+    const backUp = screen.getByRole("button", {
+      name: "Back up my Playbooks",
+    });
+    // Nothing leaves the device without a passphrase.
+    expect(backUp).toBeDisabled();
+
+    await user.type(
+      screen.getByLabelText("Backup passphrase"),
+      "third and long",
+    );
+    expect(backUp).toBeEnabled();
+    await user.click(backUp);
+
+    await waitFor(() => expect(passphrases).toEqual(["third and long"]));
+    expect(click).toHaveBeenCalled();
+    await screen.findByText("Backup saved to this device.");
+    // The passphrase does not linger in the field afterwards.
+    expect(screen.getByLabelText("Backup passphrase")).toHaveValue("");
+    click.mockRestore();
+  });
+
+  it("says plainly when a backup will not open", async () => {
+    const user = userEvent.setup();
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          importEncryptedBackup: () =>
+            Promise.reject(new Error("BackupPassphraseError")),
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Backup" }));
+    await user.type(screen.getByLabelText("Backup passphrase"), "wrong");
+    await user.upload(
+      screen.getByLabelText("Backup file"),
+      new File(['{"kind":"chalk-encrypted-backup"}'], "chalk-backup.json", {
+        type: "application/json",
+      }),
+    );
+
+    expect(await screen.findByText(/does not open this backup/)).toBeVisible();
+  });
+
+  it("reports what a restore brought back and that newer work was kept", async () => {
+    const user = userEvent.setup();
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          importEncryptedBackup: () =>
+            Promise.resolve({
+              playbooks: 1,
+              concepts: 0,
+              formations: 0,
+              plays: 3,
+              revisions: 2,
+              preferences: 0,
+              skippedPlays: ["play_newer_here"],
+              skippedRevisions: [],
+            }),
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Backup" }));
+    await user.type(screen.getByLabelText("Backup passphrase"), "right");
+    await user.upload(
+      screen.getByLabelText("Backup file"),
+      new File(['{"kind":"chalk-encrypted-backup"}'], "chalk-backup.json", {
+        type: "application/json",
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Restored 3 Plays. Newer work on this device was kept.",
+      ),
+    ).toBeVisible();
   });
 });
