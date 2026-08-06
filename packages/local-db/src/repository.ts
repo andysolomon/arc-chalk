@@ -1,5 +1,7 @@
 import {
+  backupPayloadSchema,
   canonicalSha256,
+  readBackupPayload,
   conceptSchema,
   formationSchema,
   migrateStoredPlayDocument,
@@ -8,14 +10,17 @@ import {
   playbookEnvelopeSchema,
   playbookSchema,
   undoHistorySchema,
+  type BackupPayload,
   type PlayDocument,
   type PlayRevision,
   type PlaybookEnvelope,
 } from "@chalk/domain";
 
-import { ChalkDexieDatabase } from "./database";
+import { CHALK_LOCAL_DATABASE_VERSION, ChalkDexieDatabase } from "./database";
 import { TRASH_RETENTION_MS } from "./types";
 import type {
+  BackupImportOptions,
+  BackupImportResult,
   ChalkLocalRepository,
   CommitPlayInput,
   CommitPlayResult,
@@ -471,6 +476,185 @@ class DexieLocalRepository implements ChalkLocalRepository {
           right.createdAtMs - left.createdAtMs ||
           right.id.localeCompare(left.id),
       );
+  }
+
+  /**
+   * A backup carries the Coach's authoritative work and its immutable history.
+   * Device-local queues, conflicts, undo history, and derived previews stay
+   * behind: they belong to one device, not to the season.
+   */
+  async exportBackup(): Promise<BackupPayload> {
+    const [
+      playbooks,
+      concepts,
+      formations,
+      storedPlays,
+      revisions,
+      preferences,
+    ] = await Promise.all([
+      this.#database.playbooks.toArray(),
+      this.#database.concepts.toArray(),
+      this.#database.formations.toArray(),
+      this.#database.plays.toArray(),
+      this.#database.revisions.toArray(),
+      this.#database.preferences.toArray(),
+    ]);
+
+    const plays = await Promise.all(
+      storedPlays.map(async (record) => {
+        // Validating here means a backup always holds current, coherent Plays
+        // even when the device still stores an older shape.
+        const play = await this.#validatedPlay(record);
+        return {
+          playId: play.id,
+          playbookId: play.playbookId,
+          document: play.document,
+          updatedAtMs: play.updatedAtMs,
+          ...(play.currentRevisionId === undefined
+            ? {}
+            : { currentRevisionId: play.currentRevisionId }),
+          ...(play.deletedAtMs === undefined
+            ? {}
+            : { deletedAtMs: play.deletedAtMs }),
+        };
+      }),
+    );
+
+    return backupPayloadSchema.parse({
+      schemaVersion: 1,
+      kind: "chalk-backup",
+      createdAtMs: this.#now(),
+      databaseVersion: CHALK_LOCAL_DATABASE_VERSION,
+      playbooks,
+      concepts,
+      formations,
+      plays,
+      revisions,
+      // A session marker describes the device that wrote the backup, not the
+      // device that will read it.
+      preferences: preferences.filter(
+        ({ key }) => key !== OPEN_SESSION_PREFERENCE,
+      ),
+    });
+  }
+
+  /**
+   * Restores a backup in one transaction, so a Coach is never left with half
+   * of a season. Merging never overwrites a newer local Play or an immutable
+   * version already stored; replacing is the explicit way to discard.
+   */
+  async importBackup(
+    payload: BackupPayload,
+    { mode = "merge" }: BackupImportOptions = {},
+  ): Promise<BackupImportResult> {
+    // Written strictly, read leniently: a file an earlier release wrote has its
+    // Plays upgraded here rather than being refused.
+    const backup = readBackupPayload(payload);
+    // Hashing every Play before opening the transaction keeps the write atomic.
+    const plays = await Promise.all(
+      backup.plays.map(async (play) => {
+        const documentHash = await canonicalSha256(play.document);
+        const stored: StoredPlay = {
+          id: play.playId,
+          playbookId: play.playbookId,
+          document: play.document,
+          documentHash,
+          ...(play.currentRevisionId === undefined
+            ? {}
+            : { currentRevisionId: play.currentRevisionId }),
+          updatedAtMs: play.updatedAtMs,
+          ...(play.deletedAtMs === undefined
+            ? {}
+            : { deletedAtMs: play.deletedAtMs }),
+        };
+        return {
+          stored,
+          projection: projectionFor(
+            play.document,
+            documentHash,
+            play.updatedAtMs,
+          ),
+        };
+      }),
+    );
+
+    return this.#database.transaction(
+      "rw",
+      [
+        this.#database.playbooks,
+        this.#database.concepts,
+        this.#database.formations,
+        this.#database.plays,
+        this.#database.revisions,
+        this.#database.preferences,
+        this.#database.searchProjections,
+      ],
+      async () => {
+        if (mode === "replace") {
+          await Promise.all([
+            this.#database.playbooks.clear(),
+            this.#database.concepts.clear(),
+            this.#database.formations.clear(),
+            this.#database.plays.clear(),
+            this.#database.revisions.clear(),
+            this.#database.searchProjections.clear(),
+          ]);
+        }
+
+        await this.#database.playbooks.bulkPut(backup.playbooks);
+        await this.#database.concepts.bulkPut(backup.concepts);
+        await this.#database.formations.bulkPut(backup.formations);
+
+        const skippedPlays: string[] = [];
+        let importedPlays = 0;
+        for (const { stored, projection } of plays) {
+          const existing = await this.#database.plays.get(stored.id);
+          if (existing && existing.updatedAtMs > stored.updatedAtMs) {
+            // The Coach edited this Play after the backup was written.
+            skippedPlays.push(stored.id);
+            continue;
+          }
+          await this.#database.plays.put(stored);
+          if (stored.deletedAtMs === undefined) {
+            await this.#database.searchProjections.put(projection);
+          } else {
+            await this.#database.searchProjections.delete(stored.id);
+          }
+          importedPlays += 1;
+        }
+
+        const skippedRevisions: string[] = [];
+        let importedRevisions = 0;
+        for (const revision of backup.revisions) {
+          // A named version is immutable: an import may add one, never rewrite.
+          if (await this.#database.revisions.get(revision.id)) {
+            skippedRevisions.push(revision.id);
+            continue;
+          }
+          await this.#database.revisions.add(revision);
+          importedRevisions += 1;
+        }
+
+        for (const preference of backup.preferences) {
+          await this.#database.preferences.put({
+            key: preference.key,
+            value: preference.value as LocalPreference["value"],
+            updatedAtMs: preference.updatedAtMs,
+          });
+        }
+
+        return {
+          playbooks: backup.playbooks.length,
+          concepts: backup.concepts.length,
+          formations: backup.formations.length,
+          plays: importedPlays,
+          revisions: importedRevisions,
+          preferences: backup.preferences.length,
+          skippedPlays: skippedPlays.sort(),
+          skippedRevisions: skippedRevisions.sort(),
+        };
+      },
+    );
   }
 
   /**

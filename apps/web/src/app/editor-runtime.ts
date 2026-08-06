@@ -1,6 +1,10 @@
 import {
   builtInPlayTypeDefinitions,
   createStableId,
+  decryptBackup,
+  encryptBackup,
+  parseEncryptedBackup,
+  serializeEncryptedBackup,
   stickThunderPlay,
   type PlaybookEnvelope,
 } from "@chalk/domain";
@@ -11,6 +15,7 @@ import {
 } from "@chalk/editor";
 import {
   createDexieLocalRepository,
+  type BackupImportResult,
   type ChalkLocalRepository,
   type SessionRecovery,
   type StorageHealth,
@@ -44,6 +49,16 @@ export interface ChalkRuntime {
   readonly storage: StorageHealth;
   /** Frees the disposable previews and search projections Chalk can rebuild. */
   releaseDerivedStorage(): Promise<StorageHealth>;
+  /** Encrypts the Coach's work on this device before it becomes a file. */
+  exportEncryptedBackup(passphrase: string): Promise<string>;
+  /**
+   * Restores a backup without overwriting newer local work; a Play the Coach
+   * edited after the backup was written is kept.
+   */
+  importEncryptedBackup(
+    contents: string,
+    passphrase: string,
+  ): Promise<BackupImportResult>;
 }
 
 export async function createBrowserRuntime(): Promise<ChalkRuntime> {
@@ -95,6 +110,17 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     async releaseDerivedStorage() {
       await repository.clearDerivedData();
       return repository.storageHealth();
+    },
+    async exportEncryptedBackup(passphrase) {
+      const payload = await repository.exportBackup();
+      return serializeEncryptedBackup(await encryptBackup(payload, passphrase));
+    },
+    async importEncryptedBackup(contents, passphrase) {
+      const payload = await decryptBackup(
+        parseEncryptedBackup(contents),
+        passphrase,
+      );
+      return repository.importBackup(payload, { mode: "merge" });
     },
   };
 }

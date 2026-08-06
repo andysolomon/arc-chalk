@@ -1,4 +1,5 @@
 import type {
+  BackupPayload,
   Concept,
   Formation,
   PlayDocument,
@@ -72,6 +73,28 @@ export interface TrashedPlaySummary {
   readonly name: string;
   readonly deletedAtMs: number;
   readonly purgeAfterMs: number;
+}
+
+export type BackupImportMode = "merge" | "replace";
+
+export interface BackupImportOptions {
+  /**
+   * "merge" keeps a newer local Play and any version already stored;
+   * "replace" discards the Coach's current authoritative records first.
+   */
+  readonly mode?: BackupImportMode;
+}
+
+export interface BackupImportResult {
+  readonly playbooks: number;
+  readonly concepts: number;
+  readonly formations: number;
+  readonly plays: number;
+  readonly revisions: number;
+  readonly preferences: number;
+  /** Plays a newer local edit kept, and versions already stored. */
+  readonly skippedPlays: readonly string[];
+  readonly skippedRevisions: readonly string[];
 }
 
 export interface CreateNamedVersionInput {
@@ -218,6 +241,11 @@ export interface ChalkLocalRepository {
   listPlayVersions(playId: string): Promise<readonly PlayVersionSummary[]>;
 
   upgradeStoredPlays(): Promise<readonly string[]>;
+  exportBackup(): Promise<BackupPayload>;
+  importBackup(
+    payload: BackupPayload,
+    options?: BackupImportOptions,
+  ): Promise<BackupImportResult>;
   beginSession(sessionId: string): Promise<SessionRecovery>;
   endSession(): Promise<void>;
   requestPersistentStorage(): Promise<boolean>;
