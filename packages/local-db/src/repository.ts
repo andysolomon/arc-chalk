@@ -13,6 +13,7 @@ import {
 } from "@chalk/domain";
 
 import { ChalkDexieDatabase } from "./database";
+import { TRASH_RETENTION_MS } from "./types";
 import type {
   ChalkLocalRepository,
   CommitPlayInput,
@@ -26,6 +27,7 @@ import type {
   PlaySearchProjection,
   PlayVersionSummary,
   StoredPlay,
+  TrashedPlaySummary,
   SyncMutation,
   ThumbnailDerivative,
   UndoHistory,
@@ -78,6 +80,20 @@ function projectionFor(
     notes: play.notes,
     documentHash,
     updatedAtMs,
+  };
+}
+
+/** Rebuilds a Play record without its Trash mark. */
+function withoutTrashMark(play: StoredPlay): StoredPlay {
+  return {
+    id: play.id,
+    playbookId: play.playbookId,
+    document: play.document,
+    documentHash: play.documentHash,
+    ...(play.currentRevisionId === undefined
+      ? {}
+      : { currentRevisionId: play.currentRevisionId }),
+    updatedAtMs: play.updatedAtMs,
   };
 }
 
@@ -258,6 +274,11 @@ class DexieLocalRepository implements ChalkLocalRepository {
         ) {
           throw new StaleLocalPlayError(play.id);
         }
+        if (existing?.deletedAtMs !== undefined) {
+          throw new CorruptLocalDataError(
+            `Play ${play.id} is in the Trash and must be restored before editing.`,
+          );
+        }
 
         let revision: PlayRevision | undefined;
         if (input.revision) {
@@ -429,6 +450,126 @@ class DexieLocalRepository implements ChalkLocalRepository {
           right.createdAtMs - left.createdAtMs ||
           right.id.localeCompare(left.id),
       );
+  }
+
+  /**
+   * Deleting a Play hides it from the Playbook and its derived data but keeps
+   * the document, its versions, and its history recoverable for thirty days.
+   */
+  async movePlayToTrash(playId: string): Promise<void> {
+    const deletedAtMs = this.#now();
+    await this.#database.transaction(
+      "rw",
+      [
+        this.#database.plays,
+        this.#database.searchProjections,
+        this.#database.thumbnails,
+      ],
+      async () => {
+        const existing = await this.#database.plays.get(playId);
+        if (!existing) {
+          throw new CorruptLocalDataError(
+            `Cannot delete Play ${playId} because it is not stored.`,
+          );
+        }
+        if (existing.deletedAtMs !== undefined) return;
+        await this.#database.plays.put({ ...existing, deletedAtMs });
+        await this.#database.searchProjections.delete(playId);
+        await this.#database.thumbnails.where("playId").equals(playId).delete();
+      },
+    );
+  }
+
+  async restorePlayFromTrash(playId: string): Promise<StoredPlay> {
+    // Rebuilding the projection needs the document hash, which cannot be
+    // computed inside a Dexie transaction.
+    const trashed = await this.getPlay(playId);
+    if (!trashed) {
+      throw new CorruptLocalDataError(
+        `Cannot restore Play ${playId} because it is not stored.`,
+      );
+    }
+    const projection = projectionFor(
+      trashed.document,
+      trashed.documentHash,
+      trashed.updatedAtMs,
+    );
+
+    await this.#database.transaction(
+      "rw",
+      [this.#database.plays, this.#database.searchProjections],
+      async () => {
+        const existing = await this.#database.plays.get(playId);
+        if (!existing || existing.documentHash !== trashed.documentHash) {
+          throw new StaleLocalPlayError(playId);
+        }
+        await this.#database.plays.put(withoutTrashMark(existing));
+        await this.#database.searchProjections.put(projection);
+      },
+    );
+
+    return withoutTrashMark(trashed);
+  }
+
+  async listTrash(): Promise<readonly TrashedPlaySummary[]> {
+    const trashed = await this.#database.plays
+      .filter(({ deletedAtMs }) => deletedAtMs !== undefined)
+      .toArray();
+    return trashed
+      .map(({ id, playbookId, document, deletedAtMs }) => ({
+        playId: id,
+        playbookId,
+        name: document.name,
+        deletedAtMs: deletedAtMs!,
+        purgeAfterMs: deletedAtMs! + TRASH_RETENTION_MS,
+      }))
+      .sort(
+        (left, right) =>
+          right.deletedAtMs - left.deletedAtMs ||
+          left.playId.localeCompare(right.playId),
+      );
+  }
+
+  /**
+   * Purging is the only path that discards a Coach's Play, its versions, and
+   * its history, and it runs only after the retention window has passed.
+   */
+  async purgeExpiredTrash(): Promise<readonly string[]> {
+    const now = this.#now();
+    return this.#database.transaction(
+      "rw",
+      [
+        this.#database.plays,
+        this.#database.revisions,
+        this.#database.undoHistories,
+        this.#database.searchProjections,
+        this.#database.thumbnails,
+      ],
+      async () => {
+        const expired = await this.#database.plays
+          .filter(
+            ({ deletedAtMs }) =>
+              deletedAtMs !== undefined &&
+              deletedAtMs + TRASH_RETENTION_MS <= now,
+          )
+          .toArray();
+        const playIds = expired.map(({ id }) => id).sort();
+        for (const playId of playIds) {
+          await this.#database.revisions
+            .where("playId")
+            .equals(playId)
+            .delete();
+          await this.#database.thumbnails
+            .where("playId")
+            .equals(playId)
+            .delete();
+          await this.#database.undoHistories.delete(playId);
+          await this.#database.searchProjections.delete(playId);
+        }
+        await this.#database.plays.bulkDelete(playIds);
+        return playIds;
+      },
+    );
   }
 
   async readSyncMutationBatch(limit: number): Promise<readonly SyncMutation[]> {

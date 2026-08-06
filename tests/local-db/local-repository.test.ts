@@ -16,6 +16,7 @@ import {
   CorruptLocalDataError,
   createDexieLocalRepository,
   StaleLocalPlayError,
+  TRASH_RETENTION_MS,
   type ChalkLocalRepository,
 } from "@chalk/local-db";
 
@@ -488,6 +489,109 @@ describe("ChalkLocalRepository", () => {
         label: "   ",
       }),
     ).rejects.toThrow(RangeError);
+  });
+
+  it("keeps a deleted Play recoverable for thirty days", async () => {
+    let clock = FIXED_TIME;
+    const repository = track(createRepository("trash", () => clock));
+    await repository.savePlaybook(offensivePlaybookGolden);
+    const play = offensivePlaybookGolden.plays[0]!;
+    await repository.putUndoHistory({
+      schemaVersion: 1,
+      playId: play.id,
+      undo: [],
+      redo: [],
+      encodedByteLength: 0,
+      updatedAtMs: FIXED_TIME,
+    });
+    await repository.createNamedVersion({
+      playId: play.id,
+      revisionId: "revision_before_delete",
+      label: "Before delete",
+    });
+
+    await repository.movePlayToTrash(play.id);
+
+    // Gone from the Playbook and its derived data, still stored.
+    await expect(
+      repository.listPlaySummaries(play.playbookId),
+    ).resolves.toEqual([]);
+    await expect(repository.loadPlaybook(play.playbookId)).resolves.toEqual(
+      expect.objectContaining({ plays: [] }),
+    );
+    await expect(repository.listTrash()).resolves.toEqual([
+      {
+        playId: play.id,
+        playbookId: play.playbookId,
+        name: play.name,
+        deletedAtMs: FIXED_TIME,
+        purgeAfterMs: FIXED_TIME + TRASH_RETENTION_MS,
+      },
+    ]);
+    await expect(
+      repository.getRevision("revision_before_delete"),
+    ).resolves.toBeDefined();
+
+    // A Play in the Trash cannot be edited back into the Playbook.
+    const trashed = await repository.getPlay(play.id);
+    await expect(
+      repository.commitPlay({
+        play: { ...structuredClone(play), name: "Edited while deleted" },
+        expectedDocumentHash: trashed!.documentHash,
+        mutation: { id: "mutation_while_deleted" },
+      }),
+    ).rejects.toThrow(CorruptLocalDataError);
+
+    // One day short of the window purges nothing.
+    clock = FIXED_TIME + TRASH_RETENTION_MS - 1;
+    await expect(repository.purgeExpiredTrash()).resolves.toEqual([]);
+
+    const restored = await repository.restorePlayFromTrash(play.id);
+    expect(restored.deletedAtMs).toBeUndefined();
+    expect(restored.document).toEqual(play);
+    await expect(repository.listTrash()).resolves.toEqual([]);
+    await expect(
+      repository.listPlaySummaries(play.playbookId),
+    ).resolves.toEqual([expect.objectContaining({ playId: play.id })]);
+  });
+
+  it("purges a Play and everything derived from it once retention passes", async () => {
+    let clock = FIXED_TIME;
+    const repository = track(createRepository("purge", () => clock));
+    await repository.savePlaybook(offensivePlaybookGolden);
+    const play = offensivePlaybookGolden.plays[0]!;
+    await repository.createNamedVersion({
+      playId: play.id,
+      revisionId: "revision_purged",
+      label: "Purged with its Play",
+    });
+    await repository.putUndoHistory({
+      schemaVersion: 1,
+      playId: play.id,
+      undo: [],
+      redo: [],
+      encodedByteLength: 0,
+      updatedAtMs: FIXED_TIME,
+    });
+    await repository.movePlayToTrash(play.id);
+
+    clock = FIXED_TIME + TRASH_RETENTION_MS;
+    await expect(repository.purgeExpiredTrash()).resolves.toEqual([play.id]);
+
+    await expect(repository.getPlay(play.id)).resolves.toBeUndefined();
+    await expect(
+      repository.getRevision("revision_purged"),
+    ).resolves.toBeUndefined();
+    await expect(repository.getUndoHistory(play.id)).resolves.toBeUndefined();
+    await expect(repository.counts()).resolves.toEqual(
+      expect.objectContaining({
+        plays: 0,
+        revisions: 0,
+        undoHistories: 0,
+        searchProjections: 0,
+        playbooks: 1,
+      }),
+    );
   });
 
   it("commits one Play at 2,000-Play beta scale without growing with Playbook size", async () => {

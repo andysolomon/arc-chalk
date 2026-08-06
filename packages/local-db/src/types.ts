@@ -63,6 +63,17 @@ export interface PlayVersionSummary {
   readonly parentRevisionId?: string;
 }
 
+/** A Play stays recoverable in the Trash for thirty days before it is purged. */
+export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+export interface TrashedPlaySummary {
+  readonly playId: string;
+  readonly playbookId: string;
+  readonly name: string;
+  readonly deletedAtMs: number;
+  readonly purgeAfterMs: number;
+}
+
 export interface CreateNamedVersionInput {
   readonly playId: string;
   readonly revisionId: string;
@@ -176,6 +187,11 @@ export interface ChalkLocalRepository {
   getRevision(revisionId: string): Promise<PlayRevision | undefined>;
   createNamedVersion(input: CreateNamedVersionInput): Promise<PlayRevision>;
   listPlayVersions(playId: string): Promise<readonly PlayVersionSummary[]>;
+
+  movePlayToTrash(playId: string): Promise<void>;
+  restorePlayFromTrash(playId: string): Promise<StoredPlay>;
+  listTrash(): Promise<readonly TrashedPlaySummary[]>;
+  purgeExpiredTrash(): Promise<readonly string[]>;
 
   readSyncMutationBatch(limit: number): Promise<readonly SyncMutation[]>;
   acknowledgeSyncMutations(ids: readonly string[]): Promise<void>;
