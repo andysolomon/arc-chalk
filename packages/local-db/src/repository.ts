@@ -2,6 +2,7 @@ import {
   canonicalSha256,
   conceptSchema,
   formationSchema,
+  migrateStoredPlayDocument,
   playDocumentSchema,
   playRevisionSchema,
   playbookEnvelopeSchema,
@@ -473,6 +474,54 @@ class DexieLocalRepository implements ChalkLocalRepository {
   }
 
   /**
+   * Rewrites every Play an earlier release left behind so the upgrade happens
+   * once rather than on each read. Reads tolerate legacy Plays either way, so
+   * a Coach is never blocked on this finishing.
+   */
+  async upgradeStoredPlays(): Promise<readonly string[]> {
+    const stored = await this.#database.plays.toArray();
+    const legacy = stored.filter(
+      (record) => !playDocumentSchema.safeParse(record.document).success,
+    );
+    if (legacy.length === 0) return [];
+
+    // Migrating and hashing cannot happen inside a Dexie transaction.
+    const upgraded = await Promise.all(
+      legacy.map(async (record) => {
+        const play = await this.#validatedPlay(record);
+        return {
+          play,
+          projection: projectionFor(
+            play.document,
+            play.documentHash,
+            play.updatedAtMs,
+          ),
+          previousHash: record.documentHash,
+        };
+      }),
+    );
+
+    return this.#database.transaction(
+      "rw",
+      [this.#database.plays, this.#database.searchProjections],
+      async () => {
+        const rewritten: string[] = [];
+        for (const { play, projection, previousHash } of upgraded) {
+          const existing = await this.#database.plays.get(play.id);
+          // Another tab may have upgraded or edited it first.
+          if (!existing || existing.documentHash !== previousHash) continue;
+          await this.#database.plays.put(play);
+          if (play.deletedAtMs === undefined) {
+            await this.#database.searchProjections.put(projection);
+          }
+          rewritten.push(play.id);
+        }
+        return rewritten.sort();
+      },
+    );
+  }
+
+  /**
    * Records that a session is open and reports whether the previous one ever
    * closed. Committed work is already durable either way; this only decides
    * whether Chalk owes the Coach an explanation.
@@ -801,9 +850,27 @@ class DexieLocalRepository implements ChalkLocalRepository {
     };
   }
 
+  /**
+   * A Play written by an earlier release is upgraded rather than refused: the
+   * Coach's work must survive every schema Chalk has shipped. Its stored hash
+   * was computed for the older shape, so the upgraded Play is rehashed instead
+   * of being reported as corrupt.
+   */
   async #validatedPlay(record: StoredPlay): Promise<StoredPlay> {
-    const document = playDocumentSchema.parse(record.document);
-    const documentHash = await canonicalSha256(document);
+    const current = playDocumentSchema.safeParse(record.document);
+    if (!current.success) {
+      const document = migrateStoredPlayDocument(
+        record.document,
+        record.playbookId,
+      );
+      return {
+        ...record,
+        document,
+        documentHash: await canonicalSha256(document),
+      };
+    }
+
+    const documentHash = await canonicalSha256(current.data);
     if (documentHash !== record.documentHash) {
       throw new CorruptLocalDataError(
         `Stored Play ${record.id} does not match its document hash.`,
@@ -811,7 +878,7 @@ class DexieLocalRepository implements ChalkLocalRepository {
     }
     return {
       ...record,
-      document,
+      document: current.data,
       documentHash,
     };
   }

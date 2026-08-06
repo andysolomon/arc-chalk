@@ -86,6 +86,23 @@ export function migratePlayDocument(input: unknown): PlayDocument {
   return migratePlayDocumentV2ToV3(migratePlayDocumentV1ToV2(versionOne));
 }
 
+/**
+ * Upgrades a Play read out of the device database. A stored Play already
+ * belongs to one of the Coach's Playbooks, so it keeps that Playbook rather
+ * than moving to the legacy-import bucket a standalone file lands in.
+ */
+export function migrateStoredPlayDocument(
+  input: unknown,
+  playbookId: string,
+): PlayDocument {
+  const current = playDocumentSchema.safeParse(input);
+  if (current.success) return current.data;
+  return playDocumentSchema.parse({
+    ...migratePlayDocument(input),
+    playbookId,
+  });
+}
+
 export function migratePlayEnvelope(input: unknown): PlayEnvelope {
   const current = playEnvelopeSchema.safeParse(input);
   if (current.success) return current.data;
