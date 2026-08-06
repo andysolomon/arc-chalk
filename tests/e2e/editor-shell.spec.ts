@@ -1,5 +1,14 @@
 import { expect, test } from "@playwright/test";
 
+const LOCAL_SAVE_BUDGET_MS = 50;
+
+/**
+ * The 50 ms budget is a Coach-device guarantee, and plan item 4.6 owns proving
+ * it on the target devices. Shared CI runners are several times slower than any
+ * supported device, so there they guard against gross regressions instead.
+ */
+const acknowledgementCeilingMs = process.env.CI ? 400 : LOCAL_SAVE_BUDGET_MS;
+
 test("opens the original field-first editor shell and its modes", async ({
   page,
 }) => {
@@ -30,4 +39,95 @@ test("opens the original field-first editor shell and its modes", async ({
   await expect(
     page.getByRole("navigation", { name: "Drawing tools" }),
   ).toBeVisible();
+
+  const playName = page.getByRole("textbox", { name: "Play name" });
+  const localSave = page.getByRole("button", {
+    name: "Saved on this device",
+  });
+
+  // The first save of a session also pays for module evaluation, opening
+  // IndexedDB, and seeding the starter Playbook. The budget describes ongoing
+  // editing, so warm up first and measure the save after that.
+  await playName.fill("Warm-up save");
+  await playName.press("Enter");
+  await expect(localSave).toBeVisible();
+
+  await playName.fill("Mesh — Alert");
+  await playName.press("Enter");
+  // The renamed Play paints when its commit starts, so waiting for it and then
+  // for Saved reads this save's acknowledgement rather than the warm-up's.
+  await expect(
+    page.getByRole("img", { name: "Mesh — Alert football play" }),
+  ).toBeVisible();
+  await expect(localSave).toBeVisible();
+
+  const durationMs = Number(
+    await localSave.getAttribute("data-save-duration-ms"),
+  );
+  expect(durationMs).toBeGreaterThan(0);
+  // Chalk always classifies its own acknowledgement against the 50 ms budget.
+  await expect(localSave).toHaveAttribute(
+    "data-save-within-budget",
+    String(durationMs < LOCAL_SAVE_BUDGET_MS),
+  );
+  expect(durationMs).toBeLessThan(acknowledgementCeilingMs);
+
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Mesh — Alert",
+  );
+  await expect(
+    page.getByRole("img", { name: "Mesh — Alert football play" }),
+  ).toBeVisible();
+});
+
+test("undoes and redoes a Play edit across a reload", async ({ page }) => {
+  await page.goto("/");
+
+  const playName = page.getByRole("textbox", { name: "Play name" });
+  const undo = page.getByRole("button", { name: "Undo" });
+  const redo = page.getByRole("button", { name: "Redo" });
+
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+
+  await playName.fill("Mesh — Alert");
+  await playName.press("Enter");
+  await expect(
+    page.getByRole("button", { name: "Saved on this device" }),
+  ).toBeVisible();
+  await expect(undo).toBeEnabled();
+  await expect(undo).toHaveAttribute("title", "Undo Rename Play");
+
+  await undo.click();
+  await expect(playName).toHaveValue("Stick — Thunder");
+  await expect(
+    page.getByRole("img", { name: "Stick — Thunder football play" }),
+  ).toBeVisible();
+  await expect(redo).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Saved on this device" }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Stick — Thunder",
+  );
+  const redoAfterReload = page.getByRole("button", { name: "Redo" });
+  await expect(redoAfterReload).toBeEnabled();
+  await expect(redoAfterReload).toHaveAttribute("title", "Redo Rename Play");
+
+  await redoAfterReload.click();
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Mesh — Alert",
+  );
+  await expect(
+    page.getByRole("button", { name: "Saved on this device" }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Mesh — Alert",
+  );
+  await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
 });

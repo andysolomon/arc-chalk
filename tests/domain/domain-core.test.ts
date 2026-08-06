@@ -21,6 +21,7 @@ import {
 import {
   footballPathPrimitivePlay,
   playerLabelPrimitivePlay,
+  releasedPlayDocumentV1,
   stickThunderPlay,
 } from "@chalk/test-fixtures";
 import fc from "fast-check";
@@ -31,7 +32,7 @@ describe("canonical Play documents", () => {
     expect(playDocumentSchema.parse(stickThunderPlay)).toEqual(
       stickThunderPlay,
     );
-    expect(stickThunderPlay.schemaVersion).toBe(2);
+    expect(stickThunderPlay.schemaVersion).toBe(3);
     expect(stickThunderPlay.players).toHaveLength(11);
     expect(stickThunderPlay.paths).toHaveLength(5);
     expect(stickThunderPlay.labels).toHaveLength(12);
@@ -314,19 +315,9 @@ describe("versioned Field Profiles", () => {
       hashInsetYards: 20,
     });
 
-    const migratedPlay = migratePlayDocument({
-      ...stickThunderPlay,
-      schemaVersion: 1,
-      fieldProfile: {
-        id: "field_high_school",
-        name: "High school",
-        widthYards: 160 / 3,
-        endZoneDepthYards: 10,
-        hashOffsetYards: 53 + 4 / 12,
-      },
-    });
+    const migratedPlay = migratePlayDocument(releasedPlayDocumentV1);
 
-    expect(migratedPlay.schemaVersion).toBe(2);
+    expect(migratedPlay.schemaVersion).toBe(3);
     expect(migratedPlay.fieldProfile).toEqual(highSchoolFieldProfile);
     expect(playDocumentSchema.parse(migratedPlay)).toEqual(migratedPlay);
   });

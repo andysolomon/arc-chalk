@@ -8,6 +8,8 @@
   },
   "references": [
     { "path": "../../packages/domain" },
+    { "path": "../../packages/editor" },
+    { "path": "../../packages/local-db" },
     { "path": "../../packages/render" }
   ],
   "include": ["src", "vite.config.ts"]

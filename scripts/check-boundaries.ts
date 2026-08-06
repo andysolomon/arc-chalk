@@ -28,6 +28,24 @@ const forbiddenByBoundary: Record<string, readonly string[]> = {
     "@chalk/local-db",
     "@chalk/sync",
   ],
+  "packages/editor": [
+    "react",
+    "dexie",
+    "convex",
+    "@tanstack/",
+    "@chalk/local-db",
+    "@chalk/sync",
+    "@chalk/exports",
+  ],
+  "packages/local-db": [
+    "react",
+    "convex",
+    "@tanstack/",
+    "@chalk/editor",
+    "@chalk/render",
+    "@chalk/sync",
+    "@chalk/exports",
+  ],
 };
 
 async function sourceFiles(directory: string): Promise<string[]> {

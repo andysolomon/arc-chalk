@@ -1,0 +1,498 @@
+import {
+  canonicalSha256,
+  conceptSchema,
+  formationSchema,
+  playDocumentSchema,
+  playRevisionSchema,
+  playbookEnvelopeSchema,
+  playbookSchema,
+  undoHistorySchema,
+  type PlayDocument,
+  type PlayRevision,
+  type PlaybookEnvelope,
+} from "@chalk/domain";
+
+import { ChalkDexieDatabase } from "./database";
+import type {
+  ChalkLocalRepository,
+  CommitPlayInput,
+  CommitPlayResult,
+  LocalConflict,
+  LocalImageBlob,
+  LocalPreference,
+  LocalRepositoryOptions,
+  LocalStoreCounts,
+  PlaySearchProjection,
+  StoredPlay,
+  SyncMutation,
+  ThumbnailDerivative,
+  UndoHistory,
+} from "./types";
+
+export class StaleLocalPlayError extends Error {
+  constructor(readonly playId: string) {
+    super(`Play ${playId} changed before this local commit.`);
+    this.name = "StaleLocalPlayError";
+  }
+}
+
+export class CorruptLocalDataError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CorruptLocalDataError";
+  }
+}
+
+function projectionFor(
+  play: PlayDocument,
+  documentHash: string,
+  updatedAtMs: number,
+): PlaySearchProjection {
+  return {
+    playId: play.id,
+    playbookId: play.playbookId,
+    name: play.name,
+    unit: play.unit,
+    ...(play.playType === undefined
+      ? {}
+      : {
+          playTypeId: play.playType.id,
+          playTypeName: play.playType.name,
+        }),
+    ...(play.conceptSource === undefined
+      ? {}
+      : { conceptId: play.conceptSource.conceptId }),
+    ...(play.formationSource === undefined
+      ? {}
+      : { formationId: play.formationSource.formationId }),
+    ...(play.personnelLabel === undefined
+      ? {}
+      : { personnelLabel: play.personnelLabel }),
+    tags: [...play.tags],
+    playerRoles: play.players.flatMap(({ role }) => (role ? [role] : [])),
+    assignmentText: play.assignments.flatMap(({ text }) =>
+      text.trim() ? [text] : [],
+    ),
+    notes: play.notes,
+    documentHash,
+    updatedAtMs,
+  };
+}
+
+function positiveLimit(limit: number): number {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new RangeError(
+      "A sync mutation batch limit must be between 1 and 100.",
+    );
+  }
+  return limit;
+}
+
+class DexieLocalRepository implements ChalkLocalRepository {
+  readonly #database: ChalkDexieDatabase;
+  readonly #now: () => number;
+
+  constructor(options: LocalRepositoryOptions) {
+    this.#database = new ChalkDexieDatabase(options.databaseName, {
+      indexedDB: options.indexedDB,
+      IDBKeyRange: options.IDBKeyRange,
+    });
+    this.#now = options.now ?? Date.now;
+  }
+
+  async open(): Promise<void> {
+    await this.#database.open();
+  }
+
+  close(): void {
+    this.#database.close();
+  }
+
+  async destroy(): Promise<void> {
+    this.#database.close();
+    await this.#database.delete();
+  }
+
+  async savePlaybook(input: PlaybookEnvelope): Promise<void> {
+    const envelope = playbookEnvelopeSchema.parse(input);
+    const storedPlays = await Promise.all(
+      envelope.plays.map(async (document): Promise<StoredPlay> => {
+        const documentHash = await canonicalSha256(document);
+        return {
+          id: document.id,
+          playbookId: document.playbookId,
+          document,
+          documentHash,
+          updatedAtMs: envelope.playbook.updatedAtMs,
+        };
+      }),
+    );
+    const projections = storedPlays.map(({ document, documentHash }) =>
+      projectionFor(document, documentHash, envelope.playbook.updatedAtMs),
+    );
+
+    await this.#database.transaction(
+      "rw",
+      this.#database.playbooks,
+      this.#database.concepts,
+      this.#database.formations,
+      this.#database.plays,
+      this.#database.searchProjections,
+      async () => {
+        await this.#database.playbooks.put(envelope.playbook);
+        await this.#database.concepts.bulkPut(envelope.concepts);
+        await this.#database.formations.bulkPut(envelope.formations);
+        await this.#database.plays.bulkPut(storedPlays);
+        await this.#database.searchProjections.bulkPut(projections);
+      },
+    );
+  }
+
+  async loadPlaybook(
+    playbookId: string,
+  ): Promise<PlaybookEnvelope | undefined> {
+    const playbookRecord = await this.#database.playbooks.get(playbookId);
+    if (!playbookRecord) return undefined;
+    const playbook = playbookSchema.parse(playbookRecord);
+    const [conceptRecords, formationRecords, storedPlays] = await Promise.all([
+      this.#database.concepts.where("playbookId").equals(playbookId).toArray(),
+      this.#database.formations
+        .where("playbookId")
+        .equals(playbookId)
+        .toArray(),
+      this.#database.plays.where("playbookId").equals(playbookId).toArray(),
+    ]);
+    const plays = await Promise.all(
+      storedPlays
+        .filter(({ deletedAtMs }) => deletedAtMs === undefined)
+        .map((record) => this.#validatedPlay(record)),
+    );
+
+    return playbookEnvelopeSchema.parse({
+      schemaVersion: 1,
+      kind: "chalk-playbook",
+      exportedAtMs: playbook.updatedAtMs,
+      playbook,
+      concepts: conceptRecords.map((value) => conceptSchema.parse(value)),
+      formations: formationRecords.map((value) => formationSchema.parse(value)),
+      plays: plays.map(({ document }) => document),
+    });
+  }
+
+  async getPlay(playId: string): Promise<StoredPlay | undefined> {
+    const record = await this.#database.plays.get(playId);
+    return record ? this.#validatedPlay(record) : undefined;
+  }
+
+  async listPlaySummaries(
+    playbookId: string,
+  ): Promise<readonly PlaySearchProjection[]> {
+    const values = await this.#database.searchProjections
+      .where("playbookId")
+      .equals(playbookId)
+      .toArray();
+    return values.sort(
+      (left, right) =>
+        left.name.localeCompare(right.name) ||
+        left.playId.localeCompare(right.playId),
+    );
+  }
+
+  async commitPlay(input: CommitPlayInput): Promise<CommitPlayResult> {
+    const play = playDocumentSchema.parse(input.play);
+    const documentHash = await canonicalSha256(play);
+    const committedAtMs = this.#now();
+    const undoHistory = input.undoHistory
+      ? undoHistorySchema.parse(input.undoHistory)
+      : undefined;
+    if (undoHistory && undoHistory.playId !== play.id) {
+      throw new CorruptLocalDataError(
+        `Undo history for Play ${undoHistory.playId} cannot be committed with Play ${play.id}.`,
+      );
+    }
+
+    return this.#database.transaction(
+      "rw",
+      [
+        this.#database.playbooks,
+        this.#database.concepts,
+        this.#database.formations,
+        this.#database.plays,
+        this.#database.revisions,
+        this.#database.syncMutations,
+        this.#database.searchProjections,
+        this.#database.undoHistories,
+      ],
+      async () => {
+        const [playbook, concepts, formations, existing] = await Promise.all([
+          this.#database.playbooks.get(play.playbookId),
+          this.#database.concepts
+            .where("playbookId")
+            .equals(play.playbookId)
+            .toArray(),
+          this.#database.formations
+            .where("playbookId")
+            .equals(play.playbookId)
+            .toArray(),
+          this.#database.plays.get(play.id),
+        ]);
+        if (!playbook) {
+          throw new CorruptLocalDataError(
+            `Cannot commit Play ${play.id} without Playbook ${play.playbookId}.`,
+          );
+        }
+        playbookEnvelopeSchema.parse({
+          schemaVersion: 1,
+          kind: "chalk-playbook",
+          exportedAtMs: committedAtMs,
+          playbook,
+          concepts,
+          formations,
+          plays: [play],
+        });
+        if (
+          input.expectedDocumentHash !== undefined &&
+          existing?.documentHash !== input.expectedDocumentHash
+        ) {
+          throw new StaleLocalPlayError(play.id);
+        }
+
+        let revision: PlayRevision | undefined;
+        if (input.revision) {
+          revision = playRevisionSchema.parse({
+            schemaVersion: 1,
+            id: input.revision.id,
+            playId: play.id,
+            ...(existing?.currentRevisionId
+              ? { parentRevisionId: existing.currentRevisionId }
+              : {}),
+            createdAtMs: committedAtMs,
+            ...(input.revision.label === undefined
+              ? {}
+              : { label: input.revision.label }),
+            documentHash,
+            document: play,
+          });
+        }
+
+        let mutation: SyncMutation | undefined;
+        if (input.mutation) {
+          mutation = {
+            id: input.mutation.id,
+            entityKind: "play",
+            entityId: play.id,
+            operation: "put",
+            ...(input.mutation.baseRevisionId === undefined
+              ? {}
+              : { baseRevisionId: input.mutation.baseRevisionId }),
+            payloadHash: documentHash,
+            payload: play,
+            status: "pending",
+            attempts: 0,
+            createdAtMs: committedAtMs,
+            nextAttemptAtMs: committedAtMs,
+          };
+        }
+
+        const stored: StoredPlay = {
+          id: play.id,
+          playbookId: play.playbookId,
+          document: play,
+          documentHash,
+          ...(revision
+            ? { currentRevisionId: revision.id }
+            : existing?.currentRevisionId
+              ? { currentRevisionId: existing.currentRevisionId }
+              : {}),
+          updatedAtMs: committedAtMs,
+        };
+        await this.#database.plays.put(stored);
+        if (revision) await this.#database.revisions.add(revision);
+        if (mutation) await this.#database.syncMutations.add(mutation);
+        await this.#database.searchProjections.put(
+          projectionFor(play, documentHash, committedAtMs),
+        );
+        if (undoHistory) {
+          await this.#database.undoHistories.put(structuredClone(undoHistory));
+        }
+
+        return {
+          playId: play.id,
+          documentHash,
+          committedAtMs,
+          ...(revision ? { revisionId: revision.id } : {}),
+          ...(mutation ? { mutationId: mutation.id } : {}),
+          ...(undoHistory ? { undoEntryCount: undoHistory.undo.length } : {}),
+        };
+      },
+    );
+  }
+
+  async getRevision(revisionId: string): Promise<PlayRevision | undefined> {
+    const value = await this.#database.revisions.get(revisionId);
+    if (!value) return undefined;
+    const revision = playRevisionSchema.parse(value);
+    const documentHash = await canonicalSha256(revision.document);
+    if (documentHash !== revision.documentHash) {
+      throw new CorruptLocalDataError(
+        `Stored revision ${revision.id} does not match its document hash.`,
+      );
+    }
+    return revision;
+  }
+
+  async readSyncMutationBatch(limit: number): Promise<readonly SyncMutation[]> {
+    const batchLimit = positiveLimit(limit);
+    const now = this.#now();
+    const values = await this.#database.syncMutations.toArray();
+    return values
+      .filter(({ nextAttemptAtMs }) => nextAttemptAtMs <= now)
+      .sort(
+        (left, right) =>
+          left.createdAtMs - right.createdAtMs ||
+          left.id.localeCompare(right.id),
+      )
+      .slice(0, batchLimit);
+  }
+
+  async acknowledgeSyncMutations(ids: readonly string[]): Promise<void> {
+    await this.#database.syncMutations.bulkDelete([...ids]);
+  }
+
+  async putConflict(conflict: LocalConflict): Promise<void> {
+    await this.#database.conflicts.put(structuredClone(conflict));
+  }
+
+  async listUnresolvedConflicts(): Promise<readonly LocalConflict[]> {
+    const values = await this.#database.conflicts
+      .where("status")
+      .equals("unresolved")
+      .toArray();
+    return values.sort(
+      (left, right) =>
+        left.createdAtMs - right.createdAtMs || left.id.localeCompare(right.id),
+    );
+  }
+
+  async setPreference(preference: LocalPreference): Promise<void> {
+    await this.#database.preferences.put(structuredClone(preference));
+  }
+
+  async getPreference(key: string): Promise<LocalPreference | undefined> {
+    return this.#database.preferences.get(key);
+  }
+
+  async putImage(image: LocalImageBlob): Promise<void> {
+    await this.#database.imageBlobs.put(image);
+  }
+
+  async getImage(hash: string): Promise<LocalImageBlob | undefined> {
+    return this.#database.imageBlobs.get(hash);
+  }
+
+  async putUndoHistory(history: UndoHistory): Promise<void> {
+    await this.#database.undoHistories.put(
+      structuredClone(undoHistorySchema.parse(history)),
+    );
+  }
+
+  /**
+   * Undo history is disposable: a record that no longer parses is dropped so a
+   * migration can cost local history without endangering the Play itself.
+   */
+  async getUndoHistory(playId: string): Promise<UndoHistory | undefined> {
+    const record = await this.#database.undoHistories.get(playId);
+    if (!record) return undefined;
+    const parsed = undoHistorySchema.safeParse(record);
+    if (!parsed.success) {
+      await this.#database.undoHistories.delete(playId);
+      return undefined;
+    }
+    return parsed.data;
+  }
+
+  async putThumbnail(thumbnail: ThumbnailDerivative): Promise<void> {
+    await this.#database.thumbnails.put(thumbnail);
+  }
+
+  async getThumbnail(key: string): Promise<ThumbnailDerivative | undefined> {
+    return this.#database.thumbnails.get(key);
+  }
+
+  async clearDerivedData(): Promise<void> {
+    await this.#database.transaction(
+      "rw",
+      this.#database.searchProjections,
+      this.#database.thumbnails,
+      async () => {
+        await this.#database.searchProjections.clear();
+        await this.#database.thumbnails.clear();
+      },
+    );
+  }
+
+  async counts(): Promise<LocalStoreCounts> {
+    const [
+      playbooks,
+      concepts,
+      formations,
+      plays,
+      revisions,
+      syncMutations,
+      conflicts,
+      preferences,
+      imageBlobs,
+      undoHistories,
+      searchProjections,
+      thumbnails,
+    ] = await Promise.all([
+      this.#database.playbooks.count(),
+      this.#database.concepts.count(),
+      this.#database.formations.count(),
+      this.#database.plays.count(),
+      this.#database.revisions.count(),
+      this.#database.syncMutations.count(),
+      this.#database.conflicts.count(),
+      this.#database.preferences.count(),
+      this.#database.imageBlobs.count(),
+      this.#database.undoHistories.count(),
+      this.#database.searchProjections.count(),
+      this.#database.thumbnails.count(),
+    ]);
+    return {
+      playbooks,
+      concepts,
+      formations,
+      plays,
+      revisions,
+      syncMutations,
+      conflicts,
+      preferences,
+      imageBlobs,
+      undoHistories,
+      searchProjections,
+      thumbnails,
+    };
+  }
+
+  async #validatedPlay(record: StoredPlay): Promise<StoredPlay> {
+    const document = playDocumentSchema.parse(record.document);
+    const documentHash = await canonicalSha256(document);
+    if (documentHash !== record.documentHash) {
+      throw new CorruptLocalDataError(
+        `Stored Play ${record.id} does not match its document hash.`,
+      );
+    }
+    return {
+      ...record,
+      document,
+      documentHash,
+    };
+  }
+}
+
+export function createDexieLocalRepository(
+  options: LocalRepositoryOptions,
+): ChalkLocalRepository {
+  return new DexieLocalRepository(options);
+}

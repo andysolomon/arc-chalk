@@ -28,6 +28,18 @@ _Avoid_: Drawing, concept variation, canvas document
 A reusable, role-aware alignment template that a Coach copies into a Play. A Play remembers its source Formation, but later Formation changes affect it only through an explicit previewed reapplication.
 _Avoid_: Live template, player preset
 
+**Play Type**:
+An optional Coach-managed classification within a Play's Unit, seeded with useful football types but open to custom definitions. A Play never requires classification below Unit.
+_Avoid_: Category, Unit, mandatory hierarchy
+
+**Personnel Label**:
+An optional searchable label describing the package used by a Play without acting as a Player or Formation template.
+_Avoid_: Personnel entity, roster package
+
+**Assignment**:
+Optional Play-owned coaching direction for one Player that may combine the Coach's exact wording with ordered structured football actions.
+_Avoid_: Route label, required task template
+
 **Share Link**:
 A revocable, read-only presentation of one Play or a curated set of Plays. It grants no ownership, editing, history, internal-note, or broader Playbook access.
 _Avoid_: Collaboration, invitation, public playbook

@@ -1,3 +1,5 @@
+import { playDocumentSchema, type PlayDocument } from "./schema";
+
 const encoder = new TextEncoder();
 
 function canonicalValue(value: unknown): unknown {
@@ -34,6 +36,11 @@ export async function canonicalSha256(value: unknown): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
+}
+
+export async function hashPlayDocument(input: unknown): Promise<string> {
+  const play: PlayDocument = playDocumentSchema.parse(input);
+  return canonicalSha256(play);
 }
 
 export function createStableId(
