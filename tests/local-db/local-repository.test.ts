@@ -737,6 +737,11 @@ describe("ChalkLocalRepository", () => {
       updatedAtMs: FIXED_TIME,
     });
 
+    function median(values: readonly number[]): number {
+      const sorted = [...values].sort((left, right) => left - right);
+      return sorted[Math.floor(sorted.length / 2)]!;
+    }
+
     async function measureCommit(
       suffix: string,
       playCount: number,
@@ -761,26 +766,34 @@ describe("ChalkLocalRepository", () => {
         name: "Measured commit",
       };
 
-      const startedAtMs = performance.now();
-      const result = await repository.commitPlay({
-        play: measuredPlay,
-        expectedDocumentHash: target!.documentHash,
-        mutation: { id: `mutation_measured_${suffix}` },
-        undoHistory: fullHistoryFor(measuredPlay),
-      });
-      const durationMs = performance.now() - startedAtMs;
+      // One commit on a shared runner is mostly noise, so the reported cost is
+      // the median of several.
+      const durations: number[] = [];
+      let expectedHash = target!.documentHash;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const play = { ...measuredPlay, name: `Measured commit ${attempt}` };
+        const startedAtMs = performance.now();
+        const result = await repository.commitPlay({
+          play,
+          expectedDocumentHash: expectedHash,
+          mutation: { id: `mutation_measured_${suffix}_${attempt}` },
+          undoHistory: fullHistoryFor(play),
+        });
+        durations.push(performance.now() - startedAtMs);
+        expectedHash = result.documentHash;
+        expect(result.documentHash).toMatch(/^[a-f0-9]{64}$/);
+        expect(result.undoEntryCount).toBe(UNDO_HISTORY_LIMITS.maxEntries);
+      }
 
-      expect(result.documentHash).toMatch(/^[a-f0-9]{64}$/);
-      expect(result.undoEntryCount).toBe(UNDO_HISTORY_LIMITS.maxEntries);
       await expect(repository.counts()).resolves.toEqual(
         expect.objectContaining({
           plays: playCount,
-          syncMutations: 1,
+          syncMutations: 5,
           searchProjections: playCount,
           undoHistories: 1,
         }),
       );
-      return durationMs;
+      return median(durations);
     }
 
     const smallMs = await measureCommit("scale-small", 2);
@@ -788,8 +801,11 @@ describe("ChalkLocalRepository", () => {
 
     // A commit reads only its own Play plus that Playbook's Concepts and
     // Formations, so committing into a 1,000x larger Playbook must not cost
-    // meaningfully more. Wall-clock ceilings against the Coach-visible 50 ms
-    // budget belong on real devices, not on this in-memory IndexedDB shim.
-    expect(betaMs).toBeLessThan(smallMs * 3 + 25);
-  }, 30_000);
+    // meaningfully more. The bound is deliberately loose: it exists to catch a
+    // commit that starts scanning the Playbook, which at this scale would cost
+    // orders of magnitude rather than a small multiple. Wall-clock ceilings
+    // against the Coach-visible 50 ms budget belong on real devices, not on
+    // this in-memory IndexedDB shim.
+    expect(betaMs).toBeLessThan(smallMs * 5 + 100);
+  }, 60_000);
 });
