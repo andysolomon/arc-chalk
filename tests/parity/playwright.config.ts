@@ -41,9 +41,13 @@ export default defineConfig({
       use: { baseURL: "http://127.0.0.1:4173" },
     },
   ],
-  webServer:
-    process.env.CHALK_PROTOTYPE_SERVER === "external"
-      ? undefined
+  // CHALK_PROTOTYPE_SERVER=external says the *prototype* is already running —
+  // the merge gate starts it itself. Production is never external, so it is
+  // started either way; suppressing both left the production project pointing
+  // at nothing.
+  webServer: [
+    ...(process.env.CHALK_PROTOTYPE_SERVER === "external"
+      ? []
       : [
           {
             command: `bun "${prototypeServer}"`,
@@ -51,11 +55,12 @@ export default defineConfig({
             reuseExistingServer: !process.env.CI,
             timeout: 30_000,
           },
-          {
-            command: "bun run dev",
-            url: "http://127.0.0.1:4173",
-            reuseExistingServer: !process.env.CI,
-            timeout: 60_000,
-          },
-        ],
+        ]),
+    {
+      command: "bun run dev",
+      url: "http://127.0.0.1:4173",
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+  ],
 });
