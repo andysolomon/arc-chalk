@@ -47,6 +47,12 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 | State | Gap measured | Date |
 |---|---|---|
 | Editor | 1.85% (25,526 px of 1,382,400) | 2026-08-06 |
+| Export menu | 1.74% (24,057 px) | 2026-08-06 (first measurement) |
+| Command palette | 1.80% (24,818 px) | 2026-08-06 (first measurement) |
+| Save/version menu | 1.81% (25,027 px) | 2026-08-06 (first measurement) |
+| More menu | 1.81% (25,040 px) | 2026-08-06 (first measurement) |
+| Keyboard shortcuts | 2.64% (36,477 px) | 2026-08-06 |
+| Keyboard shortcuts | 3.48% (48,152 px) | 2026-08-06 (first measurement) |
 | Editor | 1.89% (26,186 px of 1,382,400) | 2026-08-06 |
 | Editor | 2.14% (29,631 px of 1,382,400) | 2026-08-06 (first measurement) |
 
@@ -68,6 +74,37 @@ Metrics matched to the original by measurement:
 | Play Type control x | 794 | 695 | 795 |
 | Tool-rail glyph | 18 × 18 at x 19 | 22 × 22 at x 17 | 18 × 18 at x 19 |
 | Inspector body width | 256 px | 252 px | 256 px |
+
+### The five chrome overlays
+
+The More menu, Export menu, Save/version menu, command palette and shortcut
+reference are built from the original's own item lists, ordering and copy,
+which live in `apps/web/src/components/editor-command-surface.ts`. Changing a
+label there is a parity change, not a wording preference.
+
+Four of the five sit at or just under the Editor's own gap, because the panel
+covers part of the field that production and the original disagree about — what
+remains is the shell behind the overlay, not the overlay itself.
+
+The shortcut reference is higher for one reason that is not about the panel:
+reaching `Shortcuts ?` scrolls the inspector, and the original's inspector
+carries History, Page, Type and layer sections production has not built. The
+panel itself matches — its single-line rows measure the original's 28 px and its
+three-line rows the original's 62 px.
+
+A command production cannot yet run stays listed and is shown unavailable
+rather than accepting a click and doing nothing. The Formation, Defense and
+saved-Play entries the original's palette also carries arrive with the browsers.
+
+Two things measured here that were not obvious from a screenshot:
+
+- **Tailwind's preflight sets `line-height: 1.5` where the original inherits
+  `normal`.** That stretched every shortcut row from 28 px to 30 px and pushed
+  the panel 20 px up. Setting it globally to `normal` made *every* state worse
+  (Editor 25,526 → 25,781 px), because the rest of the shell was already built
+  against the 1.5 leading; the fix belongs on the panel that needs it.
+- The original's shortcut rows are a **17 px line box**, not `normal` — `normal`
+  gives 15 px in production's font stack and undershoots by 2 px a row.
 
 Known contributors to the remaining Editor gap:
 

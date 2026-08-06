@@ -16,6 +16,19 @@ const parityGap: Readonly<Record<string, number>> = {
   // the Play sits a few pixels off; tool-rail glyph shapes still differ; and
   // the status bar's spacing does not match.
   editor: 0.0185,
+  // The five chrome overlays, first measured on 2026-08-06. Each sits at or
+  // just under the Editor's own gap because the panel covers part of the field
+  // it disagrees about — what is left is the shell behind them, not the
+  // overlay. Their item lists, ordering and copy already match the original.
+  moreMenu: 0.0182,
+  exportMenu: 0.0175,
+  saveMenu: 0.0182,
+  commandPalette: 0.018,
+  // Higher than the rest for one reason: reaching "Shortcuts ?" scrolls the
+  // inspector, and the original's inspector carries History, Page and Type
+  // sections production has not built. The panel itself matches — its rows and
+  // wrapped rows measure the original's 28 px and 62 px exactly.
+  shortcuts: 0.0264,
 };
 
 /**
@@ -57,6 +70,97 @@ test.describe("production shell against the canonical original", () => {
         caret: "hide",
         fullPage: true,
         maxDiffPixelRatio: allowedGap("editor"),
+      },
+    );
+  });
+});
+
+/**
+ * The overlay states are driven through the same affordances the original's
+ * own capture uses, so a state that production cannot reach fails here rather
+ * than quietly comparing a different screen.
+ */
+test.describe("production editor overlays against the canonical original", () => {
+  test.beforeEach(async ({ page }) => {
+    await loadProductionShell(page);
+  });
+
+  test("More menu matches the original", async ({ page }) => {
+    await page.getByTitle("More actions").click();
+    await expect(page.getByText("Focus mode", { exact: true })).toBeVisible();
+
+    await expect(page).toHaveScreenshot(
+      "original-editor-more-menu-desktop-1440x960.png",
+      {
+        animations: "disabled",
+        caret: "hide",
+        maxDiffPixelRatio: allowedGap("moreMenu"),
+      },
+    );
+  });
+
+  test("Export menu matches the original", async ({ page }) => {
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    await expect(page.getByText("DIAGRAM", { exact: true })).toBeVisible();
+
+    await expect(page).toHaveScreenshot(
+      "original-editor-export-menu-desktop-1440x960.png",
+      {
+        animations: "disabled",
+        caret: "hide",
+        maxDiffPixelRatio: allowedGap("exportMenu"),
+      },
+    );
+  });
+
+  test("Save and version menu matches the original", async ({ page }) => {
+    await page.keyboard.press("Control+s");
+    await expect(
+      page.getByRole("button", { name: "Save as variant", exact: true }),
+    ).toBeVisible();
+
+    await expect(page).toHaveScreenshot(
+      "original-editor-save-menu-desktop-1440x960.png",
+      {
+        animations: "disabled",
+        caret: "hide",
+        maxDiffPixelRatio: allowedGap("saveMenu"),
+      },
+    );
+  });
+
+  test("command palette matches the original", async ({ page }) => {
+    await page.keyboard.press("Control+k");
+    await expect(
+      page.getByPlaceholder(
+        "Type a command — formation, defense, export, clear…",
+      ),
+    ).toBeVisible();
+
+    await expect(page).toHaveScreenshot(
+      "original-editor-command-palette-desktop-1440x960.png",
+      {
+        animations: "disabled",
+        caret: "hide",
+        maxDiffPixelRatio: allowedGap("commandPalette"),
+      },
+    );
+  });
+
+  test("shortcut reference matches the original", async ({ page }) => {
+    await page
+      .getByRole("button", { name: "Shortcuts ?", exact: true })
+      .click();
+    await expect(
+      page.getByText("Keyboard shortcuts", { exact: true }),
+    ).toBeVisible();
+
+    await expect(page).toHaveScreenshot(
+      "original-editor-shortcuts-desktop-1440x960.png",
+      {
+        animations: "disabled",
+        caret: "hide",
+        maxDiffPixelRatio: allowedGap("shortcuts"),
       },
     );
   });

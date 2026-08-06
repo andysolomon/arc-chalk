@@ -263,7 +263,9 @@ describe("Chalk device durability surfaces", () => {
     await user.click(within(header).getByRole("button", { name: "Save" }));
     await user.click(screen.getByRole("button", { name: "Snapshot" }));
     const name = screen.getByRole("textbox", { name: "Snapshot name" });
-    const create = screen.getByRole("button", { name: "Create version" });
+    // Naming replaces the menu with the original's snapshot form, so the only
+    // Snapshot control left is the one that commits it.
+    const create = screen.getByRole("button", { name: "Snapshot" });
 
     // A version the Coach has not named cannot be created.
     expect(create).toBeDisabled();
@@ -472,5 +474,121 @@ describe("Chalk encrypted backups", () => {
         "Restored 3 Plays. Newer work on this device was kept.",
       ),
     ).toBeVisible();
+  });
+});
+
+describe("Chalk editor overlays", () => {
+  it("runs a command the Coach finds by typing and closes the palette", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.keyboard("{Control>}k{/Control}");
+    const search = screen.getByRole("textbox", { name: "Command palette" });
+    // The palette opens on the original's ten most common commands.
+    const palette = screen.getByRole("dialog", { name: "Command palette" });
+    expect(within(palette).getAllByRole("button")).toHaveLength(10);
+
+    await user.type(search, "route tool");
+    await user.click(screen.getByRole("button", { name: "Route tool R" }));
+
+    expect(
+      screen.queryByRole("dialog", { name: "Command palette" }),
+    ).toBeNull();
+    // The command actually took: the Route tool is the active one.
+    const rail = screen.getByRole("navigation", { name: "Drawing tools" });
+    expect(within(rail).getByRole("button", { name: "Route — R" })).toHaveClass(
+      "active",
+    );
+  });
+
+  it("shows a command the editor cannot run yet as unavailable", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(
+      screen.getByRole("textbox", { name: "Command palette" }),
+      "call sheet",
+    );
+
+    // Listed, because the palette is the product's catalogue of commands — but
+    // it cannot be run, so a click never silently does nothing.
+    expect(
+      screen.getByRole("button", { name: "Export: Call sheet" }),
+    ).toBeDisabled();
+  });
+
+  it("gives the field the whole window and offers the panels back", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(screen.getByRole("button", { name: "Focus mode F" }));
+
+    expect(
+      screen.queryByRole("navigation", { name: "Drawing tools" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("complementary", { name: "Play inspector" }),
+    ).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(
+      screen.getByRole("button", { name: "Show both panels F" }),
+    );
+
+    expect(
+      screen.getByRole("navigation", { name: "Drawing tools" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("complementary", { name: "Play inspector" }),
+    ).toBeVisible();
+  });
+
+  it("opens the shortcut reference from the inspector and closes it on Escape", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByRole("button", { name: "Shortcuts ?" }));
+    const panel = screen.getByRole("dialog", { name: "Keyboard shortcuts" });
+    expect(within(panel).getByText("Marquee select")).toBeVisible();
+    expect(within(panel).getByText("drag empty field")).toBeVisible();
+
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("dialog", { name: "Keyboard shortcuts" }),
+    ).toBeNull();
+  });
+
+  it("walks into an Export submenu and back out to the exports", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: "Position view" }));
+
+    expect(screen.getByText("POSITION VIEW")).toBeVisible();
+    expect(screen.queryByText("DIAGRAM")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Back to exports" }));
+    expect(screen.getByText("DIAGRAM")).toBeVisible();
+
+    // Reopening returns to the top level rather than the submenu.
+    await user.click(screen.getByRole("button", { name: "Position view" }));
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    expect(screen.getByText("DIAGRAM")).toBeVisible();
+  });
+
+  it("opens only one header menu at a time", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.getByRole("button", { name: "Mirror" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    expect(screen.getByText("DIAGRAM")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Mirror" })).toBeNull();
   });
 });

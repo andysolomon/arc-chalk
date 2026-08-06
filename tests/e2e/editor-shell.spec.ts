@@ -143,7 +143,9 @@ test("names a version and restores it after a reload", async ({ page }) => {
   await page
     .getByRole("textbox", { name: "Snapshot name" })
     .fill("Install week");
-  await page.getByRole("button", { name: "Create version" }).click();
+  // Naming replaces the menu with the original's snapshot form, whose commit
+  // button carries the same word.
+  await page.getByRole("button", { name: "Snapshot" }).click();
   await expect(page.getByText("Install week")).toBeVisible();
 
   await playName.fill("Thursday rewrite");
