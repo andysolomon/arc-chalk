@@ -46,15 +46,21 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 
 | State | Gap measured | Date |
 |---|---|---|
-| Editor | 2.14% (29,631 px of 1,382,400) | 2026-08-06 |
+| Editor | 1.89% (26,186 px of 1,382,400) | 2026-08-06 |
+| Editor | 2.14% (29,631 px of 1,382,400) | 2026-08-06 (first measurement) |
 
-Known contributors to the current Editor gap:
+Closed so far:
 
-- The header carries `Versions` and `Backup` controls the original does not have. The original reaches versions through its Save menu and has no top-level Backup control; these were added during Phase 3 and are Phase 4 work to fold into the original's menus.
-- Inspector body copy for Concept and Defense is truncated, so the panel's content drifts further out of alignment toward the bottom of the column.
+- The header carried `Versions` and `Backup` controls the original does not have. Versions now live in the Save menu as the original's `Snapshot`, and Backup — an approved production extension under the rule above — lives inside the More menu instead of adding a header control.
+- The header Save button reads `Save` as the original's does, and the save acknowledgement moved to the end of the status bar where the original shows it. Present mode hides it with the rest of the authoring chrome.
+- Inspector body copy for Concept and Defense is no longer truncated.
+
+Known contributors to the remaining Editor gap:
+
+- Inspector paragraphs wrap to different heights, so the column still drifts toward the bottom.
+- The Play Type control sits at a different horizontal offset than the original's.
 - Tool-rail glyphs below the text tool differ from the original.
-- The Play Type control sits at a different offset than the original's.
-- The status bar omits the trailing save state.
+- The field diagram is a couple of pixels off in scale or position.
 
 The earlier hand-captured comparison is retained as `screenshots/production-slice-editor-desktop-1440x960.png`.
 

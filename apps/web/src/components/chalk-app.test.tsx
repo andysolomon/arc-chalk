@@ -9,7 +9,7 @@ import {
   type EditorStore,
 } from "@chalk/editor";
 import { buildRenderScene, buildSvgRenderScene } from "@chalk/render";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -107,6 +107,12 @@ describe("Chalk application shell", () => {
     await waitFor(() => {
       expect(editorStore.getSnapshot().document.name).toBe("Mesh — Alert");
     });
+    // Present mode hides authoring chrome, so the acknowledgement lives with
+    // the Editor's status bar rather than following the Coach into Present.
+    expect(
+      screen.queryByRole("button", { name: "Saved on this device" }),
+    ).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Editor" }));
     expect(
       screen.getByRole("button", { name: "Saved on this device" }),
     ).toBeVisible();
@@ -251,8 +257,12 @@ describe("Chalk device durability surfaces", () => {
       <ChalkApp runtime={createTestRuntime({ editorStore: versionStore })} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Versions" }));
-    const name = screen.getByRole("textbox", { name: "Version name" });
+    // The original has a Save control in the header and another in the Library
+    // panel, so this one is scoped to the header.
+    const header = screen.getByRole("banner");
+    await user.click(within(header).getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("button", { name: "Snapshot" }));
+    const name = screen.getByRole("textbox", { name: "Snapshot name" });
     const create = screen.getByRole("button", { name: "Create version" });
 
     // A version the Coach has not named cannot be created.
@@ -376,6 +386,7 @@ describe("Chalk encrypted backups", () => {
       />,
     );
 
+    await user.click(screen.getByRole("button", { name: "More actions" }));
     await user.click(screen.getByRole("button", { name: "Backup" }));
     expect(
       screen.getByText(/A passphrase you lose cannot be recovered/),
@@ -413,6 +424,7 @@ describe("Chalk encrypted backups", () => {
       />,
     );
 
+    await user.click(screen.getByRole("button", { name: "More actions" }));
     await user.click(screen.getByRole("button", { name: "Backup" }));
     await user.type(screen.getByLabelText("Backup passphrase"), "wrong");
     await user.upload(
@@ -445,6 +457,7 @@ describe("Chalk encrypted backups", () => {
       />,
     );
 
+    await user.click(screen.getByRole("button", { name: "More actions" }));
     await user.click(screen.getByRole("button", { name: "Backup" }));
     await user.type(screen.getByLabelText("Backup passphrase"), "right");
     await user.upload(

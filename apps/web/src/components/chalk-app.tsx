@@ -1,9 +1,9 @@
 import { PRODUCT_NAME, stickThunderPlay } from "@chalk/domain";
 import {
   localSaveMessage,
+  localSaveStatus,
   type EditorUndoState,
   type EditorVersionSummary,
-  type LocalSaveState,
 } from "@chalk/editor";
 import {
   buildRenderScene,
@@ -536,7 +536,8 @@ function Inspector() {
         </div>
         <p>
           Draws the whole distribution by role — X, Z, H, Y and the back each
-          get their job, mirrored to the side they line up on.
+          get their job, mirrored to the side they line up on. Replaces their
+          routes; blocking and coverage stay.
         </p>
       </InspectorSection>
       <InspectorSection title="Defense">
@@ -546,7 +547,8 @@ function Inspector() {
         </button>
         <p>
           Each call replaces the last one and leaves the offense untouched. Just
-          the front and secondary — letter symbols only.
+          the front and secondary — letter symbols only, so you can draw your
+          own coverage on top. Press Z to add your own drop.
         </p>
       </InspectorSection>
       <section className="inspector-section library-preview">
@@ -649,7 +651,6 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           setPlayName={editorStore.setPlayNameDraft}
           resetPlayName={editorStore.resetPlayNameDraft}
           commitPlayName={commitPlayName}
-          onSave={retrySave}
           onUndo={undo}
           onRedo={redo}
           undo={editor.undo}
@@ -657,7 +658,6 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           onCreateVersion={createVersion}
           onRestoreVersion={restoreVersion}
           runtime={runtime}
-          localSave={editor.localSave}
         />
         <div className="mode-placeholder">
           <FieldDiagram scene={scene} />
@@ -676,7 +676,6 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         setPlayName={editorStore.setPlayNameDraft}
         resetPlayName={editorStore.resetPlayNameDraft}
         commitPlayName={commitPlayName}
-        onSave={retrySave}
         onUndo={undo}
         onRedo={redo}
         undo={editor.undo}
@@ -684,7 +683,6 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         onCreateVersion={createVersion}
         onRestoreVersion={restoreVersion}
         runtime={runtime}
-        localSave={editor.localSave}
       />
       <div className="workspace">
         <nav className="tool-rail" aria-label="Drawing tools">
@@ -741,7 +739,25 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
             <span>
               − &nbsp; 100% &nbsp; + &nbsp;&nbsp; SELECTION &nbsp;&nbsp; BALL
               &nbsp;&nbsp; CUSTOM ALIGNMENT &nbsp;&nbsp; SNAP ON &nbsp;&nbsp;
-              11P · 5R &nbsp;&nbsp; {localSaveMessage(editor.localSave)}
+              11P · 5R &nbsp;&nbsp;
+              <button
+                aria-label={localSaveMessage(editor.localSave)}
+                className={`save-state ${editor.localSave.phase}`}
+                data-save-duration-ms={
+                  "durationMs" in editor.localSave
+                    ? editor.localSave.durationMs
+                    : undefined
+                }
+                data-save-within-budget={
+                  "withinBudget" in editor.localSave
+                    ? editor.localSave.withinBudget
+                    : undefined
+                }
+                disabled={editor.localSave.phase !== "error"}
+                onClick={retrySave}
+              >
+                {localSaveStatus(editor.localSave)}
+              </button>
             </span>
           </div>
         </main>
@@ -819,15 +835,16 @@ function BackupPanel({ runtime }: { runtime: ChalkRuntime }) {
   };
 
   return (
-    <div className="versions">
+    <div className="backup-section">
       <button
         aria-expanded={open}
+        className="menu-entry"
         onClick={() => setOpen((shown) => !shown)}
         type="button"
       >
         Backup
       </button>
-      <div className="version-panel" hidden={!open}>
+      <div className="backup-panel" hidden={!open}>
         <label className="backup-field">
           <span>Passphrase</span>
           <input
@@ -918,7 +935,47 @@ function DeviceNotices({
   );
 }
 
-function VersionMenu({
+/** Matches the original's Save menu: Save, Save as variant, Snapshot. */
+/**
+ * Matches the original's More menu. Backup is an approved production extension
+ * (parity matrix line 75) and lives inside this menu rather than adding a
+ * control to the original's header.
+ */
+function MoreMenu({ runtime }: { runtime: ChalkRuntime }) {
+  const [open, setOpen] = useState(false);
+  const entries: readonly { label: string; shortcut?: string }[] = [
+    { label: "Focus mode", shortcut: "F" },
+    { label: "Hide zone areas", shortcut: "⇧Z" },
+    { label: "Mirror" },
+    { label: "Flip strength" },
+    { label: "New play" },
+  ];
+
+  return (
+    <div className="menu more-menu">
+      <button
+        aria-expanded={open}
+        aria-label="More actions"
+        className="more"
+        onClick={() => setOpen((shown) => !shown)}
+        type="button"
+      >
+        ⋯
+      </button>
+      <div className="menu-panel" hidden={!open}>
+        {entries.map(({ label, shortcut }) => (
+          <button disabled key={label} type="button">
+            <span>{label}</span>
+            {shortcut ? <kbd>{shortcut}</kbd> : null}
+          </button>
+        ))}
+        <BackupPanel runtime={runtime} />
+      </div>
+    </div>
+  );
+}
+
+function SaveMenu({
   onCreateVersion,
   onRestoreVersion,
   versions,
@@ -927,41 +984,55 @@ function VersionMenu({
   onRestoreVersion: (revisionId: string) => void;
   versions: readonly EditorVersionSummary[];
 }) {
-  const [label, setLabel] = useState("");
   const [open, setOpen] = useState(false);
+  const [naming, setNaming] = useState(false);
+  const [label, setLabel] = useState("");
 
   return (
-    <div className="versions">
+    <div className="menu save-menu">
       <button
         aria-expanded={open}
+        className="save"
         onClick={() => setOpen((shown) => !shown)}
         type="button"
       >
-        Versions
+        Save
       </button>
-      <div className="version-panel" hidden={!open}>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!label.trim()) return;
-            onCreateVersion(label);
-            setLabel("");
-          }}
-        >
-          <input
-            aria-label="Version name"
-            onChange={(event) => setLabel(event.target.value)}
-            placeholder="Game Plan Final"
-            value={label}
-          />
-          <button disabled={!label.trim()} type="submit">
-            Create version
-          </button>
-        </form>
-        {versions.length === 0 ? (
-          <p className="version-empty">No versions yet on this device.</p>
-        ) : (
-          <ul>
+      <div className="menu-panel" hidden={!open}>
+        <button disabled type="button">
+          <span>Save</span>
+          <kbd>⌘S</kbd>
+        </button>
+        <button disabled type="button">
+          <span>Save as variant</span>
+        </button>
+        <button onClick={() => setNaming(true)} type="button">
+          <span>Snapshot</span>
+        </button>
+        {naming ? (
+          <form
+            className="snapshot-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!label.trim()) return;
+              onCreateVersion(label);
+              setLabel("");
+              setNaming(false);
+            }}
+          >
+            <input
+              aria-label="Snapshot name"
+              onChange={(event) => setLabel(event.target.value)}
+              placeholder="Game Plan Final"
+              value={label}
+            />
+            <button disabled={!label.trim()} type="submit">
+              Create version
+            </button>
+          </form>
+        ) : null}
+        {versions.length > 0 ? (
+          <ul className="snapshot-list">
             {versions.map((version) => (
               <li key={version.id}>
                 <span>{version.label ?? "Unnamed version"}</span>
@@ -974,7 +1045,7 @@ function VersionMenu({
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -983,9 +1054,7 @@ function VersionMenu({
 function Header({
   activeView,
   commitPlayName,
-  localSave,
   onView,
-  onSave,
   onUndo,
   onRedo,
   onCreateVersion,
@@ -999,9 +1068,7 @@ function Header({
 }: {
   activeView: View;
   commitPlayName: () => void;
-  localSave: LocalSaveState;
   onView: (view: View) => void;
-  onSave: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onCreateVersion: (label: string) => void;
@@ -1013,7 +1080,6 @@ function Header({
   undo: EditorUndoState;
   versions: readonly EditorVersionSummary[];
 }) {
-  const saveLabel = localSaveMessage(localSave);
   return (
     <header className="topbar">
       <div className="chalk-mark" aria-hidden="true">
@@ -1076,29 +1142,13 @@ function Header({
         Redo
       </button>
       <span className="divider" />
-      <button className="more" aria-label="More actions">
-        ⋯
-      </button>
+      <MoreMenu runtime={runtime} />
       <button className="export">Export</button>
-      <VersionMenu
+      <SaveMenu
         onCreateVersion={onCreateVersion}
         onRestoreVersion={onRestoreVersion}
         versions={versions}
       />
-      <BackupPanel runtime={runtime} />
-      <button
-        className={`save ${localSave.phase}`}
-        data-save-duration-ms={
-          "durationMs" in localSave ? localSave.durationMs : undefined
-        }
-        data-save-within-budget={
-          "withinBudget" in localSave ? localSave.withinBudget : undefined
-        }
-        disabled={localSave.phase !== "error"}
-        onClick={onSave}
-      >
-        {saveLabel}
-      </button>
     </header>
   );
 }
