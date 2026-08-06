@@ -13,7 +13,21 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
+import type { ChalkRuntime } from "../app/editor-runtime";
 import { ChalkApp, FieldDiagram } from "./chalk-app";
+
+function createTestRuntime(
+  overrides: Partial<ChalkRuntime> = {},
+): ChalkRuntime {
+  return {
+    editorStore: createTestEditorStore(),
+    recovery: { interrupted: false },
+    storage: { persisted: true, pressure: "healthy" },
+    releaseDerivedStorage: () =>
+      Promise.resolve({ persisted: true, pressure: "healthy" as const }),
+    ...overrides,
+  };
+}
 
 function createTestEditorStore(
   persistence: EditorPersistence = {
@@ -37,9 +51,7 @@ function createTestEditorStore(
 
 describe("Chalk application shell", () => {
   it("preserves the original editor entry points", () => {
-    const { container } = render(
-      <ChalkApp editorStore={createTestEditorStore()} />,
-    );
+    const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
 
     expect(
       screen.getByRole("navigation", { name: "Workspace views" }),
@@ -69,7 +81,7 @@ describe("Chalk application shell", () => {
   it("keeps the play name editable and exposes the original modes", async () => {
     const user = userEvent.setup();
     const editorStore = createTestEditorStore();
-    render(<ChalkApp editorStore={editorStore} />);
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
 
     const name = screen.getByRole("textbox", { name: "Play name" });
     await user.clear(name);
@@ -130,7 +142,7 @@ describe("Chalk application shell", () => {
         });
       },
     });
-    render(<ChalkApp editorStore={editorStore} />);
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
 
     const name = screen.getByRole("textbox", { name: "Play name" });
     await user.clear(name);
@@ -182,5 +194,151 @@ describe("Chalk application shell", () => {
     expect(
       container.querySelector("[data-label-leader='label-alert']"),
     ).toHaveAttribute("stroke-dasharray", "4 3");
+  });
+});
+
+describe("Chalk device durability surfaces", () => {
+  it("lets the Coach name a version and restore it later", async () => {
+    const user = userEvent.setup();
+    const store = createTestEditorStore();
+    const created: string[] = [];
+    const restored: string[] = [];
+    const snapshot = {
+      ...store.getSnapshot(),
+      versions: [
+        {
+          id: "revision_1",
+          label: "Install week",
+          createdAtMs: 1,
+          documentHash: "h",
+        },
+      ],
+    };
+    const versionStore: EditorStore = {
+      ...store,
+      createVersion: (label) => {
+        created.push(label);
+        return Promise.resolve({
+          status: "created",
+          version: {
+            id: "revision_1",
+            label,
+            createdAtMs: 1,
+            documentHash: "hash_version",
+          },
+        });
+      },
+      restoreVersion: (revisionId) => {
+        restored.push(revisionId);
+        return Promise.resolve({ status: "unchanged" });
+      },
+      // useSyncExternalStore needs one stable snapshot reference.
+      getSnapshot: () => snapshot,
+    };
+    render(
+      <ChalkApp runtime={createTestRuntime({ editorStore: versionStore })} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Versions" }));
+    const name = screen.getByRole("textbox", { name: "Version name" });
+    const create = screen.getByRole("button", { name: "Create version" });
+
+    // A version the Coach has not named cannot be created.
+    expect(create).toBeDisabled();
+    await user.type(name, "Game Plan Final");
+    expect(create).toBeEnabled();
+    await user.click(create);
+    expect(created).toEqual(["Game Plan Final"]);
+
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(restored).toEqual(["revision_1"]);
+  });
+
+  it("tells the Coach the app closed unexpectedly without claiming lost work", async () => {
+    const user = userEvent.setup();
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          recovery: {
+            interrupted: true,
+            previousSessionId: "session_1",
+            previousStartedAtMs: Date.UTC(2026, 7, 5),
+          },
+        })}
+      />,
+    );
+
+    const notice = screen.getByText(/Chalk closed unexpectedly/);
+    expect(notice).toBeVisible();
+    expect(notice).toHaveTextContent("Every edit saved on this device is here");
+
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/Chalk closed unexpectedly/)).toBeNull();
+  });
+
+  it("offers to free space only when the device is under storage pressure", async () => {
+    const user = userEvent.setup();
+    let released = 0;
+    const { rerender } = render(<ChalkApp runtime={createTestRuntime()} />);
+    expect(screen.queryByRole("button", { name: "Free space" })).toBeNull();
+
+    rerender(
+      <ChalkApp
+        runtime={createTestRuntime({
+          storage: {
+            persisted: true,
+            pressure: "critical",
+            usageBytes: 96,
+            quotaBytes: 100,
+            usedFraction: 0.96,
+          },
+          releaseDerivedStorage: () => {
+            released += 1;
+            return Promise.resolve({ persisted: true, pressure: "healthy" });
+          },
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText("This device is nearly out of space for Chalk."),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Free space" }));
+    await waitFor(() => expect(released).toBe(1));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Free space" })).toBeNull(),
+    );
+  });
+
+  it("keeps the save acknowledgement a status until a save actually fails", async () => {
+    const user = userEvent.setup();
+    let shouldFail = false;
+    const store = createTestEditorStore({
+      commitPlay: (input) =>
+        shouldFail
+          ? Promise.reject(new Error("IndexedDB unavailable"))
+          : Promise.resolve({
+              playId: input.play.id,
+              documentHash: `hash_${input.play.name}`,
+              committedAtMs: 100,
+              mutationId: input.mutation.id,
+            }),
+    });
+    render(<ChalkApp runtime={createTestRuntime({ editorStore: store })} />);
+
+    expect(
+      screen.getByRole("button", { name: "Saved on this device" }),
+    ).toBeDisabled();
+
+    shouldFail = true;
+    const playName = screen.getByRole("textbox", { name: "Play name" });
+    await user.clear(playName);
+    await user.type(playName, "Mesh — Alert");
+    await user.tab();
+
+    const retry = await screen.findByRole("button", {
+      name: "Local save failed — retry",
+    });
+    expect(retry).toBeEnabled();
   });
 });

@@ -5,6 +5,7 @@ import {
   canonicalStringify,
   clearPlayLayerCommand,
   deletePathsCommand,
+  diffPlayDocuments,
   deletePlayersCommand,
   describePlayCommand,
   invertPlayCommand,
@@ -307,5 +308,149 @@ describe("semantic Play commands", () => {
     expect(
       invertPlayCommand(play, { kind: "set-play-name", name: "Changed" }),
     ).toEqual({ kind: "set-play-name", name: play.name });
+  });
+});
+
+describe("Play version differences", () => {
+  const play = offensiveStickThunderPlay;
+
+  function reproduces(from: PlayDocument, to: PlayDocument): void {
+    const command = diffPlayDocuments(from, to, "Restore version");
+    const { document, inverse } = applyPlayCommandWithInverse(from, command);
+    expect(canonicalStringify(document)).toBe(canonicalStringify(to));
+    expect(canonicalStringify(applyPlayCommand(document, inverse))).toBe(
+      canonicalStringify(from),
+    );
+  }
+
+  it("produces no commands for two identical Plays", () => {
+    expect(diffPlayDocuments(play, play)).toEqual({
+      kind: "batch",
+      commands: [],
+    });
+  });
+
+  it("reproduces a Play whose metadata, routes, and Players all changed", () => {
+    const changed = playDocumentSchema.parse({
+      ...structuredClone(play),
+      name: "Stick — Thunder Alert",
+      notes: "Restored from a named version.",
+      tags: ["third-down"],
+      personnelLabel: "12",
+      players: play.players
+        .slice(0, 10)
+        .map((player, index) =>
+          index === 3
+            ? { ...player, label: "W", color: "red" as const }
+            : player,
+        ),
+      paths: play.paths.filter(({ playerId }) => playerId !== "z"),
+      labels: [
+        ...play.labels.slice(0, 4),
+        { ...play.labels[0]!, id: "label_restored", text: "ALERT" },
+      ],
+      assignments: play.assignments.filter(({ playerId }) => playerId !== "z"),
+      formationSource: {
+        ...play.formationSource!,
+        slotBindings: play.formationSource!.slotBindings.filter(
+          ({ playerId }) => playerId !== "z",
+        ),
+      },
+    });
+
+    reproduces(play, changed);
+    reproduces(changed, play);
+  });
+
+  it("replaces a layer wholesale when the Coach reordered what both versions keep", () => {
+    const reordered = playDocumentSchema.parse({
+      ...structuredClone(play),
+      labels: [play.labels[3]!, play.labels[0]!, ...play.labels.slice(4)],
+    });
+
+    reproduces(play, reordered);
+  });
+
+  it("restores as a single undoable entry", () => {
+    const renamed = applyPlayCommand(play, {
+      kind: "set-play-name",
+      name: "Working copy",
+    });
+    const command = diffPlayDocuments(renamed, play, "Restore version");
+
+    expect(command.kind).toBe("batch");
+    expect(describePlayCommand(command)).toBe("Restore version");
+    expect(applyPlayCommand(renamed, command).name).toBe(play.name);
+  });
+
+  it("compares Plays whose optional football references are absent", () => {
+    const bare = playDocumentSchema.parse({
+      ...structuredClone(play),
+      personnelLabel: undefined,
+      playType: undefined,
+      conceptSource: undefined,
+      formationSource: undefined,
+    });
+
+    expect(diffPlayDocuments(bare, bare)).toEqual({
+      kind: "batch",
+      commands: [],
+    });
+    reproduces(play, bare);
+    reproduces(bare, play);
+  });
+
+  it("refuses to compare two different Plays", () => {
+    const elsewhere = playDocumentSchema.parse({
+      ...structuredClone(play),
+      id: "play_somewhere_else",
+    });
+
+    expect(() => diffPlayDocuments(play, elsewhere)).toThrow(PlayCommandError);
+  });
+
+  it("reproduces the target Play for any generated edit sequence", () => {
+    const playerIds = play.players.map(({ id }) => id);
+    const labelIds = play.labels.map(({ id }) => id);
+
+    fc.assert(
+      fc.property(
+        fc.record({
+          name: fc
+            .string({ minLength: 1, maxLength: 20 })
+            .filter((value) => value.trim().length > 0),
+          notes: fc.string({ maxLength: 40 }),
+          keptPlayers: fc.subarray(playerIds, { minLength: 1 }),
+          keptLabels: fc.subarray(labelIds),
+          reverseLabels: fc.boolean(),
+        }),
+        ({ name, notes, keptPlayers, keptLabels, reverseLabels }) => {
+          const removedPlayers = playerIds.filter(
+            (id) => !keptPlayers.includes(id),
+          );
+          const trimmed =
+            removedPlayers.length > 0
+              ? applyPlayCommand(
+                  play,
+                  deletePlayersCommand(play, removedPlayers),
+                )
+              : play;
+          const chosenLabels = trimmed.labels.filter(({ id }) =>
+            keptLabels.includes(id),
+          );
+          const target = playDocumentSchema.parse({
+            ...structuredClone(trimmed),
+            name,
+            notes,
+            labels: reverseLabels ? [...chosenLabels].reverse() : chosenLabels,
+          });
+
+          const command = diffPlayDocuments(play, target);
+          const result = applyPlayCommand(play, command);
+          return canonicalStringify(result) === canonicalStringify(target);
+        },
+      ),
+      { numRuns: 40 },
+    );
   });
 });

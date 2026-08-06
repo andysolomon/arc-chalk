@@ -1,5 +1,6 @@
 import {
   builtInPlayTypeDefinitions,
+  createStableId,
   stickThunderPlay,
   type PlaybookEnvelope,
 } from "@chalk/domain";
@@ -8,7 +9,12 @@ import {
   type EditorPersistence,
   type EditorStore,
 } from "@chalk/editor";
-import { createDexieLocalRepository } from "@chalk/local-db";
+import {
+  createDexieLocalRepository,
+  type ChalkLocalRepository,
+  type SessionRecovery,
+  type StorageHealth,
+} from "@chalk/local-db";
 
 const DATABASE_NAME = "chalk-production-beta";
 const SEED_TIME = 1_786_000_000_000;
@@ -32,11 +38,28 @@ const starterPlaybook: PlaybookEnvelope = {
   plays: [stickThunderPlay],
 };
 
-export async function createBrowserEditorStore(): Promise<EditorStore> {
-  const repository = createDexieLocalRepository({
+export interface ChalkRuntime {
+  readonly editorStore: EditorStore;
+  readonly recovery: SessionRecovery;
+  readonly storage: StorageHealth;
+  /** Frees the disposable previews and search projections Chalk can rebuild. */
+  releaseDerivedStorage(): Promise<StorageHealth>;
+}
+
+export async function createBrowserRuntime(): Promise<ChalkRuntime> {
+  const repository: ChalkLocalRepository = createDexieLocalRepository({
     databaseName: DATABASE_NAME,
   });
   await repository.open();
+
+  const recovery = await repository.beginSession(createStableId("session"));
+  // A session that ends cleanly leaves no recovery notice behind.
+  globalThis.addEventListener?.("pagehide", () => {
+    void repository.endSession();
+  });
+
+  await repository.requestPersistentStorage();
+  await repository.purgeExpiredTrash();
 
   let storedPlay = await repository.getPlay(stickThunderPlay.id);
   if (!storedPlay) {
@@ -49,11 +72,27 @@ export async function createBrowserEditorStore(): Promise<EditorStore> {
 
   const persistence: EditorPersistence = {
     commitPlay: (input) => repository.commitPlay(input),
+    createNamedVersion: (input) => repository.createNamedVersion(input),
+    listPlayVersions: (playId) => repository.listPlayVersions(playId),
+    loadVersionDocument: async (revisionId) =>
+      (await repository.getRevision(revisionId))?.document,
   };
-  return createEditorStore({
+
+  const editorStore = createEditorStore({
     initialDocument: storedPlay.document,
     initialDocumentHash: storedPlay.documentHash,
     initialUndoHistory: await repository.getUndoHistory(storedPlay.id),
+    initialVersions: await repository.listPlayVersions(storedPlay.id),
     persistence,
   });
+
+  return {
+    editorStore,
+    recovery,
+    storage: await repository.storageHealth(),
+    async releaseDerivedStorage() {
+      await repository.clearDerivedData();
+      return repository.storageHealth();
+    },
+  };
 }

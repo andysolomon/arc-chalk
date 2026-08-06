@@ -13,17 +13,26 @@ import {
 } from "@chalk/domain";
 
 import { ChalkDexieDatabase } from "./database";
+import { TRASH_RETENTION_MS } from "./types";
 import type {
   ChalkLocalRepository,
   CommitPlayInput,
   CommitPlayResult,
+  CreateNamedVersionInput,
   LocalConflict,
   LocalImageBlob,
   LocalPreference,
   LocalRepositoryOptions,
+  JsonValue,
   LocalStoreCounts,
   PlaySearchProjection,
+  PlayVersionSummary,
+  SessionRecovery,
+  StorageHealth,
+  StorageManagerLike,
+  StoragePressure,
   StoredPlay,
+  TrashedPlaySummary,
   SyncMutation,
   ThumbnailDerivative,
   UndoHistory,
@@ -79,6 +88,20 @@ function projectionFor(
   };
 }
 
+/** Rebuilds a Play record without its Trash mark. */
+function withoutTrashMark(play: StoredPlay): StoredPlay {
+  return {
+    id: play.id,
+    playbookId: play.playbookId,
+    document: play.document,
+    documentHash: play.documentHash,
+    ...(play.currentRevisionId === undefined
+      ? {}
+      : { currentRevisionId: play.currentRevisionId }),
+    updatedAtMs: play.updatedAtMs,
+  };
+}
+
 function positiveLimit(limit: number): number {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
     throw new RangeError(
@@ -88,9 +111,21 @@ function positiveLimit(limit: number): number {
   return limit;
 }
 
+const OPEN_SESSION_PREFERENCE = "session.open";
+const STORAGE_WATCH_FRACTION = 0.8;
+const STORAGE_CRITICAL_FRACTION = 0.95;
+
+function pressureFor(usedFraction: number | undefined): StoragePressure {
+  if (usedFraction === undefined) return "unknown";
+  if (usedFraction >= STORAGE_CRITICAL_FRACTION) return "critical";
+  if (usedFraction >= STORAGE_WATCH_FRACTION) return "watch";
+  return "healthy";
+}
+
 class DexieLocalRepository implements ChalkLocalRepository {
   readonly #database: ChalkDexieDatabase;
   readonly #now: () => number;
+  readonly #storage: StorageManagerLike | undefined;
 
   constructor(options: LocalRepositoryOptions) {
     this.#database = new ChalkDexieDatabase(options.databaseName, {
@@ -98,6 +133,9 @@ class DexieLocalRepository implements ChalkLocalRepository {
       IDBKeyRange: options.IDBKeyRange,
     });
     this.#now = options.now ?? Date.now;
+    this.#storage =
+      options.storage ??
+      (typeof navigator === "undefined" ? undefined : navigator.storage);
   }
 
   async open(): Promise<void> {
@@ -256,6 +294,11 @@ class DexieLocalRepository implements ChalkLocalRepository {
         ) {
           throw new StaleLocalPlayError(play.id);
         }
+        if (existing?.deletedAtMs !== undefined) {
+          throw new CorruptLocalDataError(
+            `Play ${play.id} is in the Trash and must be restored before editing.`,
+          );
+        }
 
         let revision: PlayRevision | undefined;
         if (input.revision) {
@@ -339,6 +382,289 @@ class DexieLocalRepository implements ChalkLocalRepository {
       );
     }
     return revision;
+  }
+
+  /**
+   * Marks the Play as it stands now with a Coach-chosen label. The document is
+   * untouched, and an existing version can never be renamed or overwritten
+   * because revision IDs are added, never put.
+   */
+  async createNamedVersion(
+    input: CreateNamedVersionInput,
+  ): Promise<PlayRevision> {
+    const label = input.label.trim();
+    if (!label) {
+      throw new RangeError("A named version needs a label the Coach chose.");
+    }
+    // Hashing cannot happen inside a Dexie transaction, so the Play is read and
+    // verified first and the write re-checks that it did not move underneath.
+    const stored = await this.getPlay(input.playId);
+    if (!stored) {
+      throw new CorruptLocalDataError(
+        `Cannot version Play ${input.playId} because it is not stored.`,
+      );
+    }
+    const revision = playRevisionSchema.parse({
+      schemaVersion: 1,
+      id: input.revisionId,
+      playId: stored.id,
+      ...(stored.currentRevisionId
+        ? { parentRevisionId: stored.currentRevisionId }
+        : {}),
+      createdAtMs: this.#now(),
+      label,
+      documentHash: stored.documentHash,
+      document: stored.document,
+    });
+
+    return this.#database.transaction(
+      "rw",
+      [this.#database.plays, this.#database.revisions],
+      async () => {
+        const current = await this.#database.plays.get(input.playId);
+        if (
+          !current ||
+          current.documentHash !== stored.documentHash ||
+          current.currentRevisionId !== stored.currentRevisionId
+        ) {
+          throw new StaleLocalPlayError(input.playId);
+        }
+        await this.#database.revisions.add(revision);
+        await this.#database.plays.put({
+          ...current,
+          currentRevisionId: revision.id,
+        });
+        return revision;
+      },
+    );
+  }
+
+  /** Metadata only: a Playbook's history must not load every whole document. */
+  async listPlayVersions(
+    playId: string,
+  ): Promise<readonly PlayVersionSummary[]> {
+    const revisions = await this.#database.revisions
+      .where("playId")
+      .equals(playId)
+      .toArray();
+    return revisions
+      .map(
+        ({
+          id,
+          playId: owner,
+          label,
+          createdAtMs,
+          documentHash,
+          parentRevisionId,
+        }) => ({
+          id,
+          playId: owner,
+          ...(label === undefined ? {} : { label }),
+          createdAtMs,
+          documentHash,
+          ...(parentRevisionId === undefined ? {} : { parentRevisionId }),
+        }),
+      )
+      .sort(
+        (left, right) =>
+          right.createdAtMs - left.createdAtMs ||
+          right.id.localeCompare(left.id),
+      );
+  }
+
+  /**
+   * Records that a session is open and reports whether the previous one ever
+   * closed. Committed work is already durable either way; this only decides
+   * whether Chalk owes the Coach an explanation.
+   */
+  async beginSession(sessionId: string): Promise<SessionRecovery> {
+    const previous = await this.#database.preferences.get(
+      OPEN_SESSION_PREFERENCE,
+    );
+    const startedAtMs = this.#now();
+    await this.#database.preferences.put({
+      key: OPEN_SESSION_PREFERENCE,
+      value: { sessionId, startedAtMs },
+      updatedAtMs: startedAtMs,
+    });
+
+    const value = previous?.value;
+    const marker =
+      value !== null && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, JsonValue>)
+        : undefined;
+    const previousSessionId = marker?.sessionId;
+    const previousStartedAtMs = marker?.startedAtMs;
+    if (typeof previousSessionId !== "string") {
+      return { interrupted: previous !== undefined };
+    }
+    return {
+      interrupted: true,
+      previousSessionId,
+      ...(typeof previousStartedAtMs === "number"
+        ? { previousStartedAtMs }
+        : {}),
+    };
+  }
+
+  async endSession(): Promise<void> {
+    await this.#database.preferences.delete(OPEN_SESSION_PREFERENCE);
+  }
+
+  /** Without persistent storage a browser may evict a Coach's whole season. */
+  async requestPersistentStorage(): Promise<boolean> {
+    try {
+      if (await this.#storage?.persisted?.()) return true;
+      return (await this.#storage?.persist?.()) ?? false;
+    } catch {
+      return false;
+    }
+  }
+
+  async storageHealth(): Promise<StorageHealth> {
+    let persisted = false;
+    let usageBytes: number | undefined;
+    let quotaBytes: number | undefined;
+    try {
+      persisted = (await this.#storage?.persisted?.()) ?? false;
+      const estimate = await this.#storage?.estimate?.();
+      usageBytes = estimate?.usage;
+      quotaBytes = estimate?.quota;
+    } catch {
+      // An unavailable storage API reports unknown rather than failing startup.
+    }
+    const usedFraction =
+      usageBytes !== undefined && quotaBytes !== undefined && quotaBytes > 0
+        ? usageBytes / quotaBytes
+        : undefined;
+
+    return {
+      persisted,
+      pressure: pressureFor(usedFraction),
+      ...(usageBytes === undefined ? {} : { usageBytes }),
+      ...(quotaBytes === undefined ? {} : { quotaBytes }),
+      ...(usedFraction === undefined ? {} : { usedFraction }),
+    };
+  }
+
+  /**
+   * Deleting a Play hides it from the Playbook and its derived data but keeps
+   * the document, its versions, and its history recoverable for thirty days.
+   */
+  async movePlayToTrash(playId: string): Promise<void> {
+    const deletedAtMs = this.#now();
+    await this.#database.transaction(
+      "rw",
+      [
+        this.#database.plays,
+        this.#database.searchProjections,
+        this.#database.thumbnails,
+      ],
+      async () => {
+        const existing = await this.#database.plays.get(playId);
+        if (!existing) {
+          throw new CorruptLocalDataError(
+            `Cannot delete Play ${playId} because it is not stored.`,
+          );
+        }
+        if (existing.deletedAtMs !== undefined) return;
+        await this.#database.plays.put({ ...existing, deletedAtMs });
+        await this.#database.searchProjections.delete(playId);
+        await this.#database.thumbnails.where("playId").equals(playId).delete();
+      },
+    );
+  }
+
+  async restorePlayFromTrash(playId: string): Promise<StoredPlay> {
+    // Rebuilding the projection needs the document hash, which cannot be
+    // computed inside a Dexie transaction.
+    const trashed = await this.getPlay(playId);
+    if (!trashed) {
+      throw new CorruptLocalDataError(
+        `Cannot restore Play ${playId} because it is not stored.`,
+      );
+    }
+    const projection = projectionFor(
+      trashed.document,
+      trashed.documentHash,
+      trashed.updatedAtMs,
+    );
+
+    await this.#database.transaction(
+      "rw",
+      [this.#database.plays, this.#database.searchProjections],
+      async () => {
+        const existing = await this.#database.plays.get(playId);
+        if (!existing || existing.documentHash !== trashed.documentHash) {
+          throw new StaleLocalPlayError(playId);
+        }
+        await this.#database.plays.put(withoutTrashMark(existing));
+        await this.#database.searchProjections.put(projection);
+      },
+    );
+
+    return withoutTrashMark(trashed);
+  }
+
+  async listTrash(): Promise<readonly TrashedPlaySummary[]> {
+    const trashed = await this.#database.plays
+      .filter(({ deletedAtMs }) => deletedAtMs !== undefined)
+      .toArray();
+    return trashed
+      .map(({ id, playbookId, document, deletedAtMs }) => ({
+        playId: id,
+        playbookId,
+        name: document.name,
+        deletedAtMs: deletedAtMs!,
+        purgeAfterMs: deletedAtMs! + TRASH_RETENTION_MS,
+      }))
+      .sort(
+        (left, right) =>
+          right.deletedAtMs - left.deletedAtMs ||
+          left.playId.localeCompare(right.playId),
+      );
+  }
+
+  /**
+   * Purging is the only path that discards a Coach's Play, its versions, and
+   * its history, and it runs only after the retention window has passed.
+   */
+  async purgeExpiredTrash(): Promise<readonly string[]> {
+    const now = this.#now();
+    return this.#database.transaction(
+      "rw",
+      [
+        this.#database.plays,
+        this.#database.revisions,
+        this.#database.undoHistories,
+        this.#database.searchProjections,
+        this.#database.thumbnails,
+      ],
+      async () => {
+        const expired = await this.#database.plays
+          .filter(
+            ({ deletedAtMs }) =>
+              deletedAtMs !== undefined &&
+              deletedAtMs + TRASH_RETENTION_MS <= now,
+          )
+          .toArray();
+        const playIds = expired.map(({ id }) => id).sort();
+        for (const playId of playIds) {
+          await this.#database.revisions
+            .where("playId")
+            .equals(playId)
+            .delete();
+          await this.#database.thumbnails
+            .where("playId")
+            .equals(playId)
+            .delete();
+          await this.#database.undoHistories.delete(playId);
+          await this.#database.searchProjections.delete(playId);
+        }
+        await this.#database.plays.bulkDelete(playIds);
+        return playIds;
+      },
+    );
   }
 
   async readSyncMutationBatch(limit: number): Promise<readonly SyncMutation[]> {
