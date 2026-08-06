@@ -5,15 +5,15 @@ import {
 } from "@tanstack/react-router";
 
 import { ChalkApp } from "../components/chalk-app";
-import { createBrowserEditorStore } from "./editor-runtime";
+import { createBrowserRuntime } from "./editor-runtime";
 
-const editorStore = await createBrowserEditorStore();
+const runtime = await createBrowserRuntime();
 
 const rootRoute = createRootRoute();
 const editorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: () => <ChalkApp editorStore={editorStore} />,
+  component: () => <ChalkApp runtime={runtime} />,
 });
 
 const routeTree = rootRoute.addChildren([editorRoute]);

@@ -131,3 +131,49 @@ test("undoes and redoes a Play edit across a reload", async ({ page }) => {
   );
   await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
 });
+
+test("names a version and restores it after a reload", async ({ page }) => {
+  await page.goto("/");
+
+  const playName = page.getByRole("textbox", { name: "Play name" });
+  const saved = page.getByRole("button", { name: "Saved on this device" });
+
+  await page.getByRole("button", { name: "Versions" }).click();
+  await page
+    .getByRole("textbox", { name: "Version name" })
+    .fill("Install week");
+  await page.getByRole("button", { name: "Create version" }).click();
+  await expect(page.getByText("Install week")).toBeVisible();
+
+  await playName.fill("Thursday rewrite");
+  await playName.press("Enter");
+  await expect(
+    page.getByRole("img", { name: "Thursday rewrite football play" }),
+  ).toBeVisible();
+  await expect(saved).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Thursday rewrite",
+  );
+
+  // The named version outlived the session it was created in.
+  await page.getByRole("button", { name: "Versions" }).click();
+  await expect(page.getByText("Install week")).toBeVisible();
+  await page.getByRole("button", { name: "Restore" }).click();
+
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Stick — Thunder",
+  );
+  await expect(
+    page.getByRole("button", { name: "Saved on this device" }),
+  ).toBeVisible();
+
+  // A restore is an ordinary edit, so the Coach can undo it.
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Restore version");
+  await undo.click();
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Thursday rewrite",
+  );
+});

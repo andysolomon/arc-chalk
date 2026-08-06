@@ -1,8 +1,8 @@
 import { PRODUCT_NAME, stickThunderPlay } from "@chalk/domain";
 import {
   localSaveMessage,
-  type EditorStore,
   type EditorUndoState,
+  type EditorVersionSummary,
   type LocalSaveState,
 } from "@chalk/editor";
 import {
@@ -14,6 +14,8 @@ import {
   type SvgTextPrimitive,
 } from "@chalk/render";
 import { useMemo, useState, useSyncExternalStore } from "react";
+
+import type { ChalkRuntime } from "../app/editor-runtime";
 
 type View = "Editor" | "Demo" | "Present" | "Print";
 type Tool =
@@ -592,9 +594,14 @@ function InspectorSection({
   );
 }
 
-export function ChalkApp({ editorStore }: { editorStore: EditorStore }) {
+export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
+  const { editorStore } = runtime;
   const [activeView, setActiveView] = useState<View>("Editor");
   const [activeTool, setActiveTool] = useState<Tool>("select");
+  const [recoveryDismissed, setRecoveryDismissed] = useState(false);
+  const [freedStorage, setFreedStorage] = useState<ChalkRuntime["storage"]>();
+  // The runtime reports storage health; freeing space supersedes that reading.
+  const storage = freedStorage ?? runtime.storage;
   const editor = useSyncExternalStore(
     editorStore.subscribe,
     editorStore.getSnapshot,
@@ -607,12 +614,23 @@ export function ChalkApp({ editorStore }: { editorStore: EditorStore }) {
   const commitPlayName = () => {
     void editorStore.commitPlayName().catch(() => undefined);
   };
-  const save = () => {
-    if (editor.localSave.phase === "error") {
-      void editorStore.retryLocalSave().catch(() => undefined);
-      return;
-    }
-    commitPlayName();
+  // The acknowledgement is a status, not a durability button: the only thing
+  // to press is a retry when a local save failed (ADR 0012).
+  const retrySave = () => {
+    if (editor.localSave.phase !== "error") return;
+    void editorStore.retryLocalSave().catch(() => undefined);
+  };
+  const createVersion = (label: string) => {
+    void editorStore.createVersion(label).catch(() => undefined);
+  };
+  const restoreVersion = (revisionId: string) => {
+    void editorStore.restoreVersion(revisionId).catch(() => undefined);
+  };
+  const releaseStorage = () => {
+    void runtime
+      .releaseDerivedStorage()
+      .then(setFreedStorage)
+      .catch(() => undefined);
   };
   const undo = () => {
     void editorStore.undo().catch(() => undefined);
@@ -631,10 +649,13 @@ export function ChalkApp({ editorStore }: { editorStore: EditorStore }) {
           setPlayName={editorStore.setPlayNameDraft}
           resetPlayName={editorStore.resetPlayNameDraft}
           commitPlayName={commitPlayName}
-          onSave={save}
+          onSave={retrySave}
           onUndo={undo}
           onRedo={redo}
           undo={editor.undo}
+          versions={editor.versions}
+          onCreateVersion={createVersion}
+          onRestoreVersion={restoreVersion}
           localSave={editor.localSave}
         />
         <div className="mode-placeholder">
@@ -654,10 +675,13 @@ export function ChalkApp({ editorStore }: { editorStore: EditorStore }) {
         setPlayName={editorStore.setPlayNameDraft}
         resetPlayName={editorStore.resetPlayNameDraft}
         commitPlayName={commitPlayName}
-        onSave={save}
+        onSave={retrySave}
         onUndo={undo}
         onRedo={redo}
         undo={editor.undo}
+        versions={editor.versions}
+        onCreateVersion={createVersion}
+        onRestoreVersion={restoreVersion}
         localSave={editor.localSave}
       />
       <div className="workspace">
@@ -685,6 +709,12 @@ export function ChalkApp({ editorStore }: { editorStore: EditorStore }) {
           </button>
         </nav>
         <main className="editor-stage">
+          <DeviceNotices
+            onDismissRecovery={() => setRecoveryDismissed(true)}
+            onReleaseStorage={releaseStorage}
+            recovery={recoveryDismissed ? undefined : runtime.recovery}
+            storage={storage}
+          />
           <div className="field-wrap">
             <FieldDiagram scene={scene} />
           </div>
@@ -719,6 +749,119 @@ export function ChalkApp({ editorStore }: { editorStore: EditorStore }) {
   );
 }
 
+const storageMessages: Record<string, string> = {
+  watch: "This device is running low on space for Chalk.",
+  critical: "This device is nearly out of space for Chalk.",
+};
+
+function DeviceNotices({
+  onDismissRecovery,
+  onReleaseStorage,
+  recovery,
+  storage,
+}: {
+  onDismissRecovery: () => void;
+  onReleaseStorage: () => void;
+  recovery: ChalkRuntime["recovery"] | undefined;
+  storage: ChalkRuntime["storage"];
+}) {
+  const storageMessage = storageMessages[storage.pressure];
+  if (!recovery?.interrupted && !storageMessage) return null;
+
+  return (
+    <div className="device-notices">
+      {recovery?.interrupted ? (
+        <div className="notice recovery" role="status">
+          <span>
+            Chalk closed unexpectedly
+            {recovery.previousStartedAtMs === undefined
+              ? ""
+              : ` on ${new Date(recovery.previousStartedAtMs).toLocaleDateString()}`}
+            . Every edit saved on this device is here.
+          </span>
+          <button onClick={onDismissRecovery} type="button">
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+      {storageMessage ? (
+        <div
+          className="notice storage"
+          data-storage={storage.pressure}
+          role="status"
+        >
+          <span>{storageMessage}</span>
+          <button onClick={onReleaseStorage} type="button">
+            Free space
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function VersionMenu({
+  onCreateVersion,
+  onRestoreVersion,
+  versions,
+}: {
+  onCreateVersion: (label: string) => void;
+  onRestoreVersion: (revisionId: string) => void;
+  versions: readonly EditorVersionSummary[];
+}) {
+  const [label, setLabel] = useState("");
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="versions">
+      <button
+        aria-expanded={open}
+        onClick={() => setOpen((shown) => !shown)}
+        type="button"
+      >
+        Versions
+      </button>
+      <div className="version-panel" hidden={!open}>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!label.trim()) return;
+            onCreateVersion(label);
+            setLabel("");
+          }}
+        >
+          <input
+            aria-label="Version name"
+            onChange={(event) => setLabel(event.target.value)}
+            placeholder="Game Plan Final"
+            value={label}
+          />
+          <button disabled={!label.trim()} type="submit">
+            Create version
+          </button>
+        </form>
+        {versions.length === 0 ? (
+          <p className="version-empty">No versions yet on this device.</p>
+        ) : (
+          <ul>
+            {versions.map((version) => (
+              <li key={version.id}>
+                <span>{version.label ?? "Unnamed version"}</span>
+                <button
+                  onClick={() => onRestoreVersion(version.id)}
+                  type="button"
+                >
+                  Restore
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Header({
   activeView,
   commitPlayName,
@@ -727,10 +870,13 @@ function Header({
   onSave,
   onUndo,
   onRedo,
+  onCreateVersion,
+  onRestoreVersion,
   playName,
   resetPlayName,
   setPlayName,
   undo,
+  versions,
 }: {
   activeView: View;
   commitPlayName: () => void;
@@ -739,10 +885,13 @@ function Header({
   onSave: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onCreateVersion: (label: string) => void;
+  onRestoreVersion: (revisionId: string) => void;
   playName: string;
   resetPlayName: () => void;
   setPlayName: (name: string) => void;
   undo: EditorUndoState;
+  versions: readonly EditorVersionSummary[];
 }) {
   const saveLabel = localSaveMessage(localSave);
   return (
@@ -811,6 +960,11 @@ function Header({
         ⋯
       </button>
       <button className="export">Export</button>
+      <VersionMenu
+        onCreateVersion={onCreateVersion}
+        onRestoreVersion={onRestoreVersion}
+        versions={versions}
+      />
       <button
         className={`save ${localSave.phase}`}
         data-save-duration-ms={
@@ -819,6 +973,7 @@ function Header({
         data-save-within-budget={
           "withinBudget" in localSave ? localSave.withinBudget : undefined
         }
+        disabled={localSave.phase !== "error"}
         onClick={onSave}
       >
         {saveLabel}
