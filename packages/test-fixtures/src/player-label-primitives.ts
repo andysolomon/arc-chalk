@@ -5,11 +5,12 @@ import {
 } from "@chalk/domain";
 
 const fixture = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   id: "play_player_label_primitives",
+  playbookId: "playbook_golden_primitives",
   name: "Player and label primitive coverage",
   unit: "offense",
-  playType: "Pass",
+  playType: { id: "play_type_pass", name: "Pass" },
   tags: ["golden"],
   notes:
     "Exercises every original player symbol, fill, label role, and leader.",
@@ -80,6 +81,7 @@ const fixture = {
       group: "linebackers",
     },
   ],
+  assignments: [],
   paths: [
     {
       id: "binding-path",

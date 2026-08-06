@@ -1,5 +1,11 @@
 import { PRODUCT_NAME, stickThunderPlay } from "@chalk/domain";
 import {
+  localSaveMessage,
+  type EditorStore,
+  type EditorUndoState,
+  type LocalSaveState,
+} from "@chalk/editor";
+import {
   buildRenderScene,
   buildSvgRenderScene,
   type SvgRenderScene,
@@ -7,7 +13,7 @@ import {
   type SvgShapePrimitive,
   type SvgTextPrimitive,
 } from "@chalk/render";
-import { useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 
 type View = "Editor" | "Demo" | "Present" | "Print";
 type Tool =
@@ -586,15 +592,33 @@ function InspectorSection({
   );
 }
 
-export function ChalkApp() {
+export function ChalkApp({ editorStore }: { editorStore: EditorStore }) {
   const [activeView, setActiveView] = useState<View>("Editor");
   const [activeTool, setActiveTool] = useState<Tool>("select");
-  const [playName, setPlayName] = useState("Stick — Thunder");
-  const [saveLabel, setSaveLabel] = useState("Save");
-
+  const editor = useSyncExternalStore(
+    editorStore.subscribe,
+    editorStore.getSnapshot,
+    editorStore.getSnapshot,
+  );
+  const scene = useMemo(
+    () => buildSvgRenderScene(buildRenderScene(editor.document)),
+    [editor.document],
+  );
+  const commitPlayName = () => {
+    void editorStore.commitPlayName().catch(() => undefined);
+  };
   const save = () => {
-    setSaveLabel("Saved");
-    window.setTimeout(() => setSaveLabel("Save"), 900);
+    if (editor.localSave.phase === "error") {
+      void editorStore.retryLocalSave().catch(() => undefined);
+      return;
+    }
+    commitPlayName();
+  };
+  const undo = () => {
+    void editorStore.undo().catch(() => undefined);
+  };
+  const redo = () => {
+    void editorStore.redo().catch(() => undefined);
   };
 
   if (activeView !== "Editor") {
@@ -603,13 +627,18 @@ export function ChalkApp() {
         <Header
           activeView={activeView}
           onView={setActiveView}
-          playName={playName}
-          setPlayName={setPlayName}
+          playName={editor.draftPlayName}
+          setPlayName={editorStore.setPlayNameDraft}
+          resetPlayName={editorStore.resetPlayNameDraft}
+          commitPlayName={commitPlayName}
           onSave={save}
-          saveLabel={saveLabel}
+          onUndo={undo}
+          onRedo={redo}
+          undo={editor.undo}
+          localSave={editor.localSave}
         />
         <div className="mode-placeholder">
-          <FieldDiagram />
+          <FieldDiagram scene={scene} />
           <div className="mode-label">{activeView} mode</div>
         </div>
       </div>
@@ -621,10 +650,15 @@ export function ChalkApp() {
       <Header
         activeView={activeView}
         onView={setActiveView}
-        playName={playName}
-        setPlayName={setPlayName}
+        playName={editor.draftPlayName}
+        setPlayName={editorStore.setPlayNameDraft}
+        resetPlayName={editorStore.resetPlayNameDraft}
+        commitPlayName={commitPlayName}
         onSave={save}
-        saveLabel={saveLabel}
+        onUndo={undo}
+        onRedo={redo}
+        undo={editor.undo}
+        localSave={editor.localSave}
       />
       <div className="workspace">
         <nav className="tool-rail" aria-label="Drawing tools">
@@ -652,7 +686,7 @@ export function ChalkApp() {
         </nav>
         <main className="editor-stage">
           <div className="field-wrap">
-            <FieldDiagram />
+            <FieldDiagram scene={scene} />
           </div>
           <div className="timeline" aria-label="Playback controls">
             <button aria-label="Play">▶</button>
@@ -675,7 +709,7 @@ export function ChalkApp() {
             <span>
               − &nbsp; 100% &nbsp; + &nbsp;&nbsp; SELECTION &nbsp;&nbsp; BALL
               &nbsp;&nbsp; CUSTOM ALIGNMENT &nbsp;&nbsp; SNAP ON &nbsp;&nbsp;
-              11P · 5R &nbsp;&nbsp; saved
+              11P · 5R &nbsp;&nbsp; {localSaveMessage(editor.localSave)}
             </span>
           </div>
         </main>
@@ -687,19 +721,30 @@ export function ChalkApp() {
 
 function Header({
   activeView,
+  commitPlayName,
+  localSave,
   onView,
   onSave,
+  onUndo,
+  onRedo,
   playName,
-  saveLabel,
+  resetPlayName,
   setPlayName,
+  undo,
 }: {
   activeView: View;
+  commitPlayName: () => void;
+  localSave: LocalSaveState;
   onView: (view: View) => void;
   onSave: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
   playName: string;
-  saveLabel: string;
+  resetPlayName: () => void;
   setPlayName: (name: string) => void;
+  undo: EditorUndoState;
 }) {
+  const saveLabel = localSaveMessage(localSave);
   return (
     <header className="topbar">
       <div className="chalk-mark" aria-hidden="true">
@@ -721,7 +766,15 @@ function Header({
       <input
         aria-label="Play name"
         className="play-name"
+        onBlur={commitPlayName}
         onChange={(event) => setPlayName(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+          if (event.key === "Escape") {
+            resetPlayName();
+            event.currentTarget.blur();
+          }
+        }}
         spellCheck={false}
         value={playName}
       />
@@ -737,10 +790,20 @@ function Header({
         </select>
       </label>
       <span className="top-spacer" />
-      <button className="quiet" disabled>
+      <button
+        className="quiet"
+        disabled={!undo.canUndo}
+        onClick={onUndo}
+        title={undo.undoLabel ? `Undo ${undo.undoLabel}` : "Nothing to undo"}
+      >
         Undo
       </button>
-      <button className="quiet" disabled>
+      <button
+        className="quiet"
+        disabled={!undo.canRedo}
+        onClick={onRedo}
+        title={undo.redoLabel ? `Redo ${undo.redoLabel}` : "Nothing to redo"}
+      >
         Redo
       </button>
       <span className="divider" />
@@ -749,7 +812,13 @@ function Header({
       </button>
       <button className="export">Export</button>
       <button
-        className={`save ${saveLabel === "Saved" ? "saved" : ""}`}
+        className={`save ${localSave.phase}`}
+        data-save-duration-ms={
+          "durationMs" in localSave ? localSave.durationMs : undefined
+        }
+        data-save-within-budget={
+          "withinBudget" in localSave ? localSave.withinBudget : undefined
+        }
         onClick={onSave}
       >
         {saveLabel}

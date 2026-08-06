@@ -5,11 +5,12 @@ import {
 } from "@chalk/domain";
 
 const fixture = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   id: "play_path_primitives",
+  playbookId: "playbook_golden_primitives",
   name: "Path primitive coverage",
   unit: "offense",
-  playType: "Pass",
+  playType: { id: "play_type_pass", name: "Pass" },
   tags: ["golden"],
   notes: "Exercises every beta path kind, line style, and ending.",
   fieldProfile: highSchoolFieldProfile,
@@ -34,6 +35,7 @@ const fixture = {
     fill: "none" as const,
     color: "ink" as const,
   })),
+  assignments: [],
   paths: [
     {
       id: "path-route",

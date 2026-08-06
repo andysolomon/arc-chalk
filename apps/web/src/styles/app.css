@@ -204,6 +204,9 @@ select:focus-visible {
 .topbar .save.saved {
   background: #398e4a;
 }
+.topbar .save.error {
+  background: #c53b3f;
+}
 
 .workspace {
   min-height: 0;

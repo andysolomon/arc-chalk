@@ -1,7 +1,8 @@
 import { legacyCanvasToYards } from "./geometry";
 import { highSchoolFieldProfile } from "./field-profile";
+import { migratePlayDocument } from "./migrations";
 import {
-  playDocumentSchema,
+  playDocumentV2Schema,
   type Color,
   type PathEnding,
   type PathLine,
@@ -196,110 +197,113 @@ function coverageType(
 }
 
 export function migrateLegacyPlay(legacy: LegacyPlay): PlayDocument {
-  return playDocumentSchema.parse({
-    schemaVersion: 2,
-    id: legacy.id,
-    name: legacy.name,
-    unit: unitFor(legacy.cat),
-    playType: legacy.cat,
-    tags: legacy.tags ?? [],
-    notes: legacy.notes ?? "",
-    fieldProfile: highSchoolFieldProfile,
-    players: legacy.doc.players.map((player) => ({
-      id: player.id,
-      unit: player.side === "def" ? "defense" : unitFor(legacy.cat),
-      position: legacyCanvasToYards(player),
-      symbol: playerSymbol(player.symbol),
-      label: player.label ?? "",
-      sublabel: player.sub ?? "",
-      fill: playerFill(player.fill),
-      color: color(player.color),
-      ...(player.role === undefined ? {} : { role: player.role }),
-      ...(player.group === undefined ? {} : { group: player.group }),
-    })),
-    paths: legacy.doc.routes.map((route, routeIndex) => ({
-      id: route.id,
-      kind: route.kind ?? "route",
-      playerId: route.playerId,
-      points: route.points.map(point),
-      branches: (route.branches ?? []).map((branch) => ({
-        fromIndex: branch.fromIdx,
-        points: branch.points.map(point),
-        style: style(branch),
+  return migratePlayDocument(
+    playDocumentV2Schema.parse({
+      schemaVersion: 2,
+      id: legacy.id,
+      name: legacy.name,
+      unit: unitFor(legacy.cat),
+      playType: legacy.cat,
+      tags: legacy.tags ?? [],
+      notes: legacy.notes ?? "",
+      fieldProfile: highSchoolFieldProfile,
+      players: legacy.doc.players.map((player) => ({
+        id: player.id,
+        unit: player.side === "def" ? "defense" : unitFor(legacy.cat),
+        position: legacyCanvasToYards(player),
+        symbol: playerSymbol(player.symbol),
+        label: player.label ?? "",
+        sublabel: player.sub ?? "",
+        fill: playerFill(player.fill),
+        color: color(player.color),
+        ...(player.role === undefined ? {} : { role: player.role }),
+        ...(player.group === undefined ? {} : { group: player.group }),
       })),
-      style: style(route),
-      ...(route.kind !== undefined && route.kind !== "route"
-        ? {}
-        : legacy.doc.routes
-              .slice(0, routeIndex)
-              .some(
-                (candidate) =>
-                  candidate.playerId === route.playerId &&
-                  (candidate.kind === undefined || candidate.kind === "route"),
-              )
-          ? { variant: "alternate" as const }
+      paths: legacy.doc.routes.map((route, routeIndex) => ({
+        id: route.id,
+        kind: route.kind ?? "route",
+        playerId: route.playerId,
+        points: route.points.map(point),
+        branches: (route.branches ?? []).map((branch) => ({
+          fromIndex: branch.fromIdx,
+          points: branch.points.map(point),
+          style: style(branch),
+        })),
+        style: style(route),
+        ...(route.kind !== undefined && route.kind !== "route"
+          ? {}
+          : legacy.doc.routes
+                .slice(0, routeIndex)
+                .some(
+                  (candidate) =>
+                    candidate.playerId === route.playerId &&
+                    (candidate.kind === undefined ||
+                      candidate.kind === "route"),
+                )
+            ? { variant: "alternate" as const }
+            : {}),
+        ...(route.zone
+          ? {
+              coverageArea: {
+                type: coverageType(route),
+                radiusLateralYards: route.zone.rx / 12,
+                radiusDepthYards: route.zone.ry / 12,
+              },
+            }
           : {}),
-      ...(route.zone
-        ? {
-            coverageArea: {
-              type: coverageType(route),
-              radiusLateralYards: route.zone.rx / 12,
-              radiusDepthYards: route.zone.ry / 12,
-            },
-          }
-        : {}),
-      ...(route.assignment ? { assignment: route.assignment } : {}),
-      ...(route.rule ? { rule: route.rule } : {}),
-      ...(route.delay !== undefined ||
-      route.speed !== undefined ||
-      route.hold !== undefined
-        ? {
-            timing: {
-              delayMs: Math.round((route.delay ?? 0) * 1000),
-              holdMs: Math.round((route.hold ?? 0) * 1000),
-              ...(route.speed === undefined
-                ? {}
-                : { speedMultiplier: route.speed }),
-            },
-          }
-        : {}),
-    })),
-    labels: legacy.doc.labels.map((label) => {
-      const role = labelRole(label.role);
-      return {
-        id: label.id,
-        position: legacyCanvasToYards(label),
-        text: label.text,
-        color: color(label.color),
-        size: label.size ?? 11,
-        box: labelBox(label.box),
-        boxColor: color(label.boxColor ?? "y"),
-        ...(label.caps === undefined ? {} : { caps: label.caps }),
-        ...(label.mono === undefined ? {} : { mono: label.mono }),
-        ...(role === undefined ? {} : { role }),
-        ...(label.side === "def" ? { unit: "defense" } : {}),
-        ...(label.leader === undefined
-          ? {}
-          : {
-              leader: {
-                endpoint: legacyCanvasToYards(label.leader),
-                line: label.leader.style === "dashed" ? "dashed" : "solid",
+        ...(route.assignment ? { assignment: route.assignment } : {}),
+        ...(route.rule ? { rule: route.rule } : {}),
+        ...(route.delay !== undefined ||
+        route.speed !== undefined ||
+        route.hold !== undefined
+          ? {
+              timing: {
+                delayMs: Math.round((route.delay ?? 0) * 1000),
+                holdMs: Math.round((route.hold ?? 0) * 1000),
+                ...(route.speed === undefined
+                  ? {}
+                  : { speedMultiplier: route.speed }),
               },
-            }),
-        ...(label.bind === undefined
-          ? {}
-          : {
-              binding: {
-                pathId: label.bind.routeId,
-                segmentIndex: label.bind.segIdx,
-                progress: label.bind.t ?? 0.5,
-                offset: {
-                  lateralYards: (label.bind.ox ?? 0) / 12,
-                  depthYards: -(label.bind.oy ?? 0) / 12,
+            }
+          : {}),
+      })),
+      labels: legacy.doc.labels.map((label) => {
+        const role = labelRole(label.role);
+        return {
+          id: label.id,
+          position: legacyCanvasToYards(label),
+          text: label.text,
+          color: color(label.color),
+          size: label.size ?? 11,
+          box: labelBox(label.box),
+          boxColor: color(label.boxColor ?? "y"),
+          ...(label.caps === undefined ? {} : { caps: label.caps }),
+          ...(label.mono === undefined ? {} : { mono: label.mono }),
+          ...(role === undefined ? {} : { role }),
+          ...(label.side === "def" ? { unit: "defense" } : {}),
+          ...(label.leader === undefined
+            ? {}
+            : {
+                leader: {
+                  endpoint: legacyCanvasToYards(label.leader),
+                  line: label.leader.style === "dashed" ? "dashed" : "solid",
                 },
-              },
-            }),
-      };
+              }),
+          ...(label.bind === undefined
+            ? {}
+            : {
+                binding: {
+                  pathId: label.bind.routeId,
+                  segmentIndex: label.bind.segIdx,
+                  progress: label.bind.t ?? 0.5,
+                  offset: {
+                    lateralYards: (label.bind.ox ?? 0) / 12,
+                    depthYards: -(label.bind.oy ?? 0) / 12,
+                  },
+                },
+              }),
+        };
+      }),
     }),
-  });
+  );
 }

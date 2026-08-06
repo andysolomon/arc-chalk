@@ -7,6 +7,10 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@chalk/domain": "workspace:*"
+    "@chalk/domain": "workspace:*",
+    "dexie": "4.4.4"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "6.2.5"
   }
 }
