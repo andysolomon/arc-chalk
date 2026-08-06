@@ -46,8 +46,13 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 
 | State | Gap measured | Date |
 |---|---|---|
+| Editor | 1.85% (25,526 px of 1,382,400) | 2026-08-06 |
 | Editor | 1.89% (26,186 px of 1,382,400) | 2026-08-06 |
 | Editor | 2.14% (29,631 px of 1,382,400) | 2026-08-06 (first measurement) |
+
+### Measuring a metric rather than guessing at it
+
+Pixel diffs show *where* production disagrees with the original but not *why*. To read the original's own numbers, load both pages in the parity projects and dump `getBoundingClientRect()` and `getComputedStyle()` for the elements in question. That is how the values below were established; each was a real number read off the original, not an estimate from a screenshot.
 
 Closed so far:
 
@@ -55,12 +60,20 @@ Closed so far:
 - The header Save button reads `Save` as the original's does, and the save acknowledgement moved to the end of the status bar where the original shows it. Present mode hides it with the rest of the authoring chrome.
 - Inspector body copy for Concept and Defense is no longer truncated.
 
+Metrics matched to the original by measurement:
+
+| Element | Original | Was | Now |
+|---|---|---|---|
+| Play title width | 410 px | 310 px | 410 px |
+| Play Type control x | 794 | 695 | 795 |
+| Tool-rail glyph | 18 × 18 at x 19 | 22 × 22 at x 17 | 18 × 18 at x 19 |
+| Inspector body width | 256 px | 252 px | 256 px |
+
 Known contributors to the remaining Editor gap:
 
-- Inspector paragraphs wrap to different heights, so the column still drifts toward the bottom.
-- The Play Type control sits at a different horizontal offset than the original's.
-- Tool-rail glyphs below the text tool differ from the original.
-- The field diagram is a couple of pixels off in scale or position.
+- **The field renders from a different viewBox aspect than the original's.** The original's field SVG is 1092 px wide with a 1.3 aspect; production's is 1068 px with a 2.03 aspect. Matching the container width alone made the gap *worse* (31,535 px) because the Play scaled with it, so this is a `RenderScene` geometry question rather than a CSS one and is left for the field work.
+- Tool-rail glyph shapes below the text tool still differ from the original's.
+- Status bar spacing does not match.
 
 The earlier hand-captured comparison is retained as `screenshots/production-slice-editor-desktop-1440x960.png`.
 

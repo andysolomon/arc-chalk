@@ -11,11 +11,11 @@ import { expect, test, type Page } from "@playwright/test";
  * regression and needs the product owner's approval per ADR 0039.
  */
 const parityGap: Readonly<Record<string, number>> = {
-  // Measured 1.89% (26,186 px) on 2026-08-06, down from 2.14%. Remaining:
-  // inspector paragraphs wrap to different heights and drift the column, the
-  // Play Type control sits at a different offset, tool-rail glyphs below the
-  // text tool differ, and the field is a couple of pixels off.
-  editor: 0.019,
+  // Measured 1.85% (25,526 px) on 2026-08-06, down from 2.14%. Remaining:
+  // the field renders from a different viewBox aspect than the original's, so
+  // the Play sits a few pixels off; tool-rail glyph shapes still differ; and
+  // the status bar's spacing does not match.
+  editor: 0.0185,
 };
 
 /**

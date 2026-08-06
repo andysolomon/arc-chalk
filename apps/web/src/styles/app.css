@@ -119,7 +119,7 @@ select:focus-visible {
   font-size: 13px;
 }
 .play-name {
-  width: clamp(140px, 24vw, 310px);
+  width: clamp(140px, 30vw, 410px);
   min-width: 90px;
   padding: 5px 8px;
   border: 0;
@@ -390,8 +390,8 @@ select:focus-visible {
   color: #fff;
 }
 .tool-rail svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
 }
 .tool-circle {
   width: 12px;
@@ -562,7 +562,7 @@ select:focus-visible {
   box-shadow: -1px 0 rgba(0, 0, 0, 0.06);
 }
 .inspector-section {
-  padding: 17px 20px 0;
+  padding: 17px 16px 0 20px;
 }
 .section-heading {
   margin-bottom: 10px;
