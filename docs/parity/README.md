@@ -40,6 +40,22 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 | Formation browser | `screenshots/original-editor-formations-desktop-1440x960.png` |
 | Defense browser | `screenshots/original-editor-defenses-desktop-1440x960.png` |
 
-The current production comparison for the Editor state is `screenshots/production-slice-editor-desktop-1440x960.png`. Its Field Profile markings and Play content are rendered from the canonical yard-space `RenderScene`; the shell's remaining controls and interactions are still incremental parity work.
+## Production against the original
+
+`tests/parity/production-shell.spec.ts` captures the production shell and compares it against the **original's own golden**, so the recorded number is the live parity gap rather than an opinion. Each threshold in that file is a ratchet: it records the gap measured when the state was last worked on and may only be lowered. Raising one is a parity regression needing product-owner approval per ADR 0039.
+
+| State | Gap measured | Date |
+|---|---|---|
+| Editor | 2.14% (29,631 px of 1,382,400) | 2026-08-06 |
+
+Known contributors to the current Editor gap:
+
+- The header carries `Versions` and `Backup` controls the original does not have. The original reaches versions through its Save menu and has no top-level Backup control; these were added during Phase 3 and are Phase 4 work to fold into the original's menus.
+- Inspector body copy for Concept and Defense is truncated, so the panel's content drifts further out of alignment toward the bottom of the column.
+- Tool-rail glyphs below the text tool differ from the original.
+- The Play Type control sits at a different offset than the original's.
+- The status bar omits the trailing save state.
+
+The earlier hand-captured comparison is retained as `screenshots/production-slice-editor-desktop-1440x960.png`.
 
 This is still an initial baseline. Phase 0 remains open until every menu, modal, panel, selection state, supported viewport, output, shortcut, and input workflow has named evidence.

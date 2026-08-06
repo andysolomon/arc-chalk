@@ -8,7 +8,7 @@ const prototypeServer = resolve(
 
 export default defineConfig({
   testDir: import.meta.dirname,
-  testMatch: "original-prototype.spec.ts",
+  testMatch: /(original-prototype|production-shell)\.spec\.ts/,
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
@@ -27,13 +27,35 @@ export default defineConfig({
     timezoneId: "America/New_York",
     trace: "on-first-retry",
   },
+  projects: [
+    {
+      name: "original",
+      testMatch: "original-prototype.spec.ts",
+      use: { baseURL: "http://127.0.0.1:4174" },
+    },
+    {
+      // The production shell is compared against the original's own goldens,
+      // so the recorded difference is the parity gap itself.
+      name: "production",
+      testMatch: "production-shell.spec.ts",
+      use: { baseURL: "http://127.0.0.1:4173" },
+    },
+  ],
   webServer:
     process.env.CHALK_PROTOTYPE_SERVER === "external"
       ? undefined
-      : {
-          command: `bun "${prototypeServer}"`,
-          url: "http://127.0.0.1:4174",
-          reuseExistingServer: !process.env.CI,
-          timeout: 30_000,
-        },
+      : [
+          {
+            command: `bun "${prototypeServer}"`,
+            url: "http://127.0.0.1:4174",
+            reuseExistingServer: !process.env.CI,
+            timeout: 30_000,
+          },
+          {
+            command: "bun run dev",
+            url: "http://127.0.0.1:4173",
+            reuseExistingServer: !process.env.CI,
+            timeout: 60_000,
+          },
+        ],
 });
