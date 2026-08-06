@@ -165,11 +165,40 @@ export interface CommitPlayResult {
   readonly undoEntryCount?: number;
 }
 
+/**
+ * What Chalk knows at startup about how the previous session ended. An
+ * interrupted session never means work was lost: every committed transaction
+ * is already durable, and this only decides whether to tell the Coach.
+ */
+export interface SessionRecovery {
+  readonly interrupted: boolean;
+  readonly previousSessionId?: string;
+  readonly previousStartedAtMs?: number;
+}
+
+export type StoragePressure = "healthy" | "watch" | "critical" | "unknown";
+
+export interface StorageHealth {
+  readonly persisted: boolean;
+  readonly pressure: StoragePressure;
+  readonly usageBytes?: number;
+  readonly quotaBytes?: number;
+  readonly usedFraction?: number;
+}
+
+/** The subset of the browser storage API Chalk depends on. */
+export interface StorageManagerLike {
+  persist?: () => Promise<boolean>;
+  persisted?: () => Promise<boolean>;
+  estimate?: () => Promise<{ usage?: number; quota?: number }>;
+}
+
 export interface LocalRepositoryOptions {
   readonly databaseName: string;
   readonly indexedDB?: IDBFactory;
   readonly IDBKeyRange?: typeof globalThis.IDBKeyRange;
   readonly now?: () => number;
+  readonly storage?: StorageManagerLike;
 }
 
 export interface ChalkLocalRepository {
@@ -187,6 +216,11 @@ export interface ChalkLocalRepository {
   getRevision(revisionId: string): Promise<PlayRevision | undefined>;
   createNamedVersion(input: CreateNamedVersionInput): Promise<PlayRevision>;
   listPlayVersions(playId: string): Promise<readonly PlayVersionSummary[]>;
+
+  beginSession(sessionId: string): Promise<SessionRecovery>;
+  endSession(): Promise<void>;
+  requestPersistentStorage(): Promise<boolean>;
+  storageHealth(): Promise<StorageHealth>;
 
   movePlayToTrash(playId: string): Promise<void>;
   restorePlayFromTrash(playId: string): Promise<StoredPlay>;

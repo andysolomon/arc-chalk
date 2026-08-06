@@ -23,9 +23,14 @@ import type {
   LocalImageBlob,
   LocalPreference,
   LocalRepositoryOptions,
+  JsonValue,
   LocalStoreCounts,
   PlaySearchProjection,
   PlayVersionSummary,
+  SessionRecovery,
+  StorageHealth,
+  StorageManagerLike,
+  StoragePressure,
   StoredPlay,
   TrashedPlaySummary,
   SyncMutation,
@@ -106,9 +111,21 @@ function positiveLimit(limit: number): number {
   return limit;
 }
 
+const OPEN_SESSION_PREFERENCE = "session.open";
+const STORAGE_WATCH_FRACTION = 0.8;
+const STORAGE_CRITICAL_FRACTION = 0.95;
+
+function pressureFor(usedFraction: number | undefined): StoragePressure {
+  if (usedFraction === undefined) return "unknown";
+  if (usedFraction >= STORAGE_CRITICAL_FRACTION) return "critical";
+  if (usedFraction >= STORAGE_WATCH_FRACTION) return "watch";
+  return "healthy";
+}
+
 class DexieLocalRepository implements ChalkLocalRepository {
   readonly #database: ChalkDexieDatabase;
   readonly #now: () => number;
+  readonly #storage: StorageManagerLike | undefined;
 
   constructor(options: LocalRepositoryOptions) {
     this.#database = new ChalkDexieDatabase(options.databaseName, {
@@ -116,6 +133,9 @@ class DexieLocalRepository implements ChalkLocalRepository {
       IDBKeyRange: options.IDBKeyRange,
     });
     this.#now = options.now ?? Date.now;
+    this.#storage =
+      options.storage ??
+      (typeof navigator === "undefined" ? undefined : navigator.storage);
   }
 
   async open(): Promise<void> {
@@ -450,6 +470,81 @@ class DexieLocalRepository implements ChalkLocalRepository {
           right.createdAtMs - left.createdAtMs ||
           right.id.localeCompare(left.id),
       );
+  }
+
+  /**
+   * Records that a session is open and reports whether the previous one ever
+   * closed. Committed work is already durable either way; this only decides
+   * whether Chalk owes the Coach an explanation.
+   */
+  async beginSession(sessionId: string): Promise<SessionRecovery> {
+    const previous = await this.#database.preferences.get(
+      OPEN_SESSION_PREFERENCE,
+    );
+    const startedAtMs = this.#now();
+    await this.#database.preferences.put({
+      key: OPEN_SESSION_PREFERENCE,
+      value: { sessionId, startedAtMs },
+      updatedAtMs: startedAtMs,
+    });
+
+    const value = previous?.value;
+    const marker =
+      value !== null && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, JsonValue>)
+        : undefined;
+    const previousSessionId = marker?.sessionId;
+    const previousStartedAtMs = marker?.startedAtMs;
+    if (typeof previousSessionId !== "string") {
+      return { interrupted: previous !== undefined };
+    }
+    return {
+      interrupted: true,
+      previousSessionId,
+      ...(typeof previousStartedAtMs === "number"
+        ? { previousStartedAtMs }
+        : {}),
+    };
+  }
+
+  async endSession(): Promise<void> {
+    await this.#database.preferences.delete(OPEN_SESSION_PREFERENCE);
+  }
+
+  /** Without persistent storage a browser may evict a Coach's whole season. */
+  async requestPersistentStorage(): Promise<boolean> {
+    try {
+      if (await this.#storage?.persisted?.()) return true;
+      return (await this.#storage?.persist?.()) ?? false;
+    } catch {
+      return false;
+    }
+  }
+
+  async storageHealth(): Promise<StorageHealth> {
+    let persisted = false;
+    let usageBytes: number | undefined;
+    let quotaBytes: number | undefined;
+    try {
+      persisted = (await this.#storage?.persisted?.()) ?? false;
+      const estimate = await this.#storage?.estimate?.();
+      usageBytes = estimate?.usage;
+      quotaBytes = estimate?.quota;
+    } catch {
+      // An unavailable storage API reports unknown rather than failing startup.
+    }
+    const usedFraction =
+      usageBytes !== undefined && quotaBytes !== undefined && quotaBytes > 0
+        ? usageBytes / quotaBytes
+        : undefined;
+
+    return {
+      persisted,
+      pressure: pressureFor(usedFraction),
+      ...(usageBytes === undefined ? {} : { usageBytes }),
+      ...(quotaBytes === undefined ? {} : { quotaBytes }),
+      ...(usedFraction === undefined ? {} : { usedFraction }),
+    };
   }
 
   /**

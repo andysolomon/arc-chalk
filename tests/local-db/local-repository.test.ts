@@ -594,6 +594,115 @@ describe("ChalkLocalRepository", () => {
     );
   });
 
+  it("reports an interrupted session without treating committed work as lost", async () => {
+    const databaseName = `chalk-local-session-${crypto.randomUUID()}`;
+    const open = (): ChalkLocalRepository =>
+      track(
+        createDexieLocalRepository({
+          databaseName,
+          indexedDB,
+          IDBKeyRange,
+          now: () => FIXED_TIME,
+        }),
+      );
+
+    const first = open();
+    await first.savePlaybook(offensivePlaybookGolden);
+    await expect(first.beginSession("session_1")).resolves.toEqual({
+      interrupted: false,
+    });
+
+    // The tab disappeared: nothing cleared the open-session marker.
+    first.close();
+    const second = open();
+    await expect(second.beginSession("session_2")).resolves.toEqual({
+      interrupted: true,
+      previousSessionId: "session_1",
+      previousStartedAtMs: FIXED_TIME,
+    });
+    // The Play committed before the interruption is still exactly there.
+    await expect(
+      second.getPlay(offensivePlaybookGolden.plays[0]!.id),
+    ).resolves.toEqual(
+      expect.objectContaining({ document: offensivePlaybookGolden.plays[0]! }),
+    );
+
+    await second.endSession();
+    second.close();
+    const third = open();
+    await expect(third.beginSession("session_3")).resolves.toEqual({
+      interrupted: false,
+    });
+  });
+
+  it("requests persistent storage and grades storage pressure", async () => {
+    const storage = {
+      persistedValue: false,
+      usage: 10,
+      quota: 100,
+      persisted() {
+        return Promise.resolve(this.persistedValue);
+      },
+      persist() {
+        this.persistedValue = true;
+        return Promise.resolve(true);
+      },
+      estimate() {
+        return Promise.resolve({ usage: this.usage, quota: this.quota });
+      },
+    };
+    const repository = track(
+      createDexieLocalRepository({
+        databaseName: `chalk-local-storage-${crypto.randomUUID()}`,
+        indexedDB,
+        IDBKeyRange,
+        storage,
+      }),
+    );
+
+    await expect(repository.storageHealth()).resolves.toEqual({
+      persisted: false,
+      pressure: "healthy",
+      usageBytes: 10,
+      quotaBytes: 100,
+      usedFraction: 0.1,
+    });
+
+    await expect(repository.requestPersistentStorage()).resolves.toBe(true);
+    // Already persisted: Chalk must not ask the browser a second time.
+    storage.persist = () => Promise.reject(new Error("asked twice"));
+    await expect(repository.requestPersistentStorage()).resolves.toBe(true);
+
+    storage.usage = 85;
+    await expect(repository.storageHealth()).resolves.toEqual(
+      expect.objectContaining({ persisted: true, pressure: "watch" }),
+    );
+    storage.usage = 96;
+    await expect(repository.storageHealth()).resolves.toEqual(
+      expect.objectContaining({ pressure: "critical" }),
+    );
+  });
+
+  it("reports unknown storage health rather than failing on an unavailable API", async () => {
+    const repository = track(
+      createDexieLocalRepository({
+        databaseName: `chalk-local-no-storage-${crypto.randomUUID()}`,
+        indexedDB,
+        IDBKeyRange,
+        storage: {
+          persisted: () => Promise.reject(new Error("blocked")),
+          estimate: () => Promise.reject(new Error("blocked")),
+        },
+      }),
+    );
+
+    await expect(repository.storageHealth()).resolves.toEqual({
+      persisted: false,
+      pressure: "unknown",
+    });
+    await expect(repository.requestPersistentStorage()).resolves.toBe(false);
+  });
+
   it("commits one Play at 2,000-Play beta scale without growing with Playbook size", async () => {
     const basePlay = offensivePlaybookGolden.plays[0]!;
     const fullHistoryFor = (play: PlayDocument): UndoHistory => ({
