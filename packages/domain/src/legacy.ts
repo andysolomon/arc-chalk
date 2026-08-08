@@ -1,4 +1,8 @@
-import { legacyCanvasToYards } from "./geometry";
+import {
+  legacyCanvasToYards,
+  legacyDepthSpanToYards,
+  legacyLateralSpanToYards,
+} from "./geometry";
 import { highSchoolFieldProfile } from "./field-profile";
 import { migratePlayDocument } from "./migrations";
 import {
@@ -246,8 +250,8 @@ export function migrateLegacyPlay(legacy: LegacyPlay): PlayDocument {
           ? {
               coverageArea: {
                 type: coverageType(route),
-                radiusLateralYards: route.zone.rx / 12,
-                radiusDepthYards: route.zone.ry / 12,
+                radiusLateralYards: legacyLateralSpanToYards(route.zone.rx),
+                radiusDepthYards: legacyDepthSpanToYards(route.zone.ry),
               },
             }
           : {}),
@@ -297,8 +301,8 @@ export function migrateLegacyPlay(legacy: LegacyPlay): PlayDocument {
                   segmentIndex: label.bind.segIdx,
                   progress: label.bind.t ?? 0.5,
                   offset: {
-                    lateralYards: (label.bind.ox ?? 0) / 12,
-                    depthYards: -(label.bind.oy ?? 0) / 12,
+                    lateralYards: legacyLateralSpanToYards(label.bind.ox ?? 0),
+                    depthYards: -legacyDepthSpanToYards(label.bind.oy ?? 0),
                   },
                 },
               }),

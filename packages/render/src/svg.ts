@@ -9,13 +9,44 @@ import type {
 
 import type { RenderScene, ScenePath } from "./index";
 
+/**
+ * The frame the field is drawn into. Depth scale is fixed here; the lateral
+ * scale is not, because it follows the Field Profile's width — see
+ * {@link createSvgProjection}.
+ */
 export interface SvgViewport {
   readonly width: number;
   readonly height: number;
   readonly midfieldX: number;
   readonly lineOfScrimmageY: number;
-  readonly pixelsPerYard: number;
+  readonly depthPixelsPerYard: number;
   readonly fieldInsetX: number;
+}
+
+/**
+ * A viewport resolved against one Field Profile.
+ *
+ * The field is drawn anisotropically, as the original draws it: a full 53 1/3
+ * yard width fits across the frame while depth stays at a readable scale, so
+ * a yard across the field and a yard downfield are different numbers of
+ * pixels. Every projection — players, paths, labels, and field markings alike
+ * — must go through this one object. Projecting positions with the depth
+ * scale on both axes is what put the seeded Play's split end out of bounds
+ * while the stretched sidelines hid it.
+ */
+export interface SvgProjection extends SvgViewport {
+  readonly lateralPixelsPerYard: number;
+}
+
+export function createSvgProjection(
+  profile: FieldProfile,
+  viewport: SvgViewport = editorSvgViewport,
+): SvgProjection {
+  return {
+    ...viewport,
+    lateralPixelsPerYard:
+      (viewport.width - viewport.fieldInsetX * 2) / profile.widthYards,
+  };
 }
 
 export interface SvgPoint {
@@ -88,22 +119,48 @@ export interface SvgTextPrimitive {
 export const editorSvgViewport: SvgViewport = Object.freeze({
   width: 1068,
   height: 525,
-  midfieldX: 532,
+  // The centre of the inset field span, so a Player on the midfield line and
+  // the drawn midfield line land on the same pixel.
+  midfieldX: 534,
   lineOfScrimmageY: 394,
-  pixelsPerYard: 13,
+  depthPixelsPerYard: 13,
   fieldInsetX: 12,
 });
 
 export function projectCoordinate(
   coordinate: Coordinate,
-  viewport: SvgViewport = editorSvgViewport,
+  projection: SvgProjection,
 ): SvgPoint {
   return {
-    x: viewport.midfieldX + coordinate.lateralYards * viewport.pixelsPerYard,
-    y:
-      viewport.lineOfScrimmageY -
-      coordinate.depthYards * viewport.pixelsPerYard,
+    x: projectLateral(coordinate.lateralYards, projection),
+    y: projectDepth(coordinate.depthYards, projection),
   };
+}
+
+/** Recovers field yards from a point in the drawn frame. */
+export function unprojectPoint(
+  point: SvgPoint,
+  projection: SvgProjection,
+): Coordinate {
+  return {
+    lateralYards:
+      (point.x - projection.midfieldX) / projection.lateralPixelsPerYard,
+    depthYards:
+      (projection.lineOfScrimmageY - point.y) / projection.depthPixelsPerYard,
+  };
+}
+
+function projectLateral(
+  lateralYards: number,
+  projection: SvgProjection,
+): number {
+  return projection.midfieldX + lateralYards * projection.lateralPixelsPerYard;
+}
+
+function projectDepth(depthYards: number, projection: SvgProjection): number {
+  return (
+    projection.lineOfScrimmageY - depthYards * projection.depthPixelsPerYard
+  );
 }
 
 function formatNumber(value: number): string {
@@ -116,7 +173,7 @@ function pointCommand(point: SvgPoint): string {
 
 function standardPathData(
   points: readonly PathPoint[],
-  viewport: SvgViewport,
+  viewport: SvgProjection,
 ): string {
   const first = points[0];
   if (!first) throw new RangeError("Cannot project an empty movement path.");
@@ -137,7 +194,7 @@ function standardPathData(
 
 function zigzagPathData(
   points: readonly PathPoint[],
-  viewport: SvgViewport,
+  viewport: SvgProjection,
 ): string {
   const first = points[0];
   if (!first) throw new RangeError("Cannot project an empty movement path.");
@@ -174,7 +231,7 @@ function zigzagPathData(
 function pathData(
   points: readonly PathPoint[],
   line: PathLine,
-  viewport: SvgViewport,
+  viewport: SvgProjection,
 ): string {
   return line === "zigzag"
     ? zigzagPathData(points, viewport)
@@ -190,7 +247,7 @@ export interface SvgTick {
 
 function buildTicks(
   points: readonly PathPoint[],
-  viewport: SvgViewport,
+  viewport: SvgProjection,
 ): readonly SvgTick[] {
   return points.flatMap((point, index) => {
     if (!point.tick || index === 0) return [];
@@ -262,7 +319,7 @@ function buildPathStrokes(
   id: string,
   points: readonly PathPoint[],
   style: PathStyle,
-  viewport: SvgViewport,
+  viewport: SvgProjection,
 ): readonly SvgPathStroke[] {
   if (points.length < 2)
     throw new RangeError(`Movement path ${id} needs at least two points.`);
@@ -314,7 +371,7 @@ export interface SvgRenderScene {
   readonly schemaVersion: 2;
   readonly playId: string;
   readonly playName: string;
-  readonly viewport: SvgViewport;
+  readonly viewport: SvgProjection;
   readonly field: SvgFieldScene;
   readonly players: readonly (Omit<
     RenderScene["players"][number],
@@ -350,7 +407,7 @@ export interface SvgRenderScene {
 
 function buildSvgPlayer(
   player: RenderScene["players"][number],
-  viewport: SvgViewport,
+  viewport: SvgProjection,
 ): SvgRenderScene["players"][number] {
   const color = svgColors[player.color];
   const base = player.fill === "solid" ? color : "#FFFFFF";
@@ -481,7 +538,7 @@ function buildSvgPlayer(
 
 function buildSvgLabel(
   label: RenderScene["labels"][number],
-  viewport: SvgViewport,
+  viewport: SvgProjection,
 ): SvgRenderScene["labels"][number] {
   const position = projectCoordinate(label.position, viewport);
   const text = label.caps ? label.text.toUpperCase() : label.text;
@@ -559,49 +616,22 @@ function buildSvgLabel(
   };
 }
 
-function fieldPixelsPerYard(
-  profile: FieldProfile,
-  viewport: SvgViewport,
-): number {
-  return (viewport.width - viewport.fieldInsetX * 2) / profile.widthYards;
-}
-
-function projectFieldLateral(
-  lateralYards: number,
-  profile: FieldProfile,
-  viewport: SvgViewport,
-): number {
-  return (
-    viewport.width / 2 + lateralYards * fieldPixelsPerYard(profile, viewport)
-  );
-}
-
-function projectDepth(depthYards: number, viewport: SvgViewport): number {
-  return viewport.lineOfScrimmageY - depthYards * viewport.pixelsPerYard;
-}
-
 function buildSvgField(
   scene: RenderScene,
-  viewport: SvgViewport,
+  viewport: SvgProjection,
 ): SvgFieldScene {
   const { landmarks, profile } = scene.field;
   const top = projectDepth(landmarks.window.maxDepthYards, viewport);
   const bottom = projectDepth(landmarks.window.minDepthYards, viewport);
-  const leftSideline = projectFieldLateral(
-    -profile.widthYards / 2,
-    profile,
-    viewport,
-  );
-  const rightSideline = projectFieldLateral(
-    profile.widthYards / 2,
-    profile,
-    viewport,
-  );
-  const lateralScale = fieldPixelsPerYard(profile, viewport);
+  // Markings share the Play's projection, so a Player standing on the sideline
+  // is drawn on the sideline.
+  const leftSideline = projectLateral(-profile.widthYards / 2, viewport);
+  const rightSideline = projectLateral(profile.widthYards / 2, viewport);
+  const lateralScale = viewport.lateralPixelsPerYard;
 
   return {
     sidelines: landmarks.sidelines.map(({ lateralYards }, index) => {
-      const x = projectFieldLateral(lateralYards, profile, viewport);
+      const x = projectLateral(lateralYards, viewport);
       return {
         id: `sideline-${index}`,
         x1: x,
@@ -623,7 +653,7 @@ function buildSvgField(
     }),
     hashMarks: landmarks.hashMarks.map(
       ({ lateralYards, depthYards, lengthYards }, index) => {
-        const x = projectFieldLateral(lateralYards, profile, viewport);
+        const x = projectLateral(lateralYards, viewport);
         const halfLength = (lengthYards * lateralScale) / 2;
         const y = projectDepth(depthYards, viewport);
         return {
@@ -652,13 +682,14 @@ function buildSvgField(
     numbers: landmarks.numbers.map(
       ({ lateralYards, depthYards, value, heightYards }, index) => ({
         id: `field-number-${index}`,
-        x: projectFieldLateral(lateralYards, profile, viewport),
+        x: projectLateral(lateralYards, viewport),
         y:
           projectDepth(depthYards, viewport) +
-          (heightYards * viewport.pixelsPerYard) / 2 -
+          (heightYards * viewport.depthPixelsPerYard) / 2 -
           1,
         value,
-        fontSize: heightYards * viewport.pixelsPerYard,
+        // A number's height is a downfield dimension.
+        fontSize: heightYards * viewport.depthPixelsPerYard,
       }),
     ),
   };
@@ -666,8 +697,11 @@ function buildSvgField(
 
 export function buildSvgRenderScene(
   scene: RenderScene,
-  viewport: SvgViewport = editorSvgViewport,
+  frame: SvgViewport = editorSvgViewport,
 ): SvgRenderScene {
+  // Resolved once against this Play's Field Profile, then shared by every
+  // projection in the scene.
+  const viewport = createSvgProjection(scene.field.profile, frame);
   return {
     schemaVersion: 2,
     playId: scene.playId,
@@ -687,9 +721,11 @@ export function buildSvgRenderScene(
               type: path.coverageArea.type,
               center: projectCoordinate(endpoint, viewport),
               radiusX:
-                path.coverageArea.radiusLateralYards * viewport.pixelsPerYard,
+                path.coverageArea.radiusLateralYards *
+                viewport.lateralPixelsPerYard,
               radiusY:
-                path.coverageArea.radiusDepthYards * viewport.pixelsPerYard,
+                path.coverageArea.radiusDepthYards *
+                viewport.depthPixelsPerYard,
               fill: coverageFills[path.coverageArea.type],
             }
           : undefined;

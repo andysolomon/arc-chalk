@@ -5,25 +5,45 @@ import type {
   PlayDocument,
 } from "./schema";
 
+/**
+ * The original's canvas is deliberately anisotropic: it draws a full 53 1/3
+ * yard field across a 976 pixel span while showing depth at 12 pixels per
+ * yard, so roughly 50 yards of depth fit in a readable frame. Reading a
+ * lateral pixel span with the depth scale — the two are 1.525 apart —
+ * overstates every crossfield distance, which is exactly the defect recorded
+ * against the prototype as finding #3.
+ */
 export const LEGACY_FIELD_GEOMETRY = Object.freeze({
-  pixelsPerYard: 12,
+  /** 976 pixels spanning the 160-foot field width. */
+  lateralPixelsPerYard: 976 / (160 / 3),
+  depthPixelsPerYard: 12,
   lineOfScrimmageY: 430,
   midfieldX: 500,
   viewWidth: 1000,
   viewHeight: 620,
 });
 
+/** Converts a lateral pixel span — a width or radius, not a position. */
+export function legacyLateralSpanToYards(pixels: number): number {
+  return pixels / LEGACY_FIELD_GEOMETRY.lateralPixelsPerYard;
+}
+
+/** Converts a depth pixel span — a height or radius, not a position. */
+export function legacyDepthSpanToYards(pixels: number): number {
+  return pixels / LEGACY_FIELD_GEOMETRY.depthPixelsPerYard;
+}
+
 export function legacyCanvasToYards(point: {
   x: number;
   y: number;
 }): Coordinate {
   return {
-    lateralYards:
-      (point.x - LEGACY_FIELD_GEOMETRY.midfieldX) /
-      LEGACY_FIELD_GEOMETRY.pixelsPerYard,
-    depthYards:
-      (LEGACY_FIELD_GEOMETRY.lineOfScrimmageY - point.y) /
-      LEGACY_FIELD_GEOMETRY.pixelsPerYard,
+    lateralYards: legacyLateralSpanToYards(
+      point.x - LEGACY_FIELD_GEOMETRY.midfieldX,
+    ),
+    depthYards: legacyDepthSpanToYards(
+      LEGACY_FIELD_GEOMETRY.lineOfScrimmageY - point.y,
+    ),
   };
 }
 
@@ -34,10 +54,10 @@ export function yardsToLegacyCanvas(point: Coordinate): {
   return {
     x:
       LEGACY_FIELD_GEOMETRY.midfieldX +
-      point.lateralYards * LEGACY_FIELD_GEOMETRY.pixelsPerYard,
+      point.lateralYards * LEGACY_FIELD_GEOMETRY.lateralPixelsPerYard,
     y:
       LEGACY_FIELD_GEOMETRY.lineOfScrimmageY -
-      point.depthYards * LEGACY_FIELD_GEOMETRY.pixelsPerYard,
+      point.depthYards * LEGACY_FIELD_GEOMETRY.depthPixelsPerYard,
   };
 }
 

@@ -7,6 +7,8 @@ import {
   evaluateMovement,
   highSchoolFieldProfile,
   legacyCanvasToYards,
+  legacyDepthSpanToYards,
+  legacyLateralSpanToYards,
   migrateLegacyPlay,
   migrateLegacyFieldProfile,
   migratePlayDocument,
@@ -60,7 +62,10 @@ describe("canonical Play documents", () => {
     const length = pathLength(path);
     const halfway = pointAtDistance(path, length / 2);
 
-    expect(length).toBeGreaterThan(15);
+    // X's shallow crosser measures about 13.6 yards of grass. The same route
+    // spans 224 original canvas pixels, and reading its crossfield leg on the
+    // depth scale would overstate it by half.
+    expect(length).toBeCloseTo(13.63, 2);
     expect(halfway.lateralYards).toBeLessThan(path.points[0]!.lateralYards);
   });
 
@@ -165,9 +170,11 @@ describe("canonical Play documents", () => {
     expect(migrated.paths[0]).toMatchObject({
       style: { line: "dashed", ending: "bubble", color: "orange" },
       coverageArea: {
+        // A zone's width is a crossfield span and a zone's height is a
+        // downfield one, so the two radii read on different scales.
         type: "curl",
-        radiusLateralYards: 64 / 12,
-        radiusDepthYards: 2.5,
+        radiusLateralYards: legacyLateralSpanToYards(64),
+        radiusDepthYards: legacyDepthSpanToYards(30),
       },
       points: [{}, { segmentStyle: { line: "solid", ending: "diamond" } }, {}],
     });
@@ -274,14 +281,20 @@ describe("canonical Play documents", () => {
       role: "progression",
       unit: "defense",
       leader: {
-        endpoint: { lateralYards: 10 / 3, depthYards: 12.5 },
+        endpoint: {
+          lateralYards: legacyLateralSpanToYards(40),
+          depthYards: 12.5,
+        },
         line: "dashed",
       },
       binding: {
         pathId: "mike-drop",
         segmentIndex: 1,
         progress: 0.5,
-        offset: { lateralYards: 2, depthYards: 0.5 },
+        offset: {
+          lateralYards: legacyLateralSpanToYards(24),
+          depthYards: 0.5,
+        },
       },
     });
   });
