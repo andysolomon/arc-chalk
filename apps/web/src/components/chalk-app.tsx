@@ -1642,6 +1642,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     toggleInspector: () => setInspectorOpen((shown) => !shown),
     toggleRail: () => setRailOpen((shown) => !shown),
     toggleZones: () => setZonesHidden((hidden) => !hidden),
+    // Reflects what the Coach has picked, or the whole Play when he has
+    // picked nothing — the same call either way.
+    mirror: () => {
+      dispatchFieldRef.current({ type: "mirror" });
+      setOpenMenu(null);
+    },
     present: () => setActiveView("Present"),
     print: () => setActiveView("Print"),
     shortcuts: () => setOverlay("shortcuts"),
@@ -1688,6 +1694,13 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       if (meta && key === "a" && !typing) {
         event.preventDefault();
         dispatchFieldRef.current({ type: "select-all" });
+        return;
+      }
+      if (meta && !typing && (key === "c" || key === "v" || key === "d")) {
+        event.preventDefault();
+        dispatchFieldRef.current({
+          type: key === "c" ? "copy" : key === "v" ? "paste" : "duplicate",
+        });
         return;
       }
       if (event.key === "?" && !typing) {
