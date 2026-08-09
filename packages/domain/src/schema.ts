@@ -148,6 +148,15 @@ const movementPathFields = {
   variant: z.optional(z.enum(["primary", "alternate"])),
   coverageArea: z.optional(coverageAreaSchema),
   rule: z.optional(z.string()),
+  /**
+   * Where this line falls in the quarterback's progression. The Coach's own
+   * wording for the man's job is an Assignment (ADR 0011), but the order he
+   * reads the lines in, what the line becomes against a coverage, and the
+   * point he coaches off it all describe the line, and ride with it.
+   */
+  readOrder: z.optional(z.number().check(z.int(), z.positive())),
+  conversion: z.optional(z.string()),
+  coachingNote: z.optional(z.string()),
   timing: z.optional(
     z.object({
       delayMs: z.number().check(z.int(), z.nonnegative()),

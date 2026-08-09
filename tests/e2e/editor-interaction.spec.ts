@@ -548,3 +548,74 @@ test("greys a Clear that would take nothing", async ({ page }) => {
     page.getByRole("button", { name: "All", exact: true }),
   ).toBeDisabled();
 });
+
+test("says what a route is for, and prints it at the end of the line", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  const onSegment = await fieldPoint(page, 280, 367);
+  await page.mouse.click(onSegment.x, onSegment.y);
+  await expect(
+    page.locator(".label-heading").getByText("Route", { exact: true }),
+  ).toBeVisible();
+
+  // The read number and the Assignment print on the field.
+  await page.getByRole("textbox", { name: "Assignment" }).fill("Stick");
+  await page.getByRole("textbox", { name: "Conversion" }).fill("vs man: fade");
+  await page.locator(".read-field input").fill("2");
+  await page.getByRole("textbox", { name: "Coaching note" }).blur();
+
+  await expect(page.locator('[data-scene-read="rx-read"]')).toHaveCount(1);
+  await expect(
+    page.locator('[data-scene-coaching="rx-assignment"]'),
+  ).toHaveText("STICK");
+  await expect(
+    page.locator('[data-scene-coaching="rx-conversion"]'),
+  ).toHaveText("vs man: fade");
+
+  // The words survive being read back, which is the whole promise: they ride
+  // along with the route rather than living in the panel.
+  await page.reload();
+  await expect(
+    page.locator('[data-scene-coaching="rx-assignment"]'),
+  ).toHaveText("STICK");
+  await expect(page.locator('[data-scene-read="rx-read"]')).toHaveCount(1);
+
+  // Measured again: the panel closed on reload, and the wider field it left
+  // behind puts the segment somewhere else.
+  const onSegmentAgain = await fieldPoint(page, 280, 367);
+  await page.mouse.click(onSegmentAgain.x, onSegmentAgain.y);
+  await expect(page.getByRole("textbox", { name: "Assignment" })).toHaveValue(
+    "Stick",
+  );
+  await expect(page.locator(".read-field input")).toHaveValue("2");
+});
+
+test("takes the wording off a route when the Coach empties it", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const onSegment = await fieldPoint(page, 280, 367);
+  await page.mouse.click(onSegment.x, onSegment.y);
+
+  const assignment = page.getByRole("textbox", { name: "Assignment" });
+  await assignment.fill("Stick");
+  await assignment.blur();
+  await expect(
+    page.locator('[data-scene-coaching="rx-assignment"]'),
+  ).toHaveText("STICK");
+
+  await assignment.fill("");
+  await assignment.blur();
+  await expect(
+    page.locator('[data-scene-coaching="rx-assignment"]'),
+  ).toHaveCount(0);
+  // The mark leaving the field cannot tell an emptied Assignment from a
+  // removed one, because both stop it drawing. What the Coach can undo says
+  // which happened: emptying the words takes the whole Assignment with them.
+  await expect(page.getByRole("button", { name: "Undo" })).toHaveAttribute(
+    "title",
+    "Undo Delete Assignment",
+  );
+});

@@ -693,6 +693,23 @@ function actionTargets(action: Assignment["actions"][number]): {
 }
 
 /**
+ * The Assignment a route is the movement of. ADR 0011 gives the Coach's
+ * wording to the man rather than to the line, so which line it is about is
+ * read back through the movement action naming it — that is what lets one
+ * man carry different words for his route and for his alternate.
+ */
+export function assignmentForPath(
+  play: PlayDocument,
+  pathId: string,
+): Assignment | undefined {
+  return play.assignments.find((assignment) =>
+    assignment.actions.some(
+      (action) => action.kind === "movement" && action.pathId === pathId,
+    ),
+  );
+}
+
+/**
  * Removing Players or routes leaves other Assignments pointing at them. Those
  * Assignments lose only the actions that dangle, and disappear entirely when
  * nothing the Coach wrote is left.

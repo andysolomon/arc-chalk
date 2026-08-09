@@ -1,5 +1,6 @@
 import {
   applyPlayCommand,
+  assignmentForPath,
   canonicalStringify,
   deletePathsCommand,
   deletePlayersCommand,
@@ -529,5 +530,124 @@ export function straightenRouteCommand(
   return {
     kind: "update-path",
     path: replaceLine(path, scope.branchIndex, points),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// What a route is for
+// ---------------------------------------------------------------------------
+
+/**
+ * The original's own limits on the Coaching fields, kept where the Coach
+ * types rather than in the contract: they are what fits on a card, not what
+ * the model can hold, and a Play read back from anywhere else must not fail
+ * validation for running long.
+ */
+export const ROUTE_COACHING_LIMITS = Object.freeze({
+  assignment: 18,
+  conversion: 44,
+  coachingNote: 90,
+  readOrder: 99,
+});
+
+type RouteCoachingText = "conversion" | "coachingNote";
+
+/**
+ * Clearing one of these drops the key rather than storing an empty string,
+ * so a route the Coach has emptied hashes like one he never wrote on.
+ */
+function setRouteField(
+  document: PlayDocument,
+  pathId: string,
+  edit: (path: MovementPath) => MovementPath,
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path) return undefined;
+  const next = edit(path);
+  if (canonicalStringify(next) === canonicalStringify(path)) return undefined;
+  return { kind: "update-path", path: next };
+}
+
+export function setRouteCoachingTextCommand(
+  document: PlayDocument,
+  pathId: string,
+  field: RouteCoachingText,
+  value: string,
+): PlayCommand | undefined {
+  const trimmed = value.slice(0, ROUTE_COACHING_LIMITS[field]);
+  return setRouteField(document, pathId, (path) => {
+    const next = { ...path };
+    if (trimmed.trim() === "") delete next[field];
+    else next[field] = trimmed;
+    return next;
+  });
+}
+
+/**
+ * Where this line falls in the progression. The original takes digits only
+ * and two of them, so a read that reaches nothing is no read at all.
+ */
+export function setRouteReadCommand(
+  document: PlayDocument,
+  pathId: string,
+  readOrder: number | undefined,
+): PlayCommand | undefined {
+  const clamped =
+    readOrder === undefined || !Number.isInteger(readOrder) || readOrder < 1
+      ? undefined
+      : Math.min(readOrder, ROUTE_COACHING_LIMITS.readOrder);
+  return setRouteField(document, pathId, (path) => {
+    const next = { ...path };
+    if (clamped === undefined) delete next.readOrder;
+    else next.readOrder = clamped;
+    return next;
+  });
+}
+
+/**
+ * What the man running this line is told to do. The wording belongs to him
+ * rather than to the line (ADR 0011), and the movement action naming the
+ * route is what says which of his lines it is about. An Assignment the Coach
+ * attached to something else is never overwritten: a route with no wording
+ * of its own gets a new one.
+ */
+export function setRouteAssignmentCommand(
+  document: PlayDocument,
+  pathId: string,
+  text: string,
+  createId: () => string,
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path) return undefined;
+  const trimmed = text.slice(0, ROUTE_COACHING_LIMITS.assignment);
+  const existing = assignmentForPath(document, pathId);
+
+  if (!existing) {
+    if (trimmed.trim() === "") return undefined;
+    return {
+      kind: "insert-assignments",
+      assignments: [
+        {
+          index: document.assignments.length,
+          item: {
+            id: createId(),
+            playerId: path.playerId,
+            text: trimmed,
+            actions: [{ id: createId(), kind: "movement", pathId }],
+          },
+        },
+      ],
+    };
+  }
+
+  if (existing.text === trimmed) return undefined;
+  // Emptying the words takes the Assignment with them, unless the Coach has
+  // put structured actions on it beyond the one naming this route.
+  if (trimmed.trim() === "" && existing.actions.length <= 1) {
+    return { kind: "remove-assignments", assignmentIds: [existing.id] };
+  }
+  return {
+    kind: "update-assignment",
+    assignment: { ...existing, text: trimmed },
   };
 }

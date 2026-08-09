@@ -1,5 +1,6 @@
 import {
   applyPlayCommand,
+  assignmentForPath,
   canonicalStringify,
   clearPlayLayerCommand,
   deletePlayersCommand,
@@ -18,9 +19,13 @@ import {
   idleFieldInteraction,
   insertedEntityIds,
   pruneFieldSelection,
+  ROUTE_COACHING_LIMITS,
   setLabelAppearanceCommand,
   setLabelTextCommand,
+  setRouteAssignmentCommand,
+  setRouteCoachingTextCommand,
   setRouteKindCommand,
+  setRouteReadCommand,
   setRouteStyleCommand,
   straightenRouteCommand,
   type FieldInteractionContext,
@@ -2151,5 +2156,255 @@ describe("route styling", () => {
     expect(
       setRouteStyleCommand(stickThunderPlay, "missing", {}, {}),
     ).toBeUndefined();
+  });
+});
+
+describe("what a route is for", () => {
+  const pathOf = (document: PlayDocument, id: string) =>
+    document.paths.find((candidate) => candidate.id === id)!;
+  let counter = 0;
+  const createId = () => `assignment_${(counter += 1)}`;
+
+  it("writes the read, the conversion, and the note onto the line", () => {
+    // Each edit is built against what the one before it left, the way the
+    // panel builds them from the live document.
+    let document = applyPlayCommand(
+      stickThunderPlay,
+      setRouteReadCommand(stickThunderPlay, "rx", 2)!,
+    );
+    document = applyPlayCommand(
+      document,
+      setRouteCoachingTextCommand(
+        document,
+        "rx",
+        "conversion",
+        "vs man: fade",
+      )!,
+    );
+    document = applyPlayCommand(
+      document,
+      setRouteCoachingTextCommand(
+        document,
+        "rx",
+        "coachingNote",
+        "Push vertical",
+      )!,
+    );
+    const path = pathOf(document, "rx");
+
+    expect(path.readOrder).toBe(2);
+    expect(path.conversion).toBe("vs man: fade");
+    expect(path.coachingNote).toBe("Push vertical");
+  });
+
+  it("drops the key when the Coach empties a field", () => {
+    const written = applyPlayCommand(
+      stickThunderPlay,
+      setRouteCoachingTextCommand(stickThunderPlay, "rx", "conversion", "sit")!,
+    );
+    const cleared = applyPlayCommand(
+      written,
+      setRouteCoachingTextCommand(written, "rx", "conversion", "  ")!,
+    );
+
+    // Dropped rather than stored empty, so a route he has emptied hashes
+    // like one he never wrote on.
+    expect("conversion" in pathOf(cleared, "rx")).toBe(false);
+    expect(canonicalStringify(cleared)).toBe(
+      canonicalStringify(stickThunderPlay),
+    );
+  });
+
+  it("refuses a read that reaches nothing", () => {
+    expect(setRouteReadCommand(stickThunderPlay, "rx", 0)).toBeUndefined();
+    expect(setRouteReadCommand(stickThunderPlay, "rx", 1.5)).toBeUndefined();
+    expect(
+      setRouteReadCommand(stickThunderPlay, "rx", undefined),
+    ).toBeUndefined();
+    // Two digits is what the original takes, so a longer one is held there.
+    const wild = applyPlayCommand(
+      stickThunderPlay,
+      setRouteReadCommand(stickThunderPlay, "rx", 400)!,
+    );
+    expect(pathOf(wild, "rx").readOrder).toBe(99);
+  });
+
+  it("gives the wording to the man and says which line it is about", () => {
+    const command = setRouteAssignmentCommand(
+      stickThunderPlay,
+      "rx",
+      "STICK",
+      createId,
+    )!;
+    const document = applyPlayCommand(stickThunderPlay, command);
+    const assignment = assignmentForPath(document, "rx")!;
+
+    expect(assignment.playerId).toBe(pathOf(stickThunderPlay, "rx").playerId);
+    expect(assignment.text).toBe("STICK");
+    expect(assignment.actions).toHaveLength(1);
+    expect(assignment.actions[0]).toMatchObject({
+      kind: "movement",
+      pathId: "rx",
+    });
+  });
+
+  it("lets one man carry different words for each of his lines", () => {
+    const rxPlayerId = pathOf(stickThunderPlay, "rx").playerId;
+    // A second line off the same man, the way an alternate arrives.
+    const twoLines = applyPlayCommand(stickThunderPlay, {
+      kind: "insert-paths",
+      paths: [
+        {
+          index: stickThunderPlay.paths.length,
+          item: {
+            ...pathOf(stickThunderPlay, "rx"),
+            id: "rx_alternate",
+            variant: "alternate",
+          },
+        },
+      ],
+    });
+
+    let document = applyPlayCommand(
+      twoLines,
+      setRouteAssignmentCommand(twoLines, "rx", "STICK", createId)!,
+    );
+    document = applyPlayCommand(
+      document,
+      setRouteAssignmentCommand(document, "rx_alternate", "FADE", createId)!,
+    );
+
+    expect(assignmentForPath(document, "rx")?.text).toBe("STICK");
+    expect(assignmentForPath(document, "rx_alternate")?.text).toBe("FADE");
+    expect(
+      document.assignments.filter(({ playerId }) => playerId === rxPlayerId),
+    ).toHaveLength(2);
+  });
+
+  it("takes the Assignment away with its words", () => {
+    const written = applyPlayCommand(
+      stickThunderPlay,
+      setRouteAssignmentCommand(stickThunderPlay, "rx", "STICK", createId)!,
+    );
+    const emptied = applyPlayCommand(
+      written,
+      setRouteAssignmentCommand(written, "rx", "", createId)!,
+    );
+
+    expect(assignmentForPath(emptied, "rx")).toBeUndefined();
+    expect(canonicalStringify(emptied)).toBe(
+      canonicalStringify(stickThunderPlay),
+    );
+  });
+
+  it("keeps an Assignment the Coach has built out, and only clears the words", () => {
+    const written = applyPlayCommand(
+      stickThunderPlay,
+      setRouteAssignmentCommand(stickThunderPlay, "rx", "STICK", createId)!,
+    );
+    const existing = assignmentForPath(written, "rx")!;
+    const structured = applyPlayCommand(written, {
+      kind: "update-assignment",
+      assignment: {
+        ...existing,
+        actions: [
+          ...existing.actions,
+          { id: "action_block", kind: "block", note: "check the Mike" },
+        ],
+      },
+    });
+
+    const emptied = applyPlayCommand(
+      structured,
+      setRouteAssignmentCommand(structured, "rx", "", createId)!,
+    );
+    const kept = assignmentForPath(emptied, "rx")!;
+
+    expect(kept.text).toBe("");
+    expect(kept.actions).toHaveLength(2);
+  });
+
+  it("never overwrites wording the Coach attached to something else", () => {
+    const rxPlayerId = pathOf(stickThunderPlay, "rx").playerId;
+    const freeform = applyPlayCommand(stickThunderPlay, {
+      kind: "insert-assignments",
+      assignments: [
+        {
+          index: stickThunderPlay.assignments.length,
+          item: {
+            id: "assignment_freeform",
+            playerId: rxPlayerId,
+            text: "Beat press with an outside release.",
+            actions: [],
+          },
+        },
+      ],
+    });
+
+    const document = applyPlayCommand(
+      freeform,
+      setRouteAssignmentCommand(freeform, "rx", "STICK", createId)!,
+    );
+
+    expect(
+      document.assignments.find(({ id }) => id === "assignment_freeform")?.text,
+    ).toBe("Beat press with an outside release.");
+    expect(assignmentForPath(document, "rx")?.text).toBe("STICK");
+  });
+
+  it("holds each field to the length that fits on a card", () => {
+    const long = "x".repeat(200);
+    let document = applyPlayCommand(
+      stickThunderPlay,
+      setRouteCoachingTextCommand(stickThunderPlay, "rx", "conversion", long)!,
+    );
+    document = applyPlayCommand(
+      document,
+      setRouteCoachingTextCommand(document, "rx", "coachingNote", long)!,
+    );
+    document = applyPlayCommand(
+      document,
+      setRouteAssignmentCommand(document, "rx", long, createId)!,
+    );
+
+    expect(pathOf(document, "rx").conversion).toHaveLength(
+      ROUTE_COACHING_LIMITS.conversion,
+    );
+    expect(pathOf(document, "rx").coachingNote).toHaveLength(
+      ROUTE_COACHING_LIMITS.coachingNote,
+    );
+    expect(assignmentForPath(document, "rx")?.text).toHaveLength(
+      ROUTE_COACHING_LIMITS.assignment,
+    );
+  });
+
+  it("declines edits that would change nothing", () => {
+    expect(
+      setRouteCoachingTextCommand(stickThunderPlay, "rx", "conversion", ""),
+    ).toBeUndefined();
+    expect(
+      setRouteAssignmentCommand(stickThunderPlay, "rx", "  ", createId),
+    ).toBeUndefined();
+    expect(setRouteReadCommand(stickThunderPlay, "missing", 1)).toBeUndefined();
+    expect(
+      setRouteAssignmentCommand(stickThunderPlay, "missing", "X", createId),
+    ).toBeUndefined();
+  });
+
+  it("coalesces retyping into one undo entry", () => {
+    const first = setRouteCoachingTextCommand(
+      stickThunderPlay,
+      "rx",
+      "coachingNote",
+      "Pu",
+    )!;
+    const second = setRouteCoachingTextCommand(
+      stickThunderPlay,
+      "rx",
+      "coachingNote",
+      "Push",
+    )!;
+
+    expect(playCommandCoalesceKey(first)).toBe(playCommandCoalesceKey(second));
   });
 });

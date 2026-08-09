@@ -8,7 +8,7 @@ import type {
   Player,
   TextLabel,
 } from "@chalk/domain";
-import { buildFieldLandmarks } from "@chalk/domain";
+import { assignmentForPath, buildFieldLandmarks } from "@chalk/domain";
 
 export interface ScenePlayer extends Pick<
   Player,
@@ -25,7 +25,7 @@ export interface ScenePlayer extends Pick<
   readonly position: Coordinate;
 }
 
-export type ScenePath = Pick<
+export interface ScenePath extends Pick<
   MovementPath,
   | "id"
   | "kind"
@@ -35,7 +35,17 @@ export type ScenePath = Pick<
   | "style"
   | "variant"
   | "coverageArea"
->;
+  | "readOrder"
+  | "conversion"
+  | "coachingNote"
+> {
+  /**
+   * What the man running this line is told to do. The wording belongs to him
+   * rather than to the line (ADR 0011); the scene carries it here because it
+   * is drawn at the end of the line it is about.
+   */
+  readonly assignment?: string;
+}
 
 export type SceneLabel = Pick<
   TextLabel,
@@ -162,16 +172,26 @@ export function buildRenderScene(
         style,
         variant,
         coverageArea,
-      }) => ({
-        id,
-        kind,
-        playerId,
-        points,
-        branches,
-        style,
-        ...(variant === undefined ? {} : { variant }),
-        ...(coverageArea === undefined ? {} : { coverageArea }),
-      }),
+        readOrder,
+        conversion,
+        coachingNote,
+      }) => {
+        const assignment = assignmentForPath(play, id)?.text.trim();
+        return {
+          id,
+          kind,
+          playerId,
+          points,
+          branches,
+          style,
+          ...(variant === undefined ? {} : { variant }),
+          ...(coverageArea === undefined ? {} : { coverageArea }),
+          ...(readOrder === undefined ? {} : { readOrder }),
+          ...(conversion === undefined ? {} : { conversion }),
+          ...(coachingNote === undefined ? {} : { coachingNote }),
+          ...(assignment ? { assignment } : {}),
+        };
+      },
     ),
     labels: play.labels.map((label) => ({
       id: label.id,

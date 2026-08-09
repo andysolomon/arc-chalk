@@ -1,5 +1,6 @@
 import {
   applyPlayCommand,
+  assignmentForPath,
   createStableId,
   DEFAULT_ZONE_COVERAGE_RADII,
   defensiveRouteKinds,
@@ -23,8 +24,12 @@ import {
   gesturePreviewCommand,
   idleFieldInteraction,
   setLabelAppearanceCommand,
+  ROUTE_COACHING_LIMITS,
   setLabelTextCommand,
+  setRouteAssignmentCommand,
+  setRouteCoachingTextCommand,
   setRouteKindCommand,
+  setRouteReadCommand,
   setRouteStyleCommand,
   straightenRouteCommand,
   localSaveMessage,
@@ -234,6 +239,14 @@ function SceneText({ text }: { text: SvgTextPrimitive }) {
 
 /** The original's selection blue, used for halos, guides, and the marquee. */
 const SELECTION_BLUE = "#0072F5";
+
+/**
+ * What a Coach writes on a route beyond drawing it. The read number and the
+ * Assignment print on the field; the conversion and the note ride along with
+ * the route wherever it goes.
+ */
+type RouteCoachingField =
+  "readOrder" | "assignment" | "conversion" | "coachingNote";
 
 /**
  * How big a handle's invisible target is. Touch needs 44 CSS px (ADR 0016),
@@ -548,6 +561,37 @@ export function FieldDiagram({
                 {...tick}
               />
             ))}
+            {path.coaching ? (
+              <g className="route-coaching" pointerEvents="none">
+                {path.coaching.read ? (
+                  <g data-scene-read={path.coaching.read.id}>
+                    <circle
+                      cx={path.coaching.read.center.x}
+                      cy={path.coaching.read.center.y}
+                      fill="#fff"
+                      r={path.coaching.read.radius}
+                      stroke={SELECTION_BLUE}
+                      strokeWidth="1.4"
+                    />
+                    <SceneText
+                      text={{
+                        ...path.coaching.read.text,
+                        // Centred in the circle rather than sitting on its
+                        // middle, the way a number in a bubble reads.
+                        y:
+                          path.coaching.read.text.y +
+                          path.coaching.read.text.fontSize * 0.35,
+                      }}
+                    />
+                  </g>
+                ) : null}
+                {path.coaching.notes.map((note) => (
+                  <g data-scene-coaching={note.id} key={note.id}>
+                    <SceneText text={note.text} />
+                  </g>
+                ))}
+              </g>
+            ) : null}
             {path.branches.flatMap((branch) => [
               ...branch.strokes.map((stroke) => (
                 <RoutePath {...stroke} key={stroke.id} />
@@ -1325,6 +1369,9 @@ const routeColorChoices: ReadonlyArray<MovementPath["style"]["color"]> = [
  */
 function RouteInspector({
   branchIndex,
+  coaching,
+  onCoaching,
+  onCoachingCommitted,
   onDelete,
   onDeselect,
   onKind,
@@ -1335,6 +1382,9 @@ function RouteInspector({
   unit,
 }: {
   branchIndex?: number;
+  coaching: Readonly<Record<RouteCoachingField, string>>;
+  onCoaching: (field: RouteCoachingField, value: string) => void;
+  onCoachingCommitted: () => void;
   onDelete: () => void;
   onDeselect: () => void;
   onKind: (kind: MovementPath["kind"]) => void;
@@ -1443,6 +1493,56 @@ function RouteInspector({
       <p>
         The ending carries the coaching. Arrow means run through, a dot means
         throttle down and sit, a bar is a block.
+      </p>
+      <span className="section-heading">Coaching</span>
+      <div className="coaching-row">
+        <label className="read-field">
+          <span>Read</span>
+          <input
+            inputMode="numeric"
+            onBlur={onCoachingCommitted}
+            onChange={(event) =>
+              onCoaching(
+                "readOrder",
+                event.target.value.replaceAll(/\D/g, "").slice(0, 2),
+              )
+            }
+            spellCheck={false}
+            value={coaching.readOrder}
+          />
+        </label>
+        <input
+          aria-label="Assignment"
+          maxLength={ROUTE_COACHING_LIMITS.assignment}
+          onBlur={onCoachingCommitted}
+          onChange={(event) => onCoaching("assignment", event.target.value)}
+          placeholder="Assignment — STICK"
+          spellCheck={false}
+          value={coaching.assignment}
+        />
+      </div>
+      <input
+        aria-label="Conversion"
+        maxLength={ROUTE_COACHING_LIMITS.conversion}
+        onBlur={onCoachingCommitted}
+        onChange={(event) => onCoaching("conversion", event.target.value)}
+        placeholder="Conversion — vs man / vs zone"
+        spellCheck={false}
+        value={coaching.conversion}
+      />
+      <input
+        aria-label="Coaching note"
+        maxLength={ROUTE_COACHING_LIMITS.coachingNote}
+        onBlur={onCoachingCommitted}
+        onChange={(event) => onCoaching("coachingNote", event.target.value)}
+        placeholder="Coaching note"
+        spellCheck={false}
+        value={coaching.coachingNote}
+      />
+      <p>
+        Read number and assignment print on the field. Conversion and note ride
+        along with the route — they follow it through mirror, duplicate and
+        save.
       </p>
       <div className="help-row">
         <button onClick={onStraighten} type="button">
@@ -1629,6 +1729,16 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     readonly id: string;
     readonly text: string;
   }>();
+  /**
+   * The Coaching field the Coach is typing into, held for the same reason the
+   * note's text is: the committed value arrives asynchronously, and only one
+   * of these fields has the caret at a time.
+   */
+  const [coachingDraft, setCoachingDraft] = useState<{
+    readonly pathId: string;
+    readonly field: RouteCoachingField;
+    readonly value: string;
+  }>();
   // Entities the Coach has just made whose commit has not landed. Selection
   // must not be pruned of something that is still on its way.
   const pendingInsertsRef = useRef<Set<string>>(new Set());
@@ -1683,6 +1793,48 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   ): void => {
     if (!command) return;
     void editorStore.applyCommand(command, options).catch(() => undefined);
+  };
+  /**
+   * What the Coaching fields show: the committed value, unless the Coach has
+   * the caret in one of them, in which case what he has typed.
+   */
+  const routeCoaching = (
+    path: MovementPath,
+  ): Readonly<Record<RouteCoachingField, string>> => {
+    const committed = {
+      readOrder: path.readOrder === undefined ? "" : String(path.readOrder),
+      assignment: assignmentForPath(editor.document, path.id)?.text ?? "",
+      conversion: path.conversion ?? "",
+      coachingNote: path.coachingNote ?? "",
+    };
+    return coachingDraft?.pathId === path.id
+      ? { ...committed, [coachingDraft.field]: coachingDraft.value }
+      : committed;
+  };
+  /**
+   * Typing here coalesces into one undo entry until the Coach leaves the
+   * field, the way retyping a note does (ADR 0012).
+   */
+  const editRouteCoaching = (
+    pathId: string,
+    field: RouteCoachingField,
+    value: string,
+  ): void => {
+    setCoachingDraft({ pathId, field, value });
+    const document = editor.document;
+    const command =
+      field === "readOrder"
+        ? setRouteReadCommand(
+            document,
+            pathId,
+            value === "" ? undefined : Number(value),
+          )
+        : field === "assignment"
+          ? setRouteAssignmentCommand(document, pathId, value, () =>
+              createStableId("assignment"),
+            )
+          : setRouteCoachingTextCommand(document, pathId, field, value);
+    runLabelCommand(command, { coalesce: true });
   };
   /**
    * Handles belong to exactly one selected route, as in the original: a
@@ -2246,6 +2398,14 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               selectedPath ? (
                 <RouteInspector
                   branchIndex={interaction.selectedBranchIndex}
+                  coaching={routeCoaching(selectedPath)}
+                  onCoaching={(field, value) =>
+                    editRouteCoaching(selectedPath.id, field, value)
+                  }
+                  onCoachingCommitted={() => {
+                    editorStore.endCoalescing();
+                    setCoachingDraft(undefined);
+                  }}
                   onDelete={() => dispatchField({ type: "delete" })}
                   onDeselect={() => dispatchField({ type: "escape" })}
                   onKind={(kind) =>
