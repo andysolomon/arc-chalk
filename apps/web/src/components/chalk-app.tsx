@@ -2,7 +2,9 @@ import {
   applyPlayCommand,
   createStableId,
   DEFAULT_ZONE_COVERAGE_RADII,
+  defensiveRouteKinds,
   labelRolePresets,
+  offensiveRouteKinds,
   labelSizeChoices,
   PRODUCT_NAME,
   stickThunderPlay,
@@ -19,6 +21,9 @@ import {
   idleFieldInteraction,
   setLabelAppearanceCommand,
   setLabelTextCommand,
+  setRouteKindCommand,
+  setRouteStyleCommand,
+  straightenRouteCommand,
   localSaveMessage,
   localSaveStatus,
   pruneFieldSelection,
@@ -1273,6 +1278,180 @@ function LabelInspector({
   );
 }
 
+const lineStyleChoices: ReadonlyArray<{
+  line: MovementPath["style"]["line"];
+  glyph: string;
+  name: string;
+}> = [
+  { line: "solid", glyph: "—", name: "Solid" },
+  { line: "dashed", glyph: "– –", name: "Dashed" },
+  { line: "dotted", glyph: "· · ·", name: "Dotted" },
+  { line: "zigzag", glyph: "∿", name: "Zigzag — motion" },
+];
+
+/** The original's words for what a line ends in, not the shape's own name. */
+const endingChoices: ReadonlyArray<{
+  ending: MovementPath["style"]["ending"];
+  name: string;
+}> = [
+  { ending: "arrow", name: "Arrow" },
+  { ending: "bar", name: "Stop" },
+  { ending: "dot", name: "Dot" },
+  { ending: "bubble", name: "Zone" },
+  { ending: "hook", name: "Curl" },
+  { ending: "diamond", name: "Read" },
+  { ending: "square", name: "Land" },
+  { ending: "chevron", name: "Cont" },
+  { ending: "none", name: "None" },
+];
+
+const routeColorChoices: ReadonlyArray<MovementPath["style"]["color"]> = [
+  "ink",
+  "blue",
+  "red",
+  "green",
+  "orange",
+  "gray",
+];
+
+/**
+ * The original's Route panel. What it changes follows what the Coach has
+ * picked out: a segment takes the line style on its own, a branch takes it
+ * for that line, and otherwise the whole route does.
+ */
+function RouteInspector({
+  branchIndex,
+  onDelete,
+  onDeselect,
+  onKind,
+  onStraighten,
+  onStyle,
+  path,
+  segmentIndex,
+  unit,
+}: {
+  branchIndex?: number;
+  onDelete: () => void;
+  onDeselect: () => void;
+  onKind: (kind: MovementPath["kind"]) => void;
+  onStraighten: () => void;
+  onStyle: (style: Partial<MovementPath["style"]>) => void;
+  path: MovementPath;
+  segmentIndex?: number;
+  unit: "offense" | "defense" | "special-teams";
+}) {
+  const line =
+    branchIndex === undefined
+      ? path.points
+      : (path.branches[branchIndex]?.points ?? path.points);
+  const style =
+    branchIndex === undefined
+      ? path.style
+      : (path.branches[branchIndex]?.style ?? path.style);
+  // With a segment picked out, its own override is what the buttons reflect.
+  const shownLine =
+    segmentIndex !== undefined
+      ? (line[segmentIndex]?.segmentStyle?.line ?? style.line)
+      : style.line;
+  const shownEnding =
+    segmentIndex !== undefined
+      ? (line[segmentIndex]?.segmentStyle?.ending ?? style.ending)
+      : style.ending;
+  const kinds = unit === "defense" ? defensiveRouteKinds : offensiveRouteKinds;
+  const scope =
+    segmentIndex !== undefined
+      ? `Segment ${segmentIndex}`
+      : branchIndex !== undefined
+        ? `Branch ${branchIndex + 1}`
+        : `${line.length} breaks`;
+
+  return (
+    <div className="label-inspector">
+      <div className="section-heading label-heading">
+        <button
+          aria-label="Back to the play"
+          className="back-button"
+          onClick={onDeselect}
+          title="Back to the play — esc"
+          type="button"
+        >
+          ←
+        </button>
+        <span>Route</span>
+        <span className="scope-tag">{scope}</span>
+      </div>
+      <div className="segments">
+        {kinds.map((choice) => (
+          <button
+            className={path.kind === choice.kind ? "active" : undefined}
+            key={choice.kind}
+            onClick={() => onKind(choice.kind)}
+            type="button"
+          >
+            {choice.name}
+          </button>
+        ))}
+      </div>
+      <span className="field-label">Line</span>
+      <div className="button-grid">
+        {lineStyleChoices.map((choice) => (
+          <button
+            // The glyph is the picture of the line; the name is what it is.
+            // Without this a screen reader announces "– –".
+            aria-label={choice.name}
+            className={shownLine === choice.line ? "active" : undefined}
+            key={choice.line}
+            onClick={() => onStyle({ line: choice.line })}
+            title={choice.name}
+            type="button"
+          >
+            <span aria-hidden="true">{choice.glyph}</span>
+          </button>
+        ))}
+      </div>
+      <span className="field-label">Ending</span>
+      <div className="button-grid">
+        {endingChoices.map((choice) => (
+          <button
+            className={shownEnding === choice.ending ? "active" : undefined}
+            key={choice.ending}
+            onClick={() => onStyle({ ending: choice.ending })}
+            type="button"
+          >
+            {choice.name}
+          </button>
+        ))}
+      </div>
+      <span className="field-label">Color</span>
+      <div className="color-row">
+        {routeColorChoices.map((color) => (
+          <button
+            aria-label={color}
+            aria-pressed={style.color === color}
+            className={style.color === color ? "swatch active" : "swatch"}
+            key={color}
+            onClick={() => onStyle({ color })}
+            style={{ background: sceneColors[color] }}
+            type="button"
+          />
+        ))}
+      </div>
+      <p>
+        The ending carries the coaching. Arrow means run through, a dot means
+        throttle down and sit, a bar is a block.
+      </p>
+      <div className="help-row">
+        <button onClick={onStraighten} type="button">
+          Straighten
+        </button>
+        <button className="danger" onClick={onDelete} type="button">
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Inspector({
   labelEditor,
   onOpenPalette,
@@ -2062,7 +2241,45 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         {inspectorOpen ? (
           <Inspector
             labelEditor={
-              selectedLabel ? (
+              selectedPath ? (
+                <RouteInspector
+                  branchIndex={interaction.selectedBranchIndex}
+                  onDelete={() => dispatchField({ type: "delete" })}
+                  onDeselect={() => dispatchField({ type: "escape" })}
+                  onKind={(kind) =>
+                    runLabelCommand(
+                      setRouteKindCommand(
+                        editor.document,
+                        selectedPath.id,
+                        kind,
+                      ),
+                    )
+                  }
+                  onStraighten={() =>
+                    runLabelCommand(
+                      straightenRouteCommand(editor.document, selectedPath.id, {
+                        branchIndex: interaction.selectedBranchIndex,
+                      }),
+                    )
+                  }
+                  onStyle={(style) =>
+                    runLabelCommand(
+                      setRouteStyleCommand(
+                        editor.document,
+                        selectedPath.id,
+                        {
+                          branchIndex: interaction.selectedBranchIndex,
+                          segmentIndex: interaction.selectedSegmentIndex,
+                        },
+                        style,
+                      ),
+                    )
+                  }
+                  path={selectedPath}
+                  segmentIndex={interaction.selectedSegmentIndex}
+                  unit={editor.document.unit}
+                />
+              ) : selectedLabel ? (
                 <LabelInspector
                   label={selectedLabel}
                   onAppearance={(appearance) =>

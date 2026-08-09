@@ -4,6 +4,8 @@ import {
   type LabelBox,
   type LabelRole,
   type LegacyPlayType,
+  type MovementPath,
+  type PathStyle,
   type PlayTypeDefinition,
   type PlayTypeReference,
 } from "./schema";
@@ -80,6 +82,60 @@ export const labelRolePresets: Readonly<Record<LabelRole, LabelRolePreset>> =
       caps: false,
     },
   });
+
+/**
+ * What each kind of line looks like when a Coach changes a route into it.
+ * Some of it is fixed — a blitz is red, a stunt runs on chevrons — and some
+ * defers to what he already chose, so changing a block back into a route
+ * keeps his ending unless that ending only made sense as a block.
+ */
+export function routeKindStyle(
+  kind: MovementPath["kind"],
+  current: PathStyle,
+): PathStyle {
+  switch (kind) {
+    case "route":
+      return {
+        line: "solid",
+        ending:
+          current.ending === "bar" || current.ending === "bubble"
+            ? "arrow"
+            : current.ending,
+        color: current.color,
+      };
+    case "motion":
+      return { line: "zigzag", ending: "arrow", color: current.color };
+    case "block":
+      return { line: "solid", ending: "bar", color: current.color };
+    case "zone":
+      return {
+        line: "dashed",
+        ending: "bubble",
+        color: current.color === "ink" ? "blue" : current.color,
+      };
+    case "blitz":
+      return { line: "solid", ending: "arrow", color: "red" };
+    case "stunt":
+      return { line: "solid", ending: "chevron", color: "orange" };
+    case "ball":
+      return { line: "dotted", ending: "arrow", color: "gray" };
+  }
+}
+
+/** The kinds the original offers, by the unit whose Play is open. */
+export const offensiveRouteKinds = Object.freeze([
+  { kind: "route", name: "Route" },
+  { kind: "motion", name: "Motion" },
+  { kind: "block", name: "Block" },
+  { kind: "ball", name: "Ball" },
+] as const);
+
+export const defensiveRouteKinds = Object.freeze([
+  { kind: "zone", name: "Zone" },
+  { kind: "blitz", name: "Blitz" },
+  { kind: "stunt", name: "Stunt" },
+  { kind: "ball", name: "Ball" },
+] as const);
 
 /** The sizes the original offers, and the text it labels them with. */
 export const labelSizeChoices = Object.freeze([

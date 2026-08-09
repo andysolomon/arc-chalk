@@ -20,6 +20,9 @@ import {
   pruneFieldSelection,
   setLabelAppearanceCommand,
   setLabelTextCommand,
+  setRouteKindCommand,
+  setRouteStyleCommand,
+  straightenRouteCommand,
   type FieldInteractionContext,
   type FieldInteractionEvent,
   type FieldInteractionModel,
@@ -577,6 +580,25 @@ describe("field selection pruning", () => {
     expect(
       insertedEntityIds(setLabelTextCommand(stickThunderPlay, "l2", "x")!),
     ).toEqual([]);
+  });
+
+  it("keeps the line and break the Coach narrowed to across an edit", () => {
+    // Restyling the very segment he picked out must not un-pick it, or he
+    // cannot make two changes to the same piece in a row. The ghost forces
+    // the rebuild: without something to drop, pruning returns the model
+    // untouched and proves nothing about what a rebuild carries over.
+    const model: FieldInteractionModel = {
+      selection: [path("rx"), player("ghost")],
+      gesture: { kind: "idle" },
+      selectedBranchIndex: 0,
+      selectedSegmentIndex: 2,
+      selectedNodeIndex: 1,
+    };
+    const pruned = pruneFieldSelection(model, stickThunderPlay);
+    expect(pruned.selection).toEqual([path("rx")]);
+    expect(pruned.selectedSegmentIndex).toBe(2);
+    expect(pruned.selectedBranchIndex).toBe(0);
+    expect(pruned.selectedNodeIndex).toBe(1);
   });
 
   it("returns the same model when nothing changed", () => {
@@ -1919,5 +1941,215 @@ describe("field interaction branch and segment selection", () => {
       before.branches[0]!.points.length,
     );
     expect(after.points).toEqual(before.points);
+  });
+});
+
+describe("route styling", () => {
+  const pathOf = (document: PlayDocument, id: string) =>
+    document.paths.find((candidate) => candidate.id === id)!;
+
+  it("restyles the whole line when nothing is picked out", () => {
+    const command = setRouteStyleCommand(
+      stickThunderPlay,
+      "rx",
+      {},
+      {
+        line: "dashed",
+      },
+    )!;
+    const after = pathOf(applyPlayCommand(stickThunderPlay, command), "rx");
+    expect(after.style.line).toBe("dashed");
+    expect(after.style.ending).toBe(
+      pathOf(stickThunderPlay, "rx").style.ending,
+    );
+  });
+
+  it("dots one leg of an otherwise solid route", () => {
+    const command = setRouteStyleCommand(
+      stickThunderPlay,
+      "rx",
+      { segmentIndex: 2 },
+      { line: "dotted" },
+    )!;
+    const after = pathOf(applyPlayCommand(stickThunderPlay, command), "rx");
+    // The line itself is untouched; only the picked leg carries an override.
+    expect(after.style.line).toBe("solid");
+    expect(after.points[2]!.segmentStyle?.line).toBe("dotted");
+    expect(after.points[1]!.segmentStyle).toBeUndefined();
+  });
+
+  it("clears the piecemeal overrides when the whole line is restyled", () => {
+    const dotted = applyPlayCommand(
+      stickThunderPlay,
+      setRouteStyleCommand(
+        stickThunderPlay,
+        "rx",
+        { segmentIndex: 2 },
+        { line: "dotted" },
+      )!,
+    );
+    expect(pathOf(dotted, "rx").points[2]!.segmentStyle).toBeDefined();
+
+    const whole = applyPlayCommand(
+      dotted,
+      setRouteStyleCommand(dotted, "rx", {}, { line: "dashed" })!,
+    );
+    // The line reads as one thing again rather than as a dashed line with a
+    // dotted leg the Coach can no longer see the reason for.
+    expect(pathOf(whole, "rx").style.line).toBe("dashed");
+    expect(pathOf(whole, "rx").points[2]!.segmentStyle).toBeUndefined();
+  });
+
+  it("takes a colour to the whole line even with a segment picked out", () => {
+    const command = setRouteStyleCommand(
+      stickThunderPlay,
+      "rx",
+      { segmentIndex: 2 },
+      { color: "red" },
+    )!;
+    const after = pathOf(applyPlayCommand(stickThunderPlay, command), "rx");
+    // The contract has no per-segment colour, and neither did the original.
+    expect(after.style.color).toBe("red");
+    expect(after.points[2]!.segmentStyle).toBeUndefined();
+  });
+
+  it("restyles a branch without touching the line it grows from", () => {
+    const command = setRouteStyleCommand(
+      stickThunderPlay,
+      "rz",
+      { branchIndex: 0 },
+      { line: "dashed", ending: "square" },
+    )!;
+    const after = pathOf(applyPlayCommand(stickThunderPlay, command), "rz");
+    expect(after.branches[0]!.style.line).toBe("dashed");
+    expect(after.branches[0]!.style.ending).toBe("square");
+    expect(after.style).toEqual(pathOf(stickThunderPlay, "rz").style);
+  });
+
+  it("gives a line the look of the kind it becomes", () => {
+    const asBlock = pathOf(
+      applyPlayCommand(
+        stickThunderPlay,
+        setRouteKindCommand(stickThunderPlay, "rx", "block")!,
+      ),
+      "rx",
+    );
+    expect(asBlock.kind).toBe("block");
+    expect(asBlock.style).toMatchObject({ line: "solid", ending: "bar" });
+
+    // Back to a route: the bar only made sense as a block, so it goes.
+    const backToRoute = pathOf(
+      applyPlayCommand(
+        {
+          ...stickThunderPlay,
+          paths: [asBlock, ...stickThunderPlay.paths.slice(1)],
+        },
+        setRouteKindCommand(
+          {
+            ...stickThunderPlay,
+            paths: [asBlock, ...stickThunderPlay.paths.slice(1)],
+          },
+          "rx",
+          "route",
+        )!,
+      ),
+      "rx",
+    );
+    expect(backToRoute.style.ending).toBe("arrow");
+
+    // A blitz is red and a stunt runs on chevrons, whatever came before.
+    const blitz = pathOf(
+      applyPlayCommand(
+        stickThunderPlay,
+        setRouteKindCommand(stickThunderPlay, "rx", "blitz")!,
+      ),
+      "rx",
+    );
+    expect(blitz.style).toMatchObject({ color: "red", ending: "arrow" });
+  });
+
+  it("keeps what the Coach chose when the new kind does not contradict it", () => {
+    // A block ending in a dot is unusual but his to make; turning it back
+    // into a route has no reason to take the dot away.
+    const asBlock = applyPlayCommand(
+      stickThunderPlay,
+      setRouteKindCommand(stickThunderPlay, "rx", "block")!,
+    );
+    const dotted = applyPlayCommand(
+      asBlock,
+      setRouteStyleCommand(asBlock, "rx", {}, { ending: "dot" })!,
+    );
+    const backToRoute = pathOf(
+      applyPlayCommand(dotted, setRouteKindCommand(dotted, "rx", "route")!),
+      "rx",
+    );
+    expect(backToRoute.style.ending).toBe("dot");
+
+    // Motion takes the line and the ending but leaves his colour alone.
+    const red = applyPlayCommand(
+      stickThunderPlay,
+      setRouteStyleCommand(stickThunderPlay, "rx", {}, { color: "red" })!,
+    );
+    const motion = pathOf(
+      applyPlayCommand(red, setRouteKindCommand(red, "rx", "motion")!),
+      "rx",
+    );
+    expect(motion.style).toMatchObject({
+      line: "zigzag",
+      ending: "arrow",
+      color: "red",
+    });
+  });
+
+  it("straightens only the line the Coach is working on", () => {
+    const bent = applyPlayCommand(stickThunderPlay, {
+      kind: "update-path",
+      path: {
+        ...pathOf(stickThunderPlay, "rz"),
+        points: pathOf(stickThunderPlay, "rz").points.map((point, index) =>
+          index === 1
+            ? { ...point, control: { lateralYards: 20, depthYards: 6 } }
+            : point,
+        ),
+        branches: pathOf(stickThunderPlay, "rz").branches.map((branch) => ({
+          ...branch,
+          points: branch.points.map((point) => ({
+            ...point,
+            control: { lateralYards: 22, depthYards: 15 },
+          })),
+        })),
+      },
+    });
+
+    const mainOnly = pathOf(
+      applyPlayCommand(bent, straightenRouteCommand(bent, "rz")!),
+      "rz",
+    );
+    expect(mainOnly.points[1]!.control).toBeUndefined();
+    // The branch keeps its bend: it was not what he was working on.
+    expect(mainOnly.branches[0]!.points[0]!.control).toBeDefined();
+
+    const branchOnly = pathOf(
+      applyPlayCommand(
+        bent,
+        straightenRouteCommand(bent, "rz", { branchIndex: 0 })!,
+      ),
+      "rz",
+    );
+    expect(branchOnly.branches[0]!.points[0]!.control).toBeUndefined();
+    expect(branchOnly.points[1]!.control).toBeDefined();
+  });
+
+  it("declines edits that would change nothing", () => {
+    expect(
+      setRouteStyleCommand(stickThunderPlay, "rx", {}, { line: "solid" }),
+    ).toBeUndefined();
+    expect(straightenRouteCommand(stickThunderPlay, "rx")).toBeUndefined();
+    expect(
+      setRouteKindCommand(stickThunderPlay, "rx", "route"),
+    ).toBeUndefined();
+    expect(
+      setRouteStyleCommand(stickThunderPlay, "missing", {}, {}),
+    ).toBeUndefined();
   });
 });

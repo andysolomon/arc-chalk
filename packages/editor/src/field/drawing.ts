@@ -1,4 +1,9 @@
-import type { Coordinate, PathStyle, PlayCommand } from "@chalk/domain";
+import {
+  routeKindStyle,
+  type Coordinate,
+  type PathStyle,
+  type PlayCommand,
+} from "@chalk/domain";
 
 import { snapRouteEndpoint } from "../smart-snapping";
 import { clampToField, coordinate, screenDistancePx } from "./geometry";
@@ -95,11 +100,11 @@ export function bendLastSegment(
   return { ...drawing, points };
 }
 
-const drawingStyles: Record<FieldDrawingKind, PathStyle> = {
-  route: { line: "solid", ending: "arrow", color: "ink" },
-  motion: { line: "zigzag", ending: "arrow", color: "ink" },
-  block: { line: "solid", ending: "bar", color: "ink" },
-  zone: { line: "dashed", ending: "bubble", color: "blue" },
+/** A newly drawn line looks like the kind it is, from one shared source. */
+const PLAIN_STYLE: PathStyle = {
+  line: "solid",
+  ending: "arrow",
+  color: "ink",
 };
 
 const drawingLabels: Record<FieldDrawingKind, string> = {
@@ -165,7 +170,7 @@ export function buildDrawCommand(
     context.document.paths.some(
       (path) => path.playerId === drawing.playerId && path.kind === "route",
     );
-  const style = drawingStyles[drawing.kind];
+  const style = routeKindStyle(drawing.kind, PLAIN_STYLE);
   return {
     kind: "batch",
     label: drawingLabels[drawing.kind],

@@ -4,6 +4,7 @@ import {
   deletePathsCommand,
   deletePlayersCommand,
   labelRolePresets,
+  routeKindStyle,
   type Coordinate,
   type LabelRole,
   type MovementPath,
@@ -363,4 +364,170 @@ export function insertedEntityIds(command: PlayCommand): readonly string[] {
   return command.kind === "batch"
     ? command.commands.flatMap(fromPrimitive)
     : fromPrimitive(command);
+}
+
+/**
+ * Which line of a route an edit is aimed at, and whether it was narrowed to
+ * one segment of it. This is what segment selection is for: the original
+ * styles the whole line unless the Coach has picked out a piece.
+ */
+export interface RouteEditScope {
+  readonly branchIndex?: number;
+  readonly segmentIndex?: number;
+}
+
+function lineOfPath(
+  path: MovementPath,
+  branchIndex?: number,
+): readonly PathPoint[] {
+  if (branchIndex === undefined) return path.points;
+  return path.branches[branchIndex]?.points ?? path.points;
+}
+
+function replaceLine(
+  path: MovementPath,
+  branchIndex: number | undefined,
+  points: PathPoint[],
+): MovementPath {
+  if (branchIndex === undefined) return { ...path, points };
+  return {
+    ...path,
+    branches: path.branches.map((branch, index) =>
+      index === branchIndex ? { ...branch, points } : branch,
+    ),
+  };
+}
+
+function styleOfLine(
+  path: MovementPath,
+  branchIndex?: number,
+): MovementPath["style"] {
+  if (branchIndex === undefined) return path.style;
+  return path.branches[branchIndex]?.style ?? path.style;
+}
+
+function replaceLineStyle(
+  path: MovementPath,
+  branchIndex: number | undefined,
+  style: MovementPath["style"],
+): MovementPath {
+  if (branchIndex === undefined) return { ...path, style };
+  return {
+    ...path,
+    branches: path.branches.map((branch, index) =>
+      index === branchIndex ? { ...branch, style } : branch,
+    ),
+  };
+}
+
+/**
+ * Restyles a route. With a segment picked out it overrides just that piece,
+ * the way the original let a Coach dot one leg of an otherwise solid route;
+ * otherwise it restyles the whole line and clears the piecemeal overrides,
+ * so the line goes back to reading as one thing.
+ */
+export function setRouteStyleCommand(
+  document: PlayDocument,
+  pathId: string,
+  scope: RouteEditScope,
+  style: Partial<MovementPath["style"]>,
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path) return undefined;
+  const line = lineOfPath(path, scope.branchIndex);
+
+  if (scope.segmentIndex !== undefined && line[scope.segmentIndex]) {
+    const point = line[scope.segmentIndex]!;
+    const segmentStyle = {
+      ...point.segmentStyle,
+      ...(style.line === undefined ? {} : { line: style.line }),
+      ...(style.ending === undefined ? {} : { ending: style.ending }),
+    };
+    // Colour has no per-segment form in the contract, so a colour change is
+    // always the whole line's — the original behaves the same way.
+    if (style.color !== undefined) {
+      const next = replaceLineStyle(path, scope.branchIndex, {
+        ...styleOfLine(path, scope.branchIndex),
+        color: style.color,
+      });
+      return canonicalStringify(next) === canonicalStringify(path)
+        ? undefined
+        : { kind: "update-path", path: next };
+    }
+    const points = [...line];
+    points[scope.segmentIndex] = { ...point, segmentStyle };
+    const next = replaceLine(path, scope.branchIndex, points);
+    return canonicalStringify(next) === canonicalStringify(path)
+      ? undefined
+      : { kind: "update-path", path: next };
+  }
+
+  const nextStyle = { ...styleOfLine(path, scope.branchIndex), ...style };
+  // A whole-line restyle drops the per-segment overrides it supersedes.
+  const points = line.map((point) => {
+    if (point.segmentStyle === undefined) return point;
+    const cleared = { ...point };
+    delete cleared.segmentStyle;
+    return cleared;
+  });
+  const next = replaceLineStyle(
+    replaceLine(path, scope.branchIndex, points),
+    scope.branchIndex,
+    nextStyle,
+  );
+  return canonicalStringify(next) === canonicalStringify(path)
+    ? undefined
+    : { kind: "update-path", path: next };
+}
+
+/**
+ * Changing what a line is changes how it reads: the kind carries its own
+ * look, and the piecemeal overrides go with the meaning they described.
+ */
+export function setRouteKindCommand(
+  document: PlayDocument,
+  pathId: string,
+  kind: MovementPath["kind"],
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path || path.kind === kind) return undefined;
+  const points = path.points.map((point) => {
+    if (point.segmentStyle === undefined) return point;
+    const cleared = { ...point };
+    delete cleared.segmentStyle;
+    return cleared;
+  });
+  return {
+    kind: "update-path",
+    path: {
+      ...path,
+      kind,
+      points,
+      style: routeKindStyle(kind, path.style),
+    },
+  };
+}
+
+/** Takes the bends out of the line the Coach is working on. */
+export function straightenRouteCommand(
+  document: PlayDocument,
+  pathId: string,
+  scope: RouteEditScope = {},
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path) return undefined;
+  const line = lineOfPath(path, scope.branchIndex);
+  if (!line.some(({ control }) => control !== undefined)) return undefined;
+  const points = line.map((point) => {
+    if (point.control === undefined) return point;
+    // Dropped rather than cleared, so a straightened line hashes like one
+    // that was never bent.
+    const straight = { ...point };
+    delete straight.control;
+    return straight;
+  });
+  return {
+    kind: "update-path",
+    path: replaceLine(path, scope.branchIndex, points),
+  };
 }

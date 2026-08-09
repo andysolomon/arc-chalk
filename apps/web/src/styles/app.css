@@ -1263,3 +1263,11 @@ select:focus-visible {
 .help-row button.danger:hover {
   background: #fef2f2;
 }
+/* Which piece of a route the panel is about — its line, or one segment. */
+.label-heading .scope-tag {
+  flex: none;
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  color: #0072f5;
+}
