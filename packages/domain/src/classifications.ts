@@ -289,3 +289,42 @@ export function playTypeReference(
 ): PlayTypeReference {
   return { id: definition.id, name: definition.name };
 }
+
+/**
+ * The words that change when a Play is flipped, and what each becomes. A
+ * mirror moves the men; flipping the strength also moves the language, so a
+ * card that said STRONG RIGHT does not end up describing the picture wrongly.
+ * These are football terms rather than English ones, which is why they live
+ * beside the label meanings and the zone classification.
+ */
+const FLIPPED_WORDS: Readonly<Record<string, string>> = Object.freeze({
+  LEFT: "RIGHT",
+  RIGHT: "LEFT",
+  LT: "RT",
+  RT: "LT",
+  STRONG: "WEAK",
+  WEAK: "STRONG",
+  // A crosser is a crosser whichever way it runs; the word is listed so it is
+  // plainly considered rather than accidentally left out.
+  OVER: "OVER",
+});
+
+/** The letters that trade places when a Play is flipped. */
+export const flippedPlayerLabels: Readonly<Record<string, string>> =
+  Object.freeze({ X: "Z", Z: "X" });
+
+/**
+ * Flips the football words in a piece of the Coach's own writing, keeping the
+ * case he wrote them in — ALL CAPS stays shouted, Title stays titled — and
+ * leaving every word that is not one of them exactly as it is.
+ */
+export function flipStrengthWords(text: string): string {
+  return text.replaceAll(/[A-Za-z]+/g, (word) => {
+    const flipped = FLIPPED_WORDS[word.toUpperCase()];
+    if (!flipped) return word;
+    if (word === word.toUpperCase()) return flipped;
+    return word[0] === word[0]!.toUpperCase()
+      ? flipped[0]! + flipped.slice(1).toLowerCase()
+      : flipped.toLowerCase();
+  });
+}

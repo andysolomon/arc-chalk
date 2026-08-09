@@ -156,6 +156,8 @@ const movementPathFields = {
    */
   preset: z.optional(z.string()),
   concept: z.optional(z.string()),
+  /** Things tied together so they move as one, as a Player can be. */
+  group: z.optional(z.string()),
   /**
    * Where this line falls in the quarterback's progression. The Coach's own
    * wording for the man's job is an Assignment (ADR 0011), but the order he
@@ -195,6 +197,7 @@ export const textLabelSchema = z.object({
   mono: z.optional(z.boolean()),
   role: z.optional(labelRoleSchema),
   unit: z.optional(playUnitSchema),
+  group: z.optional(z.string()),
   leader: z.optional(
     z.object({
       endpoint: coordinateSchema,

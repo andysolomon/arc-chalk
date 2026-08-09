@@ -5,6 +5,8 @@ import {
   assignRoles,
   assignmentForPath,
   ballSpotNames,
+  flippedPlayerLabels,
+  flipStrengthWords,
   canonicalStringify,
   defensiveLineKinds,
   deletePathsCommand,
@@ -13,9 +15,13 @@ import {
   handednessOf,
   isLineman,
   linePresetByKey,
+  mirrorPlayGeometry,
+  recognizeFormation,
+  RECOGNITION_THRESHOLD,
   labelRolePresets,
   routePresetPoints,
   spotBall,
+  stockFormations,
   legacyCanvasToYards,
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
@@ -1472,3 +1478,332 @@ export function spotBallCommand(
     ...(command.commands.length > 0 ? { command } : {}),
   };
 }
+
+// ---------------------------------------------------------------------------
+// The verbs the palette names
+// ---------------------------------------------------------------------------
+
+/**
+ * Flipping the strength: the mirror the domain already does, and with it the
+ * language, so a card that read STRONG RIGHT does not end up describing the
+ * picture wrongly. A set the Coach is recognisably in flips through its own
+ * named counterpart rather than by reflection alone, which is what keeps an
+ * unbalanced alignment and its relationship to the hash coming out right.
+ */
+export function flipStrengthCommand(
+  document: PlayDocument,
+  catalogue: readonly Formation[] = stockFormations,
+): PlayCommand | undefined {
+  const reflected = mirrorPlayGeometry(document);
+  const worded: PlayDocument = {
+    ...reflected,
+    players: reflected.players.map((player) => ({
+      ...player,
+      label: flippedPlayerLabels[player.label] ?? player.label,
+      sublabel: flipStrengthWords(player.sublabel),
+    })),
+    paths: reflected.paths.map((path) => ({
+      ...path,
+      ...(path.conversion === undefined
+        ? {}
+        : { conversion: flipStrengthWords(path.conversion) }),
+      ...(path.coachingNote === undefined
+        ? {}
+        : { coachingNote: flipStrengthWords(path.coachingNote) }),
+    })),
+    assignments: reflected.assignments.map((assignment) => ({
+      ...assignment,
+      text: flipStrengthWords(assignment.text),
+    })),
+    labels: reflected.labels.map((label) => ({
+      ...label,
+      text: flipStrengthWords(label.text),
+    })),
+  };
+
+  const read = recognizeFormation(document, catalogue);
+  const counterpart =
+    read.confidence >= RECOGNITION_THRESHOLD &&
+    read.formation?.mirrorFormationId
+      ? catalogue.find(({ id }) => id === read.formation!.mirrorFormationId)
+      : undefined;
+  const next = counterpart
+    ? applyFormation(worded, counterpart, () => "", {
+        addMissingPlayers: false,
+      }).play
+    : worded;
+
+  const command = diffPlayDocuments(document, next, "Flip strength");
+  return command.commands.length > 0 ? command : undefined;
+}
+
+export type PlayerAlignment = "depth" | "splits";
+
+/**
+ * Lining men up with one another: all to the same depth, or evenly spread
+ * between the two widest. Each man's lines travel with him, the way they do
+ * when he is dragged.
+ */
+export function alignPlayersCommand(
+  document: PlayDocument,
+  playerIds: readonly string[],
+  alignment: PlayerAlignment,
+): PlayCommand | undefined {
+  const chosen = document.players.filter(({ id }) => playerIds.includes(id));
+  if (chosen.length < 2) return undefined;
+
+  const moves = new Map<string, Coordinate>();
+  if (alignment === "depth") {
+    const depthYards =
+      chosen.reduce((total, { position }) => total + position.depthYards, 0) /
+      chosen.length;
+    for (const player of chosen) {
+      moves.set(player.id, {
+        lateralYards: 0,
+        depthYards: depthYards - player.position.depthYards,
+      });
+    }
+  } else {
+    const sorted = [...chosen].sort(
+      (left, right) => left.position.lateralYards - right.position.lateralYards,
+    );
+    const first = sorted[0]!.position.lateralYards;
+    const step =
+      (sorted.at(-1)!.position.lateralYards - first) / (sorted.length - 1);
+    for (const [index, player] of sorted.entries()) {
+      moves.set(player.id, {
+        lateralYards: first + index * step - player.position.lateralYards,
+        depthYards: 0,
+      });
+    }
+  }
+  return buildTranslationCommand(document, moves, "Align players");
+}
+
+/** Moves the men given by the amounts given, and their lines with them. */
+function buildTranslationCommand(
+  document: PlayDocument,
+  moves: ReadonlyMap<string, Coordinate>,
+  label: string,
+): PlayCommand | undefined {
+  const shift = (point: Coordinate, by: Coordinate): Coordinate => ({
+    lateralYards: point.lateralYards + by.lateralYards,
+    depthYards: point.depthYards + by.depthYards,
+  });
+  const next: PlayDocument = {
+    ...document,
+    players: document.players.map((player) => {
+      const by = moves.get(player.id);
+      return by ? { ...player, position: shift(player.position, by) } : player;
+    }),
+    paths: document.paths.map((path) => {
+      const by = moves.get(path.playerId);
+      if (!by) return path;
+      const move = (point: PathPoint): PathPoint => ({
+        ...point,
+        ...shift(point, by),
+        ...(point.control ? { control: shift(point.control, by) } : {}),
+      });
+      return {
+        ...path,
+        points: path.points.map(move),
+        branches: path.branches.map((branch) => ({
+          ...branch,
+          points: branch.points.map(move),
+        })),
+      };
+    }),
+  };
+  const command = diffPlayDocuments(document, next, label);
+  return command.commands.length > 0 ? command : undefined;
+}
+
+/**
+ * Tying things together so they move as one. What the Coach picked becomes a
+ * group; picking any one of them afterwards picks the rest, which is what a
+ * group is for.
+ */
+export function groupSelectionCommand(
+  document: PlayDocument,
+  selection: readonly FieldItemRef[],
+  createId: (prefix: string) => string,
+): PlayCommand | undefined {
+  if (selection.length < 2) return undefined;
+  const group = createId("group");
+  const picked = (kind: FieldItemRef["kind"], id: string) =>
+    selection.some((item) => item.kind === kind && item.id === id);
+  const next: PlayDocument = {
+    ...document,
+    players: document.players.map((player) =>
+      picked("player", player.id) ? { ...player, group } : player,
+    ),
+    paths: document.paths.map((path) =>
+      picked("path", path.id) ? { ...path, group } : path,
+    ),
+    labels: document.labels.map((label) =>
+      picked("label", label.id) ? { ...label, group } : label,
+    ),
+  };
+  const command = diffPlayDocuments(document, next, "Group");
+  return command.commands.length > 0 ? command : undefined;
+}
+
+/** Which groups the things picked belong to. */
+function groupsIn(
+  document: PlayDocument,
+  selection: readonly FieldItemRef[],
+): Set<string> {
+  const groups = new Set<string>();
+  for (const item of selection) {
+    const owner =
+      item.kind === "player"
+        ? document.players.find(({ id }) => id === item.id)
+        : item.kind === "path"
+          ? document.paths.find(({ id }) => id === item.id)
+          : document.labels.find(({ id }) => id === item.id);
+    if (owner?.group) groups.add(owner.group);
+  }
+  return groups;
+}
+
+export function ungroupSelectionCommand(
+  document: PlayDocument,
+  selection: readonly FieldItemRef[],
+): PlayCommand | undefined {
+  const groups = groupsIn(document, selection);
+  if (groups.size === 0) return undefined;
+  const loosen = <Item extends { readonly group?: string }>(
+    item: Item,
+  ): Item =>
+    item.group && groups.has(item.group)
+      ? (Object.fromEntries(
+          Object.entries(item).filter(([key]) => key !== "group"),
+        ) as Item)
+      : item;
+  const command = diffPlayDocuments(
+    document,
+    {
+      ...document,
+      players: document.players.map(loosen),
+      paths: document.paths.map(loosen),
+      labels: document.labels.map(loosen),
+    },
+    "Ungroup",
+  );
+  return command.commands.length > 0 ? command : undefined;
+}
+
+/**
+ * Everything that travels with what the Coach picked. Picking one member of a
+ * group picks the whole of it, which is the only thing a group does.
+ */
+export function expandSelectionToGroups(
+  document: PlayDocument,
+  selection: readonly FieldItemRef[],
+): readonly FieldItemRef[] {
+  const groups = groupsIn(document, selection);
+  if (groups.size === 0) return selection;
+  const out = [...selection];
+  const add = (kind: FieldItemRef["kind"], id: string, group?: string) => {
+    if (!group || !groups.has(group)) return;
+    if (out.some((item) => item.kind === kind && item.id === id)) return;
+    out.push({ kind, id });
+  };
+  for (const player of document.players) add("player", player.id, player.group);
+  for (const path of document.paths) add("path", path.id, path.group);
+  for (const label of document.labels) add("label", label.id, label.group);
+  return out;
+}
+
+/**
+ * Running a line the other way. A bend belongs to the break it arrives at, so
+ * reversing moves each one back a place; the forks are dropped, because a
+ * fork hangs off a break measured from the start and there is a new start.
+ *
+ * The original also detaches the line from the man running it. Production's
+ * schema requires a Player on every line, so it stays his — the same
+ * divergence already recorded where a line is pasted without him.
+ */
+export function reverseRouteCommand(
+  document: PlayDocument,
+  pathId: string,
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path || path.points.length < 2) return undefined;
+  const controls = path.points.map(({ control }) => control);
+  const reversed = path.points
+    .slice()
+    .reverse()
+    .map((point) => {
+      const { control, ...rest } = point;
+      void control;
+      return rest;
+    });
+  const points = reversed.map((point, index) => {
+    const control = controls[path.points.length - index];
+    return control ? { ...point, control } : point;
+  });
+  return {
+    kind: "update-path",
+    path: { ...path, points, branches: [] },
+  };
+}
+
+/**
+ * How the number reads on the card: to the nearest half yard, and written the
+ * shortest way that says it — twelve rather than twelve point zero. The
+ * original tested for a whole number and formatted the two cases separately,
+ * which for a half-yard value is the same string either way.
+ */
+export function depthLabelText(depthYards: number): string {
+  return `${Math.round(depthYards * 2) / 2} Yds`;
+}
+
+/**
+ * A depth marker pinned to one leg of a line, so it says how far downfield
+ * the break is and keeps saying it when the line is moved.
+ */
+export function addDepthLabelCommand(
+  document: PlayDocument,
+  pathId: string,
+  segmentIndex: number | undefined,
+  createId: (prefix: string) => string,
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path || path.points.length < 2) return undefined;
+  const last = path.points.length - 1;
+  const at = Math.min(Math.max(1, segmentIndex ?? last), last);
+  const preset = labelRolePresets.landmark;
+  return {
+    kind: "insert-labels",
+    labels: [
+      {
+        index: document.labels.length,
+        item: {
+          id: createId("label"),
+          position: path.points[at]!,
+          text: depthLabelText(path.points[at]!.depthYards),
+          color: preset.color,
+          size: preset.size,
+          box: preset.box,
+          boxColor: preset.boxColor,
+          mono: preset.mono,
+          role: "landmark",
+          unit: "offense",
+          binding: {
+            pathId: path.id,
+            segmentIndex: at - 1,
+            progress: 0.55,
+            offset: DEPTH_LABEL_OFFSET,
+          },
+        },
+      },
+    ],
+  };
+}
+
+/** Where the marker sits beside its break: the original's 22 and 6 pixels. */
+const DEPTH_LABEL_OFFSET = Object.freeze({
+  lateralYards: legacyLateralSpanToYards(22),
+  depthYards: legacyDepthSpanToYards(6),
+});
