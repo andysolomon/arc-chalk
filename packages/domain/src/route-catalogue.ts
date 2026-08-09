@@ -396,3 +396,306 @@ export const stockConcepts: readonly ConceptDefinition[] = Object.freeze(
     },
   })),
 );
+
+/**
+ * How a man blocks, and how a defender plays. Both are shapes from his own
+ * spot like a route is, with one difference that belongs to blocking: a
+ * handful of calls carry a real field direction rather than mirroring about
+ * the ball, because "set left" means left whichever side of the centre a man
+ * lines up on.
+ */
+interface LegacyLinePreset {
+  readonly name: string;
+  readonly points: readonly LegacyOffset[];
+  readonly controls?: Readonly<Record<number, LegacyOffset>>;
+  /** Breaks the original marks with a tick, by the index of the break. */
+  readonly ticks?: readonly number[];
+  readonly line: "solid" | "dashed" | "dotted";
+  readonly ending: "arrow" | "bar" | "dot" | "bubble" | "chevron";
+  /** Left is left: the shape is not mirrored to the side the man is on. */
+  readonly absolute?: boolean;
+}
+
+const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
+  drive: { name: "Drive", points: [[0, 0, -30]], line: "solid", ending: "bar" },
+  down: {
+    name: "Down",
+    points: [[-30, 0, -26]],
+    line: "solid",
+    ending: "bar",
+  },
+  reach: {
+    name: "Reach",
+    points: [[32, 0, -24]],
+    line: "solid",
+    ending: "bar",
+  },
+  doubl: {
+    name: "Double",
+    points: [
+      [16, 0, -20],
+      [16, 0, -46],
+    ],
+    line: "solid",
+    ending: "bar",
+  },
+  climb: {
+    name: "Down / climb",
+    points: [
+      [-28, 0, -24],
+      [-46, 0, -58],
+    ],
+    ticks: [0],
+    line: "solid",
+    ending: "bar",
+  },
+  kick: {
+    name: "Pull — kick",
+    points: [
+      [24, 0, 18],
+      [86, 0, -6],
+      [104, 0, -30],
+    ],
+    controls: { 0: [8, 0, 20] },
+    line: "dashed",
+    ending: "bar",
+  },
+  wrap: {
+    name: "Pull — wrap",
+    points: [
+      [20, 0, 20],
+      [92, 0, 10],
+      [112, 0, -34],
+    ],
+    controls: { 0: [6, 0, 22] },
+    line: "dashed",
+    ending: "bar",
+  },
+  cut: { name: "Cut", points: [[26, 0, -14]], line: "solid", ending: "dot" },
+  passset: {
+    name: "Pass set",
+    points: [[0, 0, 22]],
+    line: "solid",
+    ending: "bar",
+  },
+  setleft: {
+    name: "Pass set left",
+    points: [[-16, 0, 18]],
+    line: "solid",
+    ending: "bar",
+    absolute: true,
+  },
+  setright: {
+    name: "Pass set right",
+    points: [[16, 0, 18]],
+    line: "solid",
+    ending: "bar",
+    absolute: true,
+  },
+  chip: {
+    name: "Chip & release",
+    points: [
+      [22, 0, -16],
+      [62, 0, -52],
+    ],
+    ticks: [0],
+    line: "solid",
+    ending: "arrow",
+  },
+};
+
+/**
+ * What a defender is asked to do, drawn out. A drop that owns ground carries
+ * the area with it; a man assignment and a rush do not.
+ */
+const legacyDefensivePresets: Readonly<
+  Record<
+    string,
+    LegacyLinePreset & {
+      readonly kind: "zone" | "blitz" | "stunt";
+      readonly area?: readonly [number, number, string];
+    }
+  >
+> = {
+  hook: {
+    name: "Hook",
+    kind: "zone",
+    points: [[0, 0, -56]],
+    line: "dashed",
+    ending: "bubble",
+    area: [52, 27, "hook"],
+  },
+  curlflat: {
+    name: "Curl / flat",
+    kind: "zone",
+    points: [
+      [0, 0, -40],
+      [62, 0, -24],
+    ],
+    line: "dashed",
+    ending: "bubble",
+    area: [64, 30, "curl"],
+  },
+  deep3: {
+    name: "Deep 1/3",
+    kind: "zone",
+    points: [[0, 0, -124]],
+    line: "dashed",
+    ending: "bubble",
+    area: [104, 44, "deep"],
+  },
+  deep2: {
+    name: "Deep 1/2",
+    kind: "zone",
+    points: [[-30, 0, -118]],
+    line: "dashed",
+    ending: "bubble",
+    area: [132, 48, "deep"],
+  },
+  mid3: {
+    name: "Middle 1/3",
+    kind: "zone",
+    points: [[0, 0, -136]],
+    line: "dashed",
+    ending: "bubble",
+    area: [96, 42, "deep"],
+  },
+  robber: {
+    name: "Robber",
+    kind: "zone",
+    points: [[-48, 0, -42]],
+    line: "dashed",
+    ending: "bubble",
+    area: [70, 32, "curl"],
+  },
+  man: {
+    name: "Man",
+    kind: "zone",
+    points: [[0, 0, -30]],
+    line: "dotted",
+    ending: "arrow",
+  },
+  quarter: {
+    name: "Deep 1/4",
+    kind: "zone",
+    points: [[-14, 0, -120]],
+    line: "dashed",
+    ending: "bubble",
+    area: [78, 44, "deep"],
+  },
+  blitz: {
+    name: "Blitz",
+    kind: "blitz",
+    points: [[0, 0, 44]],
+    line: "solid",
+    ending: "arrow",
+  },
+  stunt: {
+    name: "Stunt",
+    kind: "stunt",
+    points: [
+      [26, 0, 22],
+      [44, 0, 52],
+    ],
+    line: "solid",
+    ending: "chevron",
+  },
+  spy: {
+    name: "QB spy",
+    kind: "zone",
+    points: [[0, 0, -16]],
+    line: "dotted",
+    ending: "bubble",
+    area: [44, 24, "spy"],
+  },
+};
+
+export interface LinePreset {
+  readonly key: string;
+  readonly name: string;
+  readonly kind: "block" | "zone" | "blitz" | "stunt";
+  readonly style: {
+    readonly line: "solid" | "dashed" | "dotted";
+    readonly ending: "arrow" | "bar" | "dot" | "bubble" | "chevron";
+  };
+  /** The ground it owns, where it owns any. */
+  readonly area?: {
+    readonly type: "deep" | "curl" | "hook" | "flat" | "spy";
+    readonly radiusLateralYards: number;
+    readonly radiusDepthYards: number;
+  };
+  pointsFrom(stance: Coordinate): readonly PathPoint[];
+}
+
+function buildLinePreset(
+  key: string,
+  preset: LegacyLinePreset,
+  kind: LinePreset["kind"],
+  area?: readonly [number, number, string],
+): LinePreset {
+  return {
+    key,
+    name: preset.name,
+    kind,
+    style: { line: preset.line, ending: preset.ending },
+    ...(area
+      ? {
+          area: {
+            type: area[2] as NonNullable<LinePreset["area"]>["type"],
+            radiusLateralYards: legacyLateralSpanToYards(area[0]),
+            radiusDepthYards: legacyDepthSpanToYards(area[1]),
+          },
+        }
+      : {}),
+    pointsFrom(stance: Coordinate) {
+      // A call that carries a real field direction is drawn as written; the
+      // rest mirror about the ball to the side the man lines up on.
+      const hand: Handedness = preset.absolute
+        ? { outward: 1 }
+        : handednessOf(stance);
+      return [
+        stance,
+        ...preset.points.map((offset, index) => {
+          const control = preset.controls?.[index];
+          return {
+            ...shifted(stance, offsetToYards(offset, hand)),
+            ...(preset.ticks?.includes(index) ? { tick: true } : {}),
+            ...(control
+              ? { control: shifted(stance, offsetToYards(control, hand)) }
+              : {}),
+          };
+        }),
+      ];
+    },
+  };
+}
+
+export const blockPresets: readonly LinePreset[] = Object.freeze(
+  Object.entries(legacyBlockPresets).map(([key, preset]) =>
+    buildLinePreset(key, preset, "block"),
+  ),
+);
+
+export const defensivePresets: readonly LinePreset[] = Object.freeze(
+  Object.entries(legacyDefensivePresets).map(([key, preset]) =>
+    buildLinePreset(key, preset, preset.kind, preset.area),
+  ),
+);
+
+export const linePresetByKey = (key: string): LinePreset | undefined =>
+  blockPresets.find((preset) => preset.key === key) ??
+  defensivePresets.find((preset) => preset.key === key);
+
+/**
+ * The six calls the original puts on the whole line at once, in its order.
+ * Each one keeps every man his own alignment, because the shape is drawn from
+ * where he stands.
+ */
+export const lineCallKeys: readonly string[] = Object.freeze([
+  "passset",
+  "setleft",
+  "setright",
+  "drive",
+  "reach",
+  "cut",
+]);

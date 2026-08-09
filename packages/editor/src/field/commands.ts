@@ -5,11 +5,13 @@ import {
   assignRoles,
   assignmentForPath,
   canonicalStringify,
+  defensiveLineKinds,
   deletePathsCommand,
   deletePlayersCommand,
   diffPlayDocuments,
   handednessOf,
   isLineman,
+  linePresetByKey,
   labelRolePresets,
   routePresetPoints,
   legacyCanvasToYards,
@@ -23,6 +25,7 @@ import {
   type DefensiveCallResult,
   type Formation,
   type LabelRole,
+  type LinePreset,
   type MovementPath,
   type PathBranch,
   type PathPoint,
@@ -1325,4 +1328,128 @@ export function applyConceptCommand(
       `Applied ${concept.name}`,
     ),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Blocking, and what a defender is asked to do
+// ---------------------------------------------------------------------------
+
+function presetPath(
+  document: PlayDocument,
+  player: Player,
+  preset: LinePreset,
+  id: string,
+): MovementPath {
+  const drawn = preset.pointsFrom(player.position);
+  return {
+    id,
+    kind: preset.kind,
+    playerId: player.id,
+    // The stance itself is left exactly as it is; the rest is held in the paint.
+    points: [player.position, ...insidePoints(document, drawn.slice(1))],
+    branches: [],
+    style: {
+      ...routeKindStyle(preset.kind, {
+        line: preset.style.line,
+        ending: preset.style.ending,
+        color: preset.kind === "block" ? "ink" : "blue",
+      }),
+      line: preset.style.line,
+      ending: preset.style.ending,
+    },
+    ...(preset.area
+      ? {
+          coverageArea: {
+            type: preset.area.type,
+            radiusLateralYards: preset.area.radiusLateralYards,
+            radiusDepthYards: preset.area.radiusDepthYards,
+          },
+        }
+      : {}),
+    preset: preset.key,
+  };
+}
+
+/** Which men a call of this kind replaces the lines of. */
+const replacedKindsFor = (kind: LinePreset["kind"]): ReadonlySet<string> =>
+  kind === "block" ? new Set(["block"]) : defensiveLineKinds;
+
+/**
+ * A call put on the men given. Asking for the one they are all already
+ * running takes it off, which is how the same button puts a call on the whole
+ * line and pulls it off again. Each man's shape is drawn from where he
+ * stands, so one call keeps every one of them his own alignment.
+ */
+export function applyLinePresetCommand(
+  document: PlayDocument,
+  playerIds: readonly string[],
+  presetKey: string,
+  createId: (prefix: string) => string,
+): PlayCommand | undefined {
+  const preset = linePresetByKey(presetKey);
+  if (!preset) return undefined;
+  const players = document.players.filter(({ id }) => playerIds.includes(id));
+  if (players.length === 0) return undefined;
+
+  const owners = new Set(players.map(({ id }) => id));
+  const kinds = replacedKindsFor(preset.kind);
+  const already = players.every(({ id }) =>
+    document.paths.some(
+      (path) => path.playerId === id && path.preset === presetKey,
+    ),
+  );
+
+  const replaced = document.paths.filter(
+    (path) => owners.has(path.playerId) && kinds.has(path.kind),
+  );
+  const cleared =
+    replaced.length > 0
+      ? applyPlayCommand(
+          document,
+          deletePathsCommand(
+            document,
+            replaced.map(({ id }) => id),
+          ),
+        )
+      : document;
+
+  const next: PlayDocument = already
+    ? cleared
+    : {
+        ...cleared,
+        paths: [
+          ...cleared.paths,
+          ...players.map((player) =>
+            presetPath(cleared, player, preset, createId("path")),
+          ),
+        ],
+      };
+
+  const command = diffPlayDocuments(
+    document,
+    next,
+    already ? `${preset.name} — off` : `Applied ${preset.name}`,
+  );
+  return command.commands.length > 0 ? command : undefined;
+}
+
+/** Who a line call is about: the men on the ball, whose job is to block. */
+export function linemenOf(document: PlayDocument): readonly Player[] {
+  return document.players.filter(
+    (player) => player.unit !== "defense" && isLineman(player),
+  );
+}
+
+/** Whether every man given is already running this call. */
+export function linePresetIsOn(
+  document: PlayDocument,
+  playerIds: readonly string[],
+  presetKey: string,
+): boolean {
+  if (playerIds.length === 0) return false;
+  return playerIds.every((playerId) =>
+    document.paths.some(
+      (path) => path.playerId === playerId && path.preset === presetKey,
+    ),
+  );
 }

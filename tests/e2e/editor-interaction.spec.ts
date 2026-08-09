@@ -1107,7 +1107,7 @@ test("redraws one man's line as a call off the route tree", async ({
   const before = await page.locator('[data-scene-path="rz"]').getAttribute("d");
 
   // The tree is offered on the line itself, where he is already looking.
-  const picker = page.getByLabel(/^Quick route for/).first();
+  const picker = page.getByLabel(/^Quick call for/).first();
   await expect(picker).toBeVisible();
   await picker.selectOption("corner");
 
@@ -1123,7 +1123,38 @@ test("redraws one man's line as a call off the route tree", async ({
   // rather than having forgotten.
   await page.keyboard.press("Escape");
   await page.mouse.click(z.x, z.y);
-  await expect(page.getByLabel(/^Quick route for/).first()).toHaveValue(
+  await expect(page.getByLabel(/^Quick call for/).first()).toHaveValue(
     "corner",
   );
+});
+
+test("gives the whole line a call at once, and takes it off again", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const routes = await page.locator("[data-scene-path]").count();
+
+  const passSet = page.getByRole("button", { name: "Pass set", exact: true });
+  await expect(passSet).toHaveAttribute("aria-pressed", "false");
+  await passSet.click();
+
+  // Five linemen, five blocks — each drawn from where he stands, so the call
+  // keeps every one of them his own alignment.
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 5);
+  await expect(passSet).toHaveAttribute("aria-pressed", "true");
+
+  // Another call replaces it rather than piling on top.
+  const reach = page.getByRole("button", { name: "Reach", exact: true });
+  await reach.click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 5);
+  await expect(passSet).toHaveAttribute("aria-pressed", "false");
+  await expect(reach).toHaveAttribute("aria-pressed", "true");
+
+  // And the same button takes it off.
+  await reach.click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
+  await expect(reach).toHaveAttribute("aria-pressed", "false");
+
+  await page.keyboard.press("Control+z");
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 5);
 });
