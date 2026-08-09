@@ -2,18 +2,23 @@ import {
   applyPlayCommand,
   canonicalStringify,
   deletePlayersCommand,
+  playCommandCoalesceKey,
   type Coordinate,
   type PlayCommand,
   type PlayDocument,
 } from "@chalk/domain";
 import {
+  applyLabelRoleCommand,
   buildMoveCommand,
   fieldHitOptions,
   fieldInteraction,
   gesturePreviewCommand,
   hitTestField,
   idleFieldInteraction,
+  insertedEntityIds,
   pruneFieldSelection,
+  setLabelAppearanceCommand,
+  setLabelTextCommand,
   type FieldInteractionContext,
   type FieldInteractionEvent,
   type FieldInteractionModel,
@@ -537,6 +542,38 @@ describe("field selection pruning", () => {
     const pruned = pruneFieldSelection(model, stickThunderPlay);
     expect(pruned.selection).toEqual([player("q")]);
     expect(pruned.gesture.kind).toBe("idle");
+  });
+
+  it("keeps a selection on something whose commit has not landed yet", () => {
+    // A Player, route, or note the Coach just made is absent from the
+    // document for the instant before its save arrives. Pruning it then
+    // would deselect it the moment it appeared.
+    const model: FieldInteractionModel = {
+      selection: [label("label_new")],
+      gesture: { kind: "idle" },
+    };
+    expect(pruneFieldSelection(model, stickThunderPlay).selection).toEqual([]);
+    expect(
+      pruneFieldSelection(model, stickThunderPlay, new Set(["label_new"]))
+        .selection,
+    ).toEqual([label("label_new")]);
+  });
+
+  it("names every entity a command brings into existence", () => {
+    const context = contextFor(stickThunderPlay, {
+      tool: "text",
+      createId: () => "label_fresh",
+    });
+    const created = fieldInteraction(
+      idleFieldInteraction,
+      down({ lateralYards: 4, depthYards: 4 }),
+      context,
+    );
+    expect(insertedEntityIds(created.command!)).toEqual(["label_fresh"]);
+    // An edit creates nothing, so nothing is held pending.
+    expect(
+      insertedEntityIds(setLabelTextCommand(stickThunderPlay, "l2", "x")!),
+    ).toEqual([]);
   });
 
   it("returns the same model when nothing changed", () => {
@@ -1189,7 +1226,10 @@ describe("field interaction route handles", () => {
       "line-of-scrimmage",
     ]);
     expect(gesture.readout?.text).toContain("0 yds");
-    expect(gesture.path.points[0]).toMatchObject({
+    const update = gesture.update;
+    expect(update.kind).toBe("update-path");
+    if (update.kind !== "update-path") return;
+    expect(update.path.points[0]).toMatchObject({
       lateralYards: 0,
       depthYards: 0,
     });
@@ -1224,5 +1264,205 @@ describe("field interaction route handles", () => {
     );
     expect(session.model.gesture.kind).toBe("idle");
     expect(session.model.drawing).toBeDefined();
+  });
+});
+
+describe("field interaction labels", () => {
+  const labelContext = (overrides: Partial<FieldInteractionContext> = {}) =>
+    contextFor(stickThunderPlay, {
+      tool: "text",
+      snap: { enabled: false, grid: "off" },
+      createId: (prefix) => `${prefix}_new`,
+      ...overrides,
+    });
+  const labelOf = (document: PlayDocument, id: string) =>
+    document.labels.find((candidate) => candidate.id === id)!;
+
+  it("writes a new note where the Coach pressed and asks for it to be typed", () => {
+    const context = labelContext();
+    const spot = { lateralYards: 6, depthYards: 9 };
+
+    const result = fieldInteraction(idleFieldInteraction, down(spot), context);
+    expect(result.command).toBeDefined();
+    expect(result.editingLabelId).toBe("label_new");
+    // The Coach is handed the select tool so the note is his to move.
+    expect(result.requestedTool).toBe("select");
+    expect(result.model.selection).toEqual([label("label_new")]);
+
+    const after = applyPlayCommand(stickThunderPlay, result.command!);
+    const written = labelOf(after, "label_new");
+    expect(written.position).toEqual(spot);
+    expect(written.text).toBe("5 Yds");
+    expect(written.size).toBe(13);
+    expect(written.box).toBe("none");
+    expect(written.unit).toBeUndefined();
+  });
+
+  it("gives the note to the defense when a defender was selected", () => {
+    const withDefender = {
+      ...stickThunderPlay,
+      players: [
+        ...stickThunderPlay.players,
+        {
+          ...stickThunderPlay.players[0]!,
+          id: "mike",
+          unit: "defense" as const,
+          position: { lateralYards: 0, depthYards: 5 },
+        },
+      ],
+    };
+    const context = labelContext({ document: withDefender });
+    const result = fieldInteraction(
+      { selection: [player("mike")], gesture: { kind: "idle" } },
+      down({ lateralYards: 2, depthYards: 12 }),
+      context,
+    );
+    const after = applyPlayCommand(withDefender, result.command!);
+    // Position is never the tell — depth notes live downfield too.
+    expect(labelOf(after, "label_new").unit).toBe("defense");
+  });
+
+  it("retypes a label and leaves everything else alone", () => {
+    const command = setLabelTextCommand(stickThunderPlay, "l2", "3 Yds")!;
+    const after = applyPlayCommand(stickThunderPlay, command);
+    expect(labelOf(after, "l2").text).toBe("3 Yds");
+    expect({ ...labelOf(after, "l2"), text: "" }).toEqual({
+      ...labelOf(stickThunderPlay, "l2"),
+      text: "",
+    });
+    // Retyping the same words is not an edit.
+    expect(
+      setLabelTextCommand(
+        stickThunderPlay,
+        "l2",
+        labelOf(stickThunderPlay, "l2").text,
+      ),
+    ).toBeUndefined();
+  });
+
+  it("coalesces consecutive retyping into one undo entry", () => {
+    // The command carries the key the EditorStore coalesces on, so the
+    // Coach's keystrokes land as a single entry until he moves on.
+    const command = setLabelTextCommand(stickThunderPlay, "l2", "3")!;
+    expect(playCommandCoalesceKey(command)).toBe("label:l2");
+  });
+
+  it("applies a meaning as a whole look", () => {
+    const command = applyLabelRoleCommand(stickThunderPlay, "l2", "alert")!;
+    const after = labelOf(applyPlayCommand(stickThunderPlay, command), "l2");
+    expect(after).toMatchObject({
+      role: "alert",
+      color: "red",
+      box: "outline",
+      boxColor: "red",
+      size: 12,
+      caps: true,
+      mono: false,
+    });
+  });
+
+  it("changes one part of a label's appearance at a time", () => {
+    const sized = setLabelAppearanceCommand(stickThunderPlay, "l2", {
+      size: 17,
+    })!;
+    expect(labelOf(applyPlayCommand(stickThunderPlay, sized), "l2").size).toBe(
+      17,
+    );
+
+    // Setting what is already set is not an edit.
+    expect(
+      setLabelAppearanceCommand(stickThunderPlay, "l2", { size: 11 }),
+    ).toBeUndefined();
+  });
+
+  it("drops the unit key when a note goes back to the offense", () => {
+    const toDefense = setLabelAppearanceCommand(stickThunderPlay, "l2", {
+      unit: "defense",
+    })!;
+    const defensive = applyPlayCommand(stickThunderPlay, toDefense);
+    expect(labelOf(defensive, "l2").unit).toBe("defense");
+
+    const back = setLabelAppearanceCommand(defensive, "l2", {
+      unit: "offense",
+    })!;
+    const offensive = applyPlayCommand(defensive, back);
+    // Belonging to the offense is the absence of a unit, so the key goes
+    // rather than storing a value the canonical form would keep.
+    expect("unit" in labelOf(offensive, "l2")).toBe(false);
+    expect(canonicalStringify(labelOf(offensive, "l2"))).toBe(
+      canonicalStringify(labelOf(stickThunderPlay, "l2")),
+    );
+  });
+
+  it("drags a leader to point at what the note is about", () => {
+    const withLeader = applyPlayCommand(stickThunderPlay, {
+      kind: "update-label",
+      label: {
+        ...labelOf(stickThunderPlay, "l2"),
+        leader: {
+          line: "solid",
+          endpoint: { lateralYards: -12, depthYards: 2 },
+        },
+      },
+    });
+    const context = labelContext({ document: withLeader, tool: "select" });
+    const target = { lateralYards: -9, depthYards: 4 };
+
+    const session = run(context, [
+      {
+        type: "handle-down",
+        handle: { kind: "leader", labelId: "l2" },
+        input: { point: { lateralYards: -12, depthYards: 2 }, pointerId: 1 },
+      },
+      move(target),
+      up(target),
+    ]);
+    expect(session.commands).toHaveLength(1);
+    expect(session.commands[0]).toMatchObject({
+      label: "Point the leader line",
+    });
+    expect(session.model.selection).toEqual([label("l2")]);
+    const after = labelOf(
+      applyPlayCommand(withLeader, session.commands[0]!),
+      "l2",
+    );
+    expect(after.leader!.endpoint.lateralYards).toBeCloseTo(-9, 6);
+    expect(after.leader!.endpoint.depthYards).toBeCloseTo(4, 6);
+  });
+
+  it("commits nothing when a leader is pressed but not dragged", () => {
+    const withLeader = applyPlayCommand(stickThunderPlay, {
+      kind: "update-label",
+      label: {
+        ...labelOf(stickThunderPlay, "l2"),
+        leader: {
+          line: "solid",
+          endpoint: { lateralYards: -12, depthYards: 2 },
+        },
+      },
+    });
+    const context = labelContext({ document: withLeader, tool: "select" });
+    const session = run(context, [
+      {
+        type: "handle-down",
+        handle: { kind: "leader", labelId: "l2" },
+        input: { point: { lateralYards: -12, depthYards: 2 }, pointerId: 1 },
+      },
+      up({ lateralYards: -12, depthYards: 2 }),
+    ]);
+    expect(session.commands).toHaveLength(0);
+  });
+
+  it("deletes the selected note without touching the rest of the Play", () => {
+    const context = labelContext({ tool: "select" });
+    const session = run(context, [{ type: "delete" }], {
+      selection: [label("l2")],
+      gesture: { kind: "idle" },
+    });
+    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    expect(after.labels).toHaveLength(stickThunderPlay.labels.length - 1);
+    expect(after.labels.some(({ id }) => id === "l2")).toBe(false);
+    expect(after.players).toEqual(stickThunderPlay.players);
+    expect(after.paths).toEqual(stickThunderPlay.paths);
   });
 });

@@ -289,3 +289,67 @@ test("bends a segment with its curve handle", async ({ page }) => {
     "Undo Curve segment",
   );
 });
+
+test("writes a note with the text tool and types over it", async ({ page }) => {
+  await openEditor(page);
+  await expect(page.locator("[data-scene-label]")).toHaveCount(12);
+
+  await page.getByRole("button", { name: "Text — T" }).click();
+  const spot = await fieldPoint(page, 700, 200);
+  await page.mouse.click(spot.x, spot.y);
+
+  // The note appears and the Coach is already typing into it.
+  await expect(page.locator("[data-scene-label]")).toHaveCount(13);
+  const text = page.getByRole("textbox", { name: "Label text" });
+  await expect(text).toBeFocused();
+  await expect(text).toHaveValue("5 Yds");
+  // The tool handed itself back so the note can be moved.
+  await expect(page.getByRole("button", { name: "Select — V" })).toHaveClass(
+    /active/,
+  );
+
+  await page.keyboard.type("MAX SPLIT");
+  await expect(text).toHaveValue("MAX SPLIT");
+  // The note on the field carries the words, not just the input.
+  await expect(page.locator("svg.field-diagram")).toContainText("MAX SPLIT");
+  await expect(
+    page.getByRole("button", { name: "Saved on this device" }),
+  ).toBeVisible();
+
+  // Every keystroke is one entry, so a single undo removes the whole word.
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Edit label");
+  await undo.click();
+  await expect(page.getByRole("textbox", { name: "Label text" })).toHaveValue(
+    "5 Yds",
+  );
+});
+
+test("gives a note its meaning and takes it away again", async ({ page }) => {
+  await openEditor(page);
+
+  // Selecting an existing note opens the Text panel in place of the idle one.
+  await expect(page.getByText("Formation", { exact: true })).toBeVisible();
+  const note = page.locator('[data-scene-label="l2"]');
+  const box = (await note.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+  await expect(page.getByRole("textbox", { name: "Label text" })).toHaveValue(
+    "2-3 Yds",
+  );
+  await expect(page.getByText("Formation", { exact: true })).toBeHidden();
+
+  await page.getByRole("button", { name: "Alert", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Alert", exact: true }),
+  ).toHaveClass(/active/);
+  // An Alert is red, boxed, and shouted.
+  await expect(page.locator('[data-scene-label="l2"] text')).toHaveAttribute(
+    "fill",
+    "#E5484D",
+  );
+
+  // Escape steps back to the play and the idle panels return.
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("Formation", { exact: true })).toBeVisible();
+});

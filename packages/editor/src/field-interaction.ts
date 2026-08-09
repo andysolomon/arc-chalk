@@ -1,11 +1,15 @@
 import {
   applyPlayCommand,
+  canonicalStringify,
   classifyZoneCoverage,
+  labelRolePresets,
+  NEW_LABEL_DEFAULTS,
   deletePathsCommand,
   deletePlayersCommand,
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
   type Coordinate,
+  type LabelRole,
   type MovementPath,
   type PathPoint,
   type PathStyle,
@@ -106,7 +110,8 @@ export type FieldHandleRef =
       readonly pathId: string;
       readonly pointIndex: number;
     }
-  | { readonly kind: "zone"; readonly pathId: string };
+  | { readonly kind: "zone"; readonly pathId: string }
+  | { readonly kind: "leader"; readonly labelId: string };
 
 export type FieldGesture =
   | { readonly kind: "idle" }
@@ -143,8 +148,8 @@ export type FieldGesture =
       readonly kind: "handle";
       readonly pointerId: number;
       readonly handle: FieldHandleRef;
-      /** The edited path as it stands — what a release would commit. */
-      readonly path: MovementPath;
+      /** The edit as it stands — exactly what a release would commit. */
+      readonly update: PrimitivePlayCommand;
       readonly guides: readonly AxisSnapGuide[];
       readonly readout?: FieldMoveReadout;
       readonly moved: boolean;
@@ -187,7 +192,7 @@ export interface FieldInteractionContext {
   readonly scene: RenderScene;
   readonly screenScale: SnapScreenScale;
   readonly snap: SnapSettings;
-  readonly tool: "select" | "player" | FieldDrawingKind;
+  readonly tool: "select" | "player" | "text" | FieldDrawingKind;
   /** The drawn frame's depth extents, so a route cannot leave the page. */
   readonly depthWindow?: {
     readonly minDepthYards: number;
@@ -202,6 +207,8 @@ export interface FieldInteractionResult {
   readonly command?: PlayCommand;
   /** Finishing a route hands the Coach back the select tool. */
   readonly requestedTool?: "select";
+  /** A label the Coach should be typing into the moment it appears. */
+  readonly editingLabelId?: string;
 }
 
 export const idleFieldInteraction: FieldInteractionModel = {
@@ -750,10 +757,15 @@ function nodeReadoutText(
 }
 
 interface HandleEdit {
-  readonly path: MovementPath;
+  readonly update: PrimitivePlayCommand;
   readonly guides: readonly AxisSnapGuide[];
   readonly readout?: FieldMoveReadout;
 }
+
+const updatePath = (path: MovementPath): PrimitivePlayCommand => ({
+  kind: "update-path",
+  path,
+});
 
 /**
  * Dragging a break constrains it to 45 degrees from the break before it, then
@@ -768,7 +780,7 @@ function dragNode(
   shiftKey: boolean | undefined,
 ): HandleEdit {
   const original = path.points[pointIndex];
-  if (!original) return { path, guides: [] };
+  if (!original) return { update: updatePath(path), guides: [] };
   const previous = path.points[pointIndex - 1];
   const constrain = context.snap.enabled !== (shiftKey === true);
   const angled =
@@ -813,7 +825,7 @@ function dragNode(
         }),
   };
   return {
-    path: { ...path, points },
+    update: updatePath({ ...path, points }),
     guides: snapped.guides,
     readout: { position: landed, text: nodeReadoutText(points, pointIndex) },
   };
@@ -833,7 +845,7 @@ function dragControl(
 ): HandleEdit {
   const end = path.points[pointIndex];
   const start = path.points[pointIndex - 1];
-  if (!end || !start) return { path, guides: [] };
+  if (!end || !start) return { update: updatePath(path), guides: [] };
   const midpoint = coordinate(
     (start.lateralYards + end.lateralYards) / 2,
     (start.depthYards + end.depthYards) / 2,
@@ -857,13 +869,13 @@ function dragControl(
       ),
     };
   }
-  return { path: { ...path, points }, guides: [] };
+  return { update: updatePath({ ...path, points }), guides: [] };
 }
 
 /** The zone corner sizes the area a defender owns, within the original's bounds. */
 function dragZone(path: MovementPath, point: Coordinate): HandleEdit {
   const center = path.points.at(-1);
-  if (!center) return { path, guides: [] };
+  if (!center) return { update: updatePath(path), guides: [] };
   const radiusLateralYards = Math.min(
     ZONE_LATERAL_YARDS.max,
     Math.max(
@@ -879,7 +891,7 @@ function dragZone(path: MovementPath, point: Coordinate): HandleEdit {
     ),
   );
   return {
-    path: {
+    update: updatePath({
       ...path,
       coverageArea: {
         type:
@@ -888,7 +900,7 @@ function dragZone(path: MovementPath, point: Coordinate): HandleEdit {
         radiusLateralYards,
         radiusDepthYards,
       },
-    },
+    }),
     guides: [],
     readout: {
       position: coordinate(
@@ -900,12 +912,37 @@ function dragZone(path: MovementPath, point: Coordinate): HandleEdit {
   };
 }
 
+/** The leader line points from a label at whatever it is talking about. */
+function dragLeader(
+  context: FieldInteractionContext,
+  label: TextLabel,
+  point: Coordinate,
+): HandleEdit {
+  const endpoint = clampToField(point, context);
+  return {
+    update: {
+      kind: "update-label",
+      label: {
+        ...label,
+        leader: { line: label.leader?.line ?? "solid", endpoint },
+      },
+    },
+    guides: [],
+  };
+}
+
 function editHandle(
   context: FieldInteractionContext,
   handle: FieldHandleRef,
   point: Coordinate,
   shiftKey: boolean | undefined,
 ): HandleEdit | undefined {
+  if (handle.kind === "leader") {
+    const label = context.document.labels.find(
+      ({ id }) => id === handle.labelId,
+    );
+    return label ? dragLeader(context, label, point) : undefined;
+  }
   const path = context.document.paths.find(({ id }) => id === handle.pathId);
   if (!path) return undefined;
   switch (handle.kind) {
@@ -919,6 +956,7 @@ function editHandle(
 }
 
 const handleLabels: Record<FieldHandleRef["kind"], string> = {
+  leader: "Point the leader line",
   node: "Move route break",
   control: "Curve segment",
   zone: "Size zone",
@@ -1241,6 +1279,49 @@ function pointerDown(
     };
   }
 
+  if (context.tool === "text") {
+    const createId = context.createId ?? ((prefix: string) => `${prefix}_new`);
+    const id = createId("label");
+    // A new note belongs to whichever unit the Coach was working on: the
+    // side of the selected Player, not where on the field he pressed —
+    // depth notes and progression numbers live downfield too.
+    const selectedPlayer = context.document.players.find((player) =>
+      model.selection.some(
+        (item) => item.kind === "player" && item.id === player.id,
+      ),
+    );
+    return {
+      model: withSelection(model, [{ kind: "label", id }]),
+      command: {
+        kind: "batch",
+        label: "Add label",
+        commands: [
+          {
+            kind: "insert-labels",
+            labels: [
+              {
+                index: context.document.labels.length,
+                item: {
+                  id,
+                  position: coordinate(
+                    input.point.lateralYards,
+                    input.point.depthYards,
+                  ),
+                  ...NEW_LABEL_DEFAULTS,
+                  ...(selectedPlayer?.unit === "defense"
+                    ? { unit: "defense" as const }
+                    : {}),
+                },
+              },
+            ],
+          },
+        ],
+      },
+      requestedTool: "select",
+      editingLabelId: id,
+    };
+  }
+
   if (context.tool === "player") {
     // The original places the new man exactly where the Coach pressed.
     const createId = context.createId ?? ((prefix: string) => `${prefix}_new`);
@@ -1427,7 +1508,7 @@ function pointerUp(
             command: {
               kind: "batch",
               label: handleLabels[gesture.handle.kind],
-              commands: [{ kind: "update-path", path: gesture.path }],
+              commands: [gesture.update],
             } satisfies PlayCommand,
           }
         : {}),
@@ -1571,23 +1652,33 @@ export function fieldInteraction(
     }
     case "handle-down": {
       if (model.drawing || model.gesture.kind !== "idle") return { model };
-      const path = context.document.paths.find(
-        ({ id }) => id === event.handle.pathId,
-      );
-      if (!path) return { model };
+      const handle = event.handle;
+      // A leader is seeded from where it already points, so a press that
+      // never moves leaves it exactly where it was.
+      const seedPoint =
+        handle.kind === "leader"
+          ? (context.document.labels.find(({ id }) => id === handle.labelId)
+              ?.leader?.endpoint ?? event.input.point)
+          : event.input.point;
+      const seed = editHandle(context, handle, seedPoint, event.input.shiftKey);
+      if (!seed) return { model };
+      const owner: FieldItemRef =
+        handle.kind === "leader"
+          ? { kind: "label", id: handle.labelId }
+          : { kind: "path", id: handle.pathId };
       return {
         model: {
           ...model,
-          // The route stays selected; pressing a handle picks its break.
-          selection: [{ kind: "path", id: event.handle.pathId }],
-          ...(event.handle.kind === "node"
-            ? { selectedNodeIndex: event.handle.pointIndex }
+          // The route or label stays selected; a node press picks its break.
+          selection: [owner],
+          ...(handle.kind === "node"
+            ? { selectedNodeIndex: handle.pointIndex }
             : {}),
           gesture: {
             kind: "handle",
             pointerId: event.input.pointerId,
-            handle: event.handle,
-            path,
+            handle,
+            update: seed.update,
             guides: [],
             moved: false,
           },
@@ -1646,6 +1737,70 @@ export function fieldInteraction(
 }
 
 /**
+ * Retyping a label is one edit the Coach makes over several keystrokes, so
+ * it carries a coalesce key and lands as a single undo entry until he moves
+ * on (ADR 0012). Every other label change is its own entry.
+ */
+export function setLabelTextCommand(
+  document: PlayDocument,
+  labelId: string,
+  text: string,
+): PlayCommand | undefined {
+  const label = document.labels.find(({ id }) => id === labelId);
+  if (!label || label.text === text) return undefined;
+  return { kind: "update-label", label: { ...label, text } };
+}
+
+export type LabelAppearance = Partial<
+  Pick<
+    TextLabel,
+    "color" | "size" | "box" | "boxColor" | "caps" | "mono" | "unit"
+  >
+>;
+
+export function setLabelAppearanceCommand(
+  document: PlayDocument,
+  labelId: string,
+  appearance: LabelAppearance,
+): PlayCommand | undefined {
+  const label = document.labels.find(({ id }) => id === labelId);
+  if (!label) return undefined;
+  const next = { ...label, ...appearance };
+  // "Belongs to the offense" is the absence of a unit, so clearing it has to
+  // drop the key rather than store a value the canonical form would keep.
+  if (appearance.unit === "offense") delete next.unit;
+  if (canonicalStringify(next) === canonicalStringify(label)) return undefined;
+  return { kind: "update-label", label: next };
+}
+
+/**
+ * Picking a meaning sets the whole look with it: a Landmark reads like every
+ * other Landmark on every card the Coach prints.
+ */
+export function applyLabelRoleCommand(
+  document: PlayDocument,
+  labelId: string,
+  role: LabelRole,
+): PlayCommand | undefined {
+  const label = document.labels.find(({ id }) => id === labelId);
+  if (!label) return undefined;
+  const preset = labelRolePresets[role];
+  return {
+    kind: "update-label",
+    label: {
+      ...label,
+      role,
+      color: preset.color,
+      box: preset.box,
+      boxColor: preset.boxColor,
+      size: preset.size,
+      mono: preset.mono,
+      caps: preset.caps,
+    },
+  };
+}
+
+/**
  * The transient preview is the commit builder run early: what the Coach sees
  * mid-drag is exactly the document the release would produce.
  */
@@ -1664,22 +1819,48 @@ export function gesturePreviewCommand(
     return {
       kind: "batch",
       label: handleLabels[model.gesture.handle.kind],
-      commands: [{ kind: "update-path", path: model.gesture.path }],
+      commands: [model.gesture.update],
     };
   }
   return undefined;
+}
+
+/** Every id a command brings into existence. */
+export function insertedEntityIds(command: PlayCommand): readonly string[] {
+  const fromPrimitive = (primitive: PrimitivePlayCommand): string[] => {
+    switch (primitive.kind) {
+      case "insert-players":
+        return primitive.players.map(({ item }) => item.id);
+      case "insert-paths":
+        return primitive.paths.map(({ item }) => item.id);
+      case "insert-labels":
+        return primitive.labels.map(({ item }) => item.id);
+      default:
+        return [];
+    }
+  };
+  return command.kind === "batch"
+    ? command.commands.flatMap(fromPrimitive)
+    : fromPrimitive(command);
 }
 
 /**
  * After an undo, redo, or restore the document may no longer contain what was
  * selected. Selection quietly narrows to what still exists, and any in-flight
  * gesture that references a vanished item is abandoned.
+ *
+ * `pendingIds` are entities a command has created but whose commit has not
+ * landed yet. Without them a Player, route, or note would be deselected in
+ * the instant between the Coach making it and the save arriving — absent
+ * because it is still on its way, not because an undo took it.
  */
 export function pruneFieldSelection(
   model: FieldInteractionModel,
   document: PlayDocument,
+  pendingIds: ReadonlySet<string> = new Set(),
 ): FieldInteractionModel {
   const exists = (item: FieldItemRef): boolean => {
+    if (pendingIds.has(item.id)) return true;
     switch (item.kind) {
       case "player":
         return document.players.some(({ id }) => id === item.id);
