@@ -43,7 +43,6 @@ import {
   addDepthLabelCommand,
   alignPlayersCommand,
   cameraForBounds,
-  cameraZoom,
   type FrameBounds,
   centreCamera,
   fitCamera,
@@ -338,9 +337,10 @@ function handleTargetSize(zoom = 1): {
     typeof globalThis.matchMedia === "function" &&
     globalThis.matchMedia("(pointer: coarse)").matches;
   const base = coarse ? { node: 22, control: 44 } : { node: 13, control: 20 };
-  // These are frame units, and a frame unit is drawn bigger the further in
-  // the Coach has zoomed — so they are divided by that, and a handle stays
-  // the size his finger is rather than growing with the picture.
+  // These are CSS pixels, and the frame is drawn in frame units — so they
+  // are divided by how big a frame unit actually is, and a handle stays the
+  // size his finger is however far in he has zoomed and however small the
+  // screen he is working on.
   return { node: base.node / zoom, control: base.control / zoom };
 }
 
@@ -886,7 +886,7 @@ function RouteHandles({
   projection: SvgProjection;
   selectedNodeIndex?: number;
   selectedSegmentIndex?: number;
-  /** How much bigger a frame unit is drawn than it is at fit. */
+  /** How many CSS pixels one frame unit is drawn at. */
   zoom: number;
 }) {
   const target = handleTargetSize(zoom);
@@ -2309,8 +2309,18 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
    * model rather than in the document.
    */
   const [camera, setCamera] = useState<Camera>(() => fitCamera(EDITOR_FRAME));
-  /** How much bigger a frame unit is drawn than at fit. */
-  const zoom = cameraZoom(camera, EDITOR_FRAME);
+  /** How wide the field is really drawn, watched so a resize is felt. */
+  const [fieldWidthPx, setFieldWidthPx] = useState(EDITOR_FRAME.width);
+  /**
+   * How many CSS pixels one frame unit is actually drawn at. Every rule the
+   * original wrote in pixels — how far a press may travel before it is a
+   * drag, how near a line has to be pressed, how big a handle is — is a rule
+   * about the Coach's finger and his screen, not about the frame. Measuring
+   * it here is what makes those rules mean the same thing on a phone as on a
+   * desk, and what stops a smaller screen quietly handing a coarse pointer a
+   * smaller target.
+   */
+  const cssPerFrameUnit = fieldWidthPx / camera.width;
   /** The set or call under the Coach's pointer in a browser, drawn on the field. */
   const [previewFormationId, setPreviewFormationId] = useState<string>();
   /**
@@ -2426,20 +2436,27 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     value: string,
   ): void => {
     setCoachingDraft({ pathId, field, value });
-    const document = editor.document;
-    const command =
-      field === "readOrder"
-        ? setRouteReadCommand(
-            document,
-            pathId,
-            value === "" ? undefined : Number(value),
-          )
-        : field === "assignment"
-          ? setRouteAssignmentCommand(document, pathId, value, () =>
-              createStableId("assignment"),
-            )
-          : setRouteCoachingTextCommand(document, pathId, field, value);
-    runLabelCommand(command, { coalesce: true });
+    // Built against the Play as it will be when the edit runs, not as it is
+    // now: saves are serialised, and a command carries whole entities, so one
+    // built a save out of date puts back the field the save before it had
+    // just changed. Typing four coaching fields quickly is exactly that case.
+    void editorStore
+      .applyEdit(
+        (current) =>
+          field === "readOrder"
+            ? setRouteReadCommand(
+                current,
+                pathId,
+                value === "" ? undefined : Number(value),
+              )
+            : field === "assignment"
+              ? setRouteAssignmentCommand(current, pathId, value, () =>
+                  createStableId("assignment"),
+                )
+              : setRouteCoachingTextCommand(current, pathId, field, value),
+        { coalesce: true },
+      )
+      .catch(() => undefined);
   };
   /**
    * Handles belong to exactly one selected route, as in the original: a
@@ -2543,12 +2560,14 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         renderScene ??= buildRenderScene(document);
         return renderScene;
       },
-      // What a screen pixel is worth in yards changes with the camera, so a
-      // tolerance measured in pixels has to be read through it — otherwise
-      // zooming in would make every grab target grow with the picture.
+      // What a screen pixel is worth in yards changes with the camera and
+      // with the size of the screen, and this is measured from both — so a
+      // tolerance the original wrote in pixels stays that many pixels under
+      // the Coach's finger wherever he is working.
       screenScale: {
-        lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard * zoom,
-        depthPixelsPerYard: scene.viewport.depthPixelsPerYard * zoom,
+        lateralPixelsPerYard:
+          scene.viewport.lateralPixelsPerYard * cssPerFrameUnit,
+        depthPixelsPerYard: scene.viewport.depthPixelsPerYard * cssPerFrameUnit,
       },
       snap: { enabled: snapEnabled, grid: "off" },
       tool: interactionTool(activeTool),
@@ -3390,6 +3409,17 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   };
 
   useEffect(() => {
+    const element = fieldSvgRef.current;
+    if (!element || typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry?.contentRect.width;
+      if (width && width > 0) setFieldWidthPx(width);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(undefined), TOAST_MS);
     return () => clearTimeout(timer);
@@ -3716,7 +3746,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                       projection={scene.viewport}
                       selectedNodeIndex={interaction.selectedNodeIndex}
                       selectedSegmentIndex={interaction.selectedSegmentIndex}
-                      zoom={zoom}
+                      zoom={cssPerFrameUnit}
                     />
                   ) : null}
                   <FormationGhost
@@ -3953,14 +3983,17 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                       field,
                       value,
                     });
-                    runLabelCommand(
-                      setPlayerCommand(editor.document, selectedPlayer.id, {
-                        [field]: value,
-                      }),
-                      // Keystrokes merge into one undo entry until he leaves
-                      // the field, the way a note's text does (ADR 0012).
-                      { coalesce: true },
-                    );
+                    void editorStore
+                      .applyEdit(
+                        (current) =>
+                          setPlayerCommand(current, selectedPlayer.id, {
+                            [field]: value,
+                          }),
+                        // Keystrokes merge into one undo entry until he leaves
+                        // the field, the way a note's text does (ADR 0012).
+                        { coalesce: true },
+                      )
+                      .catch(() => undefined);
                   }}
                   onTextCommitted={() => {
                     editorStore.endCoalescing();
@@ -3994,16 +4027,15 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                   }
                   onText={(text) => {
                     setLabelTextDraft({ id: selectedLabel.id, text });
-                    runLabelCommand(
-                      setLabelTextCommand(
-                        editor.document,
-                        selectedLabel.id,
-                        text,
-                      ),
-                      // Consecutive keystrokes merge into one undo entry
-                      // until the Coach leaves the field (ADR 0012).
-                      { coalesce: true },
-                    );
+                    void editorStore
+                      .applyEdit(
+                        (current) =>
+                          setLabelTextCommand(current, selectedLabel.id, text),
+                        // Consecutive keystrokes merge into one undo entry
+                        // until the Coach leaves the field (ADR 0012).
+                        { coalesce: true },
+                      )
+                      .catch(() => undefined);
                   }}
                   onTextCommitted={() => {
                     editorStore.endCoalescing();
