@@ -15,6 +15,10 @@ import {
   playErasureCommand,
   playErasures,
   PRODUCT_NAME,
+  blockPresets,
+  defensivePresets,
+  lineCallKeys,
+  linePresetByKey,
   routePresetNames,
   stickThunderPlay,
   stockConcepts,
@@ -38,6 +42,9 @@ import {
   applyLabelRoleCommand,
   applyRoutePresetCommand,
   conceptIsOn,
+  applyLinePresetCommand,
+  linemenOf,
+  linePresetIsOn,
   fieldHitOptions,
   fieldInteraction,
   hitTestField,
@@ -1511,8 +1518,11 @@ function PlayerInspector({
   lines: readonly {
     readonly id: string;
     readonly name: string;
-    /** Whether the route tree has calls for this kind of line. */
-    readonly offersPresets: boolean;
+    /** The calls that belong to this kind of line, if it has any. */
+    readonly presets: readonly {
+      readonly key: string;
+      readonly name: string;
+    }[];
     /** Which call off the tree it was last drawn as, if it was. */
     readonly preset?: string;
   }[];
@@ -1620,18 +1630,18 @@ function PlayerInspector({
           {lines.map((line) => (
             <div className="line-row" key={line.id}>
               <span>{line.name}</span>
-              {line.offersPresets ? (
+              {line.presets.length > 0 ? (
                 <select
-                  aria-label={`Quick route for ${line.name}`}
+                  aria-label={`Quick call for ${line.name}`}
                   onChange={(event) => {
                     if (event.target.value === "") return;
                     onApplyPreset(line.id, event.target.value);
                   }}
-                  title="Redraw this line as a call off the route tree"
+                  title="Redraw this line as one of the calls it can be"
                   value={line.preset ?? ""}
                 >
-                  <option value="">Quick route…</option>
-                  {routePresetNames.map(({ key, name }) => (
+                  <option value="">Quick call…</option>
+                  {line.presets.map(({ key, name }) => (
                     <option key={key} value={key}>
                       {name}
                     </option>
@@ -1935,6 +1945,8 @@ function Inspector({
   call,
   concepts,
   defenderCount,
+  lineCalls,
+  linemanCount,
   formation,
   formationHint,
   labelEditor,
@@ -1948,6 +1960,13 @@ function Inspector({
     Record<string, { readonly on: boolean; readonly run?: () => void }>
   >;
   defenderCount: number;
+  lineCalls: readonly {
+    readonly key: string;
+    readonly name: string;
+    readonly on: boolean;
+    readonly run?: () => void;
+  }[];
+  linemanCount: number;
   formation?: Formation;
   formationHint: string;
   labelEditor?: React.ReactNode;
@@ -1990,17 +2009,27 @@ function Inspector({
       </InspectorSection>
       <InspectorSection title="Line call">
         <div className="button-grid">
-          <button>Pass set</button>
-          <button>Set left</button>
-          <button>Set right</button>
-          <button>Drive</button>
-          <button>Reach</button>
-          <button>Cut</button>
+          {lineCalls.map((call) => (
+            <button
+              aria-pressed={call.on}
+              className={call.on ? "active" : undefined}
+              disabled={!call.run}
+              key={call.key}
+              onClick={call.run}
+              title={
+                call.on
+                  ? "Click again to take this call off the whole line"
+                  : `Give the whole line ${call.name}`
+              }
+            >
+              {call.name}
+            </button>
+          ))}
         </div>
         <p>
-          Applies to all 5 linemen at once — each one keeps his own alignment.
-          Set left and Set right take the whole line the same way; the others
-          mirror about the ball.
+          Applies to all {linemanCount} linemen at once — each one keeps his own
+          alignment. Set left and Set right take the whole line the same way;
+          the others mirror about the ball.
         </p>
       </InspectorSection>
       <InspectorSection title="Concept">
@@ -2316,9 +2345,19 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           index,
           assignmentForPath(editor.document, path.id)?.text,
         ),
-        // The route tree is offered on a route and on nothing else: a block,
-        // a motion and a drop are shapes of their own, with their own calls.
-        offersPresets: path.kind === "route",
+        // Each kind of line is offered the calls that belong to it: a route
+        // gets the tree, a block gets the blocking calls, and a defender's
+        // line gets the drops, the man calls and the rushes. A motion and a
+        // ball flight have no catalogue of their own, so they are offered
+        // none rather than somebody else's.
+        presets:
+          path.kind === "route"
+            ? routePresetNames
+            : path.kind === "block"
+              ? blockPresets.map(({ key, name }) => ({ key, name }))
+              : defensiveLineKinds.has(path.kind)
+                ? defensivePresets.map(({ key, name }) => ({ key, name }))
+                : [],
         ...(path.preset === undefined ? {} : { preset: path.preset }),
       }));
   const playerText = (
@@ -2723,6 +2762,45 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       },
     ]),
   );
+
+  /**
+   * The six calls the original puts on the whole line at once. As with the
+   * concepts, a call with no line to give it to is no command at all, which
+   * is what greys the button.
+   */
+  const linemen = useMemo(() => linemenOf(editor.document), [editor.document]);
+  const lineCallCommands = useMemo(
+    () =>
+      lineCallKeys.map((key) => {
+        const preset = linePresetByKey(key)!;
+        const playerIds = linemen.map((player) => player.id);
+        return {
+          key,
+          name: preset.name.replace(/^Pass set (left|right)$/, (_, side) =>
+            side === "left" ? "Set left" : "Set right",
+          ),
+          on: linePresetIsOn(editor.document, playerIds, key),
+          command: applyLinePresetCommand(
+            editor.document,
+            playerIds,
+            key,
+            createStableId,
+          ),
+        };
+      }),
+    [editor.document, linemen],
+  );
+  const lineCallActions = lineCallCommands.map(({ command, ...call }) => ({
+    ...call,
+    ...(command
+      ? {
+          run: () =>
+            // The selection is left where it was: picking the line would swap
+            // in another panel and unmount the very buttons just pressed.
+            runPanelCommand(command, {}),
+        }
+      : {}),
+  }));
 
   /** What a realignment would leave alone, said before he asks for one. */
   const formationHint = useMemo(() => {
@@ -3291,21 +3369,38 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               ) : selectedPlayer ? (
                 <PlayerInspector
                   lines={playerLines(selectedPlayer)}
-                  onApplyPreset={(pathId, presetKey) =>
+                  onApplyPreset={(pathId, presetKey) => {
+                    const line = editor.document.paths.find(
+                      ({ id }) => id === pathId,
+                    );
+                    // A route is reshaped in place, keeping its forks and
+                    // everything the Coach wrote on it. A block or a drop is
+                    // a whole call rather than a shape, so it replaces what
+                    // the man was doing — which is what the original does,
+                    // and why the two go through different commands.
                     runPanelCommand(
-                      applyRoutePresetCommand(
-                        editor.document,
-                        pathId,
-                        presetKey,
-                      ),
+                      line?.kind === "route"
+                        ? applyRoutePresetCommand(
+                            editor.document,
+                            pathId,
+                            presetKey,
+                          )
+                        : applyLinePresetCommand(
+                            editor.document,
+                            line ? [line.playerId] : [],
+                            presetKey,
+                            createStableId,
+                          ),
                       {
-                        selection: [{ kind: "path", id: pathId }],
+                        ...(line?.kind === "route"
+                          ? { selection: [{ kind: "path", id: pathId }] }
+                          : {}),
                         selectedNodeIndex: undefined,
                         selectedBranchIndex: undefined,
                         selectedSegmentIndex: undefined,
                       },
-                    )
-                  }
+                    );
+                  }}
                   onAddAlternate={() => {
                     const id = createStableId("path");
                     runPanelCommand(
@@ -3427,6 +3522,8 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
             }
             call={onFieldCall}
             concepts={conceptActions}
+            lineCalls={lineCallActions}
+            linemanCount={linemen.length}
             defenderCount={
               editor.document.players.filter(({ unit }) => unit === "defense")
                 .length

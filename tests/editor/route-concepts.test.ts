@@ -2,6 +2,8 @@ import {
   applyPlayCommand,
   assignmentForPath,
   assignRoles,
+  blockPresets,
+  lineCallKeys,
   playDocumentSchema,
   routePresetNames,
   routePresetPoints,
@@ -13,9 +15,12 @@ import {
 } from "@chalk/domain";
 import {
   applyConceptCommand,
+  applyLinePresetCommand,
   applyRoutePresetCommand,
   conceptIsOn,
   conceptTargets,
+  linemenOf,
+  linePresetIsOn,
 } from "@chalk/editor";
 import { describe, expect, it } from "vitest";
 
@@ -467,5 +472,210 @@ describe("drawing a concept", () => {
     expect(result.count).toBe(0);
     expect(result.command).toBeUndefined();
     expect(conceptIsOn(empty, conceptNamed("mesh"))).toBe(false);
+  });
+});
+
+describe("how a man blocks, and how a defender plays", () => {
+  const linemanIds = (play: PlayDocument) =>
+    linemenOf(play).map(({ id }) => id);
+
+  it("offers the calls the original offers, on the whole line in its own order", () => {
+    expect(blockPresets.map(({ key }) => key)).toEqual([
+      "drive",
+      "down",
+      "reach",
+      "doubl",
+      "climb",
+      "kick",
+      "wrap",
+      "cut",
+      "passset",
+      "setleft",
+      "setright",
+      "chip",
+    ]);
+    expect(lineCallKeys).toEqual([
+      "passset",
+      "setleft",
+      "setright",
+      "drive",
+      "reach",
+      "cut",
+    ]);
+    expect(linemenOf(trips)).toHaveLength(5);
+  });
+
+  it("draws each man his own shape, so one call keeps every one of them his alignment", () => {
+    const play = run(
+      trips,
+      applyLinePresetCommand(trips, linemanIds(trips), "reach", makeId),
+    );
+    expect(play.paths).toHaveLength(5);
+    for (const path of play.paths) {
+      expect(path.kind).toBe("block");
+      expect(path.preset).toBe("reach");
+      expect(path.style.ending).toBe("bar");
+      // Every line starts on the man running it, exactly.
+      expect(path.points[0]).toEqual(
+        play.players.find(({ id }) => id === path.playerId)!.position,
+      );
+      // Reach goes to a man's own side, so it mirrors about the ball.
+      const outward = path.points[0]!.lateralYards < 0 ? -1 : 1;
+      expect(
+        (path.points.at(-1)!.lateralYards - path.points[0]!.lateralYards) *
+          outward,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("takes a call that carries a real direction the way it is written", () => {
+    const play = run(
+      trips,
+      applyLinePresetCommand(trips, linemanIds(trips), "setleft", makeId),
+    );
+    // Left is left: every man steps the same way, whichever side of the
+    // centre he lines up on.
+    for (const path of play.paths) {
+      expect(path.points.at(-1)!.lateralYards).toBeLessThan(
+        path.points[0]!.lateralYards,
+      );
+    }
+  });
+
+  it("marks the break the original marks, and bends the pull it bends", () => {
+    const one = [linemanIds(trips)[0]!];
+    const climb = run(
+      trips,
+      applyLinePresetCommand(trips, one, "climb", makeId),
+    );
+    expect(climb.paths[0]!.points[1]!.tick).toBe(true);
+    const kick = run(trips, applyLinePresetCommand(trips, one, "kick", makeId));
+    expect(kick.paths[0]!.points[1]!.control).toBeDefined();
+    // A pull starts by dropping off the ball, not by going forward.
+    expect(kick.paths[0]!.points[1]!.depthYards).toBeLessThan(
+      kick.paths[0]!.points[0]!.depthYards,
+    );
+  });
+
+  it("takes the call off again when the whole line is already running it", () => {
+    const on = run(
+      trips,
+      applyLinePresetCommand(trips, linemanIds(trips), "passset", makeId),
+    );
+    expect(linePresetIsOn(on, linemanIds(on), "passset")).toBe(true);
+    const off = run(
+      on,
+      applyLinePresetCommand(on, linemanIds(on), "passset", makeId),
+    );
+    expect(off.paths).toHaveLength(0);
+    expect(linePresetIsOn(off, linemanIds(off), "passset")).toBe(false);
+  });
+
+  it("puts the call on the rest when only some of the line is running it", () => {
+    const ids = linemenOf(trips).map(({ id }) => id);
+    const one = run(
+      trips,
+      applyLinePresetCommand(trips, [ids[0]!], "passset", makeId),
+    );
+    expect(one.paths).toHaveLength(1);
+    // Four of the five have not got it, so this is asking for it rather than
+    // asking for it to come off.
+    const all = run(one, applyLinePresetCommand(one, ids, "passset", makeId));
+    expect(all.paths).toHaveLength(5);
+    expect(linePresetIsOn(all, ids, "passset")).toBe(true);
+  });
+
+  it("replaces the call the line was running rather than drawing over it", () => {
+    const first = run(
+      trips,
+      applyLinePresetCommand(trips, linemanIds(trips), "drive", makeId),
+    );
+    const second = run(
+      first,
+      applyLinePresetCommand(first, linemanIds(first), "cut", makeId),
+    );
+    expect(second.paths).toHaveLength(5);
+    for (const path of second.paths) expect(path.preset).toBe("cut");
+  });
+
+  it("leaves a man's route alone, since blocking and running are different jobs", () => {
+    const receiver = idOfRole(trips, "X");
+    const withRoute: PlayDocument = {
+      ...trips,
+      paths: [
+        {
+          id: "his_route",
+          kind: "route",
+          playerId: receiver,
+          points: [
+            trips.players.find(({ id }) => id === receiver)!.position,
+            { lateralYards: -20, depthYards: 12 },
+          ],
+          branches: [],
+          style: { line: "solid", ending: "arrow", color: "ink" },
+        },
+      ],
+    };
+    const play = run(
+      withRoute,
+      applyLinePresetCommand(withRoute, [receiver], "chip", makeId),
+    );
+    expect(play.paths.some(({ id }) => id === "his_route")).toBe(true);
+    expect(play.paths.filter(({ kind }) => kind === "block")).toHaveLength(1);
+  });
+
+  it("gives a drop the ground it owns and a rush none, the way the call says", () => {
+    const defender = idOfRole(trips, "X");
+    const drop = run(
+      trips,
+      applyLinePresetCommand(trips, [defender], "deep3", makeId),
+    );
+    expect(drop.paths[0]!.kind).toBe("zone");
+    expect(drop.paths[0]!.coverageArea?.type).toBe("deep");
+    // The two radii are written in the frame of the axis each belongs to.
+    expect(drop.paths[0]!.coverageArea!.radiusLateralYards).toBeCloseTo(
+      104 / (976 / (160 / 3)),
+      9,
+    );
+    expect(drop.paths[0]!.coverageArea!.radiusDepthYards).toBeCloseTo(
+      44 / 12,
+      9,
+    );
+
+    const rush = run(
+      trips,
+      applyLinePresetCommand(trips, [defender], "blitz", makeId),
+    );
+    expect(rush.paths[0]!.kind).toBe("blitz");
+    expect(rush.paths[0]!.coverageArea).toBeUndefined();
+    expect(rush.paths[0]!.style.color).toBe("red");
+    // A rush goes at the ball, which is toward the line rather than away.
+    expect(rush.paths[0]!.points.at(-1)!.depthYards).toBeLessThan(
+      rush.paths[0]!.points[0]!.depthYards,
+    );
+  });
+
+  it("replaces every kind of defensive line, since they are all the same call", () => {
+    const defender = idOfRole(trips, "X");
+    const zoned = run(
+      trips,
+      applyLinePresetCommand(trips, [defender], "hook", makeId),
+    );
+    const rushing = run(
+      zoned,
+      applyLinePresetCommand(zoned, [defender], "blitz", makeId),
+    );
+    expect(rushing.paths).toHaveLength(1);
+    expect(rushing.paths[0]!.kind).toBe("blitz");
+  });
+
+  it("has nothing to say about a call it does not have, or a man who is not there", () => {
+    expect(
+      applyLinePresetCommand(trips, linemanIds(trips), "banana", makeId),
+    ).toBeUndefined();
+    expect(
+      applyLinePresetCommand(trips, ["nobody"], "drive", makeId),
+    ).toBeUndefined();
+    expect(linePresetIsOn(trips, [], "drive")).toBe(false);
   });
 });
