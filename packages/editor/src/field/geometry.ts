@@ -121,38 +121,51 @@ export function distanceToSegmentPx(
   return Math.hypot(a.x + t * vx - p.x, a.y + t * vy - p.y);
 }
 
-function distanceToPathPx(
+/**
+ * How near a point falls to a route, and to which line of it: the main one,
+ * or the branch a Coach split off. A route is one selectable thing, but its
+ * branches are separately editable, so the hit has to say which was meant.
+ */
+function nearestLineOfPath(
   path: RenderScene["paths"][number],
   point: Coordinate,
   scale: SnapScreenScale,
-): number {
+): { readonly distancePx: number; readonly branchIndex?: number } {
   let nearest = Number.POSITIVE_INFINITY;
+  let nearestBranch: number | undefined;
+  let walking: number | undefined;
   const walk = (start: Coordinate, points: readonly PathPoint[]): void => {
     let previous = start;
     for (const next of points) {
       const samples = pathSegmentPoints(previous, next);
       for (let index = 1; index < samples.length; index += 1) {
-        nearest = Math.min(
-          nearest,
-          distanceToSegmentPx(
-            point,
-            samples[index - 1]!,
-            samples[index]!,
-            scale,
-          ),
+        const distancePx = distanceToSegmentPx(
+          point,
+          samples[index - 1]!,
+          samples[index]!,
+          scale,
         );
+        if (distancePx < nearest) {
+          nearest = distancePx;
+          nearestBranch = walking;
+        }
       }
       previous = next;
     }
   };
   const [first, ...rest] = path.points;
-  if (!first) return nearest;
+  if (!first) return { distancePx: nearest };
   walk(first, rest);
-  for (const branch of path.branches) {
+  path.branches.forEach((branch, index) => {
     const from = path.points[branch.fromIndex];
-    if (from) walk(from, branch.points);
-  }
-  return nearest;
+    if (!from) return;
+    walking = index;
+    walk(from, branch.points);
+  });
+  return {
+    distancePx: nearest,
+    ...(nearestBranch === undefined ? {} : { branchIndex: nearestBranch }),
+  };
 }
 
 function labelHit(
@@ -179,6 +192,16 @@ function labelHit(
 }
 
 /**
+ * What a pointer landed on. A route also reports which of its lines was
+ * meant, because the whole route is what gets selected but only one line of
+ * it is what gets edited.
+ */
+export interface FieldHit {
+  readonly item: FieldItemRef;
+  readonly branchIndex?: number;
+}
+
+/**
  * Resolves what a pointer landed on, topmost layer first: Players draw over
  * labels, labels over routes — the same stacking the original resolved
  * through the DOM.
@@ -188,22 +211,28 @@ export function hitTestField(
   point: Coordinate,
   scale: SnapScreenScale,
   options: FieldHitOptions,
-): FieldItemRef | undefined {
+): FieldHit | undefined {
   for (const player of [...scene.players].reverse()) {
     if (
       screenDistancePx(player.position, point, scale) <= options.playerRadiusPx
     ) {
-      return { kind: "player", id: player.id };
+      return { item: { kind: "player", id: player.id } };
     }
   }
   for (const label of [...scene.labels].reverse()) {
     if (labelHit(label, point, scale, options.labelPaddingPx)) {
-      return { kind: "label", id: label.id };
+      return { item: { kind: "label", id: label.id } };
     }
   }
   for (const path of [...scene.paths].reverse()) {
-    if (distanceToPathPx(path, point, scale) <= options.pathTolerancePx) {
-      return { kind: "path", id: path.id };
+    const line = nearestLineOfPath(path, point, scale);
+    if (line.distancePx <= options.pathTolerancePx) {
+      return {
+        item: { kind: "path", id: path.id },
+        ...(line.branchIndex === undefined
+          ? {}
+          : { branchIndex: line.branchIndex }),
+      };
     }
   }
   return undefined;

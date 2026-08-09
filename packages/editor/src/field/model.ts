@@ -93,11 +93,14 @@ export type FieldHandleRef =
       readonly kind: "node";
       readonly pathId: string;
       readonly pointIndex: number;
+      /** Absent means the main line; otherwise the branch being edited. */
+      readonly branchIndex?: number;
     }
   | {
       readonly kind: "control";
       readonly pathId: string;
       readonly pointIndex: number;
+      readonly branchIndex?: number;
     }
   | { readonly kind: "zone"; readonly pathId: string }
   | { readonly kind: "leader"; readonly labelId: string };
@@ -111,7 +114,11 @@ export type FieldGesture =
       readonly items: readonly FieldItemRef[];
       readonly clickItem: FieldItemRef;
       readonly wasMulti: boolean;
+      /** It was already the only thing picked when this press began. */
+      readonly wasSingle: boolean;
       readonly start: Coordinate;
+      /** Which line of a route was under the press, if it was a branch. */
+      readonly hitBranchIndex?: number;
     }
   | {
       readonly kind: "moving";
@@ -181,6 +188,13 @@ export interface FieldInteractionModel {
   readonly drawing?: FieldDrawingState;
   /** Which break of the selected route the Coach last touched. */
   readonly selectedNodeIndex?: number;
+  /**
+   * Which line of the selected route he is working on: a branch by index, or
+   * the main line when absent. Handles and breaks are read against it.
+   */
+  readonly selectedBranchIndex?: number;
+  /** Which segment of that line is picked out, if he narrowed to one. */
+  readonly selectedSegmentIndex?: number;
   readonly clipboard?: FieldClipboard;
 }
 

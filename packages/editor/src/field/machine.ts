@@ -78,12 +78,13 @@ function pointerDown(
     return { model: addDrawPoint(model, model.drawing, input, context) };
   }
 
-  const hit = hitTestField(
+  const found = hitTestField(
     context.scene,
     input.point,
     context.screenScale,
     fieldHitOptions(input.pointerType),
   );
+  const hit = found?.item;
 
   if (
     context.tool === "route" ||
@@ -117,14 +118,28 @@ function pointerDown(
     const items = wasMulti ? model.selection : [hit];
     return {
       model: {
+        ...model,
         selection: already ? model.selection : [hit],
+        // Picking something new starts it whole: the line and break the
+        // Coach was working on belonged to what he just left.
+        ...(already
+          ? {}
+          : {
+              selectedBranchIndex: undefined,
+              selectedSegmentIndex: undefined,
+              selectedNodeIndex: undefined,
+            }),
         gesture: {
           kind: "pressing",
           pointerId: input.pointerId,
           items,
           clickItem: hit,
           wasMulti,
+          wasSingle: already && model.selection.length === 1,
           start: input.point,
+          ...(found?.branchIndex === undefined
+            ? {}
+            : { hitBranchIndex: found.branchIndex }),
         },
       },
     };
@@ -331,11 +346,45 @@ function pointerUp(
   if (gesture.kind === "pressing") {
     // A press that never moved is a click. On a multi-selection it narrows to
     // the item under the pointer, exactly as the original did.
-    return {
-      model: gesture.wasMulti
-        ? withSelection(model, [gesture.clickItem])
-        : withGesture(model, { kind: "idle" }),
-    };
+    if (gesture.wasMulti) {
+      return { model: withSelection(model, [gesture.clickItem]) };
+    }
+    // A click on a route already selected on its own narrows to the line the
+    // Coach pointed at: a branch if he pointed at one, otherwise the segment
+    // of the main line nearest his press. This is how the original let a
+    // Coach reach one piece of a route without a second control.
+    if (gesture.clickItem.kind === "path" && gesture.wasSingle) {
+      const path = context.document.paths.find(
+        ({ id }) => id === gesture.clickItem.id,
+      );
+      if (gesture.hitBranchIndex !== undefined) {
+        return {
+          model: {
+            ...withGesture(model, { kind: "idle" }),
+            selectedBranchIndex: gesture.hitBranchIndex,
+            selectedSegmentIndex: undefined,
+            selectedNodeIndex: undefined,
+          },
+        };
+      }
+      if (
+        path &&
+        model.selectedBranchIndex === undefined &&
+        path.points.length > 2
+      ) {
+        return {
+          model: {
+            ...withGesture(model, { kind: "idle" }),
+            selectedSegmentIndex: nearestSegmentIndex(
+              path,
+              gesture.start,
+              context.screenScale,
+            ),
+          },
+        };
+      }
+    }
+    return { model: withGesture(model, { kind: "idle" }) };
   }
 
   if (gesture.kind === "moving") {

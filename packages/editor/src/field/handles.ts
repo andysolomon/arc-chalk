@@ -58,10 +58,10 @@ function formatYardDistance(value: number): string {
 function nodeReadoutText(
   points: readonly PathPoint[],
   pointIndex: number,
+  origin: PathPoint,
 ): string {
   const point = points[pointIndex]!;
   const parts = [`${formatYardDistance(point.depthYards)} yds`];
-  const origin = points[0]!;
   if (pointIndex > 0) {
     const lateral = Math.abs(point.lateralYards - origin.lateralYards);
     if (lateral >= 0.5) {
@@ -70,6 +70,48 @@ function nodeReadoutText(
     }
   }
   return parts.join(" · ");
+}
+
+/**
+ * A route has more than one line: the main one, and a branch for each choice
+ * the Coach drew off it. Handles edit whichever line is selected, so these
+ * read and write that line rather than assuming the main one.
+ */
+export function lineOf(
+  path: MovementPath,
+  branchIndex?: number,
+): readonly PathPoint[] {
+  if (branchIndex === undefined) return path.points;
+  return path.branches[branchIndex]?.points ?? path.points;
+}
+
+function withLine(
+  path: MovementPath,
+  branchIndex: number | undefined,
+  points: PathPoint[],
+): MovementPath {
+  if (branchIndex === undefined) return { ...path, points };
+  return {
+    ...path,
+    branches: path.branches.map((branch, index) =>
+      index === branchIndex ? { ...branch, points } : branch,
+    ),
+  };
+}
+
+/**
+ * What a break is measured from. A branch's first break runs from the point
+ * on the main line it was split off at, not from nothing.
+ */
+function predecessorOf(
+  path: MovementPath,
+  branchIndex: number | undefined,
+  pointIndex: number,
+): PathPoint | undefined {
+  if (pointIndex > 0) return lineOf(path, branchIndex)[pointIndex - 1];
+  if (branchIndex === undefined) return undefined;
+  const fromIndex = path.branches[branchIndex]?.fromIndex;
+  return fromIndex === undefined ? undefined : path.points[fromIndex];
 }
 
 interface HandleEdit {
@@ -91,13 +133,15 @@ const updatePath = (path: MovementPath): PrimitivePlayCommand => ({
 function dragNode(
   context: FieldInteractionContext,
   path: MovementPath,
+  branchIndex: number | undefined,
   pointIndex: number,
   point: Coordinate,
   shiftKey: boolean | undefined,
 ): HandleEdit {
-  const original = path.points[pointIndex];
+  const line = lineOf(path, branchIndex);
+  const original = line[pointIndex];
   if (!original) return { update: updatePath(path), guides: [] };
-  const previous = path.points[pointIndex - 1];
+  const previous = predecessorOf(path, branchIndex, pointIndex);
   const constrain = context.snap.enabled !== (shiftKey === true);
   const angled =
     constrain && previous
@@ -125,7 +169,7 @@ function dragNode(
     landed.lateralYards - original.lateralYards,
     landed.depthYards - original.depthYards,
   );
-  const points = [...path.points];
+  const points = [...line];
   points[pointIndex] = {
     ...original,
     lateralYards: landed.lateralYards,
@@ -141,9 +185,16 @@ function dragNode(
         }),
   };
   return {
-    update: updatePath({ ...path, points }),
+    update: updatePath(withLine(path, branchIndex, points)),
     guides: snapped.guides,
-    readout: { position: landed, text: nodeReadoutText(points, pointIndex) },
+    readout: {
+      position: landed,
+      text: nodeReadoutText(
+        points,
+        pointIndex,
+        predecessorOf(path, branchIndex, 0) ?? points[0]!,
+      ),
+    },
   };
 }
 
@@ -156,17 +207,19 @@ function dragNode(
 function dragControl(
   context: FieldInteractionContext,
   path: MovementPath,
+  branchIndex: number | undefined,
   pointIndex: number,
   point: Coordinate,
 ): HandleEdit {
-  const end = path.points[pointIndex];
-  const start = path.points[pointIndex - 1];
+  const line = lineOf(path, branchIndex);
+  const end = line[pointIndex];
+  const start = predecessorOf(path, branchIndex, pointIndex);
   if (!end || !start) return { update: updatePath(path), guides: [] };
   const midpoint = coordinate(
     (start.lateralYards + end.lateralYards) / 2,
     (start.depthYards + end.depthYards) / 2,
   );
-  const points = [...path.points];
+  const points = [...line];
   if (
     screenDistancePx(point, midpoint, context.screenScale) <
     CONTROL_STRAIGHTEN_PX
@@ -185,7 +238,10 @@ function dragControl(
       ),
     };
   }
-  return { update: updatePath({ ...path, points }), guides: [] };
+  return {
+    update: updatePath(withLine(path, branchIndex, points)),
+    guides: [],
+  };
 }
 
 /** The zone corner sizes the area a defender owns, within the original's bounds. */
@@ -263,9 +319,22 @@ export function editHandle(
   if (!path) return undefined;
   switch (handle.kind) {
     case "node":
-      return dragNode(context, path, handle.pointIndex, point, shiftKey);
+      return dragNode(
+        context,
+        path,
+        handle.branchIndex,
+        handle.pointIndex,
+        point,
+        shiftKey,
+      );
     case "control":
-      return dragControl(context, path, handle.pointIndex, point);
+      return dragControl(
+        context,
+        path,
+        handle.branchIndex,
+        handle.pointIndex,
+        point,
+      );
     case "zone":
       return dragZone(path, point);
   }

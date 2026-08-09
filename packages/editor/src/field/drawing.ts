@@ -1,8 +1,4 @@
-import type {
-  Coordinate,
-  PathStyle,
-  PlayCommand,
-} from "@chalk/domain";
+import type { Coordinate, PathStyle, PlayCommand } from "@chalk/domain";
 
 import { snapRouteEndpoint } from "../smart-snapping";
 import { clampToField, coordinate, screenDistancePx } from "./geometry";

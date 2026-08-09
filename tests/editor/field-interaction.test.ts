@@ -482,17 +482,18 @@ describe("field hit testing", () => {
   it("resolves the topmost layer: Players above labels above routes", () => {
     // X stands on his own route's first point.
     const x = positionOf(stickThunderPlay, "x");
-    expect(hitTestField(scene, x, screenScale, fieldHitOptions())).toEqual(
-      player("x"),
-    );
+    expect(
+      hitTestField(scene, x, screenScale, fieldHitOptions())?.item,
+    ).toEqual(player("x"));
   });
 
   it("hits a route along its stroke", () => {
     // Midway down Z's vertical stem.
     const point = { lateralYards: 21.092896175, depthYards: 5 };
-    expect(hitTestField(scene, point, screenScale, fieldHitOptions())).toEqual(
-      path("rz"),
-    );
+    const hit = hitTestField(scene, point, screenScale, fieldHitOptions());
+    expect(hit?.item).toEqual(path("rz"));
+    // Z's stem is the main line, not the branch he splits off deeper.
+    expect(hit?.branchIndex).toBeUndefined();
   });
 
   it("widens targets for touch to keep them at 44 CSS pixels", () => {
@@ -505,7 +506,7 @@ describe("field hit testing", () => {
       hitTestField(scene, offset, screenScale, fieldHitOptions()),
     ).toBeUndefined();
     expect(
-      hitTestField(scene, offset, screenScale, fieldHitOptions("touch")),
+      hitTestField(scene, offset, screenScale, fieldHitOptions("touch"))?.item,
     ).toEqual(player("q"));
   });
 
@@ -537,6 +538,7 @@ describe("field selection pruning", () => {
         items: [player("ghost")],
         clickItem: player("ghost"),
         wasMulti: false,
+        wasSingle: false,
         start: { lateralYards: 0, depthYards: 0 },
       },
     };
@@ -1722,5 +1724,200 @@ describe("field interaction copy, paste, and mirror", () => {
       { type: "mirror" },
     ]);
     expect(session.commands).toHaveLength(0);
+  });
+});
+
+describe("field interaction branch and segment selection", () => {
+  const routeContext = (overrides: Partial<FieldInteractionContext> = {}) =>
+    contextFor(stickThunderPlay, {
+      snap: { enabled: false, grid: "off" },
+      ...overrides,
+    });
+  const pathOf = (document: PlayDocument, id: string) =>
+    document.paths.find((candidate) => candidate.id === id)!;
+  /** A point on the segment between two breaks of a route's main line. */
+  const midOfSegment = (document: PlayDocument, id: string, index: number) => {
+    const points = pathOf(document, id).points;
+    return {
+      lateralYards:
+        (points[index - 1]!.lateralYards + points[index]!.lateralYards) / 2,
+      depthYards:
+        (points[index - 1]!.depthYards + points[index]!.depthYards) / 2,
+    };
+  };
+
+  it("selects the whole route first, and a segment only on a second click", () => {
+    const context = routeContext();
+    const onSecond = midOfSegment(stickThunderPlay, "rx", 2);
+
+    const first = run(context, [down(onSecond), up(onSecond)]);
+    expect(first.model.selection).toEqual([path("rx")]);
+    // The first click picks the route entire, as the original did.
+    expect(first.model.selectedSegmentIndex).toBeUndefined();
+
+    const second = run(context, [down(onSecond), up(onSecond)], first.model);
+    expect(second.model.selectedSegmentIndex).toBe(2);
+    expect(second.model.selection).toEqual([path("rx")]);
+    expect(second.commands).toHaveLength(0);
+  });
+
+  it("picks out the segment the Coach clicked, not always the same one", () => {
+    const context = routeContext();
+    const onFirst = midOfSegment(stickThunderPlay, "rx", 1);
+    const selected = run(context, [down(onFirst), up(onFirst)]);
+    const narrowed = run(context, [down(onFirst), up(onFirst)], selected.model);
+    expect(narrowed.model.selectedSegmentIndex).toBe(1);
+  });
+
+  it("selects a branch when the Coach clicks the line he split off", () => {
+    const context = routeContext();
+    // Z's branch runs from his stem's break out to the deep corner.
+    const branch = pathOf(stickThunderPlay, "rz").branches[0]!;
+    const from = pathOf(stickThunderPlay, "rz").points[branch.fromIndex]!;
+    const end = branch.points[0]!;
+    const onBranch = {
+      lateralYards: (from.lateralYards + end.lateralYards) / 2,
+      depthYards: (from.depthYards + end.depthYards) / 2,
+    };
+
+    const selected = run(context, [down(onBranch), up(onBranch)]);
+    expect(selected.model.selection).toEqual([path("rz")]);
+    expect(selected.model.selectedBranchIndex).toBeUndefined();
+
+    const onBranchLine = run(
+      context,
+      [down(onBranch), up(onBranch)],
+      selected.model,
+    );
+    expect(onBranchLine.model.selectedBranchIndex).toBe(0);
+    // A branch is a whole line, so no one segment of it is picked out.
+    expect(onBranchLine.model.selectedSegmentIndex).toBeUndefined();
+  });
+
+  it("forgets the line and break when the Coach picks something else", () => {
+    const context = routeContext();
+    const onSecond = midOfSegment(stickThunderPlay, "rx", 2);
+    const narrowed = run(
+      context,
+      [down(onSecond), up(onSecond), down(onSecond), up(onSecond)],
+      idleFieldInteraction,
+    );
+    expect(narrowed.model.selectedSegmentIndex).toBe(2);
+
+    const q = positionOf(stickThunderPlay, "q");
+    const elsewhere = run(context, [down(q), up(q)], narrowed.model);
+    expect(elsewhere.model.selection).toEqual([player("q")]);
+    expect(elsewhere.model.selectedSegmentIndex).toBeUndefined();
+    expect(elsewhere.model.selectedBranchIndex).toBeUndefined();
+  });
+
+  it("drags a break of the selected branch, leaving the main line alone", () => {
+    const context = routeContext();
+    const before = pathOf(stickThunderPlay, "rz");
+    const target = { lateralYards: 18, depthYards: 20 };
+
+    const session = run(context, [
+      {
+        type: "handle-down",
+        handle: {
+          kind: "node",
+          pathId: "rz",
+          pointIndex: 0,
+          branchIndex: 0,
+        },
+        input: { point: before.branches[0]!.points[0]!, pointerId: 1 },
+      },
+      move(target),
+      up(target),
+    ]);
+
+    expect(session.commands).toHaveLength(1);
+    const after = pathOf(
+      applyPlayCommand(stickThunderPlay, session.commands[0]!),
+      "rz",
+    );
+    expect(after.branches[0]!.points[0]!.lateralYards).toBeCloseTo(
+      target.lateralYards,
+      6,
+    );
+    // The branch is still the branch: one break, not a copy of the stem.
+    // Without this the edit could read the main line and write it back into
+    // the branch, which moves the right number and destroys the shape.
+    expect(after.branches[0]!.points).toHaveLength(
+      before.branches[0]!.points.length,
+    );
+    // The stem the branch grows from did not move.
+    expect(after.points).toEqual(before.points);
+  });
+
+  it("measures a branch's first break from where it was split off", () => {
+    const context = contextFor(stickThunderPlay, {
+      snap: { enabled: true, grid: "off" },
+    });
+    const before = pathOf(stickThunderPlay, "rz");
+    const from = before.points[before.branches[0]!.fromIndex]!;
+    // Straight downfield of the split, which is a 45 degree family member
+    // only when measured from the split rather than from the route's start.
+    const target = {
+      lateralYards: from.lateralYards + 0.4,
+      depthYards: from.depthYards + 6,
+    };
+
+    const session = run(context, [
+      {
+        type: "handle-down",
+        handle: { kind: "node", pathId: "rz", pointIndex: 0, branchIndex: 0 },
+        input: { point: before.branches[0]!.points[0]!, pointerId: 1 },
+      },
+      move(target),
+    ]);
+    const gesture = session.model.gesture;
+    expect(gesture.kind).toBe("handle");
+    if (gesture.kind !== "handle") return;
+    const update = gesture.update;
+    if (update.kind !== "update-path") throw new Error("expected a path edit");
+    expect(update.path.branches[0]!.points[0]!.lateralYards).toBeCloseTo(
+      from.lateralYards,
+      6,
+    );
+  });
+
+  it("bends a branch segment against the break it grows from", () => {
+    const context = routeContext();
+    const before = pathOf(stickThunderPlay, "rz");
+    const from = before.points[before.branches[0]!.fromIndex]!;
+    const end = before.branches[0]!.points[0]!;
+    const midpoint = {
+      lateralYards: (from.lateralYards + end.lateralYards) / 2,
+      depthYards: (from.depthYards + end.depthYards) / 2,
+    };
+    const pulled = {
+      lateralYards: midpoint.lateralYards + 4,
+      depthYards: midpoint.depthYards,
+    };
+
+    const session = run(context, [
+      {
+        type: "handle-down",
+        handle: {
+          kind: "control",
+          pathId: "rz",
+          pointIndex: 0,
+          branchIndex: 0,
+        },
+        input: { point: midpoint, pointerId: 1 },
+      },
+      move(pulled),
+      up(pulled),
+    ]);
+    const after = pathOf(
+      applyPlayCommand(stickThunderPlay, session.commands[0]!),
+      "rz",
+    );
+    expect(after.branches[0]!.points[0]!.control).toBeDefined();
+    expect(after.branches[0]!.points).toHaveLength(
+      before.branches[0]!.points.length,
+    );
+    expect(after.points).toEqual(before.points);
   });
 });
