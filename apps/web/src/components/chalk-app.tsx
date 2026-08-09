@@ -13,6 +13,8 @@ import {
   pruneFieldSelection,
   type EditorUndoState,
   type EditorVersionSummary,
+  type FieldDrawingKind,
+  type FieldDrawingState,
   type FieldGesture,
   type FieldInteractionEvent,
   type FieldInteractionModel,
@@ -210,6 +212,34 @@ function SceneText({ text }: { text: SvgTextPrimitive }) {
 /** The original's selection blue, used for halos, guides, and the marquee. */
 const SELECTION_BLUE = "#0072F5";
 
+/** Tools the interaction machine understands; the rest it never sees. */
+function interactionTool(
+  tool: Tool,
+): "select" | "player" | FieldDrawingKind | undefined {
+  switch (tool) {
+    case "select":
+    case "player":
+    case "route":
+    case "motion":
+    case "block":
+    case "zone":
+      return tool;
+    case "text":
+      return undefined;
+  }
+}
+
+/** The depth a route may reach without leaving the drawn frame. */
+function fieldDepthWindow(projection: SvgProjection) {
+  return {
+    minDepthYards: unprojectPoint(
+      { x: 0, y: projection.height - 6 },
+      projection,
+    ).depthYards,
+    maxDepthYards: unprojectPoint({ x: 0, y: 6 }, projection).depthYards,
+  };
+}
+
 function selectionKey(kind: "player" | "path" | "label", id: string): string {
   return `${kind}:${id}`;
 }
@@ -218,6 +248,9 @@ export function FieldDiagram({
   scene = stickThunderScene,
   selection,
   overlay,
+  routeDotPlayerId,
+  onHoverPlayer,
+  onStartRoute,
   svgRef,
   ...pointerHandlers
 }: {
@@ -225,11 +258,16 @@ export function FieldDiagram({
   /** Keys like "player:q" — absent means a non-interactive rendering. */
   selection?: ReadonlySet<string>;
   overlay?: React.ReactNode;
+  /** The Player currently offering the blue draw-a-route dot, if any. */
+  routeDotPlayerId?: string;
+  onHoverPlayer?: (playerId: string | undefined) => void;
+  onStartRoute?: (playerId: string) => void;
   svgRef?: React.Ref<SVGSVGElement>;
   onPointerDown?: React.PointerEventHandler<SVGSVGElement>;
   onPointerMove?: React.PointerEventHandler<SVGSVGElement>;
   onPointerUp?: React.PointerEventHandler<SVGSVGElement>;
   onPointerCancel?: React.PointerEventHandler<SVGSVGElement>;
+  onDoubleClick?: React.MouseEventHandler<SVGSVGElement>;
 }) {
   const selected = (kind: "player" | "path" | "label", id: string): boolean =>
     selection?.has(selectionKey(kind, id)) === true;
@@ -568,6 +606,12 @@ export function FieldDiagram({
             className={selected("player", player.id) ? "selected" : undefined}
             data-scene-player={player.id}
             key={player.id}
+            onPointerEnter={
+              onHoverPlayer ? () => onHoverPlayer(player.id) : undefined
+            }
+            onPointerLeave={
+              onHoverPlayer ? () => onHoverPlayer(undefined) : undefined
+            }
             role="img"
             transform={`translate(${player.position.x} ${player.position.y})`}
           >
@@ -588,6 +632,26 @@ export function FieldDiagram({
             {player.texts.map((text, index) => (
               <SceneText key={`${player.id}-text-${index}`} text={text} />
             ))}
+            {routeDotPlayerId === player.id ? (
+              <circle
+                className="route-dot"
+                cx={0}
+                cy={-26}
+                data-route-dot={player.id}
+                fill={SELECTION_BLUE}
+                onPointerDown={(event) => {
+                  // The dot owns this press: it starts a route rather than
+                  // letting the field begin a move.
+                  event.stopPropagation();
+                  onStartRoute?.(player.id);
+                }}
+                r={5}
+                stroke="#FFFFFF"
+                strokeWidth={1.5}
+              >
+                <title>Drag off to draw a route from this player</title>
+              </circle>
+            ) : null}
           </g>
         ))}
       </g>
@@ -601,12 +665,63 @@ export function FieldDiagram({
  * readout, and the marquee, drawn the way the original drew them.
  */
 function FieldInteractionOverlay({
+  drawing,
   gesture,
   projection,
 }: {
+  drawing?: FieldDrawingState;
   gesture: FieldGesture;
   projection: SvgProjection;
 }) {
+  if (drawing) {
+    const drawn = drawing.points.map((point) => ({
+      ...projectCoordinate(point, projection),
+      control: point.control
+        ? projectCoordinate(point.control, projection)
+        : undefined,
+    }));
+    const cursor = projectCoordinate(drawing.cursor, projection);
+    const commands = drawn.map((point, index) =>
+      index === 0
+        ? `M ${point.x} ${point.y}`
+        : point.control
+          ? `Q ${point.control.x} ${point.control.y} ${point.x} ${point.y}`
+          : `L ${point.x} ${point.y}`,
+    );
+    return (
+      <g className="drawing-overlay" pointerEvents="none">
+        <path
+          d={`${commands.join(" ")} L ${cursor.x} ${cursor.y}`}
+          data-drawing-preview
+          fill="none"
+          stroke={SELECTION_BLUE}
+          strokeDasharray="6 5"
+          strokeWidth={2.5}
+        />
+        {drawn.map((point, index) => (
+          <circle
+            cx={point.x}
+            cy={point.y}
+            fill={SELECTION_BLUE}
+            key={`draw-point-${index}`}
+            r={3}
+          />
+        ))}
+        {drawing.depthBuffer === "" ? null : (
+          <text
+            data-depth-buffer
+            fill={SELECTION_BLUE}
+            fontFamily="'Geist Mono', monospace"
+            fontSize={11}
+            x={cursor.x + 10}
+            y={cursor.y - 10}
+          >
+            {`${drawing.depthBuffer} yds`}
+          </text>
+        )}
+      </g>
+    );
+  }
   if (gesture.kind === "moving") {
     const readout = gesture.readout
       ? {
@@ -871,6 +986,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   const [freedStorage, setFreedStorage] = useState<ChalkRuntime["storage"]>();
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [interaction, setInteraction] = useState(idleFieldInteraction);
+  const [hoveredPlayerId, setHoveredPlayerId] = useState<string>();
   // Pointer events can outpace React's render loop; the ref is the machine's
   // authoritative model so no event ever reduces against a stale one.
   const interactionRef = useRef<FieldInteractionModel>(interaction);
@@ -903,6 +1019,17 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       ),
     [interaction.selection],
   );
+  /**
+   * The original offers the draw-a-route dot on the selected or hovered
+   * Player, under the select tool, when nothing is being drawn or dragged.
+   */
+  const routeDotPlayerId =
+    activeTool === "select" &&
+    !interaction.drawing &&
+    interaction.gesture.kind === "idle"
+      ? (interaction.selection.find(({ kind }) => kind === "player")?.id ??
+        hoveredPlayerId)
+      : undefined;
 
   const dispatchField = (event: FieldInteractionEvent): void => {
     const document = editorStore.getSnapshot().document;
@@ -919,7 +1046,10 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         depthPixelsPerYard: scene.viewport.depthPixelsPerYard,
       },
       snap: { enabled: snapEnabled, grid: "off" },
-      tool: activeTool === "player" ? "player" : "select",
+      // Keyboard events still reach the machine under the text tool, which it
+      // does not drive; they behave as they would under selection.
+      tool: interactionTool(activeTool) ?? "select",
+      depthWindow: fieldDepthWindow(scene.viewport),
       createId: createStableId,
     });
     interactionRef.current = result.model;
@@ -927,12 +1057,25 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     if (result.command) {
       void editorStore.applyCommand(result.command).catch(() => undefined);
     }
+    // Finishing a route hands the Coach back the select tool, as the
+    // original does, so the route he just drew is his to adjust.
+    if (result.requestedTool) setActiveTool(result.requestedTool);
   };
-  // The keyboard listener registers once per menu state; the ref keeps it
-  // dispatching against the current closure.
+  // The keyboard listener registers once per menu state; these refs keep it
+  // dispatching against the current closure and reading the live drawing.
   const dispatchFieldRef = useRef(dispatchField);
+  const drawingRef = useRef(interaction.drawing);
+
+  /** Switching tools abandons any route in progress, as the original does. */
+  const selectTool = (tool: Tool): void => {
+    if (interactionRef.current.drawing) dispatchField({ type: "escape" });
+    setActiveTool(tool);
+  };
+  const selectToolRef = useRef(selectTool);
   useEffect(() => {
     dispatchFieldRef.current = dispatchField;
+    drawingRef.current = interaction.drawing;
+    selectToolRef.current = selectTool;
   });
 
   // An undo, redo, or restore may remove what the selection points at.
@@ -965,8 +1108,8 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     };
   };
   const onFieldPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
-    // Tools beyond selection and placement arrive with Phase 4.3's drawing.
-    if (activeTool !== "select" && activeTool !== "player") return;
+    // The text tool arrives with the label work later in 4.3.
+    if (activeTool === "text") return;
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -1024,13 +1167,13 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
    * accepting a click and doing nothing.
    */
   const actions: ActionMap = {
-    toolSelect: () => setActiveTool("select"),
-    toolPlayer: () => setActiveTool("player"),
-    toolRoute: () => setActiveTool("route"),
-    toolMotion: () => setActiveTool("motion"),
-    toolBlock: () => setActiveTool("block"),
-    toolZone: () => setActiveTool("zone"),
-    toolText: () => setActiveTool("text"),
+    toolSelect: () => selectTool("select"),
+    toolPlayer: () => selectTool("player"),
+    toolRoute: () => selectTool("route"),
+    toolMotion: () => selectTool("motion"),
+    toolBlock: () => selectTool("block"),
+    toolZone: () => selectTool("zone"),
+    toolText: () => selectTool("text"),
     focus: () => setPanels(false),
     showPanels: () => setPanels(true),
     toggleInspector: () => setInspectorOpen((shown) => !shown),
@@ -1090,9 +1233,23 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         return;
       }
       if (typing || meta || event.altKey) return;
+      if (event.key === "Enter") {
+        // Enter ends the route being drawn; with nothing in flight it is the
+        // machine's own no-op.
+        event.preventDefault();
+        dispatchFieldRef.current({ type: "finish-drawing" });
+        return;
+      }
       if (event.key === "Backspace" || event.key === "Delete") {
         event.preventDefault();
         dispatchFieldRef.current({ type: "delete" });
+        return;
+      }
+      if (drawingRef.current && /^[0-9.]$/.test(event.key)) {
+        // Digits typed mid-route set the next break's exact depth, so they
+        // must never also pick a tool.
+        event.preventDefault();
+        dispatchFieldRef.current({ type: "depth-digit", digit: event.key });
         return;
       }
       const nudges: Record<string, readonly [number, number]> = {
@@ -1126,7 +1283,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       };
       const tool = toolKeys[key];
       if (tool) {
-        setActiveTool(tool);
+        selectToolRef.current(tool);
         return;
       }
       if (key === "s") setSnapEnabled((enabled) => !enabled);
@@ -1193,7 +1350,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               <button
                 className={activeTool === tool.id ? "active" : ""}
                 key={tool.id}
-                onClick={() => setActiveTool(tool.id)}
+                onClick={() => selectTool(tool.id)}
                 title={`${tool.label} — ${tool.shortcut}`}
                 aria-label={`${tool.label} — ${tool.shortcut}`}
               >
@@ -1224,18 +1381,29 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
             recovery={recoveryDismissed ? undefined : runtime.recovery}
             storage={storage}
           />
-          <div className="field-wrap" data-tool={activeTool}>
+          <div
+            className="field-wrap"
+            data-drawing={interaction.drawing ? "true" : undefined}
+            data-tool={activeTool}
+          >
             <FieldDiagram
               onPointerCancel={onFieldPointerCancel}
               onPointerDown={onFieldPointerDown}
               onPointerMove={onFieldPointerMove}
               onPointerUp={onFieldPointerUp}
+              onDoubleClick={() => dispatchField({ type: "finish-drawing" })}
+              onHoverPlayer={setHoveredPlayerId}
+              onStartRoute={(playerId) =>
+                dispatchField({ type: "start-route", playerId })
+              }
               overlay={
                 <FieldInteractionOverlay
+                  drawing={interaction.drawing}
                   gesture={interaction.gesture}
                   projection={scene.viewport}
                 />
               }
+              routeDotPlayerId={routeDotPlayerId}
               scene={scene}
               selection={selectionKeys}
               svgRef={fieldSvgRef}

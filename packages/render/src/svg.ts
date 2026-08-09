@@ -1,10 +1,12 @@
-import type {
-  Color,
-  Coordinate,
-  FieldProfile,
-  PathLine,
-  PathPoint,
-  PathStyle,
+import {
+  classifyZoneCoverage,
+  DEFAULT_ZONE_COVERAGE_RADII,
+  type Color,
+  type Coordinate,
+  type FieldProfile,
+  type PathLine,
+  type PathPoint,
+  type PathStyle,
 } from "@chalk/domain";
 
 import type { RenderScene, ScenePath } from "./index";
@@ -711,22 +713,29 @@ export function buildSvgRenderScene(
     players: scene.players.map((player) => buildSvgPlayer(player, viewport)),
     paths: scene.paths.map((path) => {
       const endpoint = path.points.at(-1);
+      // A zone drop that was never sized still owns its default bubble, the
+      // way the original draws one until the Coach drags it out.
+      const coverage =
+        path.coverageArea ??
+        (endpoint
+          ? {
+              type: classifyZoneCoverage(endpoint),
+              ...DEFAULT_ZONE_COVERAGE_RADII,
+            }
+          : undefined);
       const coverageArea =
         path.kind === "zone" &&
         path.style.ending === "bubble" &&
-        path.coverageArea &&
+        coverage &&
         endpoint
           ? {
               id: `${path.id}-coverage`,
-              type: path.coverageArea.type,
+              type: coverage.type,
               center: projectCoordinate(endpoint, viewport),
               radiusX:
-                path.coverageArea.radiusLateralYards *
-                viewport.lateralPixelsPerYard,
-              radiusY:
-                path.coverageArea.radiusDepthYards *
-                viewport.depthPixelsPerYard,
-              fill: coverageFills[path.coverageArea.type],
+                coverage.radiusLateralYards * viewport.lateralPixelsPerYard,
+              radiusY: coverage.radiusDepthYards * viewport.depthPixelsPerYard,
+              fill: coverageFills[coverage.type],
             }
           : undefined;
       const strokes = buildPathStrokes(

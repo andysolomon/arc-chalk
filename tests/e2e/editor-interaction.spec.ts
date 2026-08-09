@@ -152,3 +152,67 @@ test("Escape abandons a drag; arrows nudge as their keyboard alternative", async
   );
   await expect(undo).toHaveAttribute("title", "Undo Move Player");
 });
+
+test("draws a route with the route tool and commits it once", async ({
+  page,
+}) => {
+  await openEditor(page);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+
+  await page.getByRole("button", { name: "Route — R" }).click();
+  const start = await playerCenter(page, "q");
+
+  // Start on the Quarterback, break downfield, then out. The preview is
+  // measured by its path data: a straight vertical line has no bounding box,
+  // so visibility would say "hidden" about a preview that is drawing fine.
+  await page.mouse.click(start.x, start.y);
+  const preview = page.locator("[data-drawing-preview]");
+  await expect(preview).toHaveAttribute("d", "M 534 446 L 534 446");
+
+  await page.mouse.move(start.x, start.y - 60);
+  // Snap constrains the break to a 45 degree family member — here straight
+  // downfield, so the preview keeps the Quarterback's lateral position.
+  await expect(preview).toHaveAttribute("d", /^M 534 446 L 534 3\d\d/);
+  await page.mouse.click(start.x, start.y - 60);
+  await page.mouse.click(start.x + 70, start.y - 60);
+  await page.keyboard.press("Enter");
+
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(7);
+  await expect(
+    page.getByRole("button", { name: "Saved on this device" }),
+  ).toBeVisible();
+
+  // Finishing hands the select tool back, the way the original does.
+  await expect(page.getByRole("button", { name: "Select — V" })).toHaveClass(
+    /active/,
+  );
+
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Draw route");
+  await undo.click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+});
+
+test("draws from the blue dot and abandons a route on Escape", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  // Selecting a Player offers his draw-a-route dot.
+  const start = await playerCenter(page, "q");
+  await page.mouse.click(start.x, start.y);
+  const dot = page.locator('[data-route-dot="q"]');
+  await expect(dot).toBeVisible();
+
+  await dot.click();
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(1);
+  await page.mouse.move(start.x, start.y - 50);
+  await page.mouse.click(start.x, start.y - 50);
+
+  // Escape abandons it: no route, no transaction, nothing to undo.
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+});

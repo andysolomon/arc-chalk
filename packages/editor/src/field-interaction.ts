@@ -5,6 +5,7 @@ import {
   type Coordinate,
   type MovementPath,
   type PathPoint,
+  type PathStyle,
   type PlayCommand,
   type PlayDocument,
   type PrimitivePlayCommand,
@@ -14,6 +15,7 @@ import type { RenderScene } from "@chalk/render";
 
 import {
   snapPosition,
+  snapRouteEndpoint,
   type AxisSnapGuide,
   type SnapScreenScale,
   type SnapSettings,
@@ -56,6 +58,17 @@ export type FieldInteractionEvent =
       readonly type: "nudge";
       readonly lateralYards: number;
       readonly depthYards: number;
+    }
+  | {
+      /** The blue dot above a Player: start drawing his route right there. */
+      readonly type: "start-route";
+      readonly playerId: string;
+    }
+  | { readonly type: "finish-drawing" }
+  | {
+      /** A typed digit sets the exact depth of the next break. */
+      readonly type: "depth-digit";
+      readonly digit: string;
     };
 
 export interface FieldMoveReadout {
@@ -94,9 +107,30 @@ export type FieldGesture =
       readonly active: boolean;
     };
 
+export type FieldDrawingKind = "route" | "motion" | "block" | "zone";
+
+/**
+ * An in-progress route. Drawing spans several presses — start on a Player,
+ * click each break, finish on Enter or a double click — so it lives beside
+ * the single-pointer gesture rather than inside it. Nothing is committed
+ * until the finish produces one insert command.
+ */
+export interface FieldDrawingState {
+  readonly kind: FieldDrawingKind;
+  readonly playerId: string;
+  readonly points: readonly PathPoint[];
+  /** The 45°-constrained preview endpoint the dashed line runs to. */
+  readonly cursor: Coordinate;
+  /** Typed digits waiting to become the next break's exact depth. */
+  readonly depthBuffer: string;
+  /** True while the pointer is held after placing a break — dragging bends it. */
+  readonly pointerDown: boolean;
+}
+
 export interface FieldInteractionModel {
   readonly selection: readonly FieldItemRef[];
   readonly gesture: FieldGesture;
+  readonly drawing?: FieldDrawingState;
 }
 
 export interface FieldInteractionContext {
@@ -108,7 +142,12 @@ export interface FieldInteractionContext {
   readonly scene: RenderScene;
   readonly screenScale: SnapScreenScale;
   readonly snap: SnapSettings;
-  readonly tool: "select" | "player";
+  readonly tool: "select" | "player" | FieldDrawingKind;
+  /** The drawn frame's depth extents, so a route cannot leave the page. */
+  readonly depthWindow?: {
+    readonly minDepthYards: number;
+    readonly maxDepthYards: number;
+  };
   readonly createId?: (prefix: string) => string;
 }
 
@@ -116,6 +155,8 @@ export interface FieldInteractionResult {
   readonly model: FieldInteractionModel;
   /** At most one command, produced only when a gesture completes. */
   readonly command?: PlayCommand;
+  /** Finishing a route hands the Coach back the select tool. */
+  readonly requestedTool?: "select";
 }
 
 export const idleFieldInteraction: FieldInteractionModel = {
@@ -125,10 +166,13 @@ export const idleFieldInteraction: FieldInteractionModel = {
 
 /**
  * The original's gesture grammar in canvas pixels: 2 px before a press
- * becomes a drag, 3 px before a press on grass becomes a marquee.
+ * becomes a drag, 3 px before a press on grass becomes a marquee, breaks at
+ * least 4 px apart, and a held pointer bends the segment past 7 px.
  */
 const MOVE_THRESHOLD_PX = 2;
 const MARQUEE_THRESHOLD_PX = 3;
+const DRAW_POINT_MIN_PX = 4;
+const DRAW_CURVE_THRESHOLD_PX = 7;
 
 export interface FieldHitOptions {
   /** The original's Player hit circle is 17 px around the symbol. */
@@ -616,6 +660,210 @@ function movePreview(
 }
 
 // ---------------------------------------------------------------------------
+// Drawing
+// ---------------------------------------------------------------------------
+
+/**
+ * The original clamps to the sidelines and the drawn frame's depth. Rounding
+ * happens first and clamping last, because rounding a clamped value can carry
+ * it back across the boundary it was just held inside.
+ */
+function clampToField(
+  point: Coordinate,
+  context: FieldInteractionContext,
+): Coordinate {
+  const halfWidth = context.document.fieldProfile.widthYards / 2;
+  const depthWindow = context.depthWindow;
+  const rough = coordinate(point.lateralYards, point.depthYards);
+  return {
+    lateralYards: Math.max(-halfWidth, Math.min(halfWidth, rough.lateralYards)),
+    depthYards: depthWindow
+      ? Math.max(
+          depthWindow.minDepthYards,
+          Math.min(depthWindow.maxDepthYards, rough.depthYards),
+        )
+      : rough.depthYards,
+  };
+}
+
+/**
+ * Where the next break would land: constrained to grass-true 45° increments
+ * from the last one while snap is on (Shift inverts), then clamped, then
+ * overridden in depth by any digits the Coach has typed.
+ */
+function drawTarget(
+  drawing: FieldDrawingState,
+  point: Coordinate,
+  shiftKey: boolean | undefined,
+  context: FieldInteractionContext,
+): Coordinate {
+  const last = drawing.points.at(-1)!;
+  const constrain = context.snap.enabled !== (shiftKey === true);
+  const snapped = constrain
+    ? snapRouteEndpoint({
+        origin: coordinate(last.lateralYards, last.depthYards),
+        point,
+        mode: "constrain",
+        screenScale: context.screenScale,
+      }).point
+    : point;
+  const clamped = clampToField(snapped, context);
+  const typedDepth = Number.parseFloat(drawing.depthBuffer);
+  if (drawing.depthBuffer !== "" && !Number.isNaN(typedDepth)) {
+    return clampToField(coordinate(clamped.lateralYards, typedDepth), context);
+  }
+  return clamped;
+}
+
+function addDrawPoint(
+  model: FieldInteractionModel,
+  drawing: FieldDrawingState,
+  input: FieldPointerInput,
+  context: FieldInteractionContext,
+): FieldInteractionModel {
+  const target = drawTarget(drawing, input.point, input.shiftKey, context);
+  const last = drawing.points.at(-1)!;
+  if (screenDistancePx(last, target, context.screenScale) < DRAW_POINT_MIN_PX) {
+    return model;
+  }
+  return {
+    ...model,
+    drawing: {
+      ...drawing,
+      points: [
+        ...drawing.points,
+        { lateralYards: target.lateralYards, depthYards: target.depthYards },
+      ],
+      cursor: target,
+      depthBuffer: "",
+      pointerDown: true,
+    },
+  };
+}
+
+/**
+ * Holding the pointer after placing a break and pulling away bends the
+ * segment through the pointer: the control point is the pointer's reflection
+ * across the chord's midpoint, so the curve passes under the Coach's finger.
+ */
+function bendLastSegment(
+  drawing: FieldDrawingState,
+  point: Coordinate,
+): FieldDrawingState {
+  const points = [...drawing.points];
+  const end = points.at(-1)!;
+  const start = points.at(-2)!;
+  const midLateral = (start.lateralYards + end.lateralYards) / 2;
+  const midDepth = (start.depthYards + end.depthYards) / 2;
+  points[points.length - 1] = {
+    ...end,
+    control: coordinate(
+      2 * point.lateralYards - midLateral,
+      2 * point.depthYards - midDepth,
+    ),
+  };
+  return { ...drawing, points };
+}
+
+const drawingStyles: Record<FieldDrawingKind, PathStyle> = {
+  route: { line: "solid", ending: "arrow", color: "ink" },
+  motion: { line: "zigzag", ending: "arrow", color: "ink" },
+  block: { line: "solid", ending: "bar", color: "ink" },
+  zone: { line: "dashed", ending: "bubble", color: "blue" },
+};
+
+const drawingLabels: Record<FieldDrawingKind, string> = {
+  route: "Draw route",
+  motion: "Draw motion",
+  block: "Draw block",
+  zone: "Draw zone drop",
+};
+
+/** Abandons an in-progress route, leaving the committed Play untouched. */
+function clearDrawing(model: FieldInteractionModel): FieldInteractionModel {
+  return { selection: model.selection, gesture: { kind: "idle" } };
+}
+
+function startDrawing(
+  kind: FieldDrawingKind,
+  playerId: string,
+  context: FieldInteractionContext,
+): FieldInteractionModel | undefined {
+  const player = context.document.players.find(({ id }) => id === playerId);
+  if (!player) return undefined;
+  return {
+    selection: [],
+    gesture: { kind: "idle" },
+    drawing: {
+      kind,
+      playerId,
+      points: [
+        {
+          lateralYards: player.position.lateralYards,
+          depthYards: player.position.depthYards,
+        },
+      ],
+      cursor: player.position,
+      depthBuffer: "",
+      pointerDown: false,
+    },
+  };
+}
+
+/**
+ * One finished route is one insert. Kind defaults are the original's, and a
+ * second route on the same man arrives dotted as his alternate.
+ */
+function buildDrawCommand(
+  context: FieldInteractionContext,
+  drawing: FieldDrawingState,
+  pathId: string,
+): PlayCommand | undefined {
+  const points = drawing.points.filter((point, index, all) => {
+    if (index === 0) return true;
+    return (
+      screenDistancePx(all[index - 1]!, point, context.screenScale) >=
+      DRAW_POINT_MIN_PX
+    );
+  });
+  if (points.length < 2) return undefined;
+
+  const sibling =
+    drawing.kind === "route" &&
+    context.document.paths.some(
+      (path) => path.playerId === drawing.playerId && path.kind === "route",
+    );
+  const style = drawingStyles[drawing.kind];
+  return {
+    kind: "batch",
+    label: drawingLabels[drawing.kind],
+    commands: [
+      {
+        kind: "insert-paths",
+        paths: [
+          {
+            index: context.document.paths.length,
+            item: {
+              id: pathId,
+              kind: drawing.kind,
+              playerId: drawing.playerId,
+              points,
+              branches: [],
+              style: {
+                line: sibling ? "dotted" : style.line,
+                ending: style.ending,
+                color: style.color,
+              },
+              ...(sibling ? { variant: "alternate" } : {}),
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The machine
 // ---------------------------------------------------------------------------
 
@@ -627,9 +875,10 @@ function withGesture(
 }
 
 function withSelection(
+  model: FieldInteractionModel,
   selection: readonly FieldItemRef[],
 ): FieldInteractionModel {
-  return { selection, gesture: { kind: "idle" } };
+  return { ...model, selection, gesture: { kind: "idle" } };
 }
 
 function pointerDown(
@@ -641,6 +890,11 @@ function pointerDown(
   if (model.gesture.kind !== "idle") return { model };
   if (input.button !== undefined && input.button !== 0) return { model };
 
+  // Mid-drawing, every press places the next break — even over a Player.
+  if (model.drawing) {
+    return { model: addDrawPoint(model, model.drawing, input, context) };
+  }
+
   const hit = hitTestField(
     context.scene,
     input.point,
@@ -648,11 +902,27 @@ function pointerDown(
     fieldHitOptions(input.pointerType),
   );
 
+  if (
+    context.tool === "route" ||
+    context.tool === "motion" ||
+    context.tool === "block" ||
+    context.tool === "zone"
+  ) {
+    // The original also starts unattached routes from grass; the production
+    // schema still requires a Player on every path, so until a schema
+    // revision admits unattached routes, grass presses draw nothing.
+    if (hit?.kind !== "player") return { model };
+    return {
+      model: startDrawing(context.tool, hit.id, context) ?? model,
+    };
+  }
+
   if (hit) {
     if (input.shiftKey) {
       // Shift settles membership on the press itself; no drag follows.
       return {
         model: withSelection(
+          model,
           isSelected(model.selection, hit)
             ? model.selection.filter((item) => !sameItem(item, hit))
             : [...model.selection, hit],
@@ -682,7 +952,7 @@ function pointerDown(
     const createId = context.createId ?? ((prefix: string) => `${prefix}_new`);
     const id = createId("player");
     return {
-      model: withSelection([{ kind: "player", id }]),
+      model: withSelection(model, [{ kind: "player", id }]),
       command: {
         kind: "batch",
         label: "Add Player",
@@ -730,6 +1000,30 @@ function pointerMove(
   input: FieldPointerInput,
   context: FieldInteractionContext,
 ): FieldInteractionResult {
+  const drawing = model.drawing;
+  if (drawing && model.gesture.kind === "idle") {
+    const last = drawing.points.at(-1)!;
+    if (
+      drawing.pointerDown &&
+      drawing.points.length > 1 &&
+      screenDistancePx(last, input.point, context.screenScale) >
+        DRAW_CURVE_THRESHOLD_PX
+    ) {
+      return {
+        model: { ...model, drawing: bendLastSegment(drawing, input.point) },
+      };
+    }
+    return {
+      model: {
+        ...model,
+        drawing: {
+          ...drawing,
+          cursor: drawTarget(drawing, input.point, input.shiftKey, context),
+        },
+      },
+    };
+  }
+
   const gesture = model.gesture;
   if (gesture.kind === "idle") return { model };
   if (gesture.pointerId !== input.pointerId) return { model };
@@ -784,6 +1078,13 @@ function pointerUp(
   input: FieldPointerInput,
   context: FieldInteractionContext,
 ): FieldInteractionResult {
+  if (model.drawing?.pointerDown) {
+    // Releasing keeps the drawing alive; the next press places the next break.
+    return {
+      model: { ...model, drawing: { ...model.drawing, pointerDown: false } },
+    };
+  }
+
   const gesture = model.gesture;
   if (gesture.kind === "idle") return { model };
   if (gesture.pointerId !== input.pointerId) return { model };
@@ -793,7 +1094,7 @@ function pointerUp(
     // the item under the pointer, exactly as the original did.
     return {
       model: gesture.wasMulti
-        ? withSelection([gesture.clickItem])
+        ? withSelection(model, [gesture.clickItem])
         : withGesture(model, { kind: "idle" }),
     };
   }
@@ -815,7 +1116,7 @@ function pointerUp(
     return {
       model: gesture.additive
         ? withGesture(model, { kind: "idle" })
-        : withSelection([]),
+        : withSelection(model, []),
     };
   }
   const hits = marqueeHits(context.scene, gesture.anchor, gesture.corner);
@@ -825,7 +1126,7 @@ function pointerUp(
         ...hits.filter((hit) => !isSelected(model.selection, hit)),
       ]
     : hits;
-  return { model: withSelection(selection) };
+  return { model: withSelection(model, selection) };
 }
 
 export function fieldInteraction(
@@ -842,27 +1143,65 @@ export function fieldInteraction(
       return pointerUp(model, event.input, context);
     case "pointer-cancel":
       // The platform took the pointer (palm, system gesture). Nothing was
-      // committed mid-gesture, so dropping the gesture is a clean revert.
-      return { model: withGesture(model, { kind: "idle" }) };
+      // committed mid-gesture, so dropping the gesture is a clean revert; a
+      // drawing survives — only its held pointer is released.
+      return {
+        model: {
+          ...withGesture(model, { kind: "idle" }),
+          ...(model.drawing === undefined
+            ? {}
+            : { drawing: { ...model.drawing, pointerDown: false } }),
+        },
+      };
     case "escape": {
+      // Escape steps outward: the drawing, then the gesture, then the
+      // selection — the original's ladder.
+      if (model.drawing) {
+        return { model: clearDrawing(model) };
+      }
       if (model.gesture.kind !== "idle") {
         return { model: withGesture(model, { kind: "idle" }) };
       }
       return model.selection.length > 0
-        ? { model: withSelection([]) }
+        ? { model: withSelection(model, []) }
         : { model };
     }
     case "delete": {
+      const drawing = model.drawing;
+      if (drawing) {
+        // Backspace edits the drawing before it deletes anything: the typed
+        // depth first, then the last break, then the drawing itself.
+        if (drawing.depthBuffer !== "") {
+          return {
+            model: {
+              ...model,
+              drawing: {
+                ...drawing,
+                depthBuffer: drawing.depthBuffer.slice(0, -1),
+              },
+            },
+          };
+        }
+        if (drawing.points.length > 1) {
+          return {
+            model: {
+              ...model,
+              drawing: { ...drawing, points: drawing.points.slice(0, -1) },
+            },
+          };
+        }
+        return { model: clearDrawing(model) };
+      }
       if (model.selection.length === 0) return { model };
       const command = buildDeleteCommand(context.document, model.selection);
       return {
-        model: withSelection([]),
+        model: withSelection(model, []),
         ...(command === undefined ? {} : { command }),
       };
     }
     case "select-all":
       return {
-        model: withSelection([
+        model: withSelection(model, [
           ...context.document.players.map(
             ({ id }) => ({ kind: "player", id }) as const,
           ),
@@ -884,6 +1223,49 @@ export function fieldInteraction(
         coordinate(event.lateralYards, event.depthYards),
       );
       return { model, ...(command === undefined ? {} : { command }) };
+    }
+    case "start-route": {
+      if (model.drawing || model.gesture.kind !== "idle") return { model };
+      const started = startDrawing("route", event.playerId, context);
+      return { model: started ?? model };
+    }
+    case "finish-drawing": {
+      const drawing = model.drawing;
+      if (!drawing) return { model };
+      const createId =
+        context.createId ?? ((prefix: string) => `${prefix}_new`);
+      const pathId = createId("path");
+      const command = buildDrawCommand(context, drawing, pathId);
+      if (command === undefined) return { model: clearDrawing(model) };
+      return {
+        model: {
+          selection: [{ kind: "path", id: pathId }],
+          gesture: { kind: "idle" },
+        },
+        command,
+        requestedTool: "select",
+      };
+    }
+    case "depth-digit": {
+      const drawing = model.drawing;
+      if (!drawing || !/^[0-9.]$/.test(event.digit)) return { model };
+      const depthBuffer = drawing.depthBuffer + event.digit;
+      const typed = Number.parseFloat(depthBuffer);
+      return {
+        model: {
+          ...model,
+          drawing: {
+            ...drawing,
+            depthBuffer,
+            cursor: Number.isNaN(typed)
+              ? drawing.cursor
+              : clampToField(
+                  coordinate(drawing.cursor.lateralYards, typed),
+                  context,
+                ),
+          },
+        },
+      };
     }
   }
 }
@@ -931,11 +1313,22 @@ export function pruneFieldSelection(
   const gesture: FieldGesture = gestureItems.every(exists)
     ? model.gesture
     : { kind: "idle" };
+  // A route being drawn from a Player an undo removed has nothing to attach
+  // to, so it is abandoned rather than left pointing at a ghost.
+  const drawing =
+    model.drawing && exists({ kind: "player", id: model.drawing.playerId })
+      ? model.drawing
+      : undefined;
   if (
     selection.length === model.selection.length &&
-    gesture === model.gesture
+    gesture === model.gesture &&
+    drawing === model.drawing
   ) {
     return model;
   }
-  return { selection, gesture };
+  return {
+    selection,
+    gesture,
+    ...(drawing === undefined ? {} : { drawing }),
+  };
 }
