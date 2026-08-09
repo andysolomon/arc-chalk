@@ -11,17 +11,28 @@ const VIEWBOX_HEIGHT = 525;
 
 const field = (page: Page) => page.locator("svg.field-diagram").first();
 
-/** Converts editor viewBox coordinates to client coordinates. */
+/**
+ * Converts frame coordinates to client coordinates, through whatever part of
+ * the frame is currently on screen. Reading the camera rather than assuming
+ * the whole frame is what lets the same helper work zoomed in.
+ */
 async function fieldPoint(
   page: Page,
   x: number,
   y: number,
 ): Promise<{ x: number; y: number }> {
-  const box = await field(page).boundingBox();
+  const element = field(page);
+  const box = await element.boundingBox();
   if (!box) throw new Error("The field is not on screen.");
+  const [viewX, viewY, viewWidth, viewHeight] = (
+    (await element.getAttribute("viewBox")) ??
+    `0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`
+  )
+    .split(" ")
+    .map(Number) as [number, number, number, number];
   return {
-    x: box.x + (x / VIEWBOX_WIDTH) * box.width,
-    y: box.y + (y / VIEWBOX_HEIGHT) * box.height,
+    x: box.x + ((x - viewX) / viewWidth) * box.width,
+    y: box.y + ((y - viewY) / viewHeight) * box.height,
   };
 }
 
@@ -1193,4 +1204,140 @@ test("spots the ball on a hash and takes the whole Play with it", async ({
   await expect
     .poll(async () => (await playerAt(page, "z")).x)
     .toBeCloseTo(before.x, 1);
+});
+
+const cameraOf = async (page: Page) => {
+  const box = await field(page).getAttribute("viewBox");
+  const [x, y, width, height] = (box ?? "").split(" ").map(Number);
+  return { x: x!, y: y!, width: width!, height: height! };
+};
+
+test("pushes the field in and out with the wheel, holding the point under the pointer", async ({
+  page,
+  browserName,
+}) => {
+  // A wheel is a mouse gesture; a tablet pinches instead, which its own
+  // browser will not synthesise either.
+  test.skip(browserName === "webkit", "no wheel on mobile WebKit");
+  await openEditor(page);
+  const fit = await cameraOf(page);
+  expect(fit).toMatchObject({ x: 0, y: 0 });
+
+  const at = await fieldPoint(page, 800, 300);
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.wheel(0, -120);
+
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeLessThan(fit.width);
+  const zoomed = await cameraOf(page);
+  // The frame keeps its proportion, so the picture is not stretched.
+  expect(zoomed.width / zoomed.height).toBeCloseTo(fit.width / fit.height, 3);
+  // And the point under the pointer stayed where it was.
+  expect((800 - zoomed.x) / zoomed.width).toBeCloseTo(800 / fit.width, 2);
+
+  // Zooming back out returns to the whole frame and no further.
+  for (let step = 0; step < 10; step += 1) await page.mouse.wheel(0, 120);
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeCloseTo(fit.width, 3);
+});
+
+test("shows the whole field, or just what the Coach picked, from the keyboard", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const fit = await cameraOf(page);
+
+  // Nothing picked, so this shows the whole field rather than nothing at all.
+  await page.keyboard.press("Control+2");
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeCloseTo(fit.width, 3);
+
+  const z = await playerCenter(page, "z");
+  await page.mouse.click(z.x, z.y);
+  await page.keyboard.press("Control+2");
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeLessThan(fit.width);
+
+  await page.keyboard.press("Control+0");
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeCloseTo(fit.width, 3);
+});
+
+test("keeps a grab target the size his finger is, however far in he has zoomed", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const z = await playerCenter(page, "z");
+  await page.mouse.click(z.x, z.y);
+  await page.locator('[data-scene-path="rz"]').click({ force: true });
+  // The break handles are round; the zone corner is not, so read the radii
+  // that exist rather than whichever element happens to come first.
+  const radii = () =>
+    page
+      .locator(".handle-target")
+      .evaluateAll((elements) =>
+        elements
+          .map((element) => Number(element.getAttribute("r")))
+          .filter((value) => value > 0),
+      );
+  await expect.poll(async () => (await radii()).length).toBeGreaterThan(0);
+  const atFit = Math.max(...(await radii()));
+
+  // Handles are drawn in frame units, and a frame unit is bigger on screen
+  // the further in he is — so they shrink to stay one size under his finger.
+  await page.keyboard.press("Control+Equal");
+  await expect
+    .poll(async () => Math.max(...(await radii())))
+    .toBeLessThan(atFit);
+
+  await page.keyboard.press("Control+0");
+  await expect
+    .poll(async () => Math.max(...(await radii())))
+    .toBeCloseTo(atFit, 3);
+});
+
+test("keeps the field under the pointer once the Coach has zoomed in", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const q = await playerCenter(page, "q");
+  await page.mouse.click(q.x, q.y);
+  await expect(
+    page.locator(".label-heading").getByText("Player", { exact: true }),
+  ).toBeVisible();
+
+  // Shown on his own, he is now drawn somewhere else on screen entirely.
+  await page.keyboard.press("Control+2");
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeLessThan(1068);
+  await page.keyboard.press("Escape");
+  await expect(
+    page.locator(".label-heading").getByText("Player", { exact: true }),
+  ).toBeHidden();
+
+  // Pressing where he is drawn must still be pressing him, which it only is
+  // if a client pixel is read through the camera rather than the whole frame.
+  const zoomedQ = await playerCenter(page, "q");
+  await page.mouse.click(zoomedQ.x, zoomedQ.y);
+  await expect(
+    page.locator(".label-heading").getByText("Player", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Letter" })).toHaveValue("Q");
+
+  // And how near his own drawn edge a press has to be does not grow with the
+  // picture. Ten frame units off his middle is well outside the seventeen
+  // screen pixels a mouse is allowed at this zoom, and well inside what those
+  // seventeen pixels would be worth if the camera were left out of the sum.
+  const at = await playerAt(page, "q");
+  const beside = await fieldPoint(page, at.x + 10, at.y);
+  await page.mouse.click(beside.x, beside.y);
+  await expect(
+    page.locator(".label-heading").getByText("Player", { exact: true }),
+  ).toBeHidden();
 });

@@ -1,6 +1,7 @@
 import {
   applyPlayCommand,
   assignmentForPath,
+  ballPosition,
   ballSpotNames,
   currentBallSpot,
   createStableId,
@@ -33,11 +34,20 @@ import {
   type Player,
   type BallSpot,
   type PlayCommand,
+  type PlayDocument,
   type PlayErasure,
   type TextLabel,
 } from "@chalk/domain";
 import {
   addAlternateRouteCommand,
+  cameraForBounds,
+  cameraZoom,
+  type FrameBounds,
+  centreCamera,
+  fitCamera,
+  panCamera,
+  zoomCamera,
+  type Camera,
   addRouteChoiceCommand,
   applyConceptCommand,
   applyDefensiveCallCommand,
@@ -81,15 +91,19 @@ import {
   type FieldInteractionContext,
   type FieldInteractionEvent,
   type FieldInteractionModel,
+  type FieldItemRef,
   type LabelAppearance,
   type PlayerAppearance,
 } from "@chalk/editor";
 import {
   buildRenderScene,
   buildSvgRenderScene,
+  createSvgProjection,
+  editorSvgViewport,
   projectCoordinate,
   unprojectPoint,
   type RenderScene,
+  type SvgPoint,
   type SvgProjection,
   type SvgRenderScene,
   type SvgPathStroke,
@@ -97,6 +111,7 @@ import {
   type SvgTextPrimitive,
 } from "@chalk/render";
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -283,6 +298,14 @@ const SELECTION_BLUE = "#0072F5";
 
 /** The original's own wait before a held press becomes a menu. */
 const LONG_PRESS_MS = 480;
+/**
+ * The frame the renderer draws into, which is what the camera looks at. Taken
+ * from the renderer rather than written out again, so the two cannot drift.
+ */
+const EDITOR_FRAME = Object.freeze({
+  width: editorSvgViewport.width,
+  height: editorSvgViewport.height,
+});
 /** How long the original leaves what just happened on screen. */
 const TOAST_MS = 4200;
 
@@ -300,14 +323,57 @@ type RouteCoachingField =
  * segment, and the segment underneath can no longer be clicked at all. A
  * fine pointer keeps the original's smaller targets and its precision.
  */
-function handleTargetSize(): {
+function handleTargetSize(zoom = 1): {
   readonly node: number;
   readonly control: number;
 } {
   const coarse =
     typeof globalThis.matchMedia === "function" &&
     globalThis.matchMedia("(pointer: coarse)").matches;
-  return coarse ? { node: 22, control: 44 } : { node: 13, control: 20 };
+  const base = coarse ? { node: 22, control: 44 } : { node: 13, control: 20 };
+  // These are frame units, and a frame unit is drawn bigger the further in
+  // the Coach has zoomed — so they are divided by that, and a handle stays
+  // the size his finger is rather than growing with the picture.
+  return { node: base.node / zoom, control: base.control / zoom };
+}
+
+/**
+ * What the Coach has picked, as a rectangle of the drawn frame, so the camera
+ * can be asked to show it. A route counts every point it has, forks included,
+ * because a route half off the screen has not been shown.
+ */
+function selectionFrameBounds(
+  document: PlayDocument,
+  selection: readonly FieldItemRef[],
+  projection: SvgProjection,
+): FrameBounds | undefined {
+  const points: SvgPoint[] = [];
+  for (const item of selection) {
+    if (item.kind === "player") {
+      const player = document.players.find(({ id }) => id === item.id);
+      if (player) points.push(projectCoordinate(player.position, projection));
+    } else if (item.kind === "label") {
+      const label = document.labels.find(({ id }) => id === item.id);
+      if (label) points.push(projectCoordinate(label.position, projection));
+    } else {
+      const path = document.paths.find(({ id }) => id === item.id);
+      for (const point of path?.points ?? []) {
+        points.push(projectCoordinate(point, projection));
+      }
+      for (const branch of path?.branches ?? []) {
+        for (const point of branch.points) {
+          points.push(projectCoordinate(point, projection));
+        }
+      }
+    }
+  }
+  if (points.length === 0) return undefined;
+  return {
+    minX: Math.min(...points.map(({ x }) => x)),
+    minY: Math.min(...points.map(({ y }) => y)),
+    maxX: Math.max(...points.map(({ x }) => x)),
+    maxY: Math.max(...points.map(({ y }) => y)),
+  };
 }
 
 /** Tools the interaction machine understands; the rest it never sees. */
@@ -331,6 +397,7 @@ function selectionKey(kind: "player" | "path" | "label", id: string): string {
 }
 
 export function FieldDiagram({
+  camera,
   scene = stickThunderScene,
   selection,
   overlay,
@@ -340,6 +407,8 @@ export function FieldDiagram({
   svgRef,
   ...pointerHandlers
 }: {
+  /** The part of the drawn frame on screen; absent shows all of it. */
+  camera?: Camera;
   scene?: SvgRenderScene;
   /** Keys like "player:q" — absent means a non-interactive rendering. */
   selection?: ReadonlySet<string>;
@@ -355,6 +424,7 @@ export function FieldDiagram({
   onPointerCancel?: React.PointerEventHandler<SVGSVGElement>;
   onDoubleClick?: React.MouseEventHandler<SVGSVGElement>;
   onContextMenu?: React.MouseEventHandler<SVGSVGElement>;
+  onWheel?: React.WheelEventHandler<SVGSVGElement>;
 }) {
   const selected = (kind: "player" | "path" | "label", id: string): boolean =>
     selection?.has(selectionKey(kind, id)) === true;
@@ -368,7 +438,11 @@ export function FieldDiagram({
       // straight back out of a note the Coach was put into typing.
       onMouseDown={(event) => event.preventDefault()}
       ref={svgRef}
-      viewBox={`0 0 ${scene.viewport.width} ${scene.viewport.height}`}
+      viewBox={
+        camera
+          ? `${camera.x} ${camera.y} ${camera.width} ${camera.height}`
+          : `0 0 ${scene.viewport.width} ${scene.viewport.height}`
+      }
       {...pointerHandlers}
     >
       <defs>
@@ -796,6 +870,7 @@ function RouteHandles({
   projection,
   selectedNodeIndex,
   selectedSegmentIndex,
+  zoom,
 }: {
   /** Which line of the route carries the handles: a branch, or the main one. */
   branchIndex?: number;
@@ -804,8 +879,10 @@ function RouteHandles({
   projection: SvgProjection;
   selectedNodeIndex?: number;
   selectedSegmentIndex?: number;
+  /** How much bigger a frame unit is drawn than it is at fit. */
+  zoom: number;
 }) {
-  const target = handleTargetSize();
+  const target = handleTargetSize(zoom);
   const line = lineOf(path, branchIndex);
   // A branch runs from the break it was split off at, so that point leads
   // the line and gives the first bend handle something to measure from.
@@ -2219,6 +2296,14 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     readonly x: number;
     readonly y: number;
   }>();
+  /**
+   * Where the Coach is looking. It is not part of the Play — panning is not
+   * an edit and none of it is undoable — so it lives beside the interaction
+   * model rather than in the document.
+   */
+  const [camera, setCamera] = useState<Camera>(() => fitCamera(EDITOR_FRAME));
+  /** How much bigger a frame unit is drawn than at fit. */
+  const zoom = cameraZoom(camera, EDITOR_FRAME);
   /** The set or call under the Coach's pointer in a browser, drawn on the field. */
   const [previewFormationId, setPreviewFormationId] = useState<string>();
   /**
@@ -2241,6 +2326,17 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   // opens with its right button, so the timer is armed on the press and
   // disarmed by anything that turns it into a gesture.
   const longPressRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  /** Fingers on the field, so two of them can be read as a pinch. */
+  const touchesRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{
+    distance: number;
+    midX: number;
+    midY: number;
+  }>(undefined);
+  /** Where a pan gesture last was, in client pixels. */
+  const panRef = useRef<{ x: number; y: number }>(undefined);
+  /** Whether space is down, which turns any drag into a pan. */
+  const spaceHeldRef = useRef(false);
   // Entities the Coach has just made whose commit has not landed. Selection
   // must not be pruned of something that is still on its way.
   const pendingInsertsRef = useRef<Set<string>>(new Set());
@@ -2440,9 +2536,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         renderScene ??= buildRenderScene(document);
         return renderScene;
       },
+      // What a screen pixel is worth in yards changes with the camera, so a
+      // tolerance measured in pixels has to be read through it — otherwise
+      // zooming in would make every grab target grow with the picture.
       screenScale: {
-        lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard,
-        depthPixelsPerYard: scene.viewport.depthPixelsPerYard,
+        lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard * zoom,
+        depthPixelsPerYard: scene.viewport.depthPixelsPerYard * zoom,
       },
       snap: { enabled: snapEnabled, grid: "off" },
       tool: interactionTool(activeTool),
@@ -2519,17 +2618,18 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
    * rather than the event target, because a handle's own rect is a target
    * too and would otherwise supply the wrong frame.
    */
-  const fieldPointFromClient = (clientX: number, clientY: number) => {
+  const framePointFromClient = (clientX: number, clientY: number) => {
     const bounds = fieldSvgRef.current?.getBoundingClientRect();
-    if (!bounds) return { lateralYards: 0, depthYards: 0 };
-    return unprojectPoint(
-      {
-        x: ((clientX - bounds.left) / bounds.width) * scene.viewport.width,
-        y: ((clientY - bounds.top) / bounds.height) * scene.viewport.height,
-      },
-      scene.viewport,
-    );
+    if (!bounds) return { x: 0, y: 0 };
+    // Through the camera, not the whole frame: what a client pixel is worth
+    // depends on how much of the frame is on screen.
+    return {
+      x: camera.x + ((clientX - bounds.left) / bounds.width) * camera.width,
+      y: camera.y + ((clientY - bounds.top) / bounds.height) * camera.height,
+    };
   };
+  const fieldPointFromClient = (clientX: number, clientY: number) =>
+    unprojectPoint(framePointFromClient(clientX, clientY), scene.viewport);
   const fieldPointerInput = (event: React.PointerEvent) => ({
     point: fieldPointFromClient(event.clientX, event.clientY),
     pointerId: event.pointerId,
@@ -2587,6 +2687,27 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     } catch {
       // Capture is best-effort; the gesture survives without it.
     }
+    if (event.pointerType === "touch") {
+      touchesRef.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      if (touchesRef.current.size === 2) {
+        // A second finger turns the gesture into a pinch, so whatever the
+        // first one had started is abandoned rather than dragged along.
+        pinchRef.current = pinchOf();
+        cancelLongPress();
+        dispatchField({ type: "pointer-cancel" });
+        return;
+      }
+    }
+    // Held space or a held alt moves the field instead of what is on it —
+    // the gestures every drawing tool has trained into him.
+    if (spaceHeldRef.current || event.altKey) {
+      panRef.current = { x: event.clientX, y: event.clientY };
+      cancelLongPress();
+      return;
+    }
     dispatchField({ type: "pointer-down", input: fieldPointerInput(event) });
     cancelLongPress();
     // A mouse has a button for this; every other pointer holds still instead.
@@ -2598,6 +2719,52 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     }, LONG_PRESS_MS);
   };
   const onFieldPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (
+      event.pointerType === "touch" &&
+      touchesRef.current.has(event.pointerId)
+    ) {
+      touchesRef.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+    }
+    const pinch = pinchRef.current;
+    if (pinch && touchesRef.current.size >= 2) {
+      const now = pinchOf();
+      if (!now) return;
+      const element = fieldSvgRef.current;
+      const perPixel = camera.width / (element?.clientWidth ?? 1);
+      const anchor = framePointFromClient(now.midX, now.midY);
+      setCamera((current) =>
+        panCamera(
+          zoomCamera(
+            current,
+            pinch.distance / now.distance,
+            EDITOR_FRAME,
+            anchor,
+          ),
+          -(now.midX - pinch.midX) * perPixel,
+          -(now.midY - pinch.midY) * perPixel,
+          EDITOR_FRAME,
+        ),
+      );
+      pinchRef.current = now;
+      return;
+    }
+    const from = panRef.current;
+    if (from) {
+      const perPixel = camera.width / (fieldSvgRef.current?.clientWidth ?? 1);
+      panRef.current = { x: event.clientX, y: event.clientY };
+      setCamera((current) =>
+        panCamera(
+          current,
+          -(event.clientX - from.x) * perPixel,
+          -(event.clientY - from.y) * perPixel,
+          EDITOR_FRAME,
+        ),
+      );
+      return;
+    }
     dispatchField({ type: "pointer-move", input: fieldPointerInput(event) });
     // Asked after the move, not before it: this very event is what turns a
     // still press into a drag, and reading the gesture first would always find
@@ -2611,6 +2778,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   };
   const onFieldPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
     cancelLongPress();
+    touchesRef.current.delete(event.pointerId);
+    if (touchesRef.current.size < 2) pinchRef.current = undefined;
+    if (panRef.current) {
+      panRef.current = undefined;
+      return;
+    }
     dispatchField({ type: "pointer-up", input: fieldPointerInput(event) });
   };
   const onFieldContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
@@ -2655,7 +2828,10 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       point: fieldPointFromClient(event.clientX, event.clientY),
     });
   };
-  const onFieldPointerCancel = () => {
+  const onFieldPointerCancel = (event: React.PointerEvent<SVGSVGElement>) => {
+    touchesRef.current.delete(event.pointerId);
+    if (touchesRef.current.size < 2) pinchRef.current = undefined;
+    panRef.current = undefined;
     dispatchField({ type: "pointer-cancel" });
   };
   const commitPlayName = () => {
@@ -2713,6 +2889,72 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       setOpenMenu(null);
       void editorStore.applyCommand(command).catch(() => undefined);
     };
+  };
+
+  /**
+   * A wheel pushes the field in and out about the pointer. A trackpad swipe
+   * moves it instead — sideways on its own, and sideways from a held shift,
+   * which is the gesture every drawing tool has trained into him.
+   */
+  /** The two fingers as one gesture: how far apart, and where between them. */
+  const pinchOf = () => {
+    const [first, second] = [...touchesRef.current.values()];
+    if (!first || !second) return undefined;
+    return {
+      distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+      midX: (first.x + second.x) / 2,
+      midY: (first.y + second.y) / 2,
+    };
+  };
+
+  const onFieldWheel = (event: React.WheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    const acrossFirst =
+      event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
+    if (acrossFirst) {
+      const perPixel = camera.width / (fieldSvgRef.current?.clientWidth ?? 1);
+      const across =
+        event.shiftKey && event.deltaX === 0 ? event.deltaY : event.deltaX;
+      const down = event.shiftKey && event.deltaX === 0 ? 0 : event.deltaY;
+      setCamera((current) =>
+        panCamera(current, across * perPixel, down * perPixel, EDITOR_FRAME),
+      );
+      return;
+    }
+    const anchor = framePointFromClient(event.clientX, event.clientY);
+    setCamera((current) =>
+      zoomCamera(
+        current,
+        event.deltaY > 0 ? 1.12 : 1 / 1.12,
+        EDITOR_FRAME,
+        anchor,
+      ),
+    );
+  };
+
+  /**
+   * Shows what he picked, or the whole field when he picked nothing. Read
+   * from the live Play and the live selection rather than from the render
+   * that offered the button, so the keyboard and the palette agree with it.
+   */
+  const showSelection = (): void => {
+    const document = editorStore.getSnapshot().document;
+    const bounds = selectionFrameBounds(
+      document,
+      interactionRef.current.selection,
+      createSvgProjection(document.fieldProfile),
+    );
+    setCamera(
+      bounds ? cameraForBounds(bounds, EDITOR_FRAME) : fitCamera(EDITOR_FRAME),
+    );
+  };
+  const showTheBall = (): void => {
+    const document = editorStore.getSnapshot().document;
+    const at = projectCoordinate(
+      ballPosition(document),
+      createSvgProjection(document.fieldProfile),
+    );
+    setCamera((current) => centreCamera(current, at, EDITOR_FRAME));
   };
 
   /** Which set is on the field, by name, as the browser and the panel say it. */
@@ -3001,6 +3243,13 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     deleteSelection: () => dispatchFieldRef.current({ type: "delete" }),
     bringForward: reorderAction(1),
     sendBackward: reorderAction(-1),
+    fitField: () => setCamera(fitCamera(EDITOR_FRAME)),
+    fitToSelection: showSelection,
+    zoomToSelection: showSelection,
+    centerBall: showTheBall,
+    ballLeft: () => spotTheBall("left"),
+    ballMiddle: () => spotTheBall("middle"),
+    ballRight: () => spotTheBall("right"),
     formations: () => {
       setOpenMenu(null);
       setOverlay("formations");
@@ -3029,6 +3278,20 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // Held by the keyboard listener, and stable, since everything it needs it
+  // reads live rather than closing over.
+  const showSelectionOnKey = useCallback(() => {
+    const document = editorStore.getSnapshot().document;
+    const bounds = selectionFrameBounds(
+      document,
+      interactionRef.current.selection,
+      createSvgProjection(document.fieldProfile),
+    );
+    setCamera(
+      bounds ? cameraForBounds(bounds, EDITOR_FRAME) : fitCamera(EDITOR_FRAME),
+    );
+  }, [editorStore]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -3051,6 +3314,19 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         // With no chrome to close, Escape cancels the gesture or clears the
         // selection, the way the original stepped outward.
         if (!typing) dispatchFieldRef.current({ type: "escape" });
+        return;
+      }
+      if (meta && (key === "0" || key === "2")) {
+        event.preventDefault();
+        if (key === "0") setCamera(fitCamera(EDITOR_FRAME));
+        else showSelectionOnKey();
+        return;
+      }
+      if (meta && (key === "=" || key === "+" || key === "-")) {
+        event.preventDefault();
+        setCamera((current) =>
+          zoomCamera(current, key === "-" ? 1.25 : 1 / 1.25, EDITOR_FRAME),
+        );
         return;
       }
       if (meta && event.shiftKey && (key === "f" || key === "d")) {
@@ -3113,6 +3389,13 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         return;
       }
       if (typing || meta || event.altKey) return;
+      if (event.key === " ") {
+        // Held space turns a drag into a pan. It is not a tool key and has no
+        // other job, so it is swallowed rather than scrolling the page.
+        event.preventDefault();
+        spaceHeldRef.current = true;
+        return;
+      }
       if (event.key === "Enter") {
         // Enter ends the route being drawn; with nothing in flight it is the
         // machine's own no-op.
@@ -3169,9 +3452,16 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       if (key === "s") setSnapEnabled((enabled) => !enabled);
     };
 
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === " ") spaceHeldRef.current = false;
+    };
     globalThis.addEventListener("keydown", onKeyDown);
-    return () => globalThis.removeEventListener("keydown", onKeyDown);
-  }, [contextMenu, editorStore, openMenu, overlay]);
+    globalThis.addEventListener("keyup", onKeyUp);
+    return () => {
+      globalThis.removeEventListener("keydown", onKeyDown);
+      globalThis.removeEventListener("keyup", onKeyUp);
+    };
+  }, [contextMenu, editorStore, openMenu, overlay, showSelectionOnKey]);
 
   useEffect(() => {
     if (!openMenu) return;
@@ -3270,6 +3560,8 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
             data-tool={activeTool}
           >
             <FieldDiagram
+              camera={camera}
+              onWheel={onFieldWheel}
               onContextMenu={onFieldContextMenu}
               onPointerCancel={onFieldPointerCancel}
               onPointerDown={onFieldPointerDown}
@@ -3295,6 +3587,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                       projection={scene.viewport}
                       selectedNodeIndex={interaction.selectedNodeIndex}
                       selectedSegmentIndex={interaction.selectedSegmentIndex}
+                      zoom={zoom}
                     />
                   ) : null}
                   <FormationGhost
