@@ -149,6 +149,14 @@ const movementPathFields = {
   coverageArea: z.optional(coverageAreaSchema),
   rule: z.optional(z.string()),
   /**
+   * The shape off the route tree this line was drawn from, and the concept
+   * that drew it. Both are how it was made rather than what it is, which is
+   * why they are the line's own and not the man's: they say which button is
+   * lit while he is looking at it, and nothing about what he is told to do.
+   */
+  preset: z.optional(z.string()),
+  concept: z.optional(z.string()),
+  /**
    * Where this line falls in the quarterback's progression. The Coach's own
    * wording for the man's job is an Assignment (ADR 0011), but the order he
    * reads the lines in, what the line becomes against a coverage, and the
