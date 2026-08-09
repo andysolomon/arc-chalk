@@ -602,3 +602,56 @@ export function ShortcutReference({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+/**
+ * What the Coach can do to the one thing he pointed at, where he pointed. The
+ * original opens it on a right-click or a long press over a Player or a route,
+ * and every item here is also reachable from the keyboard, which ADR 0016
+ * requires of a menu that only a pointer can open.
+ */
+export function ContextMenu({
+  actions,
+  at,
+  onDismiss,
+}: {
+  actions: ActionMap;
+  at: { readonly x: number; readonly y: number } | undefined;
+  onDismiss: () => void;
+}) {
+  if (!at) return null;
+  const entries: readonly MenuEntry[] = [
+    { id: "duplicate", label: "Duplicate", shortcut: "⌘D" },
+    { id: "mirror", label: "Mirror" },
+    { id: "bringForward", label: "Bring forward", shortcut: "⌘]" },
+    { id: "sendBackward", label: "Send back", shortcut: "⌘[" },
+    { id: "deleteSelection", label: "Delete", shortcut: "⌫" },
+  ];
+
+  return (
+    <div
+      className="context-backdrop"
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onDismiss();
+      }}
+      onPointerDown={onDismiss}
+    >
+      <div
+        className="menu-panel context-panel"
+        onContextMenu={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        role="menu"
+        style={{ left: `${at.x}px`, top: `${at.y}px` }}
+      >
+        {entries.map((entry) => (
+          <MenuItem
+            actions={actions}
+            entry={entry}
+            key={entry.label}
+            onDismiss={onDismiss}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

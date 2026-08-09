@@ -17,6 +17,7 @@ import {
   flipPlayerLinesCommand,
   flipRouteCommand,
   removeRouteChoiceCommand,
+  reorderSelectionCommand,
   fieldHitOptions,
   fieldInteraction,
   gesturePreviewCommand,
@@ -2760,5 +2761,125 @@ describe("turning a line the other way", () => {
   it("declines for a man with nothing to turn", () => {
     expect(flipPlayerLinesCommand(stickThunderPlay, "q")).toBeUndefined();
     expect(flipRouteCommand(stickThunderPlay, "missing")).toBeUndefined();
+  });
+});
+
+describe("asking what can be done to one thing", () => {
+  it("settles on what was pointed at when it was not already picked", () => {
+    const context = contextFor(stickThunderPlay);
+    const { model } = run(context, [
+      down(positionOf(stickThunderPlay, "x")),
+      up(positionOf(stickThunderPlay, "x")),
+      { type: "point-at", item: player("z") },
+    ]);
+
+    expect(model.selection).toEqual([player("z")]);
+  });
+
+  it("keeps a group whole when it is one of the group", () => {
+    // Asking about one of several must not throw the rest away: the menu is
+    // about all of them, which is what makes Delete take the group.
+    const context = contextFor(stickThunderPlay);
+    const { model } = run(context, [
+      { type: "select-all" },
+      { type: "point-at", item: player("z") },
+    ]);
+
+    expect(model.selection.length).toBeGreaterThan(1);
+    expect(model.selection).toContainEqual(player("z"));
+  });
+
+  it("abandons a route being drawn — he has stopped to look", () => {
+    const context = contextFor(stickThunderPlay, { tool: "route" });
+    const { model } = run(context, [
+      down(positionOf(stickThunderPlay, "z")),
+      { type: "point-at", item: player("z") },
+    ]);
+
+    expect(model.drawing).toBeUndefined();
+  });
+});
+
+describe("which of them draws on top", () => {
+  const order = (document: PlayDocument) => document.paths.map(({ id }) => id);
+  const seeded = order(stickThunderPlay);
+
+  it("swaps a line with the one it is drawn under", () => {
+    const forward = applyPlayCommand(
+      stickThunderPlay,
+      reorderSelectionCommand(stickThunderPlay, [path("rf")], 1)!,
+    );
+
+    expect(seeded).toEqual(["rx", "rf", "ry", "rh", "rz"]);
+    expect(order(forward)).toEqual(["rx", "ry", "rf", "rh", "rz"]);
+    expect(
+      order(
+        applyPlayCommand(
+          forward,
+          reorderSelectionCommand(forward, [path("rf")], -1)!,
+        ),
+      ),
+    ).toEqual(seeded);
+  });
+
+  it("carries a group without letting its members overtake each other", () => {
+    const moved = applyPlayCommand(
+      stickThunderPlay,
+      reorderSelectionCommand(stickThunderPlay, [path("rx"), path("rf")], 1)!,
+    );
+
+    // Both step forward once and keep their own order; neither jumps the other.
+    expect(order(moved)).toEqual(["ry", "rx", "rf", "rh", "rz"]);
+    // And with the group already against the back of the layer there is
+    // nowhere to go: rf's only neighbour behind it is rx, which is one of the
+    // group, so swapping with it would only shuffle the two of them.
+    expect(
+      reorderSelectionCommand(stickThunderPlay, [path("rx"), path("rf")], -1),
+    ).toBeUndefined();
+  });
+
+  it("declines when the line is already as far as it goes", () => {
+    expect(
+      reorderSelectionCommand(stickThunderPlay, [path("rz")], 1),
+    ).toBeUndefined();
+    expect(
+      reorderSelectionCommand(stickThunderPlay, [path("rx")], -1),
+    ).toBeUndefined();
+  });
+
+  it("declines for Players, who draw above every line either way", () => {
+    expect(
+      reorderSelectionCommand(stickThunderPlay, [player("x")], 1),
+    ).toBeUndefined();
+    expect(reorderSelectionCommand(stickThunderPlay, [], 1)).toBeUndefined();
+  });
+
+  it("reorders text on its own layer, and lands as one entry", () => {
+    const written = applyPlayCommand(stickThunderPlay, {
+      kind: "insert-labels",
+      labels: [0, 1].map((index) => ({
+        index: stickThunderPlay.labels.length + index,
+        item: {
+          id: `note_${index}`,
+          position: { lateralYards: index, depthYards: 3 },
+          text: `n${index}`,
+          color: "ink" as const,
+          size: 12,
+          box: "none" as const,
+          boxColor: "ink" as const,
+        },
+      })),
+    });
+    const command = reorderSelectionCommand(written, [label("note_0")], 1)!;
+    const after = applyPlayCommand(written, command);
+
+    expect(command.kind).toBe("batch");
+    // Forward is later in the layer, which is what draws on top.
+    expect(after.labels.map(({ id }) => id).slice(-2)).toEqual([
+      "note_1",
+      "note_0",
+    ]);
+    // The lines were never touched, so their layer was never rewritten.
+    expect(order(after)).toEqual(seeded);
   });
 });

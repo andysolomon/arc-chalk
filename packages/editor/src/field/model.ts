@@ -72,6 +72,15 @@ export type FieldInteractionEvent =
       readonly pathId: string;
       readonly point: Coordinate;
     }
+  | {
+      /**
+       * The Coach has asked what he can do to this one — by right-click, by
+       * long press, or by any other modality that arrives later. Settling the
+       * selection is the model's answer; opening a menu is the shell's.
+       */
+      readonly type: "point-at";
+      readonly item: FieldItemRef;
+    }
   | { readonly type: "copy" }
   | { readonly type: "paste" }
   | { readonly type: "duplicate" }

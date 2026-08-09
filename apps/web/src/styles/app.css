@@ -1449,3 +1449,27 @@ select:focus-visible {
 .line-row button.remove:hover {
   color: #e5484d;
 }
+/* The menu on a Player or a route, where the Coach asked for it. */
+.context-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 22;
+}
+.context-panel {
+  position: fixed;
+  top: 0;
+  right: auto;
+  width: 198px;
+  z-index: 22;
+}
+.context-panel .menu-item {
+  height: 34px;
+  padding: 0 9px;
+  font-size: 12.5px;
+}
+.context-panel .menu-item:last-child:not(:disabled) {
+  color: #e5484d;
+}
+.context-panel .menu-item:last-child:not(:disabled):hover {
+  background: #fef2f2;
+}

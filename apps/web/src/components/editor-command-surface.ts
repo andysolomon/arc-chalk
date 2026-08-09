@@ -50,6 +50,10 @@ export type ActionId =
   | "ungroup"
   | "bringForward"
   | "sendBackward"
+  // Reached from the context menu and the keyboard rather than the palette,
+  // which is where the original leaves them too.
+  | "duplicate"
+  | "deleteSelection"
   | "reverseRoute"
   | "addDepthLabel"
   | "shortcuts"
