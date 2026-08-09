@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
+  clearEntries,
+  clearMenuHint,
   exportGroups,
   paletteCommands,
   positionGroups,
@@ -137,6 +139,76 @@ export function MoreMenu({
         {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * The Clear menu on the tool rail. Each button is greyed by the absence of
+ * its own action, which the shell derives from whether the erasure would take
+ * anything, so nothing here looks dead and still takes a click.
+ */
+export function ClearMenu({
+  actions,
+  onDismiss,
+  onToggle,
+  open,
+}: {
+  actions: ActionMap;
+  onDismiss: () => void;
+  onToggle: () => void;
+  open: boolean;
+}) {
+  return (
+    <div className="menu">
+      <button
+        aria-expanded={open}
+        aria-label="Clear a layer"
+        className={open ? "open" : undefined}
+        onClick={onToggle}
+        title="Clear a layer"
+        type="button"
+      >
+        <EraseIcon />
+      </button>
+      <div className="menu-panel clear-panel" hidden={!open}>
+        <div className="menu-heading">Clear</div>
+        <div className="clear-grid">
+          {clearEntries.map((entry) => (
+            <MenuItem
+              actions={actions}
+              entry={entry}
+              key={entry.id}
+              onDismiss={onDismiss}
+            />
+          ))}
+        </div>
+        <p className="menu-note">{clearMenuHint}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The original's eraser, in its own coordinates: a block on a rule with the
+ * mark it has just rubbed out. The rail draws every icon at 18 px, so the
+ * original's 18-unit grid is carried over rather than re-plotted onto the
+ * 24-unit one the drawing tools use.
+ */
+function EraseIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 18 18">
+      <g
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      >
+        <path d="M3 15.2 L15 15.2" />
+        <path d="M6.4 15.2 L3.6 12.1 L10.2 3.6 L14 6.4 Z" />
+        <path d="M7.2 9.1 L11.4 12.2" />
+      </g>
+    </svg>
   );
 }
 

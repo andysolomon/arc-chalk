@@ -6,11 +6,14 @@ import {
   labelRolePresets,
   offensiveRouteKinds,
   labelSizeChoices,
+  playErasureCommand,
+  playErasures,
   PRODUCT_NAME,
   stickThunderPlay,
   type LabelRole,
   type MovementPath,
   type PlayCommand,
+  type PlayErasure,
   type TextLabel,
 } from "@chalk/domain";
 import {
@@ -61,6 +64,7 @@ import {
 import type { ChalkRuntime } from "../app/editor-runtime";
 import { type ActionMap } from "./editor-command-surface";
 import {
+  ClearMenu,
   CommandPalette,
   ExportMenu,
   MoreMenu,
@@ -69,7 +73,7 @@ import {
 } from "./editor-overlays";
 
 type View = "Editor" | "Demo" | "Present" | "Print";
-type Menu = "more" | "export" | "save" | null;
+type Menu = "more" | "export" | "save" | "clear" | null;
 type Overlay = "palette" | "shortcuts" | null;
 type Tool =
   "select" | "player" | "route" | "motion" | "block" | "zone" | "text";
@@ -1900,6 +1904,28 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   };
 
   /**
+   * What each Clear would take. The original greys a Clear from the same
+   * number that would run it, so a button never looks dead and still takes a
+   * click; here the answer is the command itself, and no command means no
+   * action, which is what leaves the button disabled.
+   */
+  const erasures = useMemo(() => {
+    const built = {} as Record<PlayErasure, PlayCommand | undefined>;
+    for (const erasure of playErasures) {
+      built[erasure] = playErasureCommand(editor.document, erasure);
+    }
+    return built;
+  }, [editor.document]);
+  const clearAction = (erasure: PlayErasure): (() => void) | undefined => {
+    const command = erasures[erasure];
+    if (!command) return undefined;
+    return () => {
+      setOpenMenu(null);
+      void editorStore.applyCommand(command).catch(() => undefined);
+    };
+  };
+
+  /**
    * What production can run today. A command the editor cannot yet perform is
    * deliberately absent so the menus show it as unavailable rather than
    * accepting a click and doing nothing.
@@ -1932,6 +1958,13 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       commitPlayName();
       setOpenMenu(null);
     },
+    clearRoutesOffense: clearAction("offensive-lines"),
+    clearRoutesDefense: clearAction("defensive-lines"),
+    clearAllLines: clearAction("lines"),
+    clearOffense: clearAction("offense"),
+    clearDefense: clearAction("defense"),
+    clearText: clearAction("text"),
+    clearField: clearAction("field"),
   };
 
   useEffect(() => {
@@ -2109,9 +2142,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               </button>
             ))}
             <span className="rail-spacer" />
-            <button aria-label="Clear a layer">
-              <ToolIcon glyph="block" />
-            </button>
+            <ClearMenu
+              actions={actions}
+              onDismiss={() => setOpenMenu(null)}
+              onToggle={() => toggleMenu("clear")}
+              open={openMenu === "clear"}
+            />
             <button aria-label="Angle snap 45 degrees">
               <ToolIcon glyph="route" />
             </button>
@@ -2202,40 +2238,6 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               <button>2×</button>
             </span>
             <button aria-label="Reset">⟲</button>
-          </div>
-          <div className="statusbar">
-            <span>
-              drag the blue dot above a player to draw his route — double-click
-              a line to add a node · ⌫ delete
-            </span>
-            <span>
-              {/* One string, so live values cannot disturb the original's
-                  exact spacing. */}
-              {`− \u00A0 100% \u00A0 + \u00A0\u00A0 SELECTION \u00A0\u00A0 BALL \u00A0\u00A0 CUSTOM ALIGNMENT \u00A0\u00A0 SNAP ${
-                snapEnabled ? "ON" : "OFF"
-              } \u00A0\u00A0 ${editor.document.players.length}P · ${
-                editor.document.paths.filter(({ kind }) => kind === "route")
-                  .length
-              }R \u00A0\u00A0`}
-              <button
-                aria-label={localSaveMessage(editor.localSave)}
-                className={`save-state ${editor.localSave.phase}`}
-                data-save-duration-ms={
-                  "durationMs" in editor.localSave
-                    ? editor.localSave.durationMs
-                    : undefined
-                }
-                data-save-within-budget={
-                  "withinBudget" in editor.localSave
-                    ? editor.localSave.withinBudget
-                    : undefined
-                }
-                disabled={editor.localSave.phase !== "error"}
-                onClick={retrySave}
-              >
-                {localSaveStatus(editor.localSave)}
-              </button>
-            </span>
           </div>
         </main>
         {inspectorOpen ? (
@@ -2341,6 +2343,39 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
             Inspector
           </button>
         )}
+      </div>
+      <div className="statusbar">
+        <span>
+          drag the blue dot above a player to draw his route — double-click a
+          line to add a node · ⌫ delete
+        </span>
+        <span>
+          {/* One string, so live values cannot disturb the original's
+              exact spacing. */}
+          {`− \u00A0 100% \u00A0 + \u00A0\u00A0 SELECTION \u00A0\u00A0 BALL \u00A0\u00A0 CUSTOM ALIGNMENT \u00A0\u00A0 SNAP ${
+            snapEnabled ? "ON" : "OFF"
+          } \u00A0\u00A0 ${editor.document.players.length}P · ${
+            editor.document.paths.filter(({ kind }) => kind === "route").length
+          }R \u00A0\u00A0`}
+          <button
+            aria-label={localSaveMessage(editor.localSave)}
+            className={`save-state ${editor.localSave.phase}`}
+            data-save-duration-ms={
+              "durationMs" in editor.localSave
+                ? editor.localSave.durationMs
+                : undefined
+            }
+            data-save-within-budget={
+              "withinBudget" in editor.localSave
+                ? editor.localSave.withinBudget
+                : undefined
+            }
+            disabled={editor.localSave.phase !== "error"}
+            onClick={retrySave}
+          >
+            {localSaveStatus(editor.localSave)}
+          </button>
+        </span>
       </div>
       {overlay === "palette" ? (
         <CommandPalette actions={actions} onClose={() => setOverlay(null)} />

@@ -247,6 +247,55 @@ select:focus-visible {
 .save-panel {
   width: 214px;
 }
+/* The rail runs down the left edge, so its menu opens beside the button and
+   sits on its bottom rather than hanging from a header. */
+.clear-panel {
+  top: auto;
+  right: auto;
+  bottom: -6px;
+  left: 48px;
+  width: 246px;
+  padding: 12px;
+  z-index: 14;
+}
+.menu-heading {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.clear-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.clear-grid .menu-item {
+  min-width: 0;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  color: #4d4d4d;
+  font-size: 12px;
+  text-align: center;
+}
+/* Clearing is destructive, so the hover is the warning colour. */
+.clear-grid .menu-item:not(:disabled):hover {
+  background: #fef2f2;
+  color: var(--red);
+}
+.clear-grid .menu-item:disabled {
+  color: #c9c9c9;
+  cursor: default;
+}
+.menu-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 15px;
+}
 .menu-group {
   display: flex;
   flex-direction: column;
@@ -937,20 +986,31 @@ select:focus-visible {
   color: var(--ink);
   box-shadow: 0 0 0 1px var(--line);
 }
+/* The statusbar runs the width of the window under the rail and the
+   inspector, not inside the field's own column — which is what sets where
+   the rail's bottom group lands. */
 .statusbar {
-  height: 29px;
+  height: 30px;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
   padding: 0 16px;
   overflow: hidden;
+  z-index: 2;
+  box-shadow: 0 -1px 0 0 rgba(0, 0, 0, 0.06);
   background: var(--canvas);
-  color: #818181;
+  color: var(--muted);
   font-family: "Geist Mono", monospace;
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
+}
+.statusbar > span:first-child {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .inspector {
