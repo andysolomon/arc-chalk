@@ -1751,3 +1751,27 @@ select:focus-visible {
 .browser-toggle.on > span:first-child {
   background: #0072f5;
 }
+/* The route tree, offered where a Coach is already looking at the line. */
+.line-row select {
+  min-width: 0;
+  height: 22px;
+  max-width: 96px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  color: #4d4d4d;
+  cursor: pointer;
+  font-size: 11px;
+}
+.button-grid button[aria-pressed="true"],
+.button-grid button.active {
+  background: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+  color: var(--paper);
+}
+.button-grid button:disabled {
+  color: #c9c9c9;
+  cursor: default;
+}

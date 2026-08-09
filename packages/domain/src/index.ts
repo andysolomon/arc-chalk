@@ -12,6 +12,7 @@ export * from "./geometry";
 export * from "./legacy";
 export * from "./migrations";
 export * from "./product";
+export * from "./route-catalogue";
 export * from "./publication";
 export * from "./schema";
 export * from "./seed-stick-thunder";

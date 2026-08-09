@@ -2,17 +2,22 @@ import {
   applyDefensiveCall,
   applyFormation,
   applyPlayCommand,
+  assignRoles,
   assignmentForPath,
   canonicalStringify,
   deletePathsCommand,
   deletePlayersCommand,
   diffPlayDocuments,
+  handednessOf,
+  isLineman,
   labelRolePresets,
+  routePresetPoints,
   legacyCanvasToYards,
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
   routeKindStyle,
   yardsToLegacyCanvas,
+  type ConceptDefinition,
   type Coordinate,
   type DefensiveCall,
   type DefensiveCallResult,
@@ -1096,5 +1101,228 @@ export function applyDefensiveCallCommand(
   return {
     result,
     ...(command.commands.length > 0 ? { command } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The route tree, and the concepts drawn out of it
+// ---------------------------------------------------------------------------
+
+/** Held inside the paint, the way a drawn or realigned line is. */
+function insidePoints(
+  document: PlayDocument,
+  points: readonly PathPoint[],
+): PathPoint[] {
+  return points.map((point) => ({
+    ...point,
+    ...insideSidelines(document, point),
+    ...(point.control
+      ? { control: insideSidelines(document, point.control) }
+      : {}),
+  }));
+}
+
+/**
+ * Reshaping a line to a call off the route tree. Replacing redraws it from the
+ * man's own stance, so the same call lands correctly on a variation that lines
+ * him up somewhere else; continuing turns the end of what he has into a real
+ * break and runs the shape on from there, which is no longer any one call and
+ * so stops being named as one.
+ */
+export function applyRoutePresetCommand(
+  document: PlayDocument,
+  pathId: string,
+  presetKey: string,
+  mode: "replace" | "continue" = "replace",
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path) return undefined;
+  const player = document.players.find(({ id }) => id === path.playerId);
+  if (!player) return undefined;
+
+  const continuing = mode === "continue" && path.points.length > 1;
+  const anchor = continuing ? path.points.at(-1)! : player.position;
+  const shape = routePresetPoints(
+    presetKey,
+    anchor,
+    handednessOf(player.position),
+  );
+  if (!shape) return undefined;
+  // The anchor is left exactly as it is: a man already stands inside the
+  // paint, and a break he already has was held there when it was made, so
+  // rounding either would only move the line off what it starts on.
+  const drawn = [anchor, ...insidePoints(document, shape.slice(1))];
+
+  const next: MovementPath = continuing
+    ? {
+        ...path,
+        points: [...path.points, ...drawn.slice(1)],
+        // No longer one call off the tree, so no longer named as one.
+        preset: undefined,
+      }
+    : {
+        ...path,
+        points: drawn,
+        preset: presetKey,
+        // A fork hangs off a break, and there may be fewer breaks than before.
+        branches: path.branches.map((branch) => ({
+          ...branch,
+          fromIndex: Math.min(branch.fromIndex, drawn.length - 1),
+        })),
+      };
+  if (next.preset === undefined) delete (next as { preset?: string }).preset;
+
+  return canonicalStringify(next) === canonicalStringify(path)
+    ? undefined
+    : { kind: "update-path", path: next };
+}
+
+/**
+ * Who a concept is about: the men who could be given a job in one. A defender
+ * is on the other side of it and a lineman blocks, so neither is a target —
+ * and being a lineman is read off where a man stands rather than off the
+ * position he was given, which is what keeps an extra tackle out of the
+ * distribution even though a sixth man on the line reads as a slot.
+ *
+ * Whether the quarterback has a job is left to the concept: none of the ten
+ * gives him one, and a screen that did would be naming him deliberately.
+ */
+export function conceptTargets(
+  document: PlayDocument,
+  concept: ConceptDefinition,
+): readonly { readonly player: Player; readonly role: string }[] {
+  const eligible = document.players.filter(
+    (player) => player.unit !== "defense" && !isLineman(player),
+  );
+  const roles = assignRoles(eligible);
+  return eligible.flatMap((player, index) => {
+    const role = roles[index];
+    if (!role || !concept.roles.includes(role)) return [];
+    return [{ player, role }];
+  });
+}
+
+/** Whether every man a concept is about is already running his job in it. */
+export function conceptIsOn(
+  document: PlayDocument,
+  concept: ConceptDefinition,
+): boolean {
+  const targets = conceptTargets(document, concept);
+  if (targets.length === 0) return false;
+  return targets.every(({ player }) =>
+    document.paths.some(
+      (path) =>
+        path.playerId === player.id &&
+        path.kind === "route" &&
+        path.concept === concept.key,
+    ),
+  );
+}
+
+export interface ConceptResult {
+  readonly command?: PlayCommand;
+  /** How many men were given a job, or had one taken away. */
+  readonly count: number;
+  readonly cleared: boolean;
+}
+
+/**
+ * Drawing a concept. It is a distribution rather than a route: every man it
+ * is about is given his job by the position he plays, mirrored to the side he
+ * lines up on. Asking for the one already on takes it off again, which is how
+ * the original lets the same button put it up and pull it down.
+ */
+export function applyConceptCommand(
+  document: PlayDocument,
+  concept: ConceptDefinition,
+  createId: (prefix: string) => string,
+): ConceptResult {
+  const targets = conceptTargets(document, concept);
+  if (targets.length === 0) return { count: 0, cleared: false };
+
+  const owners = new Set(targets.map(({ player }) => player.id));
+  const replaced = document.paths.filter(
+    (path) => owners.has(path.playerId) && path.kind === "route",
+  );
+  // Removing them through the domain's own delete carries any note pinned to
+  // them and unhooks their Assignments, rather than leaving either behind.
+  const deleted =
+    replaced.length > 0
+      ? applyPlayCommand(
+          document,
+          deletePathsCommand(
+            document,
+            replaced.map(({ id }) => id),
+          ),
+        )
+      : document;
+  // Deleting a line a Coach drew leaves his wording for that man standing,
+  // because the words are his and the line was only what they were about
+  // (ADR 0011). A concept is not that: it says what each of these men does,
+  // so the words it is replacing go with the line they described — which is
+  // what the original did by keeping them on the line in the first place.
+  const cleared: PlayDocument = {
+    ...deleted,
+    assignments: deleted.assignments.filter(
+      (assignment) =>
+        assignment.actions.length > 0 || !owners.has(assignment.playerId),
+    ),
+  };
+
+  if (conceptIsOn(document, concept)) {
+    return {
+      count: targets.length,
+      cleared: true,
+      command: diffPlayDocuments(
+        document,
+        cleared,
+        `${concept.name} — cleared`,
+      ),
+    };
+  }
+
+  const paths: MovementPath[] = [];
+  const assignments: PlayDocument["assignments"][number][] = [];
+  for (const { player, role } of targets) {
+    const job = concept.jobFor(role, player.position);
+    if (!job) continue;
+    const pathId = createId("path");
+    paths.push({
+      id: pathId,
+      kind: "route",
+      playerId: player.id,
+      points: [player.position, ...insidePoints(cleared, job.points.slice(1))],
+      branches: [],
+      style: {
+        ...routeKindStyle("route", {
+          line: "solid",
+          ending: job.ending,
+          color: "ink",
+        }),
+        ending: job.ending,
+      },
+      ...(job.preset === undefined ? {} : { preset: job.preset }),
+      concept: concept.key,
+    });
+    assignments.push({
+      id: createId("assignment"),
+      playerId: player.id,
+      text: job.assignment,
+      actions: [{ id: createId("action"), kind: "movement", pathId }],
+    });
+  }
+
+  return {
+    count: paths.length,
+    cleared: false,
+    command: diffPlayDocuments(
+      document,
+      {
+        ...cleared,
+        paths: [...cleared.paths, ...paths],
+        assignments: [...cleared.assignments, ...assignments],
+      },
+      `Applied ${concept.name}`,
+    ),
   };
 }

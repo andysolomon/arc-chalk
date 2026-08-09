@@ -1063,3 +1063,67 @@ test("swaps one call for another without leaving the last one underneath", async
     "Fire Zone Blitz",
   );
 });
+
+test("draws a whole concept by position, and takes it off with the same button", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const routes = await page.locator("[data-scene-path]").count();
+
+  // A concept is a distribution: the men who play a position in it each get
+  // their job, and nobody else is touched.
+  await page.getByRole("button", { name: "4 Verts", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("4 Verts");
+  await expect(page.getByRole("status")).toContainText("routes drawn");
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+
+  const drawn = await page.locator("[data-scene-path]").count();
+  expect(drawn).toBeGreaterThan(0);
+
+  // The button says which concept is on, and pressing it again takes it off.
+  const verts = page.getByRole("button", { name: "4 Verts", exact: true });
+  await expect(verts).toHaveAttribute("aria-pressed", "true");
+  await verts.click();
+  await expect(page.getByRole("status")).toContainText("cleared");
+  await expect(verts).toHaveAttribute("aria-pressed", "false");
+
+  // And the whole thing was one step, both ways.
+  await page.keyboard.press("Control+z");
+  await expect(page.locator("[data-scene-path]")).toHaveCount(drawn);
+  await page.keyboard.press("Control+z");
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
+});
+
+test("redraws one man's line as a call off the route tree", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const z = await playerCenter(page, "z");
+  await page.mouse.click(z.x, z.y);
+  await expect(
+    page.locator(".label-heading").getByText("Player", { exact: true }),
+  ).toBeVisible();
+
+  const before = await page.locator('[data-scene-path="rz"]').getAttribute("d");
+
+  // The tree is offered on the line itself, where he is already looking.
+  const picker = page.getByLabel(/^Quick route for/).first();
+  await expect(picker).toBeVisible();
+  await picker.selectOption("corner");
+
+  await expect
+    .poll(async () => page.locator('[data-scene-path="rz"]').getAttribute("d"))
+    .not.toBe(before);
+  // Picking it follows him onto the line.
+  await expect(
+    page.locator(".label-heading").getByText("Route", { exact: true }),
+  ).toBeVisible();
+
+  // And going back to the man, the picker says which call the line now is
+  // rather than having forgotten.
+  await page.keyboard.press("Escape");
+  await page.mouse.click(z.x, z.y);
+  await expect(page.getByLabel(/^Quick route for/).first()).toHaveValue(
+    "corner",
+  );
+});

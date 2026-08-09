@@ -15,7 +15,9 @@ import {
   playErasureCommand,
   playErasures,
   PRODUCT_NAME,
+  routePresetNames,
   stickThunderPlay,
+  stockConcepts,
   stockDefensiveCalls,
   stockFormations,
   type LabelRole,
@@ -30,9 +32,12 @@ import {
 import {
   addAlternateRouteCommand,
   addRouteChoiceCommand,
+  applyConceptCommand,
   applyDefensiveCallCommand,
   applyFormationCommand,
   applyLabelRoleCommand,
+  applyRoutePresetCommand,
+  conceptIsOn,
   fieldHitOptions,
   fieldInteraction,
   hitTestField,
@@ -1492,6 +1497,7 @@ function lineName(
 function PlayerInspector({
   lines,
   onAddAlternate,
+  onApplyPreset,
   onAppearance,
   onDeselect,
   onFlip,
@@ -1502,8 +1508,16 @@ function PlayerInspector({
   player,
   text,
 }: {
-  lines: readonly { readonly id: string; readonly name: string }[];
+  lines: readonly {
+    readonly id: string;
+    readonly name: string;
+    /** Whether the route tree has calls for this kind of line. */
+    readonly offersPresets: boolean;
+    /** Which call off the tree it was last drawn as, if it was. */
+    readonly preset?: string;
+  }[];
   onAddAlternate: () => void;
+  onApplyPreset: (pathId: string, presetKey: string) => void;
   onAppearance: (appearance: PlayerAppearance) => void;
   onDeselect: () => void;
   onFlip: () => void;
@@ -1606,6 +1620,24 @@ function PlayerInspector({
           {lines.map((line) => (
             <div className="line-row" key={line.id}>
               <span>{line.name}</span>
+              {line.offersPresets ? (
+                <select
+                  aria-label={`Quick route for ${line.name}`}
+                  onChange={(event) => {
+                    if (event.target.value === "") return;
+                    onApplyPreset(line.id, event.target.value);
+                  }}
+                  title="Redraw this line as a call off the route tree"
+                  value={line.preset ?? ""}
+                >
+                  <option value="">Quick route…</option>
+                  {routePresetNames.map(({ key, name }) => (
+                    <option key={key} value={key}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
               <button onClick={() => onSelectLine(line.id)} type="button">
                 Edit
               </button>
@@ -1901,6 +1933,7 @@ function RouteInspector({
 
 function Inspector({
   call,
+  concepts,
   defenderCount,
   formation,
   formationHint,
@@ -1911,6 +1944,9 @@ function Inspector({
   onOpenShortcuts,
 }: {
   call?: DefensiveCall;
+  concepts: Readonly<
+    Record<string, { readonly on: boolean; readonly run?: () => void }>
+  >;
   defenderCount: number;
   formation?: Formation;
   formationHint: string;
@@ -1969,16 +2005,18 @@ function Inspector({
       </InspectorSection>
       <InspectorSection title="Concept">
         <div className="button-grid">
-          <button>Mesh</button>
-          <button>Stick</button>
-          <button>Smash</button>
-          <button>Flood</button>
-          <button>Dagger</button>
-          <button>Drive</button>
-          <button>Y-Cross</button>
-          <button>Levels</button>
-          <button>Spacing</button>
-          <button>4 Verts</button>
+          {stockConcepts.map((concept) => (
+            <button
+              aria-pressed={concepts[concept.key]?.on ?? false}
+              className={concepts[concept.key]?.on ? "active" : undefined}
+              disabled={!concepts[concept.key]?.run}
+              key={concept.key}
+              onClick={concepts[concept.key]?.run}
+              title={concept.hint}
+            >
+              {concept.name}
+            </button>
+          ))}
         </div>
         <p>
           Draws the whole distribution by role — X, Z, H, Y and the back each
@@ -2278,6 +2316,10 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           index,
           assignmentForPath(editor.document, path.id)?.text,
         ),
+        // The route tree is offered on a route and on nothing else: a block,
+        // a motion and a drop are shapes of their own, with their own calls.
+        offersPresets: path.kind === "route",
+        ...(path.preset === undefined ? {} : { preset: path.preset }),
       }));
   const playerText = (
     player: Player,
@@ -2643,6 +2685,44 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     runPanelCommand(command, { selection: [], drawing: undefined });
     void result;
   };
+
+  /**
+   * Each concept, and what pressing it would do. A concept with nobody to
+   * draw it on is no command at all, which is what greys the button offering
+   * it — grey and inert from the same answer, as the Clear menu already does.
+   */
+  const conceptCommands = useMemo(
+    () =>
+      // Read off the men on the field rather than remembered, so a concept
+      // becomes available the moment there is somebody to draw it on.
+      stockConcepts.map((concept) => ({
+        concept,
+        on: conceptIsOn(editor.document, concept),
+        ...applyConceptCommand(editor.document, concept, createStableId),
+      })),
+    [editor.document],
+  );
+  const conceptActions = Object.fromEntries(
+    conceptCommands.map(({ concept, on, cleared, count, command }) => [
+      concept.key,
+      {
+        on,
+        ...(command
+          ? {
+              run: () => {
+                setToast({
+                  name: concept.name,
+                  text: cleared
+                    ? "— routes cleared"
+                    : `— ${count} routes drawn`,
+                });
+                runPanelCommand(command, { selection: [], drawing: undefined });
+              },
+            }
+          : {}),
+      },
+    ]),
+  );
 
   /** What a realignment would leave alone, said before he asks for one. */
   const formationHint = useMemo(() => {
@@ -3211,6 +3291,21 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               ) : selectedPlayer ? (
                 <PlayerInspector
                   lines={playerLines(selectedPlayer)}
+                  onApplyPreset={(pathId, presetKey) =>
+                    runPanelCommand(
+                      applyRoutePresetCommand(
+                        editor.document,
+                        pathId,
+                        presetKey,
+                      ),
+                      {
+                        selection: [{ kind: "path", id: pathId }],
+                        selectedNodeIndex: undefined,
+                        selectedBranchIndex: undefined,
+                        selectedSegmentIndex: undefined,
+                      },
+                    )
+                  }
                   onAddAlternate={() => {
                     const id = createStableId("path");
                     runPanelCommand(
@@ -3331,6 +3426,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               ) : undefined
             }
             call={onFieldCall}
+            concepts={conceptActions}
             defenderCount={
               editor.document.players.filter(({ unit }) => unit === "defense")
                 .length
