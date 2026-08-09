@@ -1,6 +1,8 @@
 import {
   applyPlayCommand,
   assignmentForPath,
+  ballSpotNames,
+  currentBallSpot,
   createStableId,
   currentDefensiveCall,
   currentFormation,
@@ -29,6 +31,7 @@ import {
   type Formation,
   type MovementPath,
   type Player,
+  type BallSpot,
   type PlayCommand,
   type PlayErasure,
   type TextLabel,
@@ -41,6 +44,7 @@ import {
   applyFormationCommand,
   applyLabelRoleCommand,
   applyRoutePresetCommand,
+  spotBallCommand,
   conceptIsOn,
   applyLinePresetCommand,
   linemenOf,
@@ -1942,11 +1946,15 @@ function RouteInspector({
 }
 
 function Inspector({
+  ballSpots,
   call,
   concepts,
   defenderCount,
   lineCalls,
   linemanCount,
+  onConcept,
+  onLineCall,
+  onSpotBall,
   formation,
   formationHint,
   labelEditor,
@@ -1955,17 +1963,27 @@ function Inspector({
   onOpenPalette,
   onOpenShortcuts,
 }: {
+  ballSpots: readonly {
+    readonly spot: BallSpot;
+    readonly name: string;
+    readonly title: string;
+    readonly on: boolean;
+    readonly available: boolean;
+  }[];
   call?: DefensiveCall;
   concepts: Readonly<
-    Record<string, { readonly on: boolean; readonly run?: () => void }>
+    Record<string, { readonly on: boolean; readonly available: boolean }>
   >;
   defenderCount: number;
   lineCalls: readonly {
     readonly key: string;
     readonly name: string;
     readonly on: boolean;
-    readonly run?: () => void;
+    readonly available: boolean;
   }[];
+  onConcept: (key: string) => void;
+  onLineCall: (key: string) => void;
+  onSpotBall: (spot: BallSpot) => void;
   linemanCount: number;
   formation?: Formation;
   formationHint: string;
@@ -2000,9 +2018,18 @@ function Inspector({
         <div className="segment-row">
           <span>Ball on</span>
           <div className="segments">
-            <button>L hash</button>
-            <button className="active">Middle</button>
-            <button>R hash</button>
+            {ballSpots.map((spot) => (
+              <button
+                aria-pressed={spot.on}
+                className={spot.on ? "active" : undefined}
+                disabled={!spot.available}
+                key={spot.spot}
+                onClick={() => onSpotBall(spot.spot)}
+                title={spot.title}
+              >
+                {spot.name}
+              </button>
+            ))}
           </div>
         </div>
         <p>{formationHint}</p>
@@ -2013,9 +2040,9 @@ function Inspector({
             <button
               aria-pressed={call.on}
               className={call.on ? "active" : undefined}
-              disabled={!call.run}
+              disabled={!call.available}
               key={call.key}
-              onClick={call.run}
+              onClick={() => onLineCall(call.key)}
               title={
                 call.on
                   ? "Click again to take this call off the whole line"
@@ -2038,9 +2065,9 @@ function Inspector({
             <button
               aria-pressed={concepts[concept.key]?.on ?? false}
               className={concepts[concept.key]?.on ? "active" : undefined}
-              disabled={!concepts[concept.key]?.run}
+              disabled={!concepts[concept.key]?.available}
               key={concept.key}
-              onClick={concepts[concept.key]?.run}
+              onClick={() => onConcept(concept.key)}
               title={concept.hint}
             >
               {concept.name}
@@ -2742,26 +2769,32 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     [editor.document],
   );
   const conceptActions = Object.fromEntries(
-    conceptCommands.map(({ concept, on, cleared, count, command }) => [
+    conceptCommands.map(({ concept, on, command }) => [
       concept.key,
-      {
-        on,
-        ...(command
-          ? {
-              run: () => {
-                setToast({
-                  name: concept.name,
-                  text: cleared
-                    ? "— routes cleared"
-                    : `— ${count} routes drawn`,
-                });
-                runPanelCommand(command, { selection: [], drawing: undefined });
-              },
-            }
-          : {}),
-      },
+      { on, available: command !== undefined },
     ]),
   );
+  /**
+   * Drawing or clearing a concept. Built from the live Play rather than from
+   * the render that offered the button, which is the same reason the reorder
+   * shortcut rebuilds its own command.
+   */
+  const runConcept = (key: string): void => {
+    const concept = stockConcepts.find((value) => value.key === key);
+    if (!concept) return;
+    const document = editorStore.getSnapshot().document;
+    const { command, cleared, count } = applyConceptCommand(
+      document,
+      concept,
+      createStableId,
+    );
+    if (!command) return;
+    setToast({
+      name: concept.name,
+      text: cleared ? "— routes cleared" : `— ${count} routes drawn`,
+    });
+    runPanelCommand(command, { selection: [], drawing: undefined });
+  };
 
   /**
    * The six calls the original puts on the whole line at once. As with the
@@ -2792,14 +2825,57 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   );
   const lineCallActions = lineCallCommands.map(({ command, ...call }) => ({
     ...call,
-    ...(command
-      ? {
-          run: () =>
-            // The selection is left where it was: picking the line would swap
-            // in another panel and unmount the very buttons just pressed.
-            runPanelCommand(command, {}),
-        }
-      : {}),
+    available: command !== undefined,
+  }));
+  const runLineCall = (key: string): void => {
+    const document = editorStore.getSnapshot().document;
+    const command = applyLinePresetCommand(
+      document,
+      linemenOf(document).map((player) => player.id),
+      key,
+      createStableId,
+    );
+    // The selection is left where it was: picking the line would swap in
+    // another panel and unmount the very buttons just pressed.
+    if (command) runPanelCommand(command, {});
+  };
+
+  /**
+   * The three places the official can spot the ball. The whole Play travels
+   * with it, defense included, so each is one transaction — and the one it is
+   * already on is no command at all, which greys it.
+   */
+  const ballSpotCommands = useMemo(() => {
+    const on = currentBallSpot(editor.document);
+    return (["left", "middle", "right"] as const).map((spot) => ({
+      spot,
+      name:
+        spot === "middle" ? "Middle" : spot === "left" ? "L hash" : "R hash",
+      title: ballSpotNames[spot],
+      on: on === spot,
+      ...spotBallCommand(editor.document, spot),
+    }));
+  }, [editor.document]);
+  /**
+   * Spotting the ball is the Coach's whole gesture, the way picking a set is:
+   * move it, then say what it cost him. Built from the live Play rather than
+   * from the render that offered the button.
+   */
+  const spotTheBall = (spot: BallSpot): void => {
+    const { command, tightened } = spotBallCommand(
+      editorStore.getSnapshot().document,
+      spot,
+    );
+    if (!command) return;
+    setToast({
+      name: ballSpotNames[spot],
+      text: tightened ? "— boundary splits tightened to stay in bounds" : "",
+    });
+    runPanelCommand(command, { selection: [], drawing: undefined });
+  };
+  const ballSpotActions = ballSpotCommands.map(({ command, ...spot }) => ({
+    ...spot,
+    available: command !== undefined,
   }));
 
   /** What a realignment would leave alone, said before he asks for one. */
@@ -3520,6 +3596,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                 />
               ) : undefined
             }
+            ballSpots={ballSpotActions}
             call={onFieldCall}
             concepts={conceptActions}
             lineCalls={lineCallActions}
@@ -3530,6 +3607,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
             }
             formation={onFieldFormation}
             formationHint={formationHint}
+            onConcept={runConcept}
+            onLineCall={runLineCall}
+            onSpotBall={spotTheBall}
             onOpenDefenses={() => setOverlay("defenses")}
             onOpenFormations={() => setOverlay("formations")}
             onOpenPalette={() => setOverlay("palette")}
