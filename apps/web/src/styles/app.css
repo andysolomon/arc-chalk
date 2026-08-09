@@ -828,6 +828,14 @@ select:focus-visible {
 .field-wrap:not([data-tool="select"]) .field-diagram {
   cursor: crosshair;
 }
+/* The dot draws rather than moves, and says so before it is pressed. */
+.field-diagram .route-dot {
+  cursor: crosshair;
+}
+.field-wrap[data-drawing="true"] .field-diagram,
+.field-wrap[data-drawing="true"] .field-diagram .players g {
+  cursor: crosshair;
+}
 .field-paper {
   fill: #fff;
   stroke: #e5e5e5;

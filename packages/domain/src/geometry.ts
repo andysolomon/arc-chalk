@@ -61,6 +61,39 @@ export function yardsToLegacyCanvas(point: Coordinate): {
   };
 }
 
+export type ZoneCoverageType = "deep" | "curl" | "hook" | "flat" | "spy";
+
+/**
+ * Where a defender's drop ends tells you the level of his coverage. The
+ * thresholds are the original's, read on the correct axis: its 70, 88, and
+ * 210 canvas pixels are lateral spans, so they convert at the lateral scale.
+ */
+const DEEP_RADIUS_YARDS = legacyLateralSpanToYards(88);
+const SPY_LATERAL_YARDS = legacyLateralSpanToYards(70);
+const FLAT_LATERAL_YARDS = legacyLateralSpanToYards(210);
+
+export function classifyZoneCoverage(
+  endpoint: Coordinate,
+  radiusLateralYards = 0,
+): ZoneCoverageType {
+  const lateral = Math.abs(endpoint.lateralYards);
+  if (radiusLateralYards >= DEEP_RADIUS_YARDS || endpoint.depthYards >= 13) {
+    return "deep";
+  }
+  if (endpoint.depthYards <= 2 && lateral <= SPY_LATERAL_YARDS) return "spy";
+  if (lateral >= FLAT_LATERAL_YARDS) return "flat";
+  return endpoint.depthYards >= 8 ? "curl" : "hook";
+}
+
+/**
+ * A zone drop that has never been sized still owns an area: the original
+ * draws an 11-pixel bubble at the drop's end until the Coach drags it out.
+ */
+export const DEFAULT_ZONE_COVERAGE_RADII = Object.freeze({
+  radiusLateralYards: legacyLateralSpanToYards(11),
+  radiusDepthYards: legacyDepthSpanToYards(11),
+});
+
 export function mirrorCoordinate(point: Coordinate): Coordinate {
   return { lateralYards: -point.lateralYards, depthYards: point.depthYards };
 }

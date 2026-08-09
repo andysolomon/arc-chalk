@@ -142,3 +142,80 @@ describe("one projection draws the whole field", () => {
     }
   });
 });
+
+describe("zone coverage", () => {
+  /**
+   * A zone drop the Coach has not sized still owns an area. The original
+   * draws a small default bubble at the drop's end until the corner handle
+   * is dragged, so a drop drawn today is not invisible until then.
+   */
+  const zonePlay = {
+    ...stickThunderPlay,
+    paths: [
+      {
+        id: "drop",
+        kind: "zone" as const,
+        playerId: "q",
+        points: [
+          { lateralYards: 0, depthYards: 0 },
+          { lateralYards: 4, depthYards: 10 },
+        ],
+        branches: [],
+        style: {
+          line: "dashed" as const,
+          ending: "bubble" as const,
+          color: "blue" as const,
+        },
+      },
+    ],
+  };
+
+  it("draws a default bubble for a drop that was never sized", () => {
+    const scene = buildSvgRenderScene(buildRenderScene(zonePlay));
+    const coverage = scene.paths[0]?.coverageArea;
+    expect(coverage).toBeDefined();
+    // Centred on the drop's end, and elliptical because the two axes differ.
+    expect(coverage!.center).toEqual(
+      projectCoordinate({ lateralYards: 4, depthYards: 10 }, scene.viewport),
+    );
+    expect(coverage!.radiusX).toBeGreaterThan(0);
+    expect(coverage!.radiusY).toBeGreaterThan(0);
+    expect(coverage!.radiusX).not.toBeCloseTo(coverage!.radiusY, 3);
+    // Ten yards deep in the middle of the field reads as a curl drop.
+    expect(coverage!.type).toBe("curl");
+  });
+
+  it("keeps a sized zone's own radii", () => {
+    const sized = {
+      ...zonePlay,
+      paths: [
+        {
+          ...zonePlay.paths[0]!,
+          coverageArea: {
+            type: "flat" as const,
+            radiusLateralYards: 6,
+            radiusDepthYards: 3,
+          },
+        },
+      ],
+    };
+    const scene = buildSvgRenderScene(buildRenderScene(sized));
+    const coverage = scene.paths[0]!.coverageArea!;
+    expect(coverage.type).toBe("flat");
+    expect(coverage.radiusX).toBeCloseTo(
+      6 * scene.viewport.lateralPixelsPerYard,
+      6,
+    );
+    expect(coverage.radiusY).toBeCloseTo(
+      3 * scene.viewport.depthPixelsPerYard,
+      6,
+    );
+  });
+
+  it("leaves ordinary routes without a coverage area", () => {
+    const scene = buildSvgRenderScene(buildRenderScene(stickThunderPlay));
+    expect(
+      scene.paths.filter(({ coverageArea }) => coverageArea !== undefined),
+    ).toHaveLength(0);
+  });
+});

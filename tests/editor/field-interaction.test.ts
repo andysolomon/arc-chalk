@@ -1,6 +1,7 @@
 import {
   applyPlayCommand,
   canonicalStringify,
+  deletePlayersCommand,
   type Coordinate,
   type PlayCommand,
   type PlayDocument,
@@ -571,5 +572,343 @@ describe("move command builder", () => {
         depthYards: 0,
       }),
     ).toBeUndefined();
+  });
+});
+
+describe("field interaction drawing", () => {
+  const drawingContext = (overrides: Partial<FieldInteractionContext> = {}) =>
+    contextFor(stickThunderPlay, {
+      tool: "route",
+      snap: { enabled: false, grid: "off" },
+      createId: (prefix) => `${prefix}_drawn`,
+      ...overrides,
+    });
+
+  it("starts a route on the Player it was pressed on, not on the grass", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+
+    const started = run(context, [down(y)]);
+    expect(started.model.drawing).toMatchObject({
+      kind: "route",
+      playerId: "y",
+      points: [{ lateralYards: y.lateralYards, depthYards: y.depthYards }],
+    });
+    expect(started.commands).toHaveLength(0);
+
+    // The schema requires a Player on every path, so grass draws nothing.
+    const onGrass = run(context, [down({ lateralYards: 18, depthYards: 14 })]);
+    expect(onGrass.model.drawing).toBeUndefined();
+    expect(onGrass.commands).toHaveLength(0);
+  });
+
+  it("commits one route with the breaks the Coach clicked", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+    const first = {
+      lateralYards: y.lateralYards,
+      depthYards: y.depthYards + 6,
+    };
+    const second = {
+      lateralYards: y.lateralYards - 5,
+      depthYards: y.depthYards + 6,
+    };
+
+    const session = run(context, [
+      down(y),
+      move(first),
+      down(first),
+      up(first),
+      move(second),
+      down(second),
+      up(second),
+      { type: "finish-drawing" },
+    ]);
+
+    expect(session.commands).toHaveLength(1);
+    expect(session.commands[0]).toMatchObject({
+      kind: "batch",
+      label: "Draw route",
+    });
+    expect(session.model.drawing).toBeUndefined();
+    expect(session.model.selection).toEqual([path("path_drawn")]);
+
+    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    const drawn = after.paths.find(({ id }) => id === "path_drawn")!;
+    expect(drawn.playerId).toBe("y");
+    expect(drawn.kind).toBe("route");
+    expect(drawn.points).toHaveLength(3);
+    expect(drawn.points[0]).toMatchObject({
+      lateralYards: y.lateralYards,
+      depthYards: y.depthYards,
+    });
+    // Coordinates carry the machine's 9-digit rounding, which keeps
+    // canonical hashes stable across platforms.
+    expect(drawn.points.at(-1)!.lateralYards).toBeCloseTo(
+      second.lateralYards,
+      6,
+    );
+    expect(drawn.points.at(-1)!.depthYards).toBeCloseTo(second.depthYards, 6);
+  });
+
+  it("gives each kind the original's defaults and dots a second route", () => {
+    const y = positionOf(stickThunderPlay, "y");
+    const breakPoint = {
+      lateralYards: y.lateralYards + 4,
+      depthYards: y.depthYards + 4,
+    };
+    const drawWith = (kind: "route" | "motion" | "block" | "zone") => {
+      const session = run(drawingContext({ tool: kind }), [
+        down(y),
+        move(breakPoint),
+        down(breakPoint),
+        up(breakPoint),
+        { type: "finish-drawing" },
+      ]);
+      const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+      return after.paths.find(({ id }) => id === "path_drawn")!;
+    };
+
+    expect(drawWith("motion").style).toMatchObject({
+      line: "zigzag",
+      ending: "arrow",
+      color: "ink",
+    });
+    expect(drawWith("block").style).toMatchObject({
+      line: "solid",
+      ending: "bar",
+    });
+    expect(drawWith("zone").style).toMatchObject({
+      line: "dashed",
+      ending: "bubble",
+      color: "blue",
+    });
+    // Y already runs a route, so his second one arrives as a dotted alternate.
+    const second = drawWith("route");
+    expect(second.style.line).toBe("dotted");
+    expect(second.variant).toBe("alternate");
+
+    // The Quarterback has no route, so his first stays solid and primary.
+    const q = positionOf(stickThunderPlay, "q");
+    const qBreak = {
+      lateralYards: q.lateralYards,
+      depthYards: q.depthYards - 4,
+    };
+    const qSession = run(drawingContext(), [
+      down(q),
+      move(qBreak),
+      down(qBreak),
+      up(qBreak),
+      { type: "finish-drawing" },
+    ]);
+    const qRoute = applyPlayCommand(
+      stickThunderPlay,
+      qSession.commands[0]!,
+    ).paths.find(({ id }) => id === "path_drawn")!;
+    expect(qRoute.style.line).toBe("solid");
+    expect(qRoute.variant).toBeUndefined();
+  });
+
+  it("constrains breaks to 45 degrees while snap is on, and Shift frees them", () => {
+    const y = positionOf(stickThunderPlay, "y");
+    // Well off any 45° ray from Y.
+    const loose = {
+      lateralYards: y.lateralYards + 1,
+      depthYards: y.depthYards + 8,
+    };
+
+    const snapped = run(contextFor(stickThunderPlay, { tool: "route" }), [
+      down(y),
+      move(loose),
+    ]);
+    const cursor = snapped.model.drawing!.cursor;
+    // A 45° family member: straight up, so no lateral drift at all.
+    expect(cursor.lateralYards).toBeCloseTo(y.lateralYards, 6);
+    expect(cursor.depthYards).toBeGreaterThan(y.depthYards);
+
+    const free = run(contextFor(stickThunderPlay, { tool: "route" }), [
+      down(y),
+      {
+        type: "pointer-move",
+        input: { point: loose, pointerId: 1, shiftKey: true },
+      },
+    ]);
+    expect(free.model.drawing!.cursor.lateralYards).toBeCloseTo(
+      loose.lateralYards,
+      6,
+    );
+    expect(free.model.drawing!.cursor.depthYards).toBeCloseTo(
+      loose.depthYards,
+      6,
+    );
+  });
+
+  it("drops a break that lands on the last one", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+    const nudge = {
+      lateralYards: y.lateralYards + 1 / screenScale.lateralPixelsPerYard,
+      depthYards: y.depthYards,
+    };
+    const session = run(context, [down(y), move(nudge), down(nudge)]);
+    expect(session.model.drawing!.points).toHaveLength(1);
+  });
+
+  it("bends the last segment when the pointer is held and pulled away", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+    const breakPoint = {
+      lateralYards: y.lateralYards,
+      depthYards: y.depthYards + 8,
+    };
+    const pull = {
+      lateralYards: y.lateralYards + 4,
+      depthYards: y.depthYards + 4,
+    };
+
+    const session = run(context, [
+      down(y),
+      move(breakPoint),
+      down(breakPoint),
+      move(pull),
+    ]);
+    const control = session.model.drawing!.points.at(-1)!.control;
+    expect(control).toBeDefined();
+    // Reflected across the chord midpoint, so the curve passes under the pointer.
+    expect(control!.lateralYards).toBeCloseTo(
+      2 * pull.lateralYards - (y.lateralYards + breakPoint.lateralYards) / 2,
+      6,
+    );
+
+    const finished = run(context, [{ type: "finish-drawing" }], session.model);
+    const drawn = applyPlayCommand(
+      stickThunderPlay,
+      finished.commands[0]!,
+    ).paths.find(({ id }) => id === "path_drawn")!;
+    expect(drawn.points.at(-1)!.control).toBeDefined();
+  });
+
+  it("sets an exact depth from typed digits and backspaces them first", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+    const loose = {
+      lateralYards: y.lateralYards + 3,
+      depthYards: y.depthYards + 3,
+    };
+
+    const typed = run(context, [
+      down(y),
+      move(loose),
+      { type: "depth-digit", digit: "1" },
+      { type: "depth-digit", digit: "2" },
+    ]);
+    expect(typed.model.drawing!.cursor.depthYards).toBe(12);
+
+    // Backspace trims the buffer before it touches the route.
+    const trimmed = run(context, [{ type: "delete" }], typed.model);
+    expect(trimmed.model.drawing!.depthBuffer).toBe("1");
+    expect(trimmed.commands).toHaveLength(0);
+
+    const placed = run(context, [down(loose)], typed.model);
+    expect(placed.model.drawing!.points.at(-1)!.depthYards).toBe(12);
+    expect(placed.model.drawing!.depthBuffer).toBe("");
+  });
+
+  it("keeps a route inside the sidelines and the drawn frame", () => {
+    const context = drawingContext({
+      depthWindow: { minDepthYards: -15, maxDepthYards: 30 },
+    });
+    const y = positionOf(stickThunderPlay, "y");
+    const halfWidth = stickThunderPlay.fieldProfile.widthYards / 2;
+
+    const session = run(context, [
+      down(y),
+      move({ lateralYards: 90, depthYards: 90 }),
+    ]);
+    const cursor = session.model.drawing!.cursor;
+    expect(cursor.lateralYards).toBeLessThanOrEqual(halfWidth);
+    expect(cursor.depthYards).toBeLessThanOrEqual(30);
+  });
+
+  it("steps Escape and Backspace back through the drawing before the Play", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+    const one = { lateralYards: y.lateralYards, depthYards: y.depthYards + 5 };
+    const two = { lateralYards: y.lateralYards, depthYards: y.depthYards + 10 };
+    const twoBreaks = run(context, [
+      down(y),
+      move(one),
+      down(one),
+      up(one),
+      move(two),
+      down(two),
+      up(two),
+    ]);
+    expect(twoBreaks.model.drawing!.points).toHaveLength(3);
+
+    const backspaced = run(context, [{ type: "delete" }], twoBreaks.model);
+    expect(backspaced.model.drawing!.points).toHaveLength(2);
+    expect(backspaced.commands).toHaveLength(0);
+
+    const escaped = run(context, [{ type: "escape" }], backspaced.model);
+    expect(escaped.model.drawing).toBeUndefined();
+    expect(escaped.commands).toHaveLength(0);
+  });
+
+  it("commits nothing for a route that never left its Player", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+    const session = run(context, [down(y), { type: "finish-drawing" }]);
+    expect(session.commands).toHaveLength(0);
+    expect(session.model.drawing).toBeUndefined();
+  });
+
+  it("hands the select tool back when a route is finished", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+    const breakPoint = {
+      lateralYards: y.lateralYards,
+      depthYards: y.depthYards + 6,
+    };
+    let model = idleFieldInteraction;
+    let requestedTool: string | undefined;
+    for (const event of [
+      down(y),
+      move(breakPoint),
+      down(breakPoint),
+      up(breakPoint),
+      { type: "finish-drawing" } as FieldInteractionEvent,
+    ]) {
+      const result = fieldInteraction(model, event, context);
+      model = result.model;
+      requestedTool = result.requestedTool ?? requestedTool;
+    }
+    expect(requestedTool).toBe("select");
+  });
+
+  it("starts a route from the blue dot without the route tool", () => {
+    const context = contextFor(stickThunderPlay, {
+      createId: (prefix) => `${prefix}_drawn`,
+    });
+    const session = run(context, [{ type: "start-route", playerId: "q" }]);
+    expect(session.model.drawing).toMatchObject({
+      kind: "route",
+      playerId: "q",
+    });
+    expect(session.model.selection).toEqual([]);
+  });
+
+  it("abandons a drawing whose Player an undo removed", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+    const started = run(context, [down(y)]);
+    const without = applyPlayCommand(
+      stickThunderPlay,
+      deletePlayersCommand(stickThunderPlay, ["y"]),
+    );
+    expect(pruneFieldSelection(started.model, without).drawing).toBeUndefined();
+    expect(
+      pruneFieldSelection(started.model, stickThunderPlay).drawing,
+    ).toBeDefined();
   });
 });

@@ -1,7 +1,9 @@
 import {
+  classifyZoneCoverage,
   legacyCanvasToYards,
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
+  type ZoneCoverageType,
 } from "./geometry";
 import { highSchoolFieldProfile } from "./field-profile";
 import { migratePlayDocument } from "./migrations";
@@ -177,9 +179,7 @@ const style = (value: LegacyStyle) => ({
   color: color(value.color),
 });
 
-function coverageType(
-  route: LegacyRoute,
-): "deep" | "curl" | "hook" | "flat" | "spy" {
+function coverageType(route: LegacyRoute): ZoneCoverageType {
   const explicit = route.zone?.t;
   if (
     explicit === "deep" ||
@@ -192,12 +192,10 @@ function coverageType(
 
   const endpoint = route.points.at(-1);
   if (!endpoint) return "hook";
-  const depthYards = legacyCanvasToYards(endpoint).depthYards;
-  const lateralPixels = Math.abs(endpoint.x - 500);
-  if ((route.zone?.rx ?? 0) >= 88 || depthYards >= 13) return "deep";
-  if (depthYards <= 2 && lateralPixels <= 70) return "spy";
-  if (lateralPixels >= 210) return "flat";
-  return depthYards >= 8 ? "curl" : "hook";
+  return classifyZoneCoverage(
+    legacyCanvasToYards(endpoint),
+    legacyLateralSpanToYards(route.zone?.rx ?? 0),
+  );
 }
 
 export function migrateLegacyPlay(legacy: LegacyPlay): PlayDocument {
