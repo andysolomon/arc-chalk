@@ -612,6 +612,17 @@ export function fieldInteraction(
         },
       };
     }
+    case "point-at": {
+      // What he already picked stays picked, so asking about one of several
+      // does not throw the rest away; anything else becomes the selection on
+      // its own. Whatever was in flight is abandoned — he has stopped to look.
+      const settled = isSelected(model.selection, event.item)
+        ? model.selection
+        : [event.item];
+      return {
+        model: { ...withSelection(model, settled), drawing: undefined },
+      };
+    }
     case "copy": {
       const clipboard = copySelection(context.document, model.selection);
       return { model: clipboard ? { ...model, clipboard } : model };

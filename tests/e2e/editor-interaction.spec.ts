@@ -707,3 +707,153 @@ test("turns every line a man has the other way, in one step", async ({
   await page.getByRole("button", { name: "Undo" }).click();
   expect(await tipOf()).toBeCloseTo(before, 3);
 });
+
+test("opens the menu on a route with a right-click and deletes it", async ({
+  page,
+}) => {
+  await openEditor(page);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+
+  const onSegment = await fieldPoint(page, 280, 367);
+  await page.mouse.click(onSegment.x, onSegment.y, { button: "right" });
+
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  // The route was picked by the asking, so the panel is about it too.
+  await expect(
+    page.locator(".label-heading").getByText("Route", { exact: true }),
+  ).toBeVisible();
+
+  await menu.getByRole("button", { name: "Delete" }).click();
+  await expect(menu).toBeHidden();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(5);
+  await expect(page.getByRole("button", { name: "Undo" })).toHaveAttribute(
+    "title",
+    "Undo Delete route",
+  );
+});
+
+test("greys what a man cannot be sent behind, and closes on Escape", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  const q = await playerCenter(page, "q");
+  await page.mouse.click(q.x, q.y, { button: "right" });
+
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  // A Player draws above every line whatever order he is stored in, so there
+  // is nothing for these two to do and no number to grey them from but that.
+  await expect(
+    menu.getByRole("button", { name: "Bring forward" }),
+  ).toBeDisabled();
+  await expect(menu.getByRole("button", { name: "Send back" })).toBeDisabled();
+  await expect(menu.getByRole("button", { name: "Duplicate" })).toBeEnabled();
+
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  // Escape closed the menu and left what he had picked alone.
+  await expect(
+    page.locator(".label-heading").getByText("Player", { exact: true }),
+  ).toBeVisible();
+});
+
+test("brings a line forward from the menu and from the keyboard", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const drawnOrder = () =>
+    page
+      .locator("[data-scene-path]")
+      .evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute("data-scene-path")),
+      );
+  expect(await drawnOrder()).toEqual([
+    "rx",
+    "rf",
+    "ry",
+    "rh",
+    "rz",
+    "rz-branch-0",
+  ]);
+
+  const onX = await fieldPoint(page, 280, 367);
+  await page.mouse.click(onX.x, onX.y, { button: "right" });
+  await page
+    .getByRole("menu")
+    .getByRole("button", { name: "Bring forward" })
+    .click();
+  expect((await drawnOrder())[1]).toBe("rx");
+
+  // The same step from the keyboard, which is what ADR 0016 asks of anything
+  // a pointer alone can reach.
+  await page.keyboard.press("Meta+]");
+  expect((await drawnOrder())[2]).toBe("rx");
+  await page.keyboard.press("Meta+[");
+  expect((await drawnOrder())[1]).toBe("rx");
+});
+
+test("opens the same menu on a press held still", async ({ page }) => {
+  await openEditor(page);
+
+  const z = await playerCenter(page, "z");
+  // Twenty units off his centre, measured in the frame the hit tolerances are
+  // measured in rather than in screen pixels, which the field scales.
+  const beside = await (async () => {
+    const transform = await page
+      .locator('[data-scene-player="z"]')
+      .getAttribute("transform");
+    const match = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(transform ?? "")!;
+    return fieldPoint(page, Number(match[1]) + 20, Number(match[2]));
+  })();
+  const field = page.locator("svg.field-diagram").first();
+  const menu = page.getByRole("menu");
+  const press = (type: string, at: { x: number; y: number }) =>
+    field.dispatchEvent(type, {
+      pointerId: 7,
+      pointerType: "touch",
+      button: 0,
+      buttons: type === "pointerup" ? 0 : 1,
+      isPrimary: true,
+      clientX: at.x,
+      clientY: at.y,
+    });
+
+  // A press that lets go is a tap, and picks him without offering anything.
+  await press("pointerdown", z);
+  await press("pointerup", z);
+  await expect(
+    page.locator(".label-heading").getByText("Player", { exact: true }),
+  ).toBeVisible();
+  // Waited out rather than checked at once: what is being tested is a timer,
+  // and a menu that has not appeared yet looks exactly like one that never will.
+  await page.waitForTimeout(700);
+  await expect(menu).toBeHidden();
+
+  // Held still, the same press becomes the menu — the touch answer to a
+  // right-click, which a device with no right button cannot otherwise reach.
+  // Pressed twenty pixels off his centre, which is inside what a finger is
+  // allowed everywhere else and outside what a mouse is: the menu must not be
+  // the one thing on the field a touch has to be accurate to open.
+  await press("pointerdown", beside);
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Duplicate" })).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await press("pointerup", z);
+  await expect(menu).toBeHidden();
+
+  // A press that travels is a drag, and a man being moved must not have a
+  // menu open under him half way.
+  await press("pointerdown", z);
+  await field.dispatchEvent("pointermove", {
+    pointerId: 7,
+    pointerType: "touch",
+    buttons: 1,
+    isPrimary: true,
+    clientX: z.x - 40,
+    clientY: z.y - 40,
+  });
+  await page.waitForTimeout(700);
+  await expect(menu).toBeHidden();
+});

@@ -4,6 +4,7 @@ import {
   canonicalStringify,
   deletePathsCommand,
   deletePlayersCommand,
+  diffPlayDocuments,
   labelRolePresets,
   legacyCanvasToYards,
   legacyDepthSpanToYards,
@@ -966,4 +967,74 @@ export function flipPlayerLinesCommand(
     }));
   if (commands.length === 0) return undefined;
   return { kind: "batch", label: "Flip his lines", commands };
+}
+
+// ---------------------------------------------------------------------------
+// Which of them draws on top
+// ---------------------------------------------------------------------------
+
+/**
+ * One step through the layer. The original swaps neighbours and skips a
+ * neighbour that is also picked, so a group of lines keeps its own order as it
+ * travels; moving forward walks the list from the back, so two picked lines
+ * cannot leapfrog one another on the way.
+ */
+function reorderLayer<Item extends { readonly id: string }>(
+  items: readonly Item[],
+  chosen: ReadonlySet<string>,
+  direction: 1 | -1,
+): Item[] {
+  const next = [...items];
+  const indices = next.flatMap((item, index) =>
+    chosen.has(item.id) ? [index] : [],
+  );
+  for (const index of direction > 0 ? [...indices].reverse() : indices) {
+    const neighbour = index + direction;
+    if (neighbour < 0 || neighbour >= next.length) continue;
+    if (chosen.has(next[neighbour]!.id)) continue;
+    [next[index], next[neighbour]] = [next[neighbour]!, next[index]!];
+  }
+  return next;
+}
+
+/**
+ * Brings what the Coach picked forward, or sends it back. Players are not in
+ * this: they draw above every line whatever order they are stored in, which is
+ * why the original reorders only routes and text.
+ */
+export function reorderSelectionCommand(
+  document: PlayDocument,
+  selection: readonly FieldItemRef[],
+  direction: 1 | -1,
+): PlayCommand | undefined {
+  const pathIds = new Set(
+    selection.filter(({ kind }) => kind === "path").map(({ id }) => id),
+  );
+  const labelIds = new Set(
+    selection.filter(({ kind }) => kind === "label").map(({ id }) => id),
+  );
+  const paths =
+    pathIds.size > 0
+      ? reorderLayer(document.paths, pathIds, direction)
+      : document.paths;
+  const labels =
+    labelIds.size > 0
+      ? reorderLayer(document.labels, labelIds, direction)
+      : document.labels;
+  const order = (items: readonly { readonly id: string }[]) =>
+    items.map(({ id }) => id).join(" ");
+  if (
+    order(paths) === order(document.paths) &&
+    order(labels) === order(document.labels)
+  ) {
+    return undefined;
+  }
+  // The domain already has an answer for a layer whose order changed: replace
+  // it wholesale rather than guess at a move script. Expressing the reorder as
+  // an ordinary difference reuses that answer instead of inventing a second.
+  return diffPlayDocuments(
+    document,
+    { ...document, paths, labels },
+    direction > 0 ? "Bring forward" : "Send backward",
+  );
 }

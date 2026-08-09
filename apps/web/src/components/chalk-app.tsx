@@ -25,7 +25,10 @@ import {
   addAlternateRouteCommand,
   addRouteChoiceCommand,
   applyLabelRoleCommand,
+  fieldHitOptions,
   fieldInteraction,
+  hitTestField,
+  reorderSelectionCommand,
   flipPlayerLinesCommand,
   flipRouteCommand,
   removeRouteChoiceCommand,
@@ -82,6 +85,7 @@ import { type ActionMap } from "./editor-command-surface";
 import {
   ClearMenu,
   CommandPalette,
+  ContextMenu,
   ExportMenu,
   MoreMenu,
   SaveMenu,
@@ -251,6 +255,9 @@ function SceneText({ text }: { text: SvgTextPrimitive }) {
 /** The original's selection blue, used for halos, guides, and the marquee. */
 const SELECTION_BLUE = "#0072F5";
 
+/** The original's own wait before a held press becomes a menu. */
+const LONG_PRESS_MS = 480;
+
 /**
  * What a Coach writes on a route beyond drawing it. The read number and the
  * Assignment print on the field; the conversion and the note ride along with
@@ -319,6 +326,7 @@ export function FieldDiagram({
   onPointerUp?: React.PointerEventHandler<SVGSVGElement>;
   onPointerCancel?: React.PointerEventHandler<SVGSVGElement>;
   onDoubleClick?: React.MouseEventHandler<SVGSVGElement>;
+  onContextMenu?: React.MouseEventHandler<SVGSVGElement>;
 }) {
   const selected = (kind: "player" | "path" | "label", id: string): boolean =>
     selection?.has(selectionKey(kind, id)) === true;
@@ -2020,6 +2028,15 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     readonly field: "label" | "sublabel";
     readonly value: string;
   }>();
+  /** Where the Coach asked what he can do to the thing under his pointer. */
+  const [contextMenu, setContextMenu] = useState<{
+    readonly x: number;
+    readonly y: number;
+  }>();
+  // A press held still on a touch or a Pencil opens the same menu the mouse
+  // opens with its right button, so the timer is armed on the press and
+  // disarmed by anything that turns it into a gesture.
+  const longPressRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Entities the Coach has just made whose commit has not landed. Selection
   // must not be pruned of something that is still on its way.
   const pendingInsertsRef = useRef<Set<string>>(new Set());
@@ -2302,6 +2319,50 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     button: event.button,
     pointerType: event.pointerType,
   });
+  /**
+   * What the Coach pointed at, if anything he can act on. Labels are left out
+   * because the original opens this menu over a Player or a route only.
+   */
+  const pointedAt = (
+    clientX: number,
+    clientY: number,
+    pointerType?: string,
+  ) => {
+    const document = editorStore.getSnapshot().document;
+    const found = hitTestField(
+      buildRenderScene(document),
+      fieldPointFromClient(clientX, clientY),
+      {
+        lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard,
+        depthPixelsPerYard: scene.viewport.depthPixelsPerYard,
+      },
+      // A finger is allowed the same wider reach here as it is everywhere
+      // else; asking with mouse precision would make the menu the one thing
+      // on the field a touch had to be accurate to open.
+      fieldHitOptions(pointerType),
+    );
+    return found?.item.kind === "label" ? undefined : found?.item;
+  };
+  const openContextMenu = (
+    clientX: number,
+    clientY: number,
+    pointerType?: string,
+  ): void => {
+    const item = pointedAt(clientX, clientY, pointerType);
+    if (!item) return;
+    dispatchField({ type: "point-at", item });
+    // Held clear of the far edges, at the original's own margin, so a menu
+    // opened near the corner is still whole.
+    setContextMenu({
+      x: Math.round(Math.min(clientX, globalThis.innerWidth - 210)),
+      y: Math.round(Math.min(clientY, globalThis.innerHeight - 210)),
+    });
+  };
+  const cancelLongPress = (): void => {
+    if (longPressRef.current === undefined) return;
+    clearTimeout(longPressRef.current);
+    longPressRef.current = undefined;
+  };
   const onFieldPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -2309,12 +2370,37 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       // Capture is best-effort; the gesture survives without it.
     }
     dispatchField({ type: "pointer-down", input: fieldPointerInput(event) });
+    cancelLongPress();
+    // A mouse has a button for this; every other pointer holds still instead.
+    if (event.pointerType === "mouse" || event.button !== 0) return;
+    const { clientX, clientY, pointerType } = event;
+    longPressRef.current = setTimeout(() => {
+      longPressRef.current = undefined;
+      openContextMenu(clientX, clientY, pointerType);
+    }, LONG_PRESS_MS);
   };
   const onFieldPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     dispatchField({ type: "pointer-move", input: fieldPointerInput(event) });
+    // Asked after the move, not before it: this very event is what turns a
+    // still press into a drag, and reading the gesture first would always find
+    // the press it is about to stop being.
+    //
+    // The original allowed six pixels of tremor before giving up on the menu.
+    // Production asks the machine instead, which lets go at two — one press
+    // cannot both be dragging a man and offering a menu about him, and the
+    // machine is what already decides which of those is happening.
+    if (interactionRef.current.gesture.kind !== "pressing") cancelLongPress();
   };
   const onFieldPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    cancelLongPress();
     dispatchField({ type: "pointer-up", input: fieldPointerInput(event) });
+  };
+  const onFieldContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
+    // The field's own menu replaces the browser's over a Player or a route,
+    // and over open grass the browser keeps it.
+    if (!pointedAt(event.clientX, event.clientY, "mouse")) return;
+    event.preventDefault();
+    openContextMenu(event.clientX, event.clientY, "mouse");
   };
   const onHandleDown = (
     handle: FieldHandleRef,
@@ -2412,6 +2498,23 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   };
 
   /**
+   * Bringing forward and sending back are unavailable when the selection is
+   * already as far as it goes — or is only Players, who draw above every line
+   * whatever order they are stored in. Grey and inert come from one answer.
+   */
+  const reorderAction = (direction: 1 | -1): (() => void) | undefined => {
+    const command = reorderSelectionCommand(
+      editor.document,
+      interaction.selection,
+      direction,
+    );
+    if (!command) return undefined;
+    return () => {
+      void editorStore.applyCommand(command).catch(() => undefined);
+    };
+  };
+
+  /**
    * What production can run today. A command the editor cannot yet perform is
    * deliberately absent so the menus show it as unavailable rather than
    * accepting a click and doing nothing.
@@ -2451,6 +2554,10 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     clearDefense: clearAction("defense"),
     clearText: clearAction("text"),
     clearField: clearAction("field"),
+    duplicate: () => dispatchFieldRef.current({ type: "duplicate" }),
+    deleteSelection: () => dispatchFieldRef.current({ type: "delete" }),
+    bringForward: reorderAction(1),
+    sendBackward: reorderAction(-1),
   };
 
   useEffect(() => {
@@ -2463,6 +2570,10 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       const key = event.key.toLowerCase();
 
       if (event.key === "Escape") {
+        if (contextMenu) {
+          setContextMenu(undefined);
+          return;
+        }
         if (overlay !== null || openMenu !== null) {
           setOverlay(null);
           setOpenMenu(null);
@@ -2488,6 +2599,20 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       if (meta && key === "a" && !typing) {
         event.preventDefault();
         dispatchFieldRef.current({ type: "select-all" });
+        return;
+      }
+      if (meta && !typing && (key === "]" || key === "[")) {
+        event.preventDefault();
+        // Built from the live document and selection rather than from the
+        // render that registered this listener, which may be older.
+        const command = reorderSelectionCommand(
+          editorStore.getSnapshot().document,
+          interactionRef.current.selection,
+          key === "]" ? 1 : -1,
+        );
+        if (command) {
+          void editorStore.applyCommand(command).catch(() => undefined);
+        }
         return;
       }
       if (meta && !typing && (key === "c" || key === "v" || key === "d")) {
@@ -2561,7 +2686,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
 
     globalThis.addEventListener("keydown", onKeyDown);
     return () => globalThis.removeEventListener("keydown", onKeyDown);
-  }, [openMenu, overlay]);
+  }, [contextMenu, editorStore, openMenu, overlay]);
 
   useEffect(() => {
     if (!openMenu) return;
@@ -2660,6 +2785,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
             data-tool={activeTool}
           >
             <FieldDiagram
+              onContextMenu={onFieldContextMenu}
               onPointerCancel={onFieldPointerCancel}
               onPointerDown={onFieldPointerDown}
               onPointerMove={onFieldPointerMove}
@@ -2985,6 +3111,11 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       {overlay === "shortcuts" ? (
         <ShortcutReference onClose={() => setOverlay(null)} />
       ) : null}
+      <ContextMenu
+        actions={actions}
+        at={contextMenu}
+        onDismiss={() => setContextMenu(undefined)}
+      />
     </div>
   );
 }
