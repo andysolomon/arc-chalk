@@ -26,6 +26,7 @@ import {
   type EditorVersionSummary,
   type FieldDrawingState,
   type FieldGesture,
+  lineOf,
   type FieldHandleRef,
   type FieldInteractionContext,
   type FieldInteractionEvent,
@@ -224,6 +225,22 @@ function SceneText({ text }: { text: SvgTextPrimitive }) {
 
 /** The original's selection blue, used for halos, guides, and the marquee. */
 const SELECTION_BLUE = "#0072F5";
+
+/**
+ * How big a handle's invisible target is. Touch needs 44 CSS px (ADR 0016),
+ * but a mouse does not: at that size a handle swallows the middle of a short
+ * segment, and the segment underneath can no longer be clicked at all. A
+ * fine pointer keeps the original's smaller targets and its precision.
+ */
+function handleTargetSize(): {
+  readonly node: number;
+  readonly control: number;
+} {
+  const coarse =
+    typeof globalThis.matchMedia === "function" &&
+    globalThis.matchMedia("(pointer: coarse)").matches;
+  return coarse ? { node: 22, control: 44 } : { node: 13, control: 20 };
+}
 
 /** Tools the interaction machine understands; the rest it never sees. */
 function interactionTool(tool: Tool): FieldInteractionContext["tool"] {
@@ -673,32 +690,100 @@ export function FieldDiagram({
  * clear the 44 CSS px touch minimum (ADR 0016).
  */
 function RouteHandles({
+  branchIndex,
   onHandleDown,
   path,
   projection,
   selectedNodeIndex,
+  selectedSegmentIndex,
 }: {
+  /** Which line of the route carries the handles: a branch, or the main one. */
+  branchIndex?: number;
   onHandleDown: (handle: FieldHandleRef, event: React.PointerEvent) => void;
   path: MovementPath;
   projection: SvgProjection;
   selectedNodeIndex?: number;
+  selectedSegmentIndex?: number;
 }) {
-  const points = path.points.map((point) => ({
-    ...projectCoordinate(point, projection),
-    control: point.control
-      ? projectCoordinate(point.control, projection)
-      : undefined,
-  }));
+  const target = handleTargetSize();
+  const line = lineOf(path, branchIndex);
+  // A branch runs from the break it was split off at, so that point leads
+  // the line and gives the first bend handle something to measure from.
+  const branchOrigin =
+    branchIndex === undefined
+      ? undefined
+      : path.points[path.branches[branchIndex]?.fromIndex ?? 0];
+  const points = [...(branchOrigin ? [branchOrigin] : []), ...line].map(
+    (point) => ({
+      ...projectCoordinate(point, projection),
+      control: point.control
+        ? projectCoordinate(point.control, projection)
+        : undefined,
+    }),
+  );
+  // With a branch shown, index 0 is the main-line break it grows from, which
+  // belongs to the main line and is not the branch's to move.
+  const offset = branchOrigin ? 1 : 0;
   // An unsized drop shows its corner on the default bubble it is drawn with,
   // so the handle is where the Coach can already see the area.
   const coverage =
     path.kind === "zone" && path.style.ending === "bubble"
       ? (path.coverageArea ?? DEFAULT_ZONE_COVERAGE_RADII)
       : undefined;
-  const zoneCenter = points.at(-1);
+  const zoneCenter = branchIndex === undefined ? points.at(-1) : undefined;
+
+  /** The drawn shape of one segment, curve included. */
+  const segmentPath = (index: number): string => {
+    const from = points[index - 1]!;
+    const to = points[index]!;
+    return to.control
+      ? `M ${from.x} ${from.y} Q ${to.control.x} ${to.control.y} ${to.x} ${to.y}`
+      : `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
+  };
+  // What the Coach has narrowed to: a whole branch, or one segment of the
+  // main line. Either is drawn as a thick blue wash under the route.
+  const highlighted =
+    branchIndex !== undefined
+      ? points.slice(1).map((_, index) => segmentPath(index + 1))
+      : selectedSegmentIndex !== undefined && points[selectedSegmentIndex]
+        ? [segmentPath(selectedSegmentIndex)]
+        : [];
 
   return (
     <g className="route-handles">
+      {highlighted.map((d, index) => (
+        <path
+          d={d}
+          data-line-highlight={branchIndex === undefined ? "segment" : "branch"}
+          fill="none"
+          key={`highlight-${index}`}
+          opacity={branchIndex === undefined ? 0.22 : 0.18}
+          pointerEvents="none"
+          stroke={SELECTION_BLUE}
+          strokeLinecap="round"
+          strokeWidth={9.5}
+        />
+      ))}
+      {branchIndex === undefined
+        ? path.branches.map((branch, index) => {
+            const from = path.points[branch.fromIndex];
+            if (!from) return null;
+            const at = projectCoordinate(from, projection);
+            // Where a choice route splits off. Clicking that line selects it.
+            return (
+              <circle
+                cx={at.x}
+                cy={at.y}
+                data-branch-marker={index}
+                fill={SELECTION_BLUE}
+                key={`branch-${index}`}
+                opacity={0.5}
+                pointerEvents="none"
+                r={3.5}
+              />
+            );
+          })
+        : null}
       {points.map((point, index) => {
         if (index === 0) return null;
         const previous = points[index - 1]!;
@@ -727,16 +812,21 @@ function RouteHandles({
               className="handle-target"
               data-control-handle={index}
               fill="transparent"
-              height={44}
+              height={target.control}
               onPointerDown={(event) =>
                 onHandleDown(
-                  { kind: "control", pathId: path.id, pointIndex: index },
+                  {
+                    kind: "control",
+                    pathId: path.id,
+                    pointIndex: index - offset,
+                    ...(branchIndex === undefined ? {} : { branchIndex }),
+                  },
                   event,
                 )
               }
-              width={44}
-              x={midpoint.x - 22}
-              y={midpoint.y - 22}
+              width={target.control}
+              x={midpoint.x - target.control / 2}
+              y={midpoint.y - target.control / 2}
             >
               <title>Curve handle — drag to bend this segment</title>
             </rect>
@@ -744,7 +834,8 @@ function RouteHandles({
         );
       })}
       {points.map((point, index) => {
-        const active = selectedNodeIndex === index;
+        if (branchOrigin && index === 0) return null;
+        const active = selectedNodeIndex === index - offset;
         return (
           <g key={`node-${index}`}>
             {active ? (
@@ -772,22 +863,27 @@ function RouteHandles({
               className="handle-target"
               cx={point.x}
               cy={point.y}
-              data-node-handle={index}
+              data-node-handle={index - offset}
               fill="transparent"
               onPointerDown={(event) =>
                 onHandleDown(
-                  { kind: "node", pathId: path.id, pointIndex: index },
+                  {
+                    kind: "node",
+                    pathId: path.id,
+                    pointIndex: index - offset,
+                    ...(branchIndex === undefined ? {} : { branchIndex }),
+                  },
                   event,
                 )
               }
-              r={22}
+              r={target.node}
             >
               <title>
-                {index === 0
+                {index - offset === 0
                   ? "Start — drag to move"
                   : index === points.length - 1
                     ? "End — drag to move"
-                    : `Break ${index} — drag to move`}
+                    : `Break ${index - offset} — drag to move`}
               </title>
             </circle>
           </g>
@@ -1881,10 +1977,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                   />
                   {selectedPath ? (
                     <RouteHandles
+                      branchIndex={interaction.selectedBranchIndex}
                       onHandleDown={onHandleDown}
                       path={selectedPath}
                       projection={scene.viewport}
                       selectedNodeIndex={interaction.selectedNodeIndex}
+                      selectedSegmentIndex={interaction.selectedSegmentIndex}
                     />
                   ) : null}
                   {leaderHandleAt ? (

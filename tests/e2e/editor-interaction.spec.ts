@@ -413,3 +413,39 @@ test("mirrors the whole Play and back again from the More menu", async ({
     routeBefore,
   );
 });
+
+test("narrows to one segment of a route, then to a branch", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  // X's route bends twice; press its second segment.
+  const onSegment = await fieldPoint(page, 280, 367);
+  await page.mouse.click(onSegment.x, onSegment.y);
+  await expect(page.locator("[data-node-handle]")).toHaveCount(3);
+  // The first click takes the route entire — nothing is picked out yet.
+  await expect(page.locator("[data-line-highlight]")).toHaveCount(0);
+
+  // Deliberate clicks, not a double click: a quick one is the gesture that
+  // inserts a break, so the pause is what tells the two apart.
+  await page.waitForTimeout(600);
+  await page.mouse.click(onSegment.x, onSegment.y);
+  await expect(page.locator('[data-line-highlight="segment"]')).toHaveCount(1);
+  // Narrowing edits nothing, so the route still has the breaks it had.
+  await expect(page.locator("[data-node-handle]")).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+  // Z carries a branch, whose split shows as a marker on his stem.
+  const onStem = await fieldPoint(page, 947, 330);
+  await page.mouse.click(onStem.x, onStem.y);
+  await expect(page.locator("[data-branch-marker]")).toHaveCount(1);
+
+  // Clicking the branch line itself selects that line, handles and all.
+  const onBranch = await fieldPoint(page, 966, 110);
+  await page.mouse.click(onBranch.x, onBranch.y);
+  await page.waitForTimeout(600);
+  await page.mouse.click(onBranch.x, onBranch.y);
+  await expect(page.locator('[data-line-highlight="branch"]')).toHaveCount(1);
+  // The branch's own break is the only one it offers to move.
+  await expect(page.locator("[data-node-handle]")).toHaveCount(1);
+});
