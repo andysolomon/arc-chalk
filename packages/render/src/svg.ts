@@ -320,13 +320,19 @@ export interface SvgCoverageArea {
   readonly fill: string;
 }
 
-const coverageFills: Record<SvgCoverageArea["type"], string> = {
-  deep: "#1D3FD8",
-  curl: "#8B3FE0",
-  hook: "#7C8C1E",
-  flat: "#00909B",
-  spy: "#9A5A16",
-};
+/**
+ * What each level of coverage is drawn in. Exported because a thumbnail of a
+ * call has to colour its areas the same way the field does — a Coach reading
+ * the card and reading the field must be reading the same picture.
+ */
+export const coverageFills: Readonly<Record<SvgCoverageArea["type"], string>> =
+  {
+    deep: "#1D3FD8",
+    curl: "#8B3FE0",
+    hook: "#7C8C1E",
+    flat: "#00909B",
+    spy: "#9A5A16",
+  };
 
 function hasSegmentOverrides(points: readonly PathPoint[]): boolean {
   return points.some(

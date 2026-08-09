@@ -3,6 +3,8 @@ export * from "./backup";
 export * from "./canonical";
 export * from "./classifications";
 export * from "./commands";
+export * from "./defense-catalogue";
+export * from "./defenses";
 export * from "./field-profile";
 export * from "./formation-catalogue";
 export * from "./formations";

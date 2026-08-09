@@ -983,3 +983,83 @@ test("names the set on the field, and shows where another one would put the men"
   await page.keyboard.press("Escape");
   await expect(browser).toBeHidden();
 });
+
+test("puts a call on the field as an alignment, then again with what each man has to do", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const routes = await page.locator("[data-scene-path]").count();
+
+  await page.keyboard.press("Control+Shift+d");
+  const browser = page.getByRole("dialog", { name: "Defenses" });
+  await expect(browser).toBeVisible();
+
+  // A front and a coverage are the two ways a call is found, and picking a
+  // front regroups the rest by coverage rather than by the front again.
+  await browser.getByRole("button", { name: "Nickel", exact: true }).click();
+  await expect(browser.getByText("4-3 Cover 3")).toBeHidden();
+  await expect(browser.getByText("Nickel Cover 2")).toBeVisible();
+
+  // Alignment only to begin with, as the original has it.
+  const toggle = browser.getByRole("button", { name: "With assignments" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await browser.getByText("Nickel Cover 2", { exact: true }).click();
+
+  await expect(page.locator("[data-scene-player]")).toHaveCount(22);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
+  await expect(page.getByRole("status")).toContainText("alignment only");
+  await expect(page.getByTitle("Browse defenses — ⇧⌘D")).toContainText(
+    "Nickel Cover 2",
+  );
+
+  // Asked for again with the assignments on, the same call arrives drawing
+  // itself — and replaces the alignment rather than standing beside it.
+  await page.keyboard.press("Control+Shift+d");
+  await browser.getByRole("button", { name: "With assignments" }).click();
+  await browser.getByText("Nickel Cover 2", { exact: true }).click();
+  await expect(page.locator("[data-scene-player]")).toHaveCount(22);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 7);
+  await expect(page.getByRole("status")).toContainText(
+    "alignment and assignments",
+  );
+
+  // All of it — the men and every line they draw — is one step back.
+  await page.keyboard.press("Control+z");
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
+});
+
+test("swaps one call for another without leaving the last one underneath", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const routes = await page.locator("[data-scene-path]").count();
+
+  const pick = async (name: string) => {
+    await page.keyboard.press("Control+Shift+d");
+    const browser = page.getByRole("dialog", { name: "Defenses" });
+    await expect(browser).toBeVisible();
+    await browser.getByRole("textbox").fill(name);
+    await browser.getByText(name, { exact: true }).click();
+    await expect(browser).toBeHidden();
+  };
+
+  // Assignments on, so each call brings its own lines and the swap has
+  // something to leave behind if it gets this wrong.
+  await page.keyboard.press("Control+Shift+d");
+  await page
+    .getByRole("dialog", { name: "Defenses" })
+    .getByRole("button", { name: "With assignments" })
+    .click();
+  await page.keyboard.press("Escape");
+
+  await pick("4-3 Cover 3");
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 7);
+
+  await pick("Fire Zone Blitz");
+  // Ten men and six lines, and not one of the eleven or seven before them.
+  await expect(page.locator("[data-scene-player]")).toHaveCount(21);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 6);
+  await expect(page.getByTitle("Browse defenses — ⇧⌘D")).toContainText(
+    "Fire Zone Blitz",
+  );
+});

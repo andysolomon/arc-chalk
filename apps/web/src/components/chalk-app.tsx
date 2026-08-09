@@ -2,6 +2,7 @@ import {
   applyPlayCommand,
   assignmentForPath,
   createStableId,
+  currentDefensiveCall,
   currentFormation,
   deletePathsCommand,
   DEFAULT_ZONE_COVERAGE_RADII,
@@ -15,8 +16,10 @@ import {
   playErasures,
   PRODUCT_NAME,
   stickThunderPlay,
+  stockDefensiveCalls,
   stockFormations,
   type LabelRole,
+  type DefensiveCall,
   type Formation,
   type MovementPath,
   type Player,
@@ -27,6 +30,7 @@ import {
 import {
   addAlternateRouteCommand,
   addRouteChoiceCommand,
+  applyDefensiveCallCommand,
   applyFormationCommand,
   applyLabelRoleCommand,
   fieldHitOptions,
@@ -90,6 +94,7 @@ import {
   ClearMenu,
   CommandPalette,
   ContextMenu,
+  DefenseBrowser,
   ExportMenu,
   FormationBrowser,
   MoreMenu,
@@ -99,7 +104,7 @@ import {
 
 type View = "Editor" | "Demo" | "Present" | "Print";
 type Menu = "more" | "export" | "save" | "clear" | null;
-type Overlay = "palette" | "shortcuts" | "formations" | null;
+type Overlay = "palette" | "shortcuts" | "formations" | "defenses" | null;
 type Tool =
   "select" | "player" | "route" | "motion" | "block" | "zone" | "text";
 
@@ -1028,8 +1033,13 @@ function FormationGhost({
   formationId?: string;
   projection: SvgProjection;
 }) {
+  // Both books hold Formations — a set is one, and a call is one with its
+  // assignments beside it — so one ghost answers for either.
   const formation = formationId
-    ? stockFormations.find(({ id }) => id === formationId)
+    ? (stockFormations.find(({ id }) => id === formationId) ??
+      stockDefensiveCalls.find(
+        ({ formation: value }) => value.id === formationId,
+      )?.formation)
     : undefined;
   if (!formation) return null;
   return (
@@ -1890,16 +1900,22 @@ function RouteInspector({
 }
 
 function Inspector({
+  call,
+  defenderCount,
   formation,
   formationHint,
   labelEditor,
+  onOpenDefenses,
   onOpenFormations,
   onOpenPalette,
   onOpenShortcuts,
 }: {
+  call?: DefensiveCall;
+  defenderCount: number;
   formation?: Formation;
   formationHint: string;
   labelEditor?: React.ReactNode;
+  onOpenDefenses: () => void;
   onOpenFormations: () => void;
   onOpenPalette: () => void;
   onOpenShortcuts: () => void;
@@ -1971,9 +1987,27 @@ function Inspector({
         </p>
       </InspectorSection>
       <InspectorSection title="Defense">
-        <button className="wide-picker">
-          <span>No defense yet</span>
-          <span>– &nbsp;›</span>
+        <button
+          className="wide-picker"
+          data-current-defense={call?.formation.id}
+          onClick={onOpenDefenses}
+          title="Browse defenses — ⇧⌘D"
+        >
+          <span>
+            {call
+              ? call.formation.name
+              : defenderCount > 0
+                ? "Custom front"
+                : "No defense yet"}
+          </span>
+          <span>
+            {call
+              ? call.formation.description
+              : defenderCount > 0
+                ? `${defenderCount} men`
+                : "–"}{" "}
+            &nbsp;›
+          </span>
         </button>
         <p>
           Each call replaces the last one and leaves the offense untouched. Just
@@ -2091,8 +2125,16 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     readonly x: number;
     readonly y: number;
   }>();
-  /** The set under the Coach's pointer in the browser, drawn on the field. */
+  /** The set or call under the Coach's pointer in a browser, drawn on the field. */
   const [previewFormationId, setPreviewFormationId] = useState<string>();
+  /**
+   * Whether a call arrives with its drops and blitzes drawn. Off to begin
+   * with, as the original has it: a call dropped in as an alignment is
+   * something to draw your own coverage on top of, and a Coach who wants the
+   * assignments asks for them. It is remembered between visits, because
+   * whichever he wants he tends to want every time.
+   */
+  const [callAssignments, setCallAssignments] = useState(false);
   /**
    * What just happened, said where he is already looking, with one undo
    * within reach. The original holds it for a little over four seconds.
@@ -2570,6 +2612,38 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     () => currentFormation(editor.document, stockFormations),
     [editor.document],
   );
+  /** Which call is on the field, by name, as the browser says it. */
+  const onFieldCall = useMemo(
+    () => currentDefensiveCall(editor.document, stockDefensiveCalls),
+    [editor.document],
+  );
+  /**
+   * Putting a call on the field. Only one defense can be on at a time, so
+   * this replaces rather than adds, and says what it cost him.
+   */
+  const applyCallPick = (callId: string): void => {
+    const call = stockDefensiveCalls.find(
+      ({ formation }) => formation.id === callId,
+    );
+    if (!call) return;
+    setOverlay(null);
+    setPreviewFormationId(undefined);
+    const { command, result } = applyDefensiveCallCommand(
+      editor.document,
+      call,
+      createStableId,
+      { withAssignments: callAssignments },
+    );
+    setToast({
+      name: call.formation.name,
+      text: callAssignments
+        ? "— alignment and assignments"
+        : "— alignment only",
+    });
+    runPanelCommand(command, { selection: [], drawing: undefined });
+    void result;
+  };
+
   /** What a realignment would leave alone, said before he asks for one. */
   const formationHint = useMemo(() => {
     const offense = editor.document.players.filter(
@@ -2697,6 +2771,16 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       setOpenMenu(null);
       setOverlay("formations");
     },
+    defenses: () => {
+      setOpenMenu(null);
+      setOverlay("defenses");
+    },
+    ...Object.fromEntries(
+      stockDefensiveCalls.map((call) => [
+        `defense:${call.formation.id}`,
+        () => applyCallPick(call.formation.id),
+      ]),
+    ),
     ...Object.fromEntries(
       stockFormations.map((formation) => [
         `formation:${formation.id}`,
@@ -2735,10 +2819,10 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         if (!typing) dispatchFieldRef.current({ type: "escape" });
         return;
       }
-      if (meta && event.shiftKey && key === "f") {
+      if (meta && event.shiftKey && (key === "f" || key === "d")) {
         event.preventDefault();
         setOpenMenu(null);
-        setOverlay("formations");
+        setOverlay(key === "f" ? "formations" : "defenses");
         return;
       }
       if (meta && key === "k") {
@@ -3246,8 +3330,14 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                 />
               ) : undefined
             }
+            call={onFieldCall}
+            defenderCount={
+              editor.document.players.filter(({ unit }) => unit === "defense")
+                .length
+            }
             formation={onFieldFormation}
             formationHint={formationHint}
+            onOpenDefenses={() => setOverlay("defenses")}
             onOpenFormations={() => setOverlay("formations")}
             onOpenPalette={() => setOverlay("palette")}
             onOpenShortcuts={() => setOverlay("shortcuts")}
@@ -3301,6 +3391,20 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       ) : null}
       {overlay === "shortcuts" ? (
         <ShortcutReference onClose={() => setOverlay(null)} />
+      ) : null}
+      {overlay === "defenses" ? (
+        <DefenseBrowser
+          calls={stockDefensiveCalls}
+          currentCallId={onFieldCall?.formation.id}
+          onClose={() => {
+            setOverlay(null);
+            setPreviewFormationId(undefined);
+          }}
+          onPick={applyCallPick}
+          onPreview={setPreviewFormationId}
+          onToggleAssignments={() => setCallAssignments((on) => !on)}
+          withAssignments={callAssignments}
+        />
       ) : null}
       {overlay === "formations" ? (
         <FormationBrowser

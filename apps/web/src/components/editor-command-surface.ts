@@ -1,4 +1,4 @@
-import { stockFormations } from "@chalk/domain";
+import { stockDefensiveCalls, stockFormations } from "@chalk/domain";
 
 /**
  * The original prototype's five chrome overlays: the More menu, the Export
@@ -61,7 +61,9 @@ export type ActionId =
   | "shortcuts"
   /** The browsers, and every set or call they list, reachable by name. */
   | "formations"
+  | "defenses"
   | `formation:${string}`
+  | `defense:${string}`
   | "exportPng"
   | "exportSvg"
   | "printField"
@@ -315,9 +317,14 @@ export const paletteCommands: readonly MenuEntry[] = [
   { id: "addDepthLabel", label: "Add depth label to segment" },
   { id: "newPlay", label: "New play" },
   { id: "formations", label: "Formations", shortcut: "⇧⌘F" },
+  { id: "defenses", label: "Defenses", shortcut: "⇧⌘D" },
   ...stockFormations.map((formation): MenuEntry => ({
     id: `formation:${formation.id}`,
     label: `Formation: ${formation.name}`,
+  })),
+  ...stockDefensiveCalls.map((call): MenuEntry => ({
+    id: `defense:${call.formation.id}`,
+    label: `Defense: ${call.formation.name}`,
   })),
   { id: "shortcuts", label: "Keyboard shortcuts", shortcut: "?" },
   ...exportGroups.flatMap((group) =>
