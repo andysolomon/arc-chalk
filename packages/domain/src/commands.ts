@@ -1,6 +1,7 @@
 import * as z from "zod/mini";
 
 import { canonicalStringify } from "./canonical";
+import { defensiveLineKinds } from "./classifications";
 import { mirrorPlayGeometry } from "./geometry";
 import {
   assignmentSchema,
@@ -700,9 +701,15 @@ function dependentCleanup(
   play: PlayDocument,
   removedPlayerIds: ReadonlySet<string>,
   removedPathIds: ReadonlySet<string>,
+  /** Labels going in their own right, merged so none is removed twice. */
+  removedLabelIds: ReadonlySet<string> = new Set(),
 ): PrimitivePlayCommand[] {
   const labelIds = play.labels
-    .filter(({ binding }) => binding && removedPathIds.has(binding.pathId))
+    .filter(
+      ({ binding, id }) =>
+        removedLabelIds.has(id) ||
+        (binding && removedPathIds.has(binding.pathId)),
+    )
     .map(({ id }) => id);
 
   const assignmentIds: string[] = [];
@@ -994,4 +1001,171 @@ export function clearPlayLayerCommand(
         ],
       };
   }
+}
+
+/**
+ * The erasures the original offers. Two of them are what a Coach reaches for
+ * daily: Routes takes the concept off and Coverage takes the call off, both
+ * leaving their players standing, so the next concept is drawn from the same
+ * formation without setting it again.
+ */
+export const playErasures = Object.freeze([
+  "offensive-lines",
+  "defensive-lines",
+  "lines",
+  "offense",
+  "defense",
+  "text",
+  "field",
+] as const);
+
+export type PlayErasure = (typeof playErasures)[number];
+
+const erasureLabels: Record<PlayErasure, string> = {
+  "offensive-lines": "Clear offensive routes",
+  "defensive-lines": "Clear defensive assignments",
+  lines: "Clear every line",
+  offense: "Clear offense",
+  defense: "Clear defense",
+  text: "Clear text",
+  field: "Clear the whole field",
+};
+
+/**
+ * Which side of the ball a line belongs to. The man running it decides,
+ * because that is what a Coach sees when he looks at the field. A
+ * special-teams man plays both sides inside one Play, so there the drawing
+ * itself has to answer: a drop, a blitz, or a stunt is the call, and
+ * everything else is the concept.
+ */
+function lineSide(
+  play: PlayDocument,
+  path: PlayDocument["paths"][number],
+): "offense" | "defense" {
+  const owner = play.players.find(({ id }) => id === path.playerId);
+  if (owner && owner.unit !== "special-teams") return owner.unit;
+  return defensiveLineKinds.has(path.kind) ? "defense" : "offense";
+}
+
+/**
+ * A label with no side of its own is offensive, matching the original: the
+ * concept is what a Coach annotates without thinking about it, and the
+ * defensive notes are the ones he marks deliberately.
+ */
+function labelSide(
+  label: PlayDocument["labels"][number],
+): "offense" | "defense" | "special-teams" {
+  return label.unit ?? "offense";
+}
+
+interface ErasureTargets {
+  readonly playerIds: ReadonlySet<string>;
+  readonly pathIds: ReadonlySet<string>;
+  readonly labelIds: ReadonlySet<string>;
+}
+
+const NOTHING: ReadonlySet<string> = new Set();
+
+function idsOf(
+  entities: readonly { readonly id: string }[],
+): ReadonlySet<string> {
+  return new Set(entities.map(({ id }) => id));
+}
+
+/**
+ * What each erasure takes in its own right. Everything that merely depends on
+ * these — a label pinned to a route, an Assignment naming a Player — follows
+ * through the same cleanup that an ordinary delete uses.
+ */
+function erasureTargets(
+  play: PlayDocument,
+  erasure: PlayErasure,
+): ErasureTargets {
+  const players = (unit: "offense" | "defense"): ReadonlySet<string> =>
+    idsOf(play.players.filter((player) => player.unit === unit));
+  const lines = (side: "offense" | "defense"): ReadonlySet<string> =>
+    idsOf(play.paths.filter((path) => lineSide(play, path) === side));
+  const labels = (side: "offense" | "defense"): ReadonlySet<string> =>
+    idsOf(play.labels.filter((label) => labelSide(label) === side));
+
+  switch (erasure) {
+    case "offensive-lines":
+      return {
+        playerIds: NOTHING,
+        pathIds: lines("offense"),
+        labelIds: NOTHING,
+      };
+    case "defensive-lines":
+      return {
+        playerIds: NOTHING,
+        pathIds: lines("defense"),
+        labelIds: NOTHING,
+      };
+    case "lines":
+      return {
+        playerIds: NOTHING,
+        pathIds: idsOf(play.paths),
+        labelIds: NOTHING,
+      };
+    case "offense":
+      return {
+        playerIds: players("offense"),
+        pathIds: NOTHING,
+        labelIds: labels("offense"),
+      };
+    case "defense":
+      return {
+        playerIds: players("defense"),
+        pathIds: NOTHING,
+        labelIds: labels("defense"),
+      };
+    case "text":
+      return {
+        playerIds: NOTHING,
+        pathIds: NOTHING,
+        labelIds: idsOf(play.labels),
+      };
+    case "field":
+      return {
+        playerIds: idsOf(play.players),
+        pathIds: idsOf(play.paths),
+        labelIds: idsOf(play.labels),
+      };
+  }
+}
+
+/**
+ * Clearing part of a Play is an ordinary undoable transaction, not a reset.
+ * An erasure that would take nothing is no command at all, so the button
+ * offering it can be greyed from the same answer that would have run it —
+ * a Clear never looks dead and still takes a click, nor the reverse.
+ */
+export function playErasureCommand(
+  play: PlayDocument,
+  erasure: PlayErasure,
+): BatchPlayCommand | undefined {
+  const targets = erasureTargets(play, erasure);
+  if (
+    targets.playerIds.size === 0 &&
+    targets.pathIds.size === 0 &&
+    targets.labelIds.size === 0
+  ) {
+    return undefined;
+  }
+  // Removing a Player takes his lines with him, so they join the same set
+  // rather than arriving as a second removal of the same route.
+  const pathIds = new Set(targets.pathIds);
+  for (const path of play.paths) {
+    if (targets.playerIds.has(path.playerId)) pathIds.add(path.id);
+  }
+  return {
+    kind: "batch",
+    label: erasureLabels[erasure],
+    commands: dependentCleanup(
+      play,
+      targets.playerIds,
+      pathIds,
+      targets.labelIds,
+    ),
+  };
 }

@@ -85,6 +85,52 @@ export interface MenuEntry {
   readonly title?: string;
 }
 
+/**
+ * The Clear menu on the tool rail. The palette reaches the same seven
+ * erasures by their long names; these are the short ones a Coach reads with
+ * the field still in front of him.
+ */
+export const clearEntries: readonly MenuEntry[] = [
+  {
+    id: "clearRoutesDefense",
+    label: "Coverage",
+    title:
+      "Wipe the coverage drops, blitz paths and stunts — the defenders stay where they are",
+  },
+  {
+    id: "clearRoutesOffense",
+    label: "Routes",
+    title:
+      "Wipe the offensive routes, motions and blocks — the players stay where they are",
+  },
+  {
+    id: "clearOffense",
+    label: "Offense",
+    title: "Remove the offensive players and their routes",
+  },
+  {
+    id: "clearDefense",
+    label: "Defense",
+    title: "Remove the defenders, their zone drops and blitz paths",
+  },
+  {
+    id: "clearText",
+    label: "Text",
+    title: "Remove every text label and coaching note",
+  },
+  {
+    id: "clearField",
+    label: "All",
+    title: "Empty the field — players, routes and text",
+  },
+];
+
+/** What the menu tells a Coach the six of them add up to. */
+export const clearMenuHint =
+  "Clears one layer and leaves the rest standing — Routes takes the concept " +
+  "off, Coverage takes the call off, both keep their players, so you can " +
+  "redraw the concept from the same formation. Undo brings any of it back.";
+
 export const conceptNames = [
   "Mesh",
   "Stick",

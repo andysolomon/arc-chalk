@@ -31,25 +31,30 @@ import { expect, test, type Page } from "@playwright/test";
  *
  * Every other clause of the ratchet still holds: these may only be lowered
  * from here, and the remaining gap is unchanged in character — the field
- * renders from a different viewBox aspect than the original's, tool-rail glyph
- * shapes differ, and the status bar's spacing does not match.
+ * renders from a different viewBox aspect than the original's, and tool-rail
+ * glyph shapes differ.
+ *
+ * Every number below came down when the status bar moved out of the field's
+ * own column to run the width of the window, where the original puts it. That
+ * is what had held the tool rail and the inspector 30 px too tall, so their
+ * lower halves disagreed with the original everywhere at once.
  */
 const parityGap: Readonly<Record<string, number>> = {
-  // 1.8624% (25,746 px), from 1.8465% (25,526 px).
-  editor: 0.0187,
+  // 1.7750% (24,538 px), from 1.8624% (25,746 px).
+  editor: 0.0178,
   // The five chrome overlays. Each sits at or just under the Editor's own gap
   // because the panel covers part of the field it disagrees about — what is
   // left is the shell behind them, not the overlay. Their item lists, ordering
   // and copy already match the original.
-  moreMenu: 0.0188, // 1.8752%
-  exportMenu: 0.0181, // 1.8027%
-  saveMenu: 0.0188, // 1.8743%
-  commandPalette: 0.0186, // 1.8563%
+  moreMenu: 0.0179, // 1.7882%, from 1.8752%
+  exportMenu: 0.0172, // 1.7153%, from 1.8027%
+  saveMenu: 0.0179, // 1.7869%, from 1.8743%
+  commandPalette: 0.0178, // 1.7762%, from 1.8563%
   // Higher than the rest for one reason: reaching "Shortcuts ?" scrolls the
   // inspector, and the original's inspector carries History, Page and Type
   // sections production has not built. The panel itself matches — its rows and
   // wrapped rows measure the original's 28 px and 62 px exactly.
-  shortcuts: 0.0272, // 2.7198%
+  shortcuts: 0.0265, // 2.6469%, from 2.7198%
 };
 
 /**

@@ -122,6 +122,14 @@ export function routeKindStyle(
   }
 }
 
+/**
+ * The lines only a defender draws. A ball flight belongs to neither side —
+ * the throw is part of the concept and part of what the call is defending —
+ * so it is never claimed by kind alone.
+ */
+export const defensiveLineKinds: ReadonlySet<MovementPath["kind"]> =
+  Object.freeze(new Set<MovementPath["kind"]>(["zone", "blitz", "stunt"]));
+
 /** The kinds the original offers, by the unit whose Play is open. */
 export const offensiveRouteKinds = Object.freeze([
   { kind: "route", name: "Route" },

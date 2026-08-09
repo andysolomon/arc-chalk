@@ -495,3 +495,56 @@ test("restyles a route, then one segment of it on its own", async ({
     page.locator('[data-scene-path^="rx-segment-"][stroke-dasharray="8 6"]'),
   ).toHaveCount(1);
 });
+
+test("clears the concept and leaves the formation standing", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const routes = page.locator("[data-scene-path]");
+  const routesBefore = await routes.count();
+  expect(routesBefore).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Clear a layer" }).click();
+  await page.getByRole("button", { name: "Routes", exact: true }).click();
+
+  // The eleven men stay where they are; only their lines come off.
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await expect(routes).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Undo" })).toHaveAttribute(
+    "title",
+    "Undo Clear offensive routes",
+  );
+
+  // One erasure is one step back.
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(routes).toHaveCount(routesBefore);
+});
+
+test("greys a Clear that would take nothing", async ({ page }) => {
+  await openEditor(page);
+  await page.getByRole("button", { name: "Clear a layer" }).click();
+
+  // Stick — Thunder is an offensive Play: there is no call on the field to
+  // wipe, so the button offering it cannot be pressed.
+  await expect(
+    page.getByRole("button", { name: "Coverage", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Defense", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Routes", exact: true }),
+  ).toBeEnabled();
+
+  // Clearing the offense empties the field, so the Clear that just ran is
+  // itself greyed the moment it has nothing left to take.
+  await page.getByRole("button", { name: "Offense", exact: true }).click();
+  await expect(page.locator("[data-scene-player]")).toHaveCount(0);
+  await page.getByRole("button", { name: "Clear a layer" }).click();
+  await expect(
+    page.getByRole("button", { name: "Offense", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "All", exact: true }),
+  ).toBeDisabled();
+});
