@@ -1181,3 +1181,85 @@ select:focus-visible {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* The Text panel replaces the idle inspector while one label is selected. */
+.label-inspector {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 14px;
+  gap: 6px;
+}
+.label-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.back-button {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-left: -3px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1;
+  color: #8f8f8f;
+  cursor: pointer;
+}
+.back-button:hover {
+  background: #ebebeb;
+  color: #171717;
+}
+.label-text {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  font-size: 13px;
+  color: #171717;
+  outline: none;
+  margin-bottom: 6px;
+}
+.label-text:focus {
+  box-shadow: 0 0 0 1px #005fcc;
+}
+.label-inspector .field-label {
+  font-size: 11px;
+  color: #8f8f8f;
+  margin-top: 6px;
+}
+.label-inspector p {
+  font-size: 11px;
+  color: #8f8f8f;
+  line-height: 16px;
+  margin: 12px 0 0;
+}
+.color-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.color-row .swatch {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.color-row .swatch.active {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px #0072f5;
+}
+.help-row button.danger {
+  color: #e5484d;
+}
+.help-row button.danger:hover {
+  background: #fef2f2;
+}

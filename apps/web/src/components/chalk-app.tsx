@@ -2,25 +2,35 @@ import {
   applyPlayCommand,
   createStableId,
   DEFAULT_ZONE_COVERAGE_RADII,
+  labelRolePresets,
+  labelSizeChoices,
   PRODUCT_NAME,
   stickThunderPlay,
+  type LabelRole,
   type MovementPath,
+  type PlayCommand,
+  type TextLabel,
 } from "@chalk/domain";
 import {
+  applyLabelRoleCommand,
   fieldInteraction,
+  insertedEntityIds,
   gesturePreviewCommand,
   idleFieldInteraction,
+  setLabelAppearanceCommand,
+  setLabelTextCommand,
   localSaveMessage,
   localSaveStatus,
   pruneFieldSelection,
   type EditorUndoState,
   type EditorVersionSummary,
-  type FieldDrawingKind,
   type FieldDrawingState,
   type FieldGesture,
   type FieldHandleRef,
+  type FieldInteractionContext,
   type FieldInteractionEvent,
   type FieldInteractionModel,
+  type LabelAppearance,
 } from "@chalk/editor";
 import {
   buildRenderScene,
@@ -216,20 +226,8 @@ function SceneText({ text }: { text: SvgTextPrimitive }) {
 const SELECTION_BLUE = "#0072F5";
 
 /** Tools the interaction machine understands; the rest it never sees. */
-function interactionTool(
-  tool: Tool,
-): "select" | "player" | FieldDrawingKind | undefined {
-  switch (tool) {
-    case "select":
-    case "player":
-    case "route":
-    case "motion":
-    case "block":
-    case "zone":
-      return tool;
-    case "text":
-      return undefined;
-  }
+function interactionTool(tool: Tool): FieldInteractionContext["tool"] {
+  return tool;
 }
 
 /** The depth a route may reach without leaving the drawn frame. */
@@ -279,6 +277,10 @@ export function FieldDiagram({
       className="field-diagram"
       role="img"
       aria-label={`${scene.playName} football play`}
+      // The field is driven by pointer events; letting mousedown run its
+      // default would move focus to the document body, which would tear it
+      // straight back out of a note the Coach was put into typing.
+      onMouseDown={(event) => event.preventDefault()}
       ref={svgRef}
       viewBox={`0 0 ${scene.viewport.width} ${scene.viewport.height}`}
       {...pointerHandlers}
@@ -1017,13 +1019,180 @@ function FieldInteractionOverlay({
   return null;
 }
 
+const labelBoxChoices: ReadonlyArray<{ box: TextLabel["box"]; name: string }> =
+  [
+    { box: "none", name: "None" },
+    { box: "fill", name: "Fill" },
+    { box: "outline", name: "Outline" },
+  ];
+
+const labelColorChoices: ReadonlyArray<TextLabel["color"]> = [
+  "ink",
+  "blue",
+  "red",
+  "yellow",
+  "green",
+  "orange",
+  "gray",
+];
+
+/**
+ * The original's Text panel, shown only while one label is selected. The
+ * idle panels stay exactly as they were when nothing is — which is the state
+ * every parity golden captures.
+ */
+function LabelInspector({
+  label,
+  onAppearance,
+  onDelete,
+  onDeselect,
+  onRole,
+  onText,
+  onTextCommitted,
+  text,
+  textInputRef,
+}: {
+  label: TextLabel;
+  /** The draft the Coach is typing, which leads the committed text. */
+  text: string;
+  onAppearance: (appearance: LabelAppearance) => void;
+  onDelete: () => void;
+  onDeselect: () => void;
+  onRole: (role: LabelRole) => void;
+  onText: (text: string) => void;
+  onTextCommitted: () => void;
+  textInputRef: React.Ref<HTMLInputElement>;
+}) {
+  const boxed = label.box !== "none";
+  return (
+    <div className="label-inspector">
+      <div className="section-heading label-heading">
+        <button
+          aria-label="Back to the play"
+          className="back-button"
+          onClick={onDeselect}
+          title="Back to the play — esc"
+          type="button"
+        >
+          ←
+        </button>
+        <span>Text</span>
+      </div>
+      <input
+        aria-label="Label text"
+        className="label-text"
+        onBlur={onTextCommitted}
+        onChange={(event) => onText(event.target.value)}
+        ref={textInputRef}
+        spellCheck={false}
+        value={text}
+      />
+      <span className="field-label">Belongs to</span>
+      <div className="segments">
+        {(["offense", "defense"] as const).map((unit) => (
+          <button
+            className={
+              (label.unit ?? "offense") === unit ? "active" : undefined
+            }
+            key={unit}
+            onClick={() => onAppearance({ unit })}
+            type="button"
+          >
+            {unit === "offense" ? "Offense" : "Defense"}
+          </button>
+        ))}
+      </div>
+      <span className="field-label">Meaning</span>
+      <div className="button-grid">
+        {(Object.keys(labelRolePresets) as ReadonlyArray<LabelRole>).map(
+          (role) => (
+            <button
+              className={label.role === role ? "active" : undefined}
+              key={role}
+              onClick={() => onRole(role)}
+              type="button"
+            >
+              {labelRolePresets[role].name}
+            </button>
+          ),
+        )}
+      </div>
+      <span className="field-label">Size</span>
+      <div className="segments">
+        {labelSizeChoices.map(({ name, size }) => (
+          <button
+            className={label.size === size ? "active" : undefined}
+            key={name}
+            onClick={() => onAppearance({ size })}
+            type="button"
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+      <span className="field-label">Box</span>
+      <div className="segments">
+        {labelBoxChoices.map(({ box, name }) => (
+          <button
+            className={label.box === box ? "active" : undefined}
+            key={box}
+            onClick={() => onAppearance({ box })}
+            type="button"
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+      {/* A boxed label's colour is its box; an unboxed one's is its text. */}
+      <span className="field-label">{boxed ? "Box color" : "Text color"}</span>
+      <div className="color-row">
+        {labelColorChoices.map((color) => (
+          <button
+            aria-label={color}
+            aria-pressed={(boxed ? label.boxColor : label.color) === color}
+            className={
+              (boxed ? label.boxColor : label.color) === color
+                ? "swatch active"
+                : "swatch"
+            }
+            key={color}
+            onClick={() =>
+              onAppearance(boxed ? { boxColor: color } : { color })
+            }
+            style={{ background: sceneColors[color] }}
+            type="button"
+          />
+        ))}
+      </div>
+      <p>
+        Boxed labels are for calls and reminders — a yellow fill for coaching
+        notes like “MAX SPLIT +4”, a red outline for a decision like “YES / NO”.
+      </p>
+      <div className="help-row">
+        <button className="danger" onClick={onDelete} type="button">
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Inspector({
+  labelEditor,
   onOpenPalette,
   onOpenShortcuts,
 }: {
+  labelEditor?: React.ReactNode;
   onOpenPalette: () => void;
   onOpenShortcuts: () => void;
 }) {
+  if (labelEditor) {
+    return (
+      <aside className="inspector" aria-label="Play inspector">
+        {labelEditor}
+      </aside>
+    );
+  }
   return (
     <aside className="inspector" aria-label="Play inspector">
       <InspectorSection title="Formation">
@@ -1167,6 +1336,23 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   // authoritative model so no event ever reduces against a stale one.
   const interactionRef = useRef<FieldInteractionModel>(interaction);
   const fieldSvgRef = useRef<SVGSVGElement | null>(null);
+  const labelTextInputRef = useRef<HTMLInputElement | null>(null);
+  // A label the Coach has just placed is waiting to be typed into. A ref,
+  // not state: nothing renders from it, and clearing it must not re-render.
+  const labelAwaitingTextRef = useRef<string | undefined>(undefined);
+  /**
+   * What the Coach is typing into a note, held here until he leaves the
+   * field. The committed text arrives asynchronously (ADR 0012), so binding
+   * the input straight to it would drop keystrokes that land mid-save — the
+   * same reason the Play name has a draft in the EditorStore.
+   */
+  const [labelTextDraft, setLabelTextDraft] = useState<{
+    readonly id: string;
+    readonly text: string;
+  }>();
+  // Entities the Coach has just made whose commit has not landed. Selection
+  // must not be pruned of something that is still on its way.
+  const pendingInsertsRef = useRef<Set<string>>(new Set());
   // The runtime reports storage health; freeing space supersedes that reading.
   const storage = freedStorage ?? runtime.storage;
   const editor = useSyncExternalStore(
@@ -1195,6 +1381,30 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       ),
     [interaction.selection],
   );
+  /** The one selected label, whose Text panel replaces the idle inspector. */
+  const selectedLabel =
+    interaction.selection.length === 1 &&
+    interaction.selection[0]?.kind === "label"
+      ? editor.document.labels.find(
+          ({ id }) => id === interaction.selection[0]!.id,
+        )
+      : undefined;
+  // A selected label with a leader offers a handle at the end it points to.
+  const leaderHandleAt = (() => {
+    const leader = previewDocument.labels.find(
+      ({ id }) => id === selectedLabel?.id,
+    )?.leader;
+    return leader
+      ? projectCoordinate(leader.endpoint, scene.viewport)
+      : undefined;
+  })();
+  const runLabelCommand = (
+    command: PlayCommand | undefined,
+    options?: { coalesce?: boolean },
+  ): void => {
+    if (!command) return;
+    void editorStore.applyCommand(command, options).catch(() => undefined);
+  };
   /**
    * Handles belong to exactly one selected route, as in the original: a
    * multi-selection is being moved as a group, not edited node by node.
@@ -1235,20 +1445,23 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         depthPixelsPerYard: scene.viewport.depthPixelsPerYard,
       },
       snap: { enabled: snapEnabled, grid: "off" },
-      // Keyboard events still reach the machine under the text tool, which it
-      // does not drive; they behave as they would under selection.
-      tool: interactionTool(activeTool) ?? "select",
+      tool: interactionTool(activeTool),
       depthWindow: fieldDepthWindow(scene.viewport),
       createId: createStableId,
     });
     interactionRef.current = result.model;
     setInteraction(result.model);
     if (result.command) {
+      for (const id of insertedEntityIds(result.command)) {
+        pendingInsertsRef.current.add(id);
+      }
       void editorStore.applyCommand(result.command).catch(() => undefined);
     }
     // Finishing a route hands the Coach back the select tool, as the
     // original does, so the route he just drew is his to adjust.
     if (result.requestedTool) setActiveTool(result.requestedTool);
+    if (result.editingLabelId)
+      labelAwaitingTextRef.current = result.editingLabelId;
   };
   // The keyboard listener registers once per menu state; these refs keep it
   // dispatching against the current closure and reading the live drawing.
@@ -1267,9 +1480,34 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     selectToolRef.current = selectTool;
   });
 
+  /**
+   * A label the Coach just placed says "5 Yds" until he types over it, so
+   * the field is focused and selected the moment the panel appears — one
+   * gesture from pressing the field to writing the note.
+   */
+  useEffect(() => {
+    if (!labelAwaitingTextRef.current) return;
+    if (selectedLabel?.id !== labelAwaitingTextRef.current) return;
+    labelAwaitingTextRef.current = undefined;
+    labelTextInputRef.current?.focus();
+    labelTextInputRef.current?.select();
+  }, [selectedLabel?.id]);
+
   // An undo, redo, or restore may remove what the selection points at.
   useEffect(() => {
-    const pruned = pruneFieldSelection(interactionRef.current, editor.document);
+    const pending = pendingInsertsRef.current;
+    for (const id of [...pending]) {
+      const arrived =
+        editor.document.players.some((entity) => entity.id === id) ||
+        editor.document.paths.some((entity) => entity.id === id) ||
+        editor.document.labels.some((entity) => entity.id === id);
+      if (arrived) pending.delete(id);
+    }
+    const pruned = pruneFieldSelection(
+      interactionRef.current,
+      editor.document,
+      pending,
+    );
     if (pruned !== interactionRef.current) {
       interactionRef.current = pruned;
       setInteraction(pruned);
@@ -1300,8 +1538,6 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     pointerType: event.pointerType,
   });
   const onFieldPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
-    // The text tool arrives with the label work later in 4.3.
-    if (activeTool === "text") return;
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -1638,6 +1874,24 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                       selectedNodeIndex={interaction.selectedNodeIndex}
                     />
                   ) : null}
+                  {leaderHandleAt ? (
+                    <circle
+                      className="handle-target"
+                      cx={leaderHandleAt.x}
+                      cy={leaderHandleAt.y}
+                      data-leader-handle={selectedLabel!.id}
+                      fill="transparent"
+                      onPointerDown={(event) =>
+                        onHandleDown(
+                          { kind: "leader", labelId: selectedLabel!.id },
+                          event,
+                        )
+                      }
+                      r={22}
+                    >
+                      <title>Drag to point the leader line</title>
+                    </circle>
+                  ) : null}
                 </>
               }
               routeDotPlayerId={routeDotPlayerId}
@@ -1696,6 +1950,56 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         </main>
         {inspectorOpen ? (
           <Inspector
+            labelEditor={
+              selectedLabel ? (
+                <LabelInspector
+                  label={selectedLabel}
+                  onAppearance={(appearance) =>
+                    runLabelCommand(
+                      setLabelAppearanceCommand(
+                        editor.document,
+                        selectedLabel.id,
+                        appearance,
+                      ),
+                    )
+                  }
+                  onDelete={() => dispatchField({ type: "delete" })}
+                  onDeselect={() => dispatchField({ type: "escape" })}
+                  onRole={(role) =>
+                    runLabelCommand(
+                      applyLabelRoleCommand(
+                        editor.document,
+                        selectedLabel.id,
+                        role,
+                      ),
+                    )
+                  }
+                  onText={(text) => {
+                    setLabelTextDraft({ id: selectedLabel.id, text });
+                    runLabelCommand(
+                      setLabelTextCommand(
+                        editor.document,
+                        selectedLabel.id,
+                        text,
+                      ),
+                      // Consecutive keystrokes merge into one undo entry
+                      // until the Coach leaves the field (ADR 0012).
+                      { coalesce: true },
+                    );
+                  }}
+                  onTextCommitted={() => {
+                    editorStore.endCoalescing();
+                    setLabelTextDraft(undefined);
+                  }}
+                  text={
+                    labelTextDraft?.id === selectedLabel.id
+                      ? labelTextDraft.text
+                      : selectedLabel.text
+                  }
+                  textInputRef={labelTextInputRef}
+                />
+              ) : undefined
+            }
             onOpenPalette={() => setOverlay("palette")}
             onOpenShortcuts={() => setOverlay("shortcuts")}
           />
