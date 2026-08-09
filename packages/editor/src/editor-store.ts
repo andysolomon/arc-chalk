@@ -138,6 +138,20 @@ export interface EditorStore {
     command: PlayCommand,
     options?: ApplyCommandOptions,
   ): Promise<EditorCommitOutcome>;
+  /**
+   * Applies an edit built against the Play as it will actually be when the
+   * edit runs, rather than as it was when the Coach's keystroke was handled.
+   * Saves are serialised, so a command built in the shell can be a save or
+   * two out of date — and a command carries whole entities, so an out-of-date
+   * one silently puts back the field the one before it had just changed.
+   * Anything typed quickly has to be built this way; a one-off gesture may
+   * use {@link applyCommand}.
+   */
+  applyEdit(
+    this: void,
+    build: (document: PlayDocument) => PlayCommand | undefined,
+    options?: ApplyCommandOptions,
+  ): Promise<EditorCommitOutcome | undefined>;
   commitDocument(
     this: void,
     document: PlayDocument,
@@ -386,6 +400,20 @@ export function createEditorStore({
     options: ApplyCommandOptions = {},
   ): Promise<EditorCommitOutcome> => runCommand(() => command, options);
 
+  const applyEdit = (
+    build: (document: PlayDocument) => PlayCommand | undefined,
+    options: ApplyCommandOptions = {},
+  ): Promise<EditorCommitOutcome | undefined> => {
+    let asked = false;
+    return runCommand((document) => {
+      const command = build(document);
+      asked = command !== undefined;
+      // Nothing to do is expressed as a batch of nothing, which applies
+      // cleanly and is thrown away below rather than reaching the history.
+      return command ?? { kind: "batch", commands: [] };
+    }, options).then((outcome) => (asked ? outcome : undefined));
+  };
+
   const publishVersions = (
     versions: readonly EditorVersionSummary[],
   ): readonly EditorVersionSummary[] => {
@@ -475,6 +503,7 @@ export function createEditorStore({
       });
     },
     applyCommand,
+    applyEdit,
     commitDocument,
     retryLocalSave() {
       if (state.getState().localSave.phase !== "error") {

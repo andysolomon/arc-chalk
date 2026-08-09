@@ -196,6 +196,69 @@ describe("EditorStore local persistence", () => {
   });
 });
 
+describe("EditorStore edits built against the Play they will land on", () => {
+  const settled = (): EditorPersistence => ({
+    async commitPlay(input) {
+      return {
+        playId: input.play.id,
+        documentHash: await hashPlayDocument(input.play),
+        committedAtMs: 100,
+        mutationId: input.mutation.id,
+      };
+    },
+  });
+
+  it("does not let a second edit put back what the first had just changed", async () => {
+    const store = createEditorStore({
+      initialDocument: stickThunderPlay,
+      initialDocumentHash: await hashPlayDocument(stickThunderPlay),
+      persistence: settled(),
+      createMutationId: () => `mutation_${Math.random()}`,
+      monotonicNow: () => 0,
+    });
+    const pathId = stickThunderPlay.paths[0]!.id;
+    const change = (field: "conversion" | "coachingNote", value: string) =>
+      store.applyEdit(
+        (document) => ({
+          kind: "update-path",
+          path: {
+            ...document.paths.find(({ id }) => id === pathId)!,
+            [field]: value,
+          },
+        }),
+        { coalesce: true },
+      );
+
+    // Both are asked for before either has landed, which is what typing
+    // quickly into two fields of the same line does. A command carries the
+    // whole line, so the second must be built on the first rather than on the
+    // Play as it was when the Coach's keystroke was handled.
+    const both = Promise.all([
+      change("conversion", "vs man: fade"),
+      change("coachingNote", "eyes to the safety"),
+    ]);
+    await both;
+
+    const path = store
+      .getSnapshot()
+      .document.paths.find(({ id }) => id === pathId)!;
+    expect(path.conversion).toBe("vs man: fade");
+    expect(path.coachingNote).toBe("eyes to the safety");
+  });
+
+  it("says nothing happened when the edit turns out to be no change at all", async () => {
+    const store = createEditorStore({
+      initialDocument: stickThunderPlay,
+      initialDocumentHash: await hashPlayDocument(stickThunderPlay),
+      persistence: settled(),
+      createMutationId: () => "mutation_none",
+      monotonicNow: () => 0,
+    });
+    await expect(store.applyEdit(() => undefined)).resolves.toBeUndefined();
+    expect(store.getSnapshot().undo.canUndo).toBe(false);
+  });
+});
+
 describe("EditorStore undo and redo", () => {
   interface Harness {
     readonly store: EditorStore;

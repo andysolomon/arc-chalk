@@ -129,11 +129,13 @@ test("marquee selects the line and deletes it as one step", async ({
 }) => {
   await openEditor(page);
 
-  // A rectangle of empty grass around the five offensive linemen.
+  // A rectangle of empty grass around the five offensive linemen. It starts
+  // well clear of the nearest of them, because a finger is owed forty-four
+  // pixels of him and on a tablet that is a good deal of the frame.
   await drag(
     page,
-    await fieldPoint(page, 440, 400),
-    await fieldPoint(page, 630, 432),
+    await fieldPoint(page, 420, 350),
+    await fieldPoint(page, 650, 430),
   );
   await expect(page.locator("[data-scene-player].selected")).toHaveCount(5);
 
@@ -1410,4 +1412,29 @@ test("ties things together so they are picked as one, and unties them again", as
   await expect
     .poll(async () => page.locator("circle.selection-halo").count())
     .toBe(1);
+});
+
+test("gives a finger the forty-four pixels it is owed, on the screen it is really on", async ({
+  page,
+  browserName,
+}) => {
+  // ADR 0016 asks for a 44 CSS pixel touch target. The field is drawn in
+  // frame units, and how many pixels one of those is worth depends on how big
+  // the screen is — so this is measured on the glass rather than in the frame.
+  test.skip(browserName !== "webkit", "the coarse-pointer device");
+  await openEditor(page);
+  const z = await playerCenter(page, "z");
+  await page.mouse.click(z.x, z.y);
+  await page.locator('[data-scene-path="rz"]').click({ force: true });
+
+  const handles = page.locator("circle.handle-target");
+  await expect.poll(async () => handles.count()).toBeGreaterThan(0);
+  const smallest = Math.min(
+    ...(await handles.evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().width),
+    )),
+  );
+  // Half a pixel of slack, because the browser rounds the box it reports and
+  // the arithmetic lands this on the minimum exactly rather than above it.
+  expect(smallest).toBeGreaterThanOrEqual(43.5);
 });
