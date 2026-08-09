@@ -1,6 +1,7 @@
 import {
   applyPlayCommand,
   canonicalStringify,
+  clearPlayLayerCommand,
   deletePlayersCommand,
   playCommandCoalesceKey,
   type Coordinate,
@@ -1464,5 +1465,262 @@ describe("field interaction labels", () => {
     expect(after.labels.some(({ id }) => id === "l2")).toBe(false);
     expect(after.players).toEqual(stickThunderPlay.players);
     expect(after.paths).toEqual(stickThunderPlay.paths);
+  });
+});
+
+describe("field interaction copy, paste, and mirror", () => {
+  const clipContext = (overrides: Partial<FieldInteractionContext> = {}) => {
+    let next = 0;
+    return contextFor(stickThunderPlay, {
+      snap: { enabled: false, grid: "off" },
+      createId: (prefix) => `${prefix}_${(next += 1)}`,
+      ...overrides,
+    });
+  };
+  const pathOf = (document: PlayDocument, id: string) =>
+    document.paths.find((candidate) => candidate.id === id)!;
+
+  it("copies nothing when nothing is picked, and pastes nothing without a copy", () => {
+    const context = clipContext();
+    const empty = run(context, [{ type: "copy" }, { type: "paste" }]);
+    expect(empty.commands).toHaveLength(0);
+    expect(empty.model.clipboard).toBeUndefined();
+  });
+
+  it("pastes a Player and his route as new entities clear of the originals", () => {
+    const context = clipContext();
+    const session = run(context, [{ type: "copy" }, { type: "paste" }], {
+      selection: [player("x"), path("rx")],
+      gesture: { kind: "idle" },
+    });
+
+    expect(session.commands).toHaveLength(1);
+    expect(session.commands[0]).toMatchObject({
+      kind: "batch",
+      label: "Paste",
+    });
+    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    expect(after.players).toHaveLength(stickThunderPlay.players.length + 1);
+    expect(after.paths).toHaveLength(stickThunderPlay.paths.length + 1);
+
+    // The originals are untouched.
+    expect(positionOf(after, "x")).toEqual(positionOf(stickThunderPlay, "x"));
+    expect(pathOf(after, "rx")).toEqual(pathOf(stickThunderPlay, "rx"));
+
+    // The copy is offset, and its route runs from the copied man.
+    const copiedPlayer = after.players.at(-1)!;
+    const copiedPath = after.paths.at(-1)!;
+    expect(copiedPlayer.id).not.toBe("x");
+    expect(copiedPath.playerId).toBe(copiedPlayer.id);
+    expect(copiedPlayer.position.lateralYards).toBeGreaterThan(
+      positionOf(stickThunderPlay, "x").lateralYards,
+    );
+    expect(copiedPlayer.position.depthYards).toBeLessThan(
+      positionOf(stickThunderPlay, "x").depthYards,
+    );
+    // Everything the copy is made of moved by the same amount.
+    const shift =
+      copiedPlayer.position.lateralYards -
+      positionOf(stickThunderPlay, "x").lateralYards;
+    copiedPath.points.forEach((point, index) => {
+      expect(point.lateralYards).toBeCloseTo(
+        pathOf(stickThunderPlay, "rx").points[index]!.lateralYards + shift,
+        6,
+      );
+    });
+    expect(session.model.selection).toEqual([
+      { kind: "player", id: copiedPlayer.id },
+      { kind: "path", id: copiedPath.id },
+    ]);
+  });
+
+  it("keeps a route attached to its man when he was left behind", () => {
+    const context = clipContext();
+    const session = run(context, [{ type: "copy" }, { type: "paste" }], {
+      selection: [path("rx")],
+      gesture: { kind: "idle" },
+    });
+    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    // The schema has no way to say "attached to nobody", so the copy runs
+    // from the same man rather than becoming an orphan.
+    expect(after.paths.at(-1)!.playerId).toBe("x");
+    expect(after.players).toHaveLength(stickThunderPlay.players.length);
+  });
+
+  it("rebinds a copied note to the copied route, and frees one left behind", () => {
+    const bound = applyPlayCommand(stickThunderPlay, {
+      kind: "update-label",
+      label: {
+        ...stickThunderPlay.labels.find(({ id }) => id === "l2")!,
+        binding: {
+          pathId: "rx",
+          segmentIndex: 1,
+          progress: 0.5,
+          offset: { lateralYards: 1, depthYards: 0 },
+        },
+      },
+    });
+
+    const together = run(
+      clipContext({ document: bound }),
+      [{ type: "copy" }, { type: "paste" }],
+      {
+        selection: [path("rx"), label("l2")],
+        gesture: { kind: "idle" },
+      },
+    );
+    const withBoth = applyPlayCommand(bound, together.commands[0]!);
+    const copiedPath = withBoth.paths.at(-1)!;
+    expect(withBoth.labels.at(-1)!.binding?.pathId).toBe(copiedPath.id);
+
+    const alone = run(
+      clipContext({ document: bound }),
+      [{ type: "copy" }, { type: "paste" }],
+      { selection: [label("l2")], gesture: { kind: "idle" } },
+    );
+    const labelOnly = applyPlayCommand(bound, alone.commands[0]!);
+    // Nothing to ride, so the copy keeps its words and is placed by hand.
+    expect(labelOnly.labels.at(-1)!.binding).toBeUndefined();
+    expect(labelOnly.labels.at(-1)!.text).toBe(
+      bound.labels.find(({ id }) => id === "l2")!.text,
+    );
+  });
+
+  it("pastes the same copy twice without the two landing on each other", () => {
+    const context = clipContext();
+    const copied = run(context, [{ type: "copy" }], {
+      selection: [player("q")],
+      gesture: { kind: "idle" },
+    });
+    const first = run(context, [{ type: "paste" }], copied.model);
+    const once = applyPlayCommand(stickThunderPlay, first.commands[0]!);
+    const second = run(
+      contextFor(once, {
+        snap: { enabled: false, grid: "off" },
+        createId: (prefix) => `${prefix}_again`,
+      }),
+      [{ type: "paste" }],
+      first.model.clipboard
+        ? { ...first.model, clipboard: first.model.clipboard }
+        : first.model,
+    );
+    const twice = applyPlayCommand(once, second.commands[0]!);
+    expect(twice.players).toHaveLength(stickThunderPlay.players.length + 2);
+    // Both copies come from the same clipboard, so they land together —
+    // matching the original, which offsets from the source every time.
+    expect(twice.players.at(-1)!.position).toEqual(
+      twice.players.at(-2)!.position,
+    );
+  });
+
+  it("duplicates without reading or disturbing the clipboard", () => {
+    const context = clipContext();
+    const copied = run(context, [{ type: "copy" }], {
+      selection: [player("q")],
+      gesture: { kind: "idle" },
+    });
+    const duplicated = run(context, [{ type: "duplicate" }], {
+      ...copied.model,
+      selection: [player("h")],
+    });
+    const after = applyPlayCommand(stickThunderPlay, duplicated.commands[0]!);
+    // H was duplicated, not the Quarterback that sits on the clipboard.
+    expect(after.players.at(-1)!.label).toBe("H");
+    expect(duplicated.model.clipboard).toEqual(copied.model.clipboard);
+  });
+
+  it("mirrors the whole Play when nothing is picked", () => {
+    const context = clipContext();
+    const session = run(context, [{ type: "mirror" }]);
+    expect(session.commands[0]).toEqual({ kind: "mirror-play" });
+
+    const mirrored = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    expect(positionOf(mirrored, "z").lateralYards).toBeCloseTo(
+      -positionOf(stickThunderPlay, "z").lateralYards,
+      9,
+    );
+    // Mirroring twice is the Play exactly as it was (ADR 0034).
+    const back = applyPlayCommand(mirrored, { kind: "mirror-play" });
+    expect(canonicalStringify(back)).toBe(canonicalStringify(stickThunderPlay));
+  });
+
+  it("mirrors only what is picked, carrying each man's routes with him", () => {
+    const context = clipContext();
+    const session = run(context, [{ type: "mirror" }], {
+      selection: [player("x")],
+      gesture: { kind: "idle" },
+    });
+    expect(session.commands[0]).toMatchObject({ label: "Mirror selection" });
+
+    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    expect(positionOf(after, "x").lateralYards).toBeCloseTo(
+      -positionOf(stickThunderPlay, "x").lateralYards,
+      9,
+    );
+    // X's route came with him; nobody else moved.
+    expect(pathOf(after, "rx").points[2]!.lateralYards).toBeCloseTo(
+      -pathOf(stickThunderPlay, "rx").points[2]!.lateralYards,
+      9,
+    );
+    expect(positionOf(after, "z")).toEqual(positionOf(stickThunderPlay, "z"));
+    expect(pathOf(after, "rz")).toEqual(pathOf(stickThunderPlay, "rz"));
+  });
+
+  it("reflects a note's leader and a bound note's offset", () => {
+    const decorated = applyPlayCommand(stickThunderPlay, {
+      kind: "batch",
+      commands: [
+        {
+          kind: "update-label",
+          label: {
+            ...stickThunderPlay.labels.find(({ id }) => id === "l1")!,
+            leader: {
+              line: "solid",
+              endpoint: { lateralYards: -8, depthYards: 3 },
+            },
+          },
+        },
+        {
+          kind: "update-label",
+          label: {
+            ...stickThunderPlay.labels.find(({ id }) => id === "l2")!,
+            binding: {
+              pathId: "rx",
+              segmentIndex: 1,
+              progress: 0.5,
+              offset: { lateralYards: 2, depthYards: 1 },
+            },
+          },
+        },
+      ],
+    });
+    const context = clipContext({ document: decorated });
+    const session = run(context, [{ type: "mirror" }], {
+      selection: [label("l1"), label("l2")],
+      gesture: { kind: "idle" },
+    });
+    const after = applyPlayCommand(decorated, session.commands[0]!);
+    const one = after.labels.find(({ id }) => id === "l1")!;
+    const two = after.labels.find(({ id }) => id === "l2")!;
+    expect(one.leader!.endpoint.lateralYards).toBeCloseTo(8, 9);
+    expect(one.leader!.endpoint.depthYards).toBeCloseTo(3, 9);
+    // A bound note rides its route, so only its offset reflects.
+    expect(two.binding!.offset.lateralYards).toBeCloseTo(-2, 9);
+    expect(two.binding!.offset.depthYards).toBeCloseTo(1, 9);
+  });
+
+  it("mirrors nothing on an empty Play", () => {
+    const empty = applyPlayCommand(
+      stickThunderPlay,
+      clearPlayLayerCommand(stickThunderPlay, "players"),
+    );
+    const cleared = applyPlayCommand(
+      empty,
+      clearPlayLayerCommand(empty, "labels"),
+    );
+    const session = run(clipContext({ document: cleared }), [
+      { type: "mirror" },
+    ]);
+    expect(session.commands).toHaveLength(0);
   });
 });

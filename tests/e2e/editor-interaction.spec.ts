@@ -353,3 +353,63 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect(page.getByText("Formation", { exact: true })).toBeVisible();
 });
+
+test("copies a Player and pastes him as a new one", async ({ page }) => {
+  await openEditor(page);
+
+  const start = await playerCenter(page, "q");
+  await page.mouse.click(start.x, start.y);
+  await expect(page.locator('[data-scene-player="q"]')).toHaveClass("selected");
+
+  await page.keyboard.press("ControlOrMeta+c");
+  await page.keyboard.press("ControlOrMeta+v");
+
+  await expect(page.locator("[data-scene-player]")).toHaveCount(12);
+  // The original stayed where he was; the copy is selected, not him.
+  await expect(page.locator('[data-scene-player="q"]')).not.toHaveClass(
+    "selected",
+  );
+  await expect(page.locator("[data-scene-player].selected")).toHaveCount(1);
+
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Paste");
+  await undo.click();
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+});
+
+test("mirrors the whole Play and back again from the More menu", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  const before = (await page
+    .locator('[data-scene-player="z"]')
+    .getAttribute("transform"))!;
+  const routeBefore = (await page
+    .locator('[data-scene-path="rz"]')
+    .getAttribute("d"))!;
+
+  await page.getByTitle("More actions").click();
+  await page.getByRole("button", { name: "Mirror", exact: true }).click();
+
+  await expect(page.locator('[data-scene-player="z"]')).not.toHaveAttribute(
+    "transform",
+    before,
+  );
+  await expect(page.getByRole("button", { name: "Undo" })).toHaveAttribute(
+    "title",
+    "Undo Mirror Play",
+  );
+
+  // Mirroring twice puts the Play back exactly as it was.
+  await page.getByTitle("More actions").click();
+  await page.getByRole("button", { name: "Mirror", exact: true }).click();
+  await expect(page.locator('[data-scene-player="z"]')).toHaveAttribute(
+    "transform",
+    before,
+  );
+  await expect(page.locator('[data-scene-path="rz"]')).toHaveAttribute(
+    "d",
+    routeBefore,
+  );
+});
