@@ -4,6 +4,7 @@ import {
   applyPlayCommand,
   assignRoles,
   assignmentForPath,
+  ballSpotNames,
   canonicalStringify,
   defensiveLineKinds,
   deletePathsCommand,
@@ -14,12 +15,14 @@ import {
   linePresetByKey,
   labelRolePresets,
   routePresetPoints,
+  spotBall,
   legacyCanvasToYards,
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
   routeKindStyle,
   yardsToLegacyCanvas,
   type ConceptDefinition,
+  type BallSpot,
   type Coordinate,
   type DefensiveCall,
   type DefensiveCallResult,
@@ -1452,4 +1455,20 @@ export function linePresetIsOn(
       (path) => path.playerId === playerId && path.preset === presetKey,
     ),
   );
+}
+
+/**
+ * Spotting the ball. The whole Play travels with it, so this is expressed as
+ * an ordinary difference and lands as one transaction and one undo entry.
+ */
+export function spotBallCommand(
+  document: PlayDocument,
+  spot: BallSpot,
+): { readonly command?: PlayCommand; readonly tightened: boolean } {
+  const { play, tightened } = spotBall(document, spot);
+  const command = diffPlayDocuments(document, play, ballSpotNames[spot]);
+  return {
+    tightened,
+    ...(command.commands.length > 0 ? { command } : {}),
+  };
 }

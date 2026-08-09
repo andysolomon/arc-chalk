@@ -1158,3 +1158,39 @@ test("gives the whole line a call at once, and takes it off again", async ({
   await page.keyboard.press("Control+z");
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 5);
 });
+
+test("spots the ball on a hash and takes the whole Play with it", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const before = await playerAt(page, "z");
+  const routes = await page.locator("[data-scene-path]").count();
+
+  const middle = page.getByRole("button", { name: "Middle", exact: true });
+  const rightHash = page.getByRole("button", { name: "R hash", exact: true });
+  await expect(middle).toHaveAttribute("aria-pressed", "true");
+  // The spot it is already on has nothing to do, and grey and inert come from
+  // that same answer.
+  await expect(middle).toBeDisabled();
+  await expect(rightHash).toBeEnabled();
+
+  await rightHash.click();
+  await expect(rightHash).toHaveAttribute("aria-pressed", "true");
+  await expect(middle).toHaveAttribute("aria-pressed", "false");
+  await expect(rightHash).toBeDisabled();
+  await expect(middle).toBeEnabled();
+
+  // Nobody was lost and nothing was redrawn — the Play travelled with the ball.
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
+  const after = await playerAt(page, "z");
+  expect(after.x).not.toBeCloseTo(before.x, 1);
+
+  // This set is too wide for the right hash, so it says what it had to do.
+  await expect(page.getByRole("status")).toContainText("tightened");
+
+  await page.keyboard.press("Control+z");
+  await expect
+    .poll(async () => (await playerAt(page, "z")).x)
+    .toBeCloseTo(before.x, 1);
+});

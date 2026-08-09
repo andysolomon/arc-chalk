@@ -1,5 +1,6 @@
 export * from "./animation";
 export * from "./backup";
+export * from "./ball-spot";
 export * from "./canonical";
 export * from "./classifications";
 export * from "./commands";
