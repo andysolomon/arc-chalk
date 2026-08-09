@@ -912,3 +912,317 @@ describe("field interaction drawing", () => {
     ).toBeDefined();
   });
 });
+
+describe("field interaction route handles", () => {
+  const handleContext = (overrides: Partial<FieldInteractionContext> = {}) =>
+    contextFor(stickThunderPlay, {
+      snap: { enabled: false, grid: "off" },
+      ...overrides,
+    });
+  const pathOf = (document: PlayDocument, id: string) =>
+    document.paths.find((candidate) => candidate.id === id)!;
+  const handleDown = (
+    handle: Parameters<typeof fieldInteraction>[1] extends never
+      ? never
+      : {
+          kind: "node" | "control" | "zone";
+          pathId: string;
+          pointIndex?: number;
+        },
+    point: Coordinate,
+  ): FieldInteractionEvent =>
+    ({
+      type: "handle-down",
+      handle,
+      input: { point, pointerId: 1 },
+    }) as FieldInteractionEvent;
+
+  it("drags a break and commits one update for the route", () => {
+    const context = handleContext();
+    const original = pathOf(stickThunderPlay, "rx");
+    const target = { lateralYards: -18, depthYards: 7 };
+
+    const session = run(context, [
+      handleDown(
+        { kind: "node", pathId: "rx", pointIndex: 1 },
+        original.points[1]!,
+      ),
+      move(target),
+      up(target),
+    ]);
+
+    expect(session.commands).toHaveLength(1);
+    expect(session.commands[0]).toMatchObject({
+      kind: "batch",
+      label: "Move route break",
+    });
+    const after = pathOf(
+      applyPlayCommand(stickThunderPlay, session.commands[0]!),
+      "rx",
+    );
+    expect(after.points[1]!.lateralYards).toBeCloseTo(target.lateralYards, 6);
+    expect(after.points[1]!.depthYards).toBeCloseTo(target.depthYards, 6);
+    // Only the dragged break moved.
+    expect(after.points[0]).toEqual(original.points[0]);
+    expect(after.points[2]).toEqual(original.points[2]);
+  });
+
+  it("selects a break on press and commits nothing without a drag", () => {
+    const context = handleContext();
+    const original = pathOf(stickThunderPlay, "rx");
+    const session = run(context, [
+      handleDown(
+        { kind: "node", pathId: "rx", pointIndex: 2 },
+        original.points[2]!,
+      ),
+      up(original.points[2]!),
+    ]);
+    expect(session.commands).toHaveLength(0);
+    expect(session.model.selectedNodeIndex).toBe(2);
+    expect(session.model.selection).toEqual([path("rx")]);
+  });
+
+  it("carries a curved segment's bend along with the break it belongs to", () => {
+    const curved = {
+      ...stickThunderPlay,
+      paths: stickThunderPlay.paths.map((candidate) =>
+        candidate.id === "rx"
+          ? {
+              ...candidate,
+              points: candidate.points.map((point, index) =>
+                index === 1
+                  ? { ...point, control: { lateralYards: -14, depthYards: 3 } }
+                  : point,
+              ),
+            }
+          : candidate,
+      ),
+    };
+    const context = handleContext({ document: curved });
+    const start = pathOf(curved, "rx").points[1]!;
+    const target = {
+      lateralYards: start.lateralYards + 2,
+      depthYards: start.depthYards + 1,
+    };
+
+    const session = run(context, [
+      handleDown({ kind: "node", pathId: "rx", pointIndex: 1 }, start),
+      move(target),
+      up(target),
+    ]);
+    const after = pathOf(applyPlayCommand(curved, session.commands[0]!), "rx");
+    expect(after.points[1]!.control!.lateralYards).toBeCloseTo(-14 + 2, 6);
+    expect(after.points[1]!.control!.depthYards).toBeCloseTo(3 + 1, 6);
+  });
+
+  it("bends a segment with the curve handle and straightens it back", () => {
+    const context = handleContext();
+    const original = pathOf(stickThunderPlay, "rx");
+    const start = original.points[0]!;
+    const end = original.points[1]!;
+    const midpoint = {
+      lateralYards: (start.lateralYards + end.lateralYards) / 2,
+      depthYards: (start.depthYards + end.depthYards) / 2,
+    };
+    const pulled = {
+      lateralYards: midpoint.lateralYards + 3,
+      depthYards: midpoint.depthYards + 3,
+    };
+
+    const bent = run(context, [
+      handleDown({ kind: "control", pathId: "rx", pointIndex: 1 }, midpoint),
+      move(pulled),
+      up(pulled),
+    ]);
+    expect(bent.commands[0]).toMatchObject({ label: "Curve segment" });
+    const curvedPlay = applyPlayCommand(stickThunderPlay, bent.commands[0]!);
+    const control = pathOf(curvedPlay, "rx").points[1]!.control!;
+    expect(control.lateralYards).toBeCloseTo(
+      2 * pulled.lateralYards - midpoint.lateralYards,
+      6,
+    );
+
+    // Dropping the handle back on the chord's midpoint straightens it again.
+    const straightened = run(handleContext({ document: curvedPlay }), [
+      handleDown({ kind: "control", pathId: "rx", pointIndex: 1 }, pulled),
+      move(midpoint),
+      up(midpoint),
+    ]);
+    const straightPlay = applyPlayCommand(
+      curvedPlay,
+      straightened.commands[0]!,
+    );
+    expect(pathOf(straightPlay, "rx").points[1]!.control).toBeUndefined();
+  });
+
+  it("sizes a zone within the original's bounds and reads out its width", () => {
+    const drop = {
+      ...stickThunderPlay,
+      paths: [
+        {
+          id: "drop",
+          kind: "zone" as const,
+          playerId: "q",
+          points: [
+            { lateralYards: 0, depthYards: 0 },
+            { lateralYards: 0, depthYards: 10 },
+          ],
+          branches: [],
+          style: {
+            line: "dashed" as const,
+            ending: "bubble" as const,
+            color: "blue" as const,
+          },
+        },
+      ],
+    };
+    const context = handleContext({ document: drop });
+
+    const sized = run(context, [
+      handleDown(
+        { kind: "zone", pathId: "drop" },
+        { lateralYards: 3, depthYards: 13 },
+      ),
+      move({ lateralYards: 5, depthYards: 14 }),
+    ]);
+    const gesture = sized.model.gesture;
+    expect(gesture.kind).toBe("handle");
+    if (gesture.kind !== "handle") return;
+    expect(gesture.readout?.text).toBe("10 yds wide");
+
+    const committed = run(
+      context,
+      [up({ lateralYards: 5, depthYards: 14 })],
+      sized.model,
+    );
+    const after = pathOf(
+      applyPlayCommand(drop, committed.commands[0]!),
+      "drop",
+    );
+    expect(after.coverageArea!.radiusLateralYards).toBeCloseTo(5, 6);
+    expect(after.coverageArea!.radiusDepthYards).toBeCloseTo(4, 6);
+
+    // A drag far past the original's ceiling is held at it.
+    const huge = run(context, [
+      handleDown(
+        { kind: "zone", pathId: "drop" },
+        { lateralYards: 3, depthYards: 13 },
+      ),
+      move({ lateralYards: 40, depthYards: 40 }),
+      up({ lateralYards: 40, depthYards: 40 }),
+    ]);
+    const capped = pathOf(applyPlayCommand(drop, huge.commands[0]!), "drop");
+    expect(capped.coverageArea!.radiusLateralYards).toBeLessThan(13);
+    expect(capped.coverageArea!.radiusDepthYards).toBeLessThan(13);
+  });
+
+  it("inserts a break into the segment the Coach double-clicked", () => {
+    const context = handleContext();
+    const original = pathOf(stickThunderPlay, "rz");
+    // Midway along Z's vertical stem, which is his first segment.
+    const point = { lateralYards: 21.09, depthYards: 6 };
+
+    const session = run(context, [
+      { type: "insert-node", pathId: "rz", point },
+    ]);
+    expect(session.commands).toHaveLength(1);
+    expect(session.commands[0]).toMatchObject({ label: "Add route break" });
+
+    const after = pathOf(
+      applyPlayCommand(stickThunderPlay, session.commands[0]!),
+      "rz",
+    );
+    expect(after.points).toHaveLength(original.points.length + 1);
+    expect(after.points[1]!.lateralYards).toBeCloseTo(point.lateralYards, 6);
+    expect(session.model.selectedNodeIndex).toBe(1);
+    expect(session.model.selection).toEqual([path("rz")]);
+  });
+
+  it("inserts into the later segment when that is the one clicked", () => {
+    const context = handleContext();
+    const original = pathOf(stickThunderPlay, "rx");
+    // Halfway along X's second segment, well clear of the first.
+    const second = original.points[1]!;
+    const third = original.points[2]!;
+    const point = {
+      lateralYards: (second.lateralYards + third.lateralYards) / 2,
+      depthYards: (second.depthYards + third.depthYards) / 2,
+    };
+
+    const session = run(context, [
+      { type: "insert-node", pathId: "rx", point },
+    ]);
+    const after = pathOf(
+      applyPlayCommand(stickThunderPlay, session.commands[0]!),
+      "rx",
+    );
+    // The new break lands between the two it was drawn between, leaving the
+    // first segment's own break where it was.
+    expect(after.points).toHaveLength(original.points.length + 1);
+    expect(after.points[1]).toEqual(second);
+    expect(after.points[2]!.lateralYards).toBeCloseTo(point.lateralYards, 6);
+    expect(after.points[3]).toEqual(third);
+    expect(session.model.selectedNodeIndex).toBe(2);
+  });
+
+  it("snaps a dragged break to landmarks and reads out its depth", () => {
+    const context = contextFor(stickThunderPlay);
+    const original = pathOf(stickThunderPlay, "rx");
+    // Just off the line of scrimmage and the ball. The start node is used
+    // because it has no break before it: a later one would first be
+    // constrained to 45 degrees from its neighbour, which is the original's
+    // order and would land it somewhere else entirely.
+    const loose = { lateralYards: 0.1, depthYards: 0.1 };
+
+    const session = run(context, [
+      handleDown(
+        { kind: "node", pathId: "rx", pointIndex: 0 },
+        original.points[0]!,
+      ),
+      move(loose),
+    ]);
+    const gesture = session.model.gesture;
+    expect(gesture.kind).toBe("handle");
+    if (gesture.kind !== "handle") return;
+    expect(gesture.guides.map(({ source }) => source).sort()).toEqual([
+      "ball",
+      "line-of-scrimmage",
+    ]);
+    expect(gesture.readout?.text).toContain("0 yds");
+    expect(gesture.path.points[0]).toMatchObject({
+      lateralYards: 0,
+      depthYards: 0,
+    });
+  });
+
+  it("previews exactly what the release will commit", () => {
+    const context = handleContext();
+    const original = pathOf(stickThunderPlay, "rx");
+    const target = { lateralYards: -18, depthYards: 7 };
+    const session = run(context, [
+      handleDown(
+        { kind: "node", pathId: "rx", pointIndex: 1 },
+        original.points[1]!,
+      ),
+      move(target),
+    ]);
+    const preview = gesturePreviewCommand(session.model, stickThunderPlay);
+    const done = run(context, [up(target)], session.model);
+    expect(canonicalStringify(preview)).toBe(
+      canonicalStringify(done.commands[0]),
+    );
+  });
+
+  it("ignores a handle press while a route is being drawn", () => {
+    const context = handleContext({ tool: "route" });
+    const y = positionOf(stickThunderPlay, "y");
+    const drawing = run(context, [down(y)]);
+    const session = run(
+      context,
+      [handleDown({ kind: "node", pathId: "rx", pointIndex: 1 }, y)],
+      drawing.model,
+    );
+    expect(session.model.gesture.kind).toBe("idle");
+    expect(session.model.drawing).toBeDefined();
+  });
+});

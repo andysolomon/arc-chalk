@@ -1,8 +1,10 @@
 import {
   applyPlayCommand,
   createStableId,
+  DEFAULT_ZONE_COVERAGE_RADII,
   PRODUCT_NAME,
   stickThunderPlay,
+  type MovementPath,
 } from "@chalk/domain";
 import {
   fieldInteraction,
@@ -16,6 +18,7 @@ import {
   type FieldDrawingKind,
   type FieldDrawingState,
   type FieldGesture,
+  type FieldHandleRef,
   type FieldInteractionEvent,
   type FieldInteractionModel,
 } from "@chalk/editor";
@@ -661,6 +664,179 @@ export function FieldDiagram({
 }
 
 /**
+ * The handles on the one selected route: a circle on every break, a square
+ * in the middle of every segment to bend it, and the zone corner. Their
+ * radii are viewBox units, which the editor draws at no more than one CSS
+ * pixel each, so they stay constant on screen and their invisible hit areas
+ * clear the 44 CSS px touch minimum (ADR 0016).
+ */
+function RouteHandles({
+  onHandleDown,
+  path,
+  projection,
+  selectedNodeIndex,
+}: {
+  onHandleDown: (handle: FieldHandleRef, event: React.PointerEvent) => void;
+  path: MovementPath;
+  projection: SvgProjection;
+  selectedNodeIndex?: number;
+}) {
+  const points = path.points.map((point) => ({
+    ...projectCoordinate(point, projection),
+    control: point.control
+      ? projectCoordinate(point.control, projection)
+      : undefined,
+  }));
+  // An unsized drop shows its corner on the default bubble it is drawn with,
+  // so the handle is where the Coach can already see the area.
+  const coverage =
+    path.kind === "zone" && path.style.ending === "bubble"
+      ? (path.coverageArea ?? DEFAULT_ZONE_COVERAGE_RADII)
+      : undefined;
+  const zoneCenter = points.at(-1);
+
+  return (
+    <g className="route-handles">
+      {points.map((point, index) => {
+        if (index === 0) return null;
+        const previous = points[index - 1]!;
+        // The bend handle sits where the segment actually passes, which for
+        // a curved segment is the quadratic's own midpoint.
+        const midpoint = point.control
+          ? {
+              x: (previous.x + 2 * point.control.x + point.x) / 4,
+              y: (previous.y + 2 * point.control.y + point.y) / 4,
+            }
+          : { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
+        return (
+          <g key={`control-${index}`}>
+            <rect
+              fill="#FFFFFF"
+              height={7}
+              pointerEvents="none"
+              rx={1.5}
+              stroke="#8FC2F8"
+              strokeWidth={1.5}
+              width={7}
+              x={midpoint.x - 3.5}
+              y={midpoint.y - 3.5}
+            />
+            <rect
+              className="handle-target"
+              data-control-handle={index}
+              fill="transparent"
+              height={44}
+              onPointerDown={(event) =>
+                onHandleDown(
+                  { kind: "control", pathId: path.id, pointIndex: index },
+                  event,
+                )
+              }
+              width={44}
+              x={midpoint.x - 22}
+              y={midpoint.y - 22}
+            >
+              <title>Curve handle — drag to bend this segment</title>
+            </rect>
+          </g>
+        );
+      })}
+      {points.map((point, index) => {
+        const active = selectedNodeIndex === index;
+        return (
+          <g key={`node-${index}`}>
+            {active ? (
+              <circle
+                cx={point.x}
+                cy={point.y}
+                fill="none"
+                opacity={0.35}
+                pointerEvents="none"
+                r={10}
+                stroke={SELECTION_BLUE}
+                strokeWidth={1.5}
+              />
+            ) : null}
+            <circle
+              cx={point.x}
+              cy={point.y}
+              fill={active ? SELECTION_BLUE : "#FFFFFF"}
+              pointerEvents="none"
+              r={active ? 6.5 : 5}
+              stroke={SELECTION_BLUE}
+              strokeWidth={active ? 2 : 1.5}
+            />
+            <circle
+              className="handle-target"
+              cx={point.x}
+              cy={point.y}
+              data-node-handle={index}
+              fill="transparent"
+              onPointerDown={(event) =>
+                onHandleDown(
+                  { kind: "node", pathId: path.id, pointIndex: index },
+                  event,
+                )
+              }
+              r={22}
+            >
+              <title>
+                {index === 0
+                  ? "Start — drag to move"
+                  : index === points.length - 1
+                    ? "End — drag to move"
+                    : `Break ${index} — drag to move`}
+              </title>
+            </circle>
+          </g>
+        );
+      })}
+      {coverage && zoneCenter
+        ? (() => {
+            const corner = {
+              x:
+                zoneCenter.x +
+                coverage.radiusLateralYards * projection.lateralPixelsPerYard,
+              y:
+                zoneCenter.y -
+                coverage.radiusDepthYards * projection.depthPixelsPerYard,
+            };
+            return (
+              <g>
+                <rect
+                  fill="#FFFFFF"
+                  height={7}
+                  pointerEvents="none"
+                  rx={1.5}
+                  stroke={SELECTION_BLUE}
+                  strokeWidth={1.5}
+                  width={7}
+                  x={corner.x - 3.5}
+                  y={corner.y - 3.5}
+                />
+                <rect
+                  className="handle-target zone-handle"
+                  data-zone-handle={path.id}
+                  fill="transparent"
+                  height={44}
+                  onPointerDown={(event) =>
+                    onHandleDown({ kind: "zone", pathId: path.id }, event)
+                  }
+                  width={44}
+                  x={corner.x - 22}
+                  y={corner.y - 22}
+                >
+                  <title>Drag to size the zone he owns</title>
+                </rect>
+              </g>
+            );
+          })()
+        : null}
+    </g>
+  );
+}
+
+/**
  * The transient layer of an in-flight gesture: snap guides, the depth
  * readout, and the marquee, drawn the way the original drew them.
  */
@@ -1001,16 +1177,16 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   // Mid-drag the Coach sees the committed document with the gesture's own
   // command previewed on top — the exact document a release would commit.
   const previewCommand = gesturePreviewCommand(interaction, editor.document);
-  const scene = useMemo(
+  const previewDocument = useMemo(
     () =>
-      buildSvgRenderScene(
-        buildRenderScene(
-          previewCommand
-            ? applyPlayCommand(editor.document, previewCommand)
-            : editor.document,
-        ),
-      ),
+      previewCommand
+        ? applyPlayCommand(editor.document, previewCommand)
+        : editor.document,
     [editor.document, previewCommand],
+  );
+  const scene = useMemo(
+    () => buildSvgRenderScene(buildRenderScene(previewDocument)),
+    [previewDocument],
   );
   const selectionKeys = useMemo(
     () =>
@@ -1019,6 +1195,19 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       ),
     [interaction.selection],
   );
+  /**
+   * Handles belong to exactly one selected route, as in the original: a
+   * multi-selection is being moved as a group, not edited node by node.
+   */
+  const selectedPath =
+    activeTool === "select" &&
+    !interaction.drawing &&
+    interaction.selection.length === 1 &&
+    interaction.selection[0]?.kind === "path"
+      ? previewDocument.paths.find(
+          ({ id }) => id === interaction.selection[0]!.id,
+        )
+      : undefined;
   /**
    * The original offers the draw-a-route dot on the selected or hovered
    * Player, under the select tool, when nothing is being drawn or dragged.
@@ -1087,26 +1276,29 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     }
   }, [editor.document]);
 
-  const fieldPointerInput = (event: React.PointerEvent<SVGSVGElement>) => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    return {
-      point: unprojectPoint(
-        {
-          x:
-            ((event.clientX - bounds.left) / bounds.width) *
-            scene.viewport.width,
-          y:
-            ((event.clientY - bounds.top) / bounds.height) *
-            scene.viewport.height,
-        },
-        scene.viewport,
-      ),
-      pointerId: event.pointerId,
-      shiftKey: event.shiftKey,
-      button: event.button,
-      pointerType: event.pointerType,
-    };
+  /**
+   * Client pixels to field yards. Measured against the field element itself
+   * rather than the event target, because a handle's own rect is a target
+   * too and would otherwise supply the wrong frame.
+   */
+  const fieldPointFromClient = (clientX: number, clientY: number) => {
+    const bounds = fieldSvgRef.current?.getBoundingClientRect();
+    if (!bounds) return { lateralYards: 0, depthYards: 0 };
+    return unprojectPoint(
+      {
+        x: ((clientX - bounds.left) / bounds.width) * scene.viewport.width,
+        y: ((clientY - bounds.top) / bounds.height) * scene.viewport.height,
+      },
+      scene.viewport,
+    );
   };
+  const fieldPointerInput = (event: React.PointerEvent) => ({
+    point: fieldPointFromClient(event.clientX, event.clientY),
+    pointerId: event.pointerId,
+    shiftKey: event.shiftKey,
+    button: event.button,
+    pointerType: event.pointerType,
+  });
   const onFieldPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     // The text tool arrives with the label work later in 4.3.
     if (activeTool === "text") return;
@@ -1122,6 +1314,41 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   };
   const onFieldPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
     dispatchField({ type: "pointer-up", input: fieldPointerInput(event) });
+  };
+  const onHandleDown = (
+    handle: FieldHandleRef,
+    event: React.PointerEvent,
+  ): void => {
+    // The handle owns this press; the field must not also start a move.
+    event.stopPropagation();
+    const target = fieldSvgRef.current;
+    try {
+      target?.setPointerCapture(event.pointerId);
+    } catch {
+      // Capture is best-effort; the drag survives without it.
+    }
+    dispatchField({
+      type: "handle-down",
+      handle,
+      input: fieldPointerInput(event),
+    });
+  };
+  const onFieldDoubleClick = (event: React.MouseEvent<SVGSVGElement>) => {
+    if (interactionRef.current.drawing) {
+      dispatchField({ type: "finish-drawing" });
+      return;
+    }
+    // Double-clicking the selected route adds a break where the Coach
+    // pointed, the way the original did.
+    const selected = interactionRef.current.selection.find(
+      ({ kind }) => kind === "path",
+    );
+    if (!selected) return;
+    dispatchField({
+      type: "insert-node",
+      pathId: selected.id,
+      point: fieldPointFromClient(event.clientX, event.clientY),
+    });
   };
   const onFieldPointerCancel = () => {
     dispatchField({ type: "pointer-cancel" });
@@ -1391,17 +1618,27 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               onPointerDown={onFieldPointerDown}
               onPointerMove={onFieldPointerMove}
               onPointerUp={onFieldPointerUp}
-              onDoubleClick={() => dispatchField({ type: "finish-drawing" })}
+              onDoubleClick={onFieldDoubleClick}
               onHoverPlayer={setHoveredPlayerId}
               onStartRoute={(playerId) =>
                 dispatchField({ type: "start-route", playerId })
               }
               overlay={
-                <FieldInteractionOverlay
-                  drawing={interaction.drawing}
-                  gesture={interaction.gesture}
-                  projection={scene.viewport}
-                />
+                <>
+                  <FieldInteractionOverlay
+                    drawing={interaction.drawing}
+                    gesture={interaction.gesture}
+                    projection={scene.viewport}
+                  />
+                  {selectedPath ? (
+                    <RouteHandles
+                      onHandleDown={onHandleDown}
+                      path={selectedPath}
+                      projection={scene.viewport}
+                      selectedNodeIndex={interaction.selectedNodeIndex}
+                    />
+                  ) : null}
+                </>
               }
               routeDotPlayerId={routeDotPlayerId}
               scene={scene}

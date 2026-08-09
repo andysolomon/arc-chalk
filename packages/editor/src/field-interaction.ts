@@ -1,7 +1,10 @@
 import {
   applyPlayCommand,
+  classifyZoneCoverage,
   deletePathsCommand,
   deletePlayersCommand,
+  legacyDepthSpanToYards,
+  legacyLateralSpanToYards,
   type Coordinate,
   type MovementPath,
   type PathPoint,
@@ -69,12 +72,41 @@ export type FieldInteractionEvent =
       /** A typed digit sets the exact depth of the next break. */
       readonly type: "depth-digit";
       readonly digit: string;
+    }
+  | {
+      readonly type: "handle-down";
+      readonly handle: FieldHandleRef;
+      readonly input: FieldPointerInput;
+    }
+  | {
+      /** Double-clicking a route adds a break where the Coach pointed. */
+      readonly type: "insert-node";
+      readonly pathId: string;
+      readonly point: Coordinate;
     };
 
 export interface FieldMoveReadout {
   readonly position: Coordinate;
   readonly text: string;
 }
+
+/**
+ * A handle on the selected route. Handles are drawn by the shell at a
+ * constant screen size (ADR 0016), so the shell names the one that was
+ * pressed rather than the machine hit-testing pixels it cannot see.
+ */
+export type FieldHandleRef =
+  | {
+      readonly kind: "node";
+      readonly pathId: string;
+      readonly pointIndex: number;
+    }
+  | {
+      readonly kind: "control";
+      readonly pathId: string;
+      readonly pointIndex: number;
+    }
+  | { readonly kind: "zone"; readonly pathId: string };
 
 export type FieldGesture =
   | { readonly kind: "idle" }
@@ -105,6 +137,17 @@ export type FieldGesture =
       readonly additive: boolean;
       /** False until the pointer clears 3 px, so a click is not a marquee. */
       readonly active: boolean;
+    }
+  | {
+      /** Dragging a node, curve, or zone handle on the selected route. */
+      readonly kind: "handle";
+      readonly pointerId: number;
+      readonly handle: FieldHandleRef;
+      /** The edited path as it stands — what a release would commit. */
+      readonly path: MovementPath;
+      readonly guides: readonly AxisSnapGuide[];
+      readonly readout?: FieldMoveReadout;
+      readonly moved: boolean;
     };
 
 export type FieldDrawingKind = "route" | "motion" | "block" | "zone";
@@ -131,6 +174,8 @@ export interface FieldInteractionModel {
   readonly selection: readonly FieldItemRef[];
   readonly gesture: FieldGesture;
   readonly drawing?: FieldDrawingState;
+  /** Which break of the selected route the Coach last touched. */
+  readonly selectedNodeIndex?: number;
 }
 
 export interface FieldInteractionContext {
@@ -660,6 +705,255 @@ function movePreview(
 }
 
 // ---------------------------------------------------------------------------
+// Handles on the selected route
+// ---------------------------------------------------------------------------
+
+/**
+ * The original's zone bounds, converted on the axis each one belongs to: a
+ * drop is between 12 and 230 lateral pixels wide and 9 to 150 deep.
+ */
+const ZONE_LATERAL_YARDS = Object.freeze({
+  min: legacyLateralSpanToYards(12),
+  max: legacyLateralSpanToYards(230),
+});
+const ZONE_DEPTH_YARDS = Object.freeze({
+  min: legacyDepthSpanToYards(9),
+  max: legacyDepthSpanToYards(150),
+});
+
+/** Inside this many pixels of the chord's midpoint, a curve straightens. */
+const CONTROL_STRAIGHTEN_PX = 5;
+
+function formatYardDistance(value: number): string {
+  return `${Math.round(Math.abs(value) * 10) / 10}`;
+}
+
+/**
+ * What the original's readout says about a break: its depth, and how far it
+ * has worked out from or in toward where the route began.
+ */
+function nodeReadoutText(
+  points: readonly PathPoint[],
+  pointIndex: number,
+): string {
+  const point = points[pointIndex]!;
+  const parts = [`${formatYardDistance(point.depthYards)} yds`];
+  const origin = points[0]!;
+  if (pointIndex > 0) {
+    const lateral = Math.abs(point.lateralYards - origin.lateralYards);
+    if (lateral >= 0.5) {
+      const away = Math.abs(point.lateralYards) > Math.abs(origin.lateralYards);
+      parts.push(`${formatYardDistance(lateral)} ${away ? "out" : "in"}`);
+    }
+  }
+  return parts.join(" · ");
+}
+
+interface HandleEdit {
+  readonly path: MovementPath;
+  readonly guides: readonly AxisSnapGuide[];
+  readonly readout?: FieldMoveReadout;
+}
+
+/**
+ * Dragging a break constrains it to 45 degrees from the break before it, then
+ * lets football landmarks claim it — the original's order, so an angle the
+ * Coach set is not undone by a landmark and a landmark still wins ties.
+ */
+function dragNode(
+  context: FieldInteractionContext,
+  path: MovementPath,
+  pointIndex: number,
+  point: Coordinate,
+  shiftKey: boolean | undefined,
+): HandleEdit {
+  const original = path.points[pointIndex];
+  if (!original) return { path, guides: [] };
+  const previous = path.points[pointIndex - 1];
+  const constrain = context.snap.enabled !== (shiftKey === true);
+  const angled =
+    constrain && previous
+      ? snapRouteEndpoint({
+          origin: coordinate(previous.lateralYards, previous.depthYards),
+          point,
+          mode: "constrain",
+          screenScale: context.screenScale,
+        }).point
+      : point;
+  const snapped = snapPosition({
+    point: angled,
+    fieldProfile: context.document.fieldProfile,
+    references: context.document.players.map(({ id, position, label }) => ({
+      id,
+      kind: "player" as const,
+      position,
+      ...(label.trim() === "" ? {} : { label }),
+    })),
+    screenScale: context.screenScale,
+    settings: context.snap,
+  });
+  const landed = clampToField(snapped.point, context);
+  const shift = coordinate(
+    landed.lateralYards - original.lateralYards,
+    landed.depthYards - original.depthYards,
+  );
+  const points = [...path.points];
+  points[pointIndex] = {
+    ...original,
+    lateralYards: landed.lateralYards,
+    depthYards: landed.depthYards,
+    // A curved segment keeps its bend: the control travels with its break.
+    ...(original.control === undefined
+      ? {}
+      : {
+          control: coordinate(
+            original.control.lateralYards + shift.lateralYards,
+            original.control.depthYards + shift.depthYards,
+          ),
+        }),
+  };
+  return {
+    path: { ...path, points },
+    guides: snapped.guides,
+    readout: { position: landed, text: nodeReadoutText(points, pointIndex) },
+  };
+}
+
+/**
+ * The curve handle rides the middle of its segment. Dragging it bends the
+ * segment through the pointer; releasing it back onto the chord's midpoint
+ * straightens the segment again, which is the only way back to a straight
+ * line once one is bent.
+ */
+function dragControl(
+  context: FieldInteractionContext,
+  path: MovementPath,
+  pointIndex: number,
+  point: Coordinate,
+): HandleEdit {
+  const end = path.points[pointIndex];
+  const start = path.points[pointIndex - 1];
+  if (!end || !start) return { path, guides: [] };
+  const midpoint = coordinate(
+    (start.lateralYards + end.lateralYards) / 2,
+    (start.depthYards + end.depthYards) / 2,
+  );
+  const points = [...path.points];
+  if (
+    screenDistancePx(point, midpoint, context.screenScale) <
+    CONTROL_STRAIGHTEN_PX
+  ) {
+    // The key is dropped rather than cleared, so a straightened segment
+    // hashes identically to one that was never bent.
+    const straight = { ...end };
+    delete straight.control;
+    points[pointIndex] = straight;
+  } else {
+    points[pointIndex] = {
+      ...end,
+      control: coordinate(
+        2 * point.lateralYards - midpoint.lateralYards,
+        2 * point.depthYards - midpoint.depthYards,
+      ),
+    };
+  }
+  return { path: { ...path, points }, guides: [] };
+}
+
+/** The zone corner sizes the area a defender owns, within the original's bounds. */
+function dragZone(path: MovementPath, point: Coordinate): HandleEdit {
+  const center = path.points.at(-1);
+  if (!center) return { path, guides: [] };
+  const radiusLateralYards = Math.min(
+    ZONE_LATERAL_YARDS.max,
+    Math.max(
+      ZONE_LATERAL_YARDS.min,
+      Math.abs(point.lateralYards - center.lateralYards),
+    ),
+  );
+  const radiusDepthYards = Math.min(
+    ZONE_DEPTH_YARDS.max,
+    Math.max(
+      ZONE_DEPTH_YARDS.min,
+      Math.abs(point.depthYards - center.depthYards),
+    ),
+  );
+  return {
+    path: {
+      ...path,
+      coverageArea: {
+        type:
+          path.coverageArea?.type ??
+          classifyZoneCoverage(center, radiusLateralYards),
+        radiusLateralYards,
+        radiusDepthYards,
+      },
+    },
+    guides: [],
+    readout: {
+      position: coordinate(
+        center.lateralYards,
+        center.depthYards + radiusDepthYards,
+      ),
+      text: `${formatYardDistance(radiusLateralYards * 2)} yds wide`,
+    },
+  };
+}
+
+function editHandle(
+  context: FieldInteractionContext,
+  handle: FieldHandleRef,
+  point: Coordinate,
+  shiftKey: boolean | undefined,
+): HandleEdit | undefined {
+  const path = context.document.paths.find(({ id }) => id === handle.pathId);
+  if (!path) return undefined;
+  switch (handle.kind) {
+    case "node":
+      return dragNode(context, path, handle.pointIndex, point, shiftKey);
+    case "control":
+      return dragControl(context, path, handle.pointIndex, point);
+    case "zone":
+      return dragZone(path, point);
+  }
+}
+
+const handleLabels: Record<FieldHandleRef["kind"], string> = {
+  node: "Move route break",
+  control: "Curve segment",
+  zone: "Size zone",
+};
+
+/** Finds the segment a point sits nearest, the way the original did. */
+export function nearestSegmentIndex(
+  path: Pick<MovementPath, "points">,
+  point: Coordinate,
+  scale: SnapScreenScale,
+): number {
+  let best = 1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let index = 1; index < path.points.length; index += 1) {
+    const samples = pathSegmentPoints(
+      path.points[index - 1]!,
+      path.points[index]!,
+    );
+    for (let sample = 1; sample < samples.length; sample += 1) {
+      const distance = distanceToSegmentPx(
+        point,
+        samples[sample - 1]!,
+        samples[sample]!,
+        scale,
+      );
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = index;
+      }
+    }
+  }
+  return best;
+}
+
+// ---------------------------------------------------------------------------
 // Drawing
 // ---------------------------------------------------------------------------
 
@@ -1064,6 +1358,19 @@ function pointerMove(
     };
   }
 
+  if (gesture.kind === "handle") {
+    const edit = editHandle(
+      context,
+      gesture.handle,
+      input.point,
+      input.shiftKey,
+    );
+    if (!edit) return { model };
+    return {
+      model: withGesture(model, { ...gesture, ...edit, moved: true }),
+    };
+  }
+
   const active =
     gesture.active ||
     screenDistancePx(gesture.anchor, input.point, context.screenScale) >
@@ -1108,6 +1415,22 @@ function pointerUp(
     return {
       model: withGesture(model, { kind: "idle" }),
       ...(command === undefined ? {} : { command }),
+    };
+  }
+
+  if (gesture.kind === "handle") {
+    // A handle pressed but never dragged only selected its break.
+    return {
+      model: withGesture(model, { kind: "idle" }),
+      ...(gesture.moved
+        ? {
+            command: {
+              kind: "batch",
+              label: handleLabels[gesture.handle.kind],
+              commands: [{ kind: "update-path", path: gesture.path }],
+            } satisfies PlayCommand,
+          }
+        : {}),
     };
   }
 
@@ -1246,6 +1569,58 @@ export function fieldInteraction(
         requestedTool: "select",
       };
     }
+    case "handle-down": {
+      if (model.drawing || model.gesture.kind !== "idle") return { model };
+      const path = context.document.paths.find(
+        ({ id }) => id === event.handle.pathId,
+      );
+      if (!path) return { model };
+      return {
+        model: {
+          ...model,
+          // The route stays selected; pressing a handle picks its break.
+          selection: [{ kind: "path", id: event.handle.pathId }],
+          ...(event.handle.kind === "node"
+            ? { selectedNodeIndex: event.handle.pointIndex }
+            : {}),
+          gesture: {
+            kind: "handle",
+            pointerId: event.input.pointerId,
+            handle: event.handle,
+            path,
+            guides: [],
+            moved: false,
+          },
+        },
+      };
+    }
+    case "insert-node": {
+      const path = context.document.paths.find(({ id }) => id === event.pathId);
+      if (!path || path.points.length < 2) return { model };
+      const index = nearestSegmentIndex(path, event.point, context.screenScale);
+      const points = [...path.points];
+      points.splice(index, 0, {
+        lateralYards: coordinate(
+          event.point.lateralYards,
+          event.point.depthYards,
+        ).lateralYards,
+        depthYards: coordinate(event.point.lateralYards, event.point.depthYards)
+          .depthYards,
+      });
+      return {
+        model: {
+          ...model,
+          selection: [{ kind: "path", id: path.id }],
+          selectedNodeIndex: index,
+          gesture: { kind: "idle" },
+        },
+        command: {
+          kind: "batch",
+          label: "Add route break",
+          commands: [{ kind: "update-path", path: { ...path, points } }],
+        },
+      };
+    }
     case "depth-digit": {
       const drawing = model.drawing;
       if (!drawing || !/^[0-9.]$/.test(event.digit)) return { model };
@@ -1278,12 +1653,21 @@ export function gesturePreviewCommand(
   model: FieldInteractionModel,
   document: PlayDocument,
 ): PlayCommand | undefined {
-  if (model.gesture.kind !== "moving") return undefined;
-  return buildMoveCommand(
-    document,
-    model.gesture.items,
-    model.gesture.translation,
-  );
+  if (model.gesture.kind === "moving") {
+    return buildMoveCommand(
+      document,
+      model.gesture.items,
+      model.gesture.translation,
+    );
+  }
+  if (model.gesture.kind === "handle" && model.gesture.moved) {
+    return {
+      kind: "batch",
+      label: handleLabels[model.gesture.handle.kind],
+      commands: [{ kind: "update-path", path: model.gesture.path }],
+    };
+  }
+  return undefined;
 }
 
 /**
