@@ -216,3 +216,76 @@ test("draws from the blue dot and abandons a route on Escape", async ({
   await expect(page.locator("[data-scene-path]")).toHaveCount(6);
   await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
 });
+
+test("edits a route through its handles", async ({ page }) => {
+  await openEditor(page);
+
+  // Selecting a route raises its handles; nothing else on the field does.
+  await expect(page.locator("[data-node-handle]")).toHaveCount(0);
+  const routeBefore = (await page
+    .locator('[data-scene-path="rz"]')
+    .getAttribute("d"))!;
+
+  // Z's stem runs straight downfield at x 946.9, from y 417.8 up to 248.8.
+  const zStem = await fieldPoint(page, 947, 330);
+  await page.mouse.click(zStem.x, zStem.y);
+  await expect(page.locator("[data-node-handle]")).toHaveCount(2);
+
+  // Drag the end break out and down.
+  const endHandle = page.locator('[data-node-handle="1"]');
+  const box = (await endHandle.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    box.x + box.width / 2 - 60,
+    box.y + box.height / 2 + 40,
+    {
+      steps: 4,
+    },
+  );
+  await page.mouse.up();
+
+  await expect(page.locator('[data-scene-path="rz"]')).not.toHaveAttribute(
+    "d",
+    routeBefore,
+  );
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Move route break");
+  await undo.click();
+  await expect(page.locator('[data-scene-path="rz"]')).toHaveAttribute(
+    "d",
+    routeBefore,
+  );
+});
+
+test("bends a segment with its curve handle", async ({ page }) => {
+  await openEditor(page);
+
+  const before = (await page
+    .locator('[data-scene-path="rz"]')
+    .getAttribute("d"))!;
+  expect(before).not.toContain(" Q ");
+
+  const zStem = await fieldPoint(page, 947, 330);
+  await page.mouse.click(zStem.x, zStem.y);
+  await expect(page.locator("[data-node-handle]")).toHaveCount(2);
+
+  const curve = page.locator('[data-control-handle="1"]');
+  const box = (await curve.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, {
+    steps: 4,
+  });
+  await page.mouse.up();
+
+  // A bent segment is drawn as a quadratic, which a straight one never is.
+  await expect(page.locator('[data-scene-path="rz"]')).toHaveAttribute(
+    "d",
+    /Q/,
+  );
+  await expect(page.getByRole("button", { name: "Undo" })).toHaveAttribute(
+    "title",
+    "Undo Curve segment",
+  );
+});
