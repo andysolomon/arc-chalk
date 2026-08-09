@@ -63,6 +63,10 @@ const parityGap: Readonly<Record<string, number>> = {
   // search, the personnel and set filters, the grouping, the cards and their
   // thumbnails — matches.
   formations: 0.0203, // 2.0292% (28,051 px)
+  // The book of calls, and the lowest gap of any state: the panel covers most
+  // of what the shell still disagrees with the original about. Its tab strip
+  // is absent for the same reason the Formations one is.
+  defenses: 0.0166, // 1.6526% (22,845 px)
 };
 
 /**
@@ -193,6 +197,22 @@ test.describe("production editor overlays against the canonical original", () =>
         animations: "disabled",
         caret: "hide",
         maxDiffPixelRatio: allowedGap("formations"),
+      },
+    );
+  });
+
+  test("Defenses browser matches the original", async ({ page }) => {
+    await page.getByTitle("Browse defenses — ⇧⌘D").click();
+    await expect(
+      page.getByPlaceholder("Search — cover 3, nickel, blitz…"),
+    ).toBeVisible();
+
+    await expect(page).toHaveScreenshot(
+      "original-editor-defenses-desktop-1440x960.png",
+      {
+        animations: "disabled",
+        caret: "hide",
+        maxDiffPixelRatio: allowedGap("defenses"),
       },
     );
   });

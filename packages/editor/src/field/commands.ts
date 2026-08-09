@@ -1,4 +1,5 @@
 import {
+  applyDefensiveCall,
   applyFormation,
   applyPlayCommand,
   assignmentForPath,
@@ -13,6 +14,8 @@ import {
   routeKindStyle,
   yardsToLegacyCanvas,
   type Coordinate,
+  type DefensiveCall,
+  type DefensiveCallResult,
   type Formation,
   type LabelRole,
   type MovementPath,
@@ -1062,6 +1065,33 @@ export function applyFormationCommand(
     document,
     result.play,
     `Applied ${formation.name}`,
+  );
+  return {
+    result,
+    ...(command.commands.length > 0 ? { command } : {}),
+  };
+}
+
+/**
+ * Putting a call on the field. As with a set, the domain works out what goes
+ * and what arrives, and expressing the result as an ordinary difference makes
+ * the whole call — the men, their drops, their blitzes — one transaction and
+ * one press of undo.
+ */
+export function applyDefensiveCallCommand(
+  document: PlayDocument,
+  call: DefensiveCall,
+  createId: (prefix: string) => string,
+  options?: { readonly withAssignments?: boolean },
+): {
+  readonly command?: PlayCommand;
+  readonly result: DefensiveCallResult;
+} {
+  const result = applyDefensiveCall(document, call, createId, options);
+  const command = diffPlayDocuments(
+    document,
+    result.play,
+    `Applied ${call.formation.name}`,
   );
   return {
     result,
