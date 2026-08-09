@@ -592,15 +592,27 @@ test("says what a route is for, and prints it at the end of the line", async ({
   await page.getByRole("textbox", { name: "Assignment" }).fill("Stick");
   await page.getByRole("textbox", { name: "Conversion" }).fill("vs man: fade");
   await page.locator(".read-field input").fill("2");
-  await page.getByRole("textbox", { name: "Coaching note" }).blur();
+  // The field just typed into is the one to leave, not another one: typing
+  // coalesces until the Coach leaves the field he is in, so blurring a box he
+  // was never in leaves the last thing he wrote still in hand.
+  await page.locator(".read-field input").blur();
+  await expect(page.locator(".read-field input")).toHaveValue("2");
 
-  await expect(page.locator('[data-scene-read="rx-read"]')).toHaveCount(1);
+  // Four fields typed one after another are four saves, and each one has to
+  // land before the mark it draws appears. Under a full suite on a slower
+  // browser that queue has been seen to outlast the default wait, so these
+  // are given room rather than left to be flaky.
+  const committed = { timeout: 15_000 };
+  await expect(page.locator('[data-scene-read="rx-read"]')).toHaveCount(
+    1,
+    committed,
+  );
   await expect(
     page.locator('[data-scene-coaching="rx-assignment"]'),
-  ).toHaveText("STICK");
+  ).toHaveText("STICK", committed);
   await expect(
     page.locator('[data-scene-coaching="rx-conversion"]'),
-  ).toHaveText("vs man: fade");
+  ).toHaveText("vs man: fade", committed);
 
   // The words survive being read back, which is the whole promise: they ride
   // along with the route rather than living in the panel.
@@ -1340,4 +1352,62 @@ test("keeps the field under the pointer once the Coach has zoomed in", async ({
   await expect(
     page.locator(".label-heading").getByText("Player", { exact: true }),
   ).toBeHidden();
+});
+
+test("flips the strength, so the picture and the words agree", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const before = await playerAt(page, "z");
+
+  await page.keyboard.press("Control+k");
+  await page.getByPlaceholder(/Type a command/).fill("Flip strength");
+  await page.keyboard.press("Enter");
+
+  await expect
+    .poll(async () => (await playerAt(page, "z")).x)
+    .not.toBeCloseTo(before.x, 1);
+  // The Z is drawn where the X was, because a letter says which side a man
+  // plays, and the tag under him was flipped with him.
+  await expect(page.locator('[data-scene-player="z"]')).toBeVisible();
+});
+
+test("ties things together so they are picked as one, and unties them again", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const z = await playerCenter(page, "z");
+  const y = await playerCenter(page, "y");
+
+  await page.mouse.click(z.x, z.y);
+  await page.keyboard.down("Shift");
+  await page.mouse.click(y.x, y.y);
+  await page.keyboard.up("Shift");
+  await page.keyboard.press("Control+g");
+
+  // Picking either of them now picks both, which is all a group does.
+  await page.keyboard.press("Escape");
+  await page.mouse.click(z.x, z.y);
+  await expect
+    .poll(async () => page.locator("circle.selection-halo").count())
+    .toBeGreaterThan(1);
+
+  // And they move as one, which is the other half of what a group is for —
+  // from nothing picked, so the same press that takes hold of him is the one
+  // that has to take hold of the rest of his group.
+  await page.keyboard.press("Escape");
+  const yBefore = await playerAt(page, "y");
+  const zNow = await playerCenter(page, "z");
+  await drag(page, zNow, { x: zNow.x, y: zNow.y - 60 });
+  await expect
+    .poll(async () => (await playerAt(page, "y")).y)
+    .toBeLessThan(yBefore.y - 1);
+
+  await page.keyboard.press("Shift+Control+g");
+  await page.keyboard.press("Escape");
+  const zAfter = await playerCenter(page, "z");
+  await page.mouse.click(zAfter.x, zAfter.y);
+  await expect
+    .poll(async () => page.locator("circle.selection-halo").count())
+    .toBe(1);
 });

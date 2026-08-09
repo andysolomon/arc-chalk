@@ -40,6 +40,8 @@ import {
 } from "@chalk/domain";
 import {
   addAlternateRouteCommand,
+  addDepthLabelCommand,
+  alignPlayersCommand,
   cameraForBounds,
   cameraZoom,
   type FrameBounds,
@@ -57,6 +59,11 @@ import {
   spotBallCommand,
   conceptIsOn,
   applyLinePresetCommand,
+  flipStrengthCommand,
+  groupSelectionCommand,
+  reverseRouteCommand,
+  ungroupSelectionCommand,
+  type PlayerAlignment,
   linemenOf,
   linePresetIsOn,
   fieldHitOptions,
@@ -2957,6 +2964,103 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     setCamera((current) => centreCamera(current, at, EDITOR_FRAME));
   };
 
+  /**
+   * The verbs the palette names, each one unavailable exactly when it would
+   * do nothing — the same rule the Clear menu and the reorder items use, so
+   * grey and inert always come from one answer.
+   */
+  const selectedPlayerIds = interaction.selection
+    .filter(({ kind }) => kind === "player")
+    .map(({ id }) => id);
+  const alignAction = (
+    alignment: PlayerAlignment,
+  ): (() => void) | undefined => {
+    const command = alignPlayersCommand(
+      editor.document,
+      selectedPlayerIds,
+      alignment,
+    );
+    if (!command) return undefined;
+    return () => {
+      void editorStore.applyCommand(command).catch(() => undefined);
+    };
+  };
+  const groupAction = ((): (() => void) | undefined => {
+    const command = groupSelectionCommand(
+      editor.document,
+      interaction.selection,
+      createStableId,
+    );
+    if (!command) return undefined;
+    return () => {
+      void editorStore.applyCommand(command).catch(() => undefined);
+    };
+  })();
+  const ungroupAction = ((): (() => void) | undefined => {
+    const command = ungroupSelectionCommand(
+      editor.document,
+      interaction.selection,
+    );
+    if (!command) return undefined;
+    return () => {
+      void editorStore.applyCommand(command).catch(() => undefined);
+    };
+  })();
+  /** The one line the Coach has picked out, for the verbs that need just one. */
+  const lonePathId =
+    interaction.selection.length === 1 &&
+    interaction.selection[0]?.kind === "path"
+      ? interaction.selection[0].id
+      : undefined;
+  const reverseAction = ((): (() => void) | undefined => {
+    if (!lonePathId) return undefined;
+    const command = reverseRouteCommand(editor.document, lonePathId);
+    if (!command) return undefined;
+    return () => {
+      void editorStore.applyCommand(command).catch(() => undefined);
+    };
+  })();
+  /**
+   * Marking how deep a break is. Built from the live Play inside the handler,
+   * the way the other verbs that follow the Coach onto what they made are,
+   * so nothing is captured while the panel is being drawn.
+   */
+  const addDepthMarker = (): void => {
+    const document = editorStore.getSnapshot().document;
+    const model = interactionRef.current;
+    const pathId =
+      model.selection.length === 1 && model.selection[0]?.kind === "path"
+        ? model.selection[0].id
+        : undefined;
+    if (!pathId) return;
+    const command = addDepthLabelCommand(
+      document,
+      pathId,
+      model.selectedSegmentIndex === undefined
+        ? undefined
+        : model.selectedSegmentIndex + 1,
+      createStableId,
+    );
+    if (!command) return;
+    const [labelId] = insertedEntityIds(command);
+    runPanelCommand(
+      command,
+      labelId ? { selection: [{ kind: "label", id: labelId }] } : {},
+    );
+  };
+  const depthLabelAction = ((): (() => void) | undefined => {
+    if (!lonePathId) return undefined;
+    const command = addDepthLabelCommand(
+      editor.document,
+      lonePathId,
+      interaction.selectedSegmentIndex === undefined
+        ? undefined
+        : interaction.selectedSegmentIndex + 1,
+      createStableId,
+    );
+    return command ? addDepthMarker : undefined;
+  })();
+
   /** Which set is on the field, by name, as the browser and the panel say it. */
   const onFieldFormation = useMemo(
     () => currentFormation(editor.document, stockFormations),
@@ -3243,6 +3347,19 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     deleteSelection: () => dispatchFieldRef.current({ type: "delete" }),
     bringForward: reorderAction(1),
     sendBackward: reorderAction(-1),
+    toggleSnapping: () => setSnapEnabled((enabled) => !enabled),
+    flipStrength: () => {
+      const command = flipStrengthCommand(editorStore.getSnapshot().document);
+      if (command) {
+        void editorStore.applyCommand(command).catch(() => undefined);
+      }
+    },
+    alignDepth: alignAction("depth"),
+    alignSplits: alignAction("splits"),
+    group: groupAction,
+    ungroup: ungroupAction,
+    reverseRoute: reverseAction,
+    addDepthLabel: depthLabelAction,
     fitField: () => setCamera(fitCamera(EDITOR_FRAME)),
     fitToSelection: showSelection,
     zoomToSelection: showSelection,
@@ -3360,6 +3477,18 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       if (meta && key === "a" && !typing) {
         event.preventDefault();
         dispatchFieldRef.current({ type: "select-all" });
+        return;
+      }
+      if (meta && !typing && key === "g") {
+        event.preventDefault();
+        const document = editorStore.getSnapshot().document;
+        const selection = interactionRef.current.selection;
+        const command = event.shiftKey
+          ? ungroupSelectionCommand(document, selection)
+          : groupSelectionCommand(document, selection, createStableId);
+        if (command) {
+          void editorStore.applyCommand(command).catch(() => undefined);
+        }
         return;
       }
       if (meta && !typing && (key === "]" || key === "[")) {

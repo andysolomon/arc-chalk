@@ -4,7 +4,12 @@ import {
   type PlayDocument,
 } from "@chalk/domain";
 
-import { buildDeleteCommand, buildMoveCommand, movePreview } from "./commands";
+import {
+  buildDeleteCommand,
+  buildMoveCommand,
+  expandSelectionToGroups,
+  movePreview,
+} from "./commands";
 import {
   buildMirrorCommand,
   buildPasteCommand,
@@ -57,11 +62,24 @@ function withGesture(
   return { ...model, gesture };
 }
 
+/**
+ * Settles what the Coach has picked. Given the Play, a thing tied into a
+ * group brings the rest of its group with it, which is the only thing a group
+ * does — so it is done here, at the one place a selection is settled, rather
+ * than at each of the ways he can arrive at one.
+ */
 function withSelection(
   model: FieldInteractionModel,
   selection: readonly FieldItemRef[],
+  document?: PlayDocument,
 ): FieldInteractionModel {
-  return { ...model, selection, gesture: { kind: "idle" } };
+  return {
+    ...model,
+    selection: document
+      ? expandSelectionToGroups(document, selection)
+      : selection,
+    gesture: { kind: "idle" },
+  };
 }
 
 function pointerDown(
@@ -110,16 +128,22 @@ function pointerDown(
           isSelected(model.selection, hit)
             ? model.selection.filter((item) => !sameItem(item, hit))
             : [...model.selection, hit],
+          context.document,
         ),
       };
     }
     const already = isSelected(model.selection, hit);
     const wasMulti = already && model.selection.length > 1;
-    const items = wasMulti ? model.selection : [hit];
+    // A thing tied into a group is picked with the rest of it, and dragged
+    // with the rest of it, which is the whole of what a group is for.
+    const picked = already
+      ? model.selection
+      : expandSelectionToGroups(context.document, [hit]);
+    const items = wasMulti || picked.length > 1 ? picked : [hit];
     return {
       model: {
         ...model,
-        selection: already ? model.selection : [hit],
+        selection: picked,
         // Picking something new starts it whole: the line and break the
         // Coach was working on belonged to what he just left.
         ...(already
@@ -347,7 +371,9 @@ function pointerUp(
     // A press that never moved is a click. On a multi-selection it narrows to
     // the item under the pointer, exactly as the original did.
     if (gesture.wasMulti) {
-      return { model: withSelection(model, [gesture.clickItem]) };
+      return {
+        model: withSelection(model, [gesture.clickItem], context.document),
+      };
     }
     // A click on a route already selected on its own narrows to the line the
     // Coach pointed at: a branch if he pointed at one, otherwise the segment
@@ -430,7 +456,7 @@ function pointerUp(
         ...hits.filter((hit) => !isSelected(model.selection, hit)),
       ]
     : hits;
-  return { model: withSelection(model, selection) };
+  return { model: withSelection(model, selection, context.document) };
 }
 
 export function fieldInteraction(
