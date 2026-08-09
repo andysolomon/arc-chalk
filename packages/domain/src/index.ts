@@ -4,6 +4,8 @@ export * from "./canonical";
 export * from "./classifications";
 export * from "./commands";
 export * from "./field-profile";
+export * from "./formation-catalogue";
+export * from "./formations";
 export * from "./geometry";
 export * from "./legacy";
 export * from "./migrations";

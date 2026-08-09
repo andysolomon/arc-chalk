@@ -850,6 +850,7 @@ select:focus-visible {
     inset -1px 0 rgba(0, 0, 0, 0.06);
 }
 .field-wrap {
+  position: relative;
   min-height: 0;
   flex: 1;
   display: grid;
@@ -1472,4 +1473,229 @@ select:focus-visible {
 }
 .context-panel .menu-item:last-child:not(:disabled):hover {
   background: #fef2f2;
+}
+/* The book of sets: search, narrow, read the picture, pick one. */
+.browser-overlay {
+  align-items: center;
+  padding: 4vh 20px;
+  z-index: 21;
+}
+.browser {
+  display: flex;
+  width: 880px;
+  max-width: 95vw;
+  max-height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 18px 40px -12px rgba(0, 0, 0, 0.28);
+}
+.browser-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px 12px;
+}
+.browser-title {
+  flex: none;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.browser-head > input {
+  min-width: 0;
+  height: 30px;
+  flex: 1;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  outline: 0;
+  color: var(--ink);
+  font-size: 12px;
+}
+.browser-head > input:focus {
+  box-shadow: 0 0 0 1px #005fcc;
+}
+.browser-close {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+.browser-close:hover {
+  background: #f2f2f2;
+  color: var(--ink);
+}
+.browser-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 8px;
+}
+.browser-filter > span {
+  width: 66px;
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.chip {
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  color: #4d4d4d;
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.chip.active {
+  background: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+  color: var(--paper);
+}
+.browser-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  padding: 2px 16px 16px;
+  overflow-y: auto;
+}
+.browser-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.browser-count {
+  color: #c9c9c9;
+  font-family: "Geist Mono", monospace;
+  letter-spacing: 0;
+}
+.browser-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.browser-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 9px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  text-align: left;
+}
+.browser-card:hover {
+  background: #fafafa;
+}
+.browser-card.on-field {
+  box-shadow: 0 0 0 1px #0072f5;
+  color: #0072f5;
+}
+.browser-shape {
+  overflow: hidden;
+  border-radius: 5px;
+  background: #fafafa;
+}
+.browser-shape svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.browser-name {
+  overflow: hidden;
+  color: inherit;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.browser-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+}
+.browser-chip em {
+  color: #0072f5;
+  font-style: normal;
+}
+.browser-empty {
+  padding: 22px 2px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+/* What just happened, said where the Coach is already looking. */
+.toast {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  display: flex;
+  max-width: calc(100% - 28px);
+  align-items: center;
+  gap: 12px;
+  padding: 7px 8px 7px 13px;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 10px 24px -8px rgba(0, 0, 0, 0.22);
+  transform: translateX(-50%);
+}
+.toast > span {
+  overflow: hidden;
+  color: #4d4d4d;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toast strong {
+  color: var(--ink);
+  font-weight: 400;
+}
+.toast button {
+  height: 26px;
+  flex: none;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #0072f5;
+  cursor: pointer;
+  font-size: 12px;
+}
+.toast button:hover {
+  background: #f0f6ff;
 }

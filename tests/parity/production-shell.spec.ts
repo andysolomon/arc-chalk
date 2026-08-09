@@ -55,6 +55,14 @@ const parityGap: Readonly<Record<string, number>> = {
   // sections production has not built. The panel itself matches — its rows and
   // wrapped rows measure the original's 28 px and 62 px exactly.
   shortcuts: 0.0265, // 2.6469%, from 2.7198%
+  // The book of sets, above the Editor's own gap for one reason: the
+  // original's browser carries an All / Favorites / Mine tab strip and a
+  // footer that saves the offense on the field as a set of its own. Both need
+  // somewhere to keep a Coach's own formations, which production does not have
+  // yet, so they are absent rather than drawn dead. What is built — the
+  // search, the personnel and set filters, the grouping, the cards and their
+  // thumbnails — matches.
+  formations: 0.0203, // 2.0292% (28,051 px)
 };
 
 /**
@@ -169,6 +177,22 @@ test.describe("production editor overlays against the canonical original", () =>
         animations: "disabled",
         caret: "hide",
         maxDiffPixelRatio: allowedGap("commandPalette"),
+      },
+    );
+  });
+
+  test("Formations browser matches the original", async ({ page }) => {
+    await page.getByTitle("Browse formations — ⇧⌘F").click();
+    await expect(
+      page.getByPlaceholder("Search — gun, trips, empty, 12…"),
+    ).toBeVisible();
+
+    await expect(page).toHaveScreenshot(
+      "original-editor-formations-desktop-1440x960.png",
+      {
+        animations: "disabled",
+        caret: "hide",
+        maxDiffPixelRatio: allowedGap("formations"),
       },
     );
   });
