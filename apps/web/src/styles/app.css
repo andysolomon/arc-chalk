@@ -814,6 +814,19 @@ select:focus-visible {
   max-width: 1068px;
   aspect-ratio: 1068/525;
   overflow: visible;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* The original recolors a selected symbol's outline in selection blue. */
+.field-diagram .players g.selected [stroke]:not([stroke="none"]) {
+  stroke: #0072f5;
+}
+.field-wrap[data-tool="select"] .field-diagram .players g {
+  cursor: move;
+}
+.field-wrap:not([data-tool="select"]) .field-diagram {
+  cursor: crosshair;
 }
 .field-paper {
   fill: #fff;

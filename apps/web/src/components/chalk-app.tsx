@@ -1,19 +1,41 @@
-import { PRODUCT_NAME, stickThunderPlay } from "@chalk/domain";
 import {
+  applyPlayCommand,
+  createStableId,
+  PRODUCT_NAME,
+  stickThunderPlay,
+} from "@chalk/domain";
+import {
+  fieldInteraction,
+  gesturePreviewCommand,
+  idleFieldInteraction,
   localSaveMessage,
   localSaveStatus,
+  pruneFieldSelection,
   type EditorUndoState,
   type EditorVersionSummary,
+  type FieldGesture,
+  type FieldInteractionEvent,
+  type FieldInteractionModel,
 } from "@chalk/editor";
 import {
   buildRenderScene,
   buildSvgRenderScene,
+  projectCoordinate,
+  unprojectPoint,
+  type RenderScene,
+  type SvgProjection,
   type SvgRenderScene,
   type SvgPathStroke,
   type SvgShapePrimitive,
   type SvgTextPrimitive,
 } from "@chalk/render";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import type { ChalkRuntime } from "../app/editor-runtime";
 import { type ActionMap } from "./editor-command-surface";
@@ -185,17 +207,40 @@ function SceneText({ text }: { text: SvgTextPrimitive }) {
   );
 }
 
+/** The original's selection blue, used for halos, guides, and the marquee. */
+const SELECTION_BLUE = "#0072F5";
+
+function selectionKey(kind: "player" | "path" | "label", id: string): string {
+  return `${kind}:${id}`;
+}
+
 export function FieldDiagram({
   scene = stickThunderScene,
+  selection,
+  overlay,
+  svgRef,
+  ...pointerHandlers
 }: {
   scene?: SvgRenderScene;
+  /** Keys like "player:q" — absent means a non-interactive rendering. */
+  selection?: ReadonlySet<string>;
+  overlay?: React.ReactNode;
+  svgRef?: React.Ref<SVGSVGElement>;
+  onPointerDown?: React.PointerEventHandler<SVGSVGElement>;
+  onPointerMove?: React.PointerEventHandler<SVGSVGElement>;
+  onPointerUp?: React.PointerEventHandler<SVGSVGElement>;
+  onPointerCancel?: React.PointerEventHandler<SVGSVGElement>;
 }) {
+  const selected = (kind: "player" | "path" | "label", id: string): boolean =>
+    selection?.has(selectionKey(kind, id)) === true;
   return (
     <svg
       className="field-diagram"
       role="img"
       aria-label={`${scene.playName} football play`}
+      ref={svgRef}
       viewBox={`0 0 ${scene.viewport.width} ${scene.viewport.height}`}
+      {...pointerHandlers}
     >
       <defs>
         {Object.entries(sceneColors).map(([token, color]) => (
@@ -380,6 +425,25 @@ export function FieldDiagram({
       <g className="routes">
         {scene.paths.map((path) => (
           <g key={path.id}>
+            {selected("path", path.id)
+              ? [
+                  ...path.strokes,
+                  ...path.branches.flatMap((b) => b.strokes),
+                ].map((stroke) => (
+                  <path
+                    d={stroke.d}
+                    data-selected-path={path.id}
+                    fill="none"
+                    key={`sel-${stroke.id}`}
+                    opacity="0.18"
+                    pointerEvents="none"
+                    stroke={SELECTION_BLUE}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="8.5"
+                  />
+                ))
+              : null}
             {path.coverageArea ? (
               <g data-scene-coverage={path.coverageArea.id}>
                 <ellipse
@@ -466,6 +530,34 @@ export function FieldDiagram({
             ) : null}
             {label.box ? <SceneShape shape={label.box} /> : null}
             <SceneText text={label.text} />
+            {selected("label", label.id) ? (
+              <rect
+                data-selected-label={label.id}
+                fill="none"
+                height={label.text.fontSize + 14}
+                pointerEvents="none"
+                rx={4}
+                stroke={SELECTION_BLUE}
+                strokeDasharray="3 3"
+                strokeWidth={1}
+                width={
+                  Math.max(
+                    24,
+                    label.text.text.length * label.text.fontSize * 0.62,
+                  ) + 16
+                }
+                x={
+                  label.position.x -
+                  (Math.max(
+                    24,
+                    label.text.text.length * label.text.fontSize * 0.62,
+                  ) +
+                    16) /
+                    2
+                }
+                y={label.position.y - label.text.fontSize - 6}
+              />
+            ) : null}
           </g>
         ))}
       </g>
@@ -473,12 +565,23 @@ export function FieldDiagram({
         {scene.players.map((player) => (
           <g
             aria-label={player.ariaLabel}
+            className={selected("player", player.id) ? "selected" : undefined}
             data-scene-player={player.id}
             key={player.id}
             role="img"
             transform={`translate(${player.position.x} ${player.position.y})`}
           >
             <title>{player.ariaLabel}</title>
+            {selected("player", player.id) ? (
+              <circle
+                className="selection-halo"
+                fill="none"
+                r={19}
+                stroke={SELECTION_BLUE}
+                strokeWidth={1.5}
+                opacity={0.3}
+              />
+            ) : null}
             {player.shapes.map((shape, index) => (
               <SceneShape key={`${player.id}-shape-${index}`} shape={shape} />
             ))}
@@ -488,8 +591,139 @@ export function FieldDiagram({
           </g>
         ))}
       </g>
+      {overlay}
     </svg>
   );
+}
+
+/**
+ * The transient layer of an in-flight gesture: snap guides, the depth
+ * readout, and the marquee, drawn the way the original drew them.
+ */
+function FieldInteractionOverlay({
+  gesture,
+  projection,
+}: {
+  gesture: FieldGesture;
+  projection: SvgProjection;
+}) {
+  if (gesture.kind === "moving") {
+    const readout = gesture.readout
+      ? {
+          ...projectCoordinate(gesture.readout.position, projection),
+          text: gesture.readout.text,
+          width: gesture.readout.text.length * 6.5 + 16,
+        }
+      : undefined;
+    return (
+      <g className="interaction-overlay" pointerEvents="none">
+        {gesture.guides.map((guide) => {
+          if (guide.axis === "lateral") {
+            const x = projectCoordinate(
+              { lateralYards: guide.valueYards, depthYards: 0 },
+              projection,
+            ).x;
+            return (
+              <g key={`lateral-${guide.valueYards}`}>
+                <line
+                  data-snap-guide="lateral"
+                  opacity={0.65}
+                  stroke={SELECTION_BLUE}
+                  strokeDasharray="5 4"
+                  strokeWidth={1}
+                  x1={x}
+                  x2={x}
+                  y1={6}
+                  y2={projection.height - 6}
+                />
+                <text
+                  fill={SELECTION_BLUE}
+                  fontFamily="'Geist Mono', monospace"
+                  fontSize={10.5}
+                  x={x + 6}
+                  y={24}
+                >
+                  {guide.label}
+                </text>
+              </g>
+            );
+          }
+          const y = projectCoordinate(
+            { lateralYards: 0, depthYards: guide.valueYards },
+            projection,
+          ).y;
+          return (
+            <g key={`depth-${guide.valueYards}`}>
+              <line
+                data-snap-guide="depth"
+                opacity={0.65}
+                stroke={SELECTION_BLUE}
+                strokeDasharray="5 4"
+                strokeWidth={guide.strong ? 1.4 : 1}
+                x1={projection.fieldInsetX}
+                x2={projection.width - projection.fieldInsetX}
+                y1={y}
+                y2={y}
+              />
+              <text
+                fill={SELECTION_BLUE}
+                fontFamily="'Geist Mono', monospace"
+                fontSize={10.5}
+                x={20}
+                y={y - 7}
+              >
+                {guide.label}
+              </text>
+            </g>
+          );
+        })}
+        {readout ? (
+          <g
+            data-move-readout
+            transform={`translate(${readout.x} ${readout.y})`}
+          >
+            <rect
+              fill="#171717"
+              height={20}
+              rx={4}
+              width={readout.width}
+              x={14}
+              y={-28}
+            />
+            <text
+              fill="#FFFFFF"
+              fontFamily="'Geist Mono', monospace"
+              fontSize={11}
+              textAnchor="middle"
+              x={14 + readout.width / 2}
+              y={-14}
+            >
+              {readout.text}
+            </text>
+          </g>
+        ) : null}
+      </g>
+    );
+  }
+  if (gesture.kind === "marquee" && gesture.active) {
+    const anchor = projectCoordinate(gesture.anchor, projection);
+    const corner = projectCoordinate(gesture.corner, projection);
+    return (
+      <rect
+        data-marquee
+        fill="rgba(0,114,245,0.06)"
+        height={Math.abs(corner.y - anchor.y)}
+        pointerEvents="none"
+        stroke={SELECTION_BLUE}
+        strokeDasharray="4 3"
+        strokeWidth={1}
+        width={Math.abs(corner.x - anchor.x)}
+        x={Math.min(anchor.x, corner.x)}
+        y={Math.min(anchor.y, corner.y)}
+      />
+    );
+  }
+  return null;
 }
 
 function Inspector({
@@ -635,6 +869,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   const [zonesHidden, setZonesHidden] = useState(false);
   const [recoveryDismissed, setRecoveryDismissed] = useState(false);
   const [freedStorage, setFreedStorage] = useState<ChalkRuntime["storage"]>();
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [interaction, setInteraction] = useState(idleFieldInteraction);
+  // Pointer events can outpace React's render loop; the ref is the machine's
+  // authoritative model so no event ever reduces against a stale one.
+  const interactionRef = useRef<FieldInteractionModel>(interaction);
+  const fieldSvgRef = useRef<SVGSVGElement | null>(null);
   // The runtime reports storage health; freeing space supersedes that reading.
   const storage = freedStorage ?? runtime.storage;
   const editor = useSyncExternalStore(
@@ -642,10 +882,107 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     editorStore.getSnapshot,
     editorStore.getSnapshot,
   );
+  // Mid-drag the Coach sees the committed document with the gesture's own
+  // command previewed on top — the exact document a release would commit.
+  const previewCommand = gesturePreviewCommand(interaction, editor.document);
   const scene = useMemo(
-    () => buildSvgRenderScene(buildRenderScene(editor.document)),
-    [editor.document],
+    () =>
+      buildSvgRenderScene(
+        buildRenderScene(
+          previewCommand
+            ? applyPlayCommand(editor.document, previewCommand)
+            : editor.document,
+        ),
+      ),
+    [editor.document, previewCommand],
   );
+  const selectionKeys = useMemo(
+    () =>
+      new Set(
+        interaction.selection.map(({ kind, id }) => selectionKey(kind, id)),
+      ),
+    [interaction.selection],
+  );
+
+  const dispatchField = (event: FieldInteractionEvent): void => {
+    const document = editorStore.getSnapshot().document;
+    // The scene is only consulted for hit tests, so build it on demand.
+    let renderScene: RenderScene | undefined;
+    const result = fieldInteraction(interactionRef.current, event, {
+      document,
+      get scene() {
+        renderScene ??= buildRenderScene(document);
+        return renderScene;
+      },
+      screenScale: {
+        lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard,
+        depthPixelsPerYard: scene.viewport.depthPixelsPerYard,
+      },
+      snap: { enabled: snapEnabled, grid: "off" },
+      tool: activeTool === "player" ? "player" : "select",
+      createId: createStableId,
+    });
+    interactionRef.current = result.model;
+    setInteraction(result.model);
+    if (result.command) {
+      void editorStore.applyCommand(result.command).catch(() => undefined);
+    }
+  };
+  // The keyboard listener registers once per menu state; the ref keeps it
+  // dispatching against the current closure.
+  const dispatchFieldRef = useRef(dispatchField);
+  useEffect(() => {
+    dispatchFieldRef.current = dispatchField;
+  });
+
+  // An undo, redo, or restore may remove what the selection points at.
+  useEffect(() => {
+    const pruned = pruneFieldSelection(interactionRef.current, editor.document);
+    if (pruned !== interactionRef.current) {
+      interactionRef.current = pruned;
+      setInteraction(pruned);
+    }
+  }, [editor.document]);
+
+  const fieldPointerInput = (event: React.PointerEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    return {
+      point: unprojectPoint(
+        {
+          x:
+            ((event.clientX - bounds.left) / bounds.width) *
+            scene.viewport.width,
+          y:
+            ((event.clientY - bounds.top) / bounds.height) *
+            scene.viewport.height,
+        },
+        scene.viewport,
+      ),
+      pointerId: event.pointerId,
+      shiftKey: event.shiftKey,
+      button: event.button,
+      pointerType: event.pointerType,
+    };
+  };
+  const onFieldPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+    // Tools beyond selection and placement arrive with Phase 4.3's drawing.
+    if (activeTool !== "select" && activeTool !== "player") return;
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Capture is best-effort; the gesture survives without it.
+    }
+    dispatchField({ type: "pointer-down", input: fieldPointerInput(event) });
+  };
+  const onFieldPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    dispatchField({ type: "pointer-move", input: fieldPointerInput(event) });
+  };
+  const onFieldPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    dispatchField({ type: "pointer-up", input: fieldPointerInput(event) });
+  };
+  const onFieldPointerCancel = () => {
+    dispatchField({ type: "pointer-cancel" });
+  };
   const commitPlayName = () => {
     void editorStore.commitPlayName().catch(() => undefined);
   };
@@ -716,33 +1053,88 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       const typing =
         target?.isContentEditable ||
         ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "");
+      const meta = event.metaKey || event.ctrlKey;
+      const key = event.key.toLowerCase();
 
       if (event.key === "Escape") {
-        setOverlay(null);
-        setOpenMenu(null);
+        if (overlay !== null || openMenu !== null) {
+          setOverlay(null);
+          setOpenMenu(null);
+          return;
+        }
+        // With no chrome to close, Escape cancels the gesture or clears the
+        // selection, the way the original stepped outward.
+        if (!typing) dispatchFieldRef.current({ type: "escape" });
         return;
       }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      if (meta && key === "k") {
         event.preventDefault();
         setOpenMenu(null);
         setOverlay("palette");
         return;
       }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      if (meta && key === "s") {
         event.preventDefault();
         setOverlay(null);
         setOpenMenu((current) => (current === "save" ? null : "save"));
         return;
       }
+      if (meta && key === "a" && !typing) {
+        event.preventDefault();
+        dispatchFieldRef.current({ type: "select-all" });
+        return;
+      }
       if (event.key === "?" && !typing) {
         event.preventDefault();
         setOverlay("shortcuts");
+        return;
       }
+      if (typing || meta || event.altKey) return;
+      if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault();
+        dispatchFieldRef.current({ type: "delete" });
+        return;
+      }
+      const nudges: Record<string, readonly [number, number]> = {
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+        ArrowUp: [0, 1],
+        ArrowDown: [0, -1],
+      };
+      const nudge = nudges[event.key];
+      if (nudge) {
+        event.preventDefault();
+        // Half a yard per press; Shift refines to a tenth (ADR 0016's
+        // keyboard alternative to dragging — the original had no nudge).
+        const step = event.shiftKey ? 0.1 : 0.5;
+        dispatchFieldRef.current({
+          type: "nudge",
+          lateralYards: nudge[0] * step,
+          depthYards: nudge[1] * step,
+        });
+        return;
+      }
+      if (event.shiftKey) return;
+      const toolKeys: Record<string, Tool> = {
+        v: "select",
+        p: "player",
+        r: "route",
+        m: "motion",
+        b: "block",
+        z: "zone",
+        t: "text",
+      };
+      const tool = toolKeys[key];
+      if (tool) {
+        setActiveTool(tool);
+        return;
+      }
+      if (key === "s") setSnapEnabled((enabled) => !enabled);
     };
 
     globalThis.addEventListener("keydown", onKeyDown);
     return () => globalThis.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [openMenu, overlay]);
 
   useEffect(() => {
     if (!openMenu) return;
@@ -832,8 +1224,22 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
             recovery={recoveryDismissed ? undefined : runtime.recovery}
             storage={storage}
           />
-          <div className="field-wrap">
-            <FieldDiagram scene={scene} />
+          <div className="field-wrap" data-tool={activeTool}>
+            <FieldDiagram
+              onPointerCancel={onFieldPointerCancel}
+              onPointerDown={onFieldPointerDown}
+              onPointerMove={onFieldPointerMove}
+              onPointerUp={onFieldPointerUp}
+              overlay={
+                <FieldInteractionOverlay
+                  gesture={interaction.gesture}
+                  projection={scene.viewport}
+                />
+              }
+              scene={scene}
+              selection={selectionKeys}
+              svgRef={fieldSvgRef}
+            />
           </div>
           <div className="timeline" aria-label="Playback controls">
             <button aria-label="Play">▶</button>
@@ -854,9 +1260,14 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               a line to add a node · ⌫ delete
             </span>
             <span>
-              − &nbsp; 100% &nbsp; + &nbsp;&nbsp; SELECTION &nbsp;&nbsp; BALL
-              &nbsp;&nbsp; CUSTOM ALIGNMENT &nbsp;&nbsp; SNAP ON &nbsp;&nbsp;
-              11P · 5R &nbsp;&nbsp;
+              {/* One string, so live values cannot disturb the original's
+                  exact spacing. */}
+              {`− \u00A0 100% \u00A0 + \u00A0\u00A0 SELECTION \u00A0\u00A0 BALL \u00A0\u00A0 CUSTOM ALIGNMENT \u00A0\u00A0 SNAP ${
+                snapEnabled ? "ON" : "OFF"
+              } \u00A0\u00A0 ${editor.document.players.length}P · ${
+                editor.document.paths.filter(({ kind }) => kind === "route")
+                  .length
+              }R \u00A0\u00A0`}
               <button
                 aria-label={localSaveMessage(editor.localSave)}
                 className={`save-state ${editor.localSave.phase}`}
