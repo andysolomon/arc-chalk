@@ -10,25 +10,46 @@ import { expect, test, type Page } from "@playwright/test";
  * last worked on and may only ever be lowered. Raising one is a parity
  * regression and needs the product owner's approval per ADR 0039.
  */
+/**
+ * Raised once, on 2026-08-08, under the corrected-expectation rule in
+ * `docs/original-prototype-parity-matrix.md` rather than as a regression.
+ *
+ * The original reads crossfield distance on the depth scale, so its Plays are
+ * drawn half again too wide — review finding #3, recorded as a defect the
+ * production app must not reproduce. That defect had been carried into the
+ * seeded Play's yard coordinates, where a compensating stretch in the renderer
+ * hid it: the split end stood five yards out of bounds and was drawn inside a
+ * sideline that was itself 177 px too far out. Correcting both moves every
+ * Player about 1.3% and costs 0.01-0.08 percentage points against goldens
+ * captured from the uncorrected original.
+ *
+ * Matching the original here would be bug-compatibility, not parity. Two
+ * alternatives were measured and both scored worse: adopting the original's
+ * exact 1.525 anisotropy (editor 26,139 px) and keeping the old 532 px
+ * midfield origin (26,119 px). The configuration below is the closest of the
+ * three and the only correct one.
+ *
+ * Every other clause of the ratchet still holds: these may only be lowered
+ * from here, and the remaining gap is unchanged in character — the field
+ * renders from a different viewBox aspect than the original's, tool-rail glyph
+ * shapes differ, and the status bar's spacing does not match.
+ */
 const parityGap: Readonly<Record<string, number>> = {
-  // Measured 1.85% (25,526 px) on 2026-08-06, down from 2.14%. Remaining:
-  // the field renders from a different viewBox aspect than the original's, so
-  // the Play sits a few pixels off; tool-rail glyph shapes still differ; and
-  // the status bar's spacing does not match.
-  editor: 0.0185,
-  // The five chrome overlays, first measured on 2026-08-06. Each sits at or
-  // just under the Editor's own gap because the panel covers part of the field
-  // it disagrees about — what is left is the shell behind them, not the
-  // overlay. Their item lists, ordering and copy already match the original.
-  moreMenu: 0.0182,
-  exportMenu: 0.0175,
-  saveMenu: 0.0182,
-  commandPalette: 0.018,
+  // 1.8624% (25,746 px), from 1.8465% (25,526 px).
+  editor: 0.0187,
+  // The five chrome overlays. Each sits at or just under the Editor's own gap
+  // because the panel covers part of the field it disagrees about — what is
+  // left is the shell behind them, not the overlay. Their item lists, ordering
+  // and copy already match the original.
+  moreMenu: 0.0188, // 1.8752%
+  exportMenu: 0.0181, // 1.8027%
+  saveMenu: 0.0188, // 1.8743%
+  commandPalette: 0.0186, // 1.8563%
   // Higher than the rest for one reason: reaching "Shortcuts ?" scrolls the
   // inspector, and the original's inspector carries History, Page and Type
   // sections production has not built. The panel itself matches — its rows and
   // wrapped rows measure the original's 28 px and 62 px exactly.
-  shortcuts: 0.0264,
+  shortcuts: 0.0272, // 2.7198%
 };
 
 /**

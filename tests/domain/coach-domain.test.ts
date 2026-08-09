@@ -6,6 +6,7 @@ import {
   canonicalStringify,
   createSharePublication,
   hashPlayDocument,
+  legacyLateralSpanToYards,
   migratePlayDocument,
   migratePlayDocumentV1ToV2,
   migratePlayDocumentV2ToV3,
@@ -98,7 +99,7 @@ describe("Coach-owned Playbook domain", () => {
 
     expect(playbookEnvelopeSchema.parse(changedSource)).toEqual(changedSource);
     expect(offensiveStickThunderPlay.players[0]!.position.lateralYards).toBe(
-      -6,
+      legacyLateralSpanToYards(-72),
     );
     expect(offensiveStickThunderPlay.formationSource?.revision).toBe(1);
   });

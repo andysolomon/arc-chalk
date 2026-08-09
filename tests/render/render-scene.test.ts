@@ -23,19 +23,21 @@ describe("RenderScene", () => {
   it("projects yard geometry into deterministic editor SVG primitives", () => {
     const scene = buildSvgRenderScene(buildRenderScene(stickThunderPlay));
 
+    // The Quarterback is on the midfield line, so he lands on the drawn
+    // midfield line rather than two pixels beside it.
     expect(scene.players.find(({ id }) => id === "q")?.position).toEqual({
-      x: 532,
+      x: 534,
       y: 446,
     });
     expect(scene.paths.find(({ id }) => id === "rx")?.strokes[0]?.d).toBe(
-      "M 332.667 417.833 L 324 378.833 L 126.833 331.167",
+      "M 337.18 417.833 L 328.623 378.833 L 133.943 331.167",
     );
     expect(scene.paths.find(({ id }) => id === "rz")?.branches[0]).toEqual({
       id: "rz-branch-0",
       strokes: [
         {
           id: "rz-branch-0",
-          d: "M 950.167 248.833 L 978.333 58.167",
+          d: "M 946.893 248.833 L 974.705 58.167",
           style: {
             line: "dotted",
             ending: "arrow",
@@ -101,8 +103,9 @@ describe("RenderScene", () => {
     expect(zone.coverageArea).toEqual({
       id: "path-zone-coverage",
       type: "curl",
-      center: { x: 571, y: 225 },
-      radiusX: 68.25,
+      center: { x: 592.725, y: 225 },
+      // 5.25 yards across and 2.5 yards deep, each on its own scale.
+      radiusX: 102.76875,
       radiusY: 32.5,
       fill: "#8B3FE0",
     });
@@ -168,7 +171,7 @@ describe("RenderScene", () => {
     expect(
       first.labels.find(({ id }) => id === "label-alert")?.leader,
     ).toMatchObject({
-      x2: 714,
+      x2: 808.05,
       y2: 264,
       stroke: "#E5484D",
       strokeDasharray: "4 3",
@@ -176,6 +179,6 @@ describe("RenderScene", () => {
     });
     expect(
       first.labels.find(({ id }) => id === "label-coaching")?.position,
-    ).toEqual({ x: 324, y: 303 });
+    ).toEqual({ x: 220.8, y: 303 });
   });
 });
