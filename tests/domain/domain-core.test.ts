@@ -6,6 +6,7 @@ import {
   collegeFieldProfile,
   evaluateMovement,
   highSchoolFieldProfile,
+  isLineman,
   legacyCanvasToYards,
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
@@ -410,5 +411,40 @@ describe("yard-space geometry invariants", () => {
     expect(
       mirrorPlayGeometry(mirrorPlayGeometry(playerLabelPrimitivePlay)),
     ).toEqual(playerLabelPrimitivePlay);
+  });
+});
+
+describe("who is on the line", () => {
+  const of = (id: string) =>
+    stickThunderPlay.players.find((player) => player.id === id)!;
+
+  it("reads the five linemen off where they stand, not off a role", () => {
+    // The seeded formation carries no roles at all, which is why the rule is
+    // positional: an offensive man with no letter on him, level with the ball.
+    expect(
+      stickThunderPlay.players.filter(isLineman).map(({ id }) => id),
+    ).toEqual(["ol0", "ol1", "ol2", "ol3", "ol4"]);
+  });
+
+  it("leaves out the men who have a letter, whatever depth they stand at", () => {
+    // X lines up within a foot of the line and still runs a route.
+    expect(isLineman(of("x"))).toBe(false);
+    expect(isLineman(of("q"))).toBe(false);
+  });
+
+  it("lets a man off the line stand a little over a yard away from it", () => {
+    const centre = of("ol2");
+    const nudged = (depthYards: number) => ({
+      ...centre,
+      position: { ...centre.position, depthYards },
+    });
+
+    // The original's 14 pixels of tolerance, on the depth scale.
+    expect(isLineman(nudged(-1.5 - legacyDepthSpanToYards(13)))).toBe(true);
+    expect(isLineman(nudged(-1.5 - legacyDepthSpanToYards(15)))).toBe(false);
+  });
+
+  it("never claims a defender", () => {
+    expect(isLineman({ ...of("ol2"), unit: "defense" })).toBe(false);
   });
 });
