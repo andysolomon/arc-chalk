@@ -1775,3 +1775,53 @@ select:focus-visible {
   color: #c9c9c9;
   cursor: default;
 }
+/* Said to a screen reader, and to nobody else. */
+.visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  margin: -1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/*
+ * The field as a list rather than a picture. It is off-screen until one of
+ * its buttons takes focus, at which point that button comes into view — so a
+ * Coach working by keyboard can see where he is, and everybody else never
+ * sees it at all.
+ */
+.field-outline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.field-outline button {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  margin: -1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.field-outline button:focus-visible {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin: 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 2px var(--blue);
+  clip-path: none;
+  color: var(--ink);
+  font-size: 12px;
+}

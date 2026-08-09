@@ -591,14 +591,21 @@ test("says what a route is for, and prints it at the end of the line", async ({
   ).toBeVisible();
 
   // The read number and the Assignment print on the field.
-  await page.getByRole("textbox", { name: "Assignment" }).fill("Stick");
-  await page.getByRole("textbox", { name: "Conversion" }).fill("vs man: fade");
-  await page.locator(".read-field input").fill("2");
-  // The field just typed into is the one to leave, not another one: typing
-  // coalesces until the Coach leaves the field he is in, so blurring a box he
-  // was never in leaves the last thing he wrote still in hand.
-  await page.locator(".read-field input").blur();
-  await expect(page.locator(".read-field input")).toHaveValue("2");
+  // Each field is finished before the next is started, which is what typing
+  // coalescing until the Coach leaves the field he is in actually describes —
+  // and what a person does. Setting three boxes with no gap between them is a
+  // harness trick rather than a gesture, and it races the controlled input.
+  const write = async (box: string, value: string) => {
+    const field =
+      box === "Read"
+        ? page.locator(".read-field input")
+        : page.getByRole("textbox", { name: box });
+    await field.fill(value);
+    await field.blur();
+  };
+  await write("Assignment", "Stick");
+  await write("Conversion", "vs man: fade");
+  await write("Read", "2");
 
   // Four fields typed one after another are four saves, and each one has to
   // land before the mark it draws appears. Under a full suite on a slower
@@ -1437,4 +1444,58 @@ test("gives a finger the forty-four pixels it is owed, on the screen it is reall
   // Half a pixel of slack, because the browser rounds the box it reports and
   // the arithmetic lands this on the minimum exactly rather than above it.
   expect(smallest).toBeGreaterThanOrEqual(43.5);
+});
+
+test("gives the field to a keyboard, and says what it has picked", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  // The picture is still a picture; the same field is also an ordinary list,
+  // so the tab order a screen reader already gives him is the order he reads
+  // the Play in.
+  const outline = page.getByRole("list", { name: "Everything on the field" });
+  await expect(outline).toBeAttached();
+  const items = outline.getByRole("button");
+  await expect(items).toHaveCount(28);
+
+  // Named the way a Coach would say it aloud, men first and then their lines.
+  await expect(items.first()).toHaveText(/offense player/);
+  await expect(outline.getByRole("button", { name: "X route" })).toBeAttached();
+
+  // And every one of them picks what it names, reached the way it is meant
+  // to be reached: with the keyboard rather than with a pointer.
+  await outline.getByRole("button", { name: "X route" }).press("Enter");
+  await expect(
+    outline.getByRole("button", { name: "X route" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.locator(".label-heading").getByText("Route", { exact: true }),
+  ).toBeVisible();
+
+  // What is picked is said out loud, for anybody who cannot see the halo.
+  await expect(page.locator('[aria-live="polite"]')).toHaveText(/X route/);
+});
+
+test("lets a control the Coach tabbed to have its own Enter and Space", async ({
+  page,
+}) => {
+  await openEditor(page);
+  // The field wants both keys — Enter finishes a route, Space pans it — and
+  // swallowing them left every button in the app dead to anyone working
+  // without a pointer.
+  const shortcuts = page.getByRole("button", {
+    name: "Shortcuts ?",
+    exact: true,
+  });
+  await shortcuts.press("Enter");
+  await expect(
+    page.getByText("Keyboard shortcuts", { exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await shortcuts.press(" ");
+  await expect(
+    page.getByText("Keyboard shortcuts", { exact: true }),
+  ).toBeVisible();
 });

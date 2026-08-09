@@ -293,6 +293,8 @@ export interface SvgRouteCoaching {
 export interface SvgScenePath {
   readonly id: string;
   readonly kind: ScenePath["kind"];
+  /** What this line is, said the way a Coach would say it aloud. */
+  readonly ariaLabel: string;
   readonly variant?: ScenePath["variant"];
   readonly coaching?: SvgRouteCoaching;
   readonly strokes: readonly SvgPathStroke[];
@@ -325,6 +327,28 @@ export interface SvgCoverageArea {
  * call has to colour its areas the same way the field does — a Coach reading
  * the card and reading the field must be reading the same picture.
  */
+/**
+ * What a line is, for anybody who cannot see it: the man running it, what
+ * kind of line it is, and what he is told to do if the Coach has written it
+ * down. This is the only description of the picture a screen reader gets, so
+ * it says the football rather than the geometry.
+ */
+function pathAriaLabel(path: ScenePath, scene: RenderScene): string {
+  const player = scene.players.find(({ id }) => id === path.playerId);
+  const who = player?.label.trim()
+    ? player.label.trim()
+    : player
+      ? `${player.unit} player`
+      : "somebody";
+  const what =
+    path.kind === "zone" && path.coverageArea
+      ? `${path.coverageArea.type} zone`
+      : path.kind;
+  const told = path.assignment?.trim();
+  const order = path.readOrder === undefined ? "" : `, read ${path.readOrder}`;
+  return `${who} ${what}${told ? `: ${told}` : ""}${order}`;
+}
+
 export const coverageFills: Readonly<Record<SvgCoverageArea["type"], string>> =
   {
     deep: "#1D3FD8",
@@ -922,6 +946,7 @@ export function buildSvgRenderScene(
       return {
         id: path.id,
         kind: path.kind,
+        ariaLabel: pathAriaLabel(path, scene),
         ...(path.variant === undefined ? {} : { variant: path.variant }),
         ...(coaching === undefined ? {} : { coaching }),
         strokes,

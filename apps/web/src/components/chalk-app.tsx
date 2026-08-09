@@ -634,7 +634,8 @@ export function FieldDiagram({
       </g>
       <g className="routes">
         {scene.paths.map((path) => (
-          <g key={path.id}>
+          <g aria-label={path.ariaLabel} key={path.id} role="img">
+            <title>{path.ariaLabel}</title>
             {selected("path", path.id)
               ? [
                   ...path.strokes,
@@ -1622,7 +1623,7 @@ function PlayerInspector({
   onRemoveLine: (pathId: string) => void;
   onSelectLine: (pathId: string) => void;
   onText: (field: "label" | "sublabel", value: string) => void;
-  onTextCommitted: () => void;
+  onTextCommitted: (field: "label" | "sublabel") => void;
   player: Player;
   text: Readonly<Record<"label" | "sublabel", string>>;
 }) {
@@ -1696,7 +1697,7 @@ function PlayerInspector({
       </div>
       <input
         aria-label="Letter"
-        onBlur={onTextCommitted}
+        onBlur={() => onTextCommitted("label")}
         onChange={(event) => onText("label", event.target.value)}
         placeholder="Letter — X, Y, Z, Q…"
         spellCheck={false}
@@ -1704,7 +1705,7 @@ function PlayerInspector({
       />
       <input
         aria-label="Tag under"
-        onBlur={onTextCommitted}
+        onBlur={() => onTextCommitted("sublabel")}
         onChange={(event) => onText("sublabel", event.target.value)}
         placeholder="Tag under — FLAT, STICK…"
         spellCheck={false}
@@ -1820,7 +1821,7 @@ function RouteInspector({
   nodeIndex?: number;
   onAddChoice: () => void;
   onCoaching: (field: RouteCoachingField, value: string) => void;
-  onCoachingCommitted: () => void;
+  onCoachingCommitted: (field: RouteCoachingField) => void;
   onDelete: () => void;
   onDeselect: () => void;
   onFlip: () => void;
@@ -1948,7 +1949,7 @@ function RouteInspector({
           <span>Read</span>
           <input
             inputMode="numeric"
-            onBlur={onCoachingCommitted}
+            onBlur={() => onCoachingCommitted("readOrder")}
             onChange={(event) =>
               onCoaching(
                 "readOrder",
@@ -1962,7 +1963,7 @@ function RouteInspector({
         <input
           aria-label="Assignment"
           maxLength={ROUTE_COACHING_LIMITS.assignment}
-          onBlur={onCoachingCommitted}
+          onBlur={() => onCoachingCommitted("assignment")}
           onChange={(event) => onCoaching("assignment", event.target.value)}
           placeholder="Assignment — STICK"
           spellCheck={false}
@@ -1972,7 +1973,7 @@ function RouteInspector({
       <input
         aria-label="Conversion"
         maxLength={ROUTE_COACHING_LIMITS.conversion}
-        onBlur={onCoachingCommitted}
+        onBlur={() => onCoachingCommitted("conversion")}
         onChange={(event) => onCoaching("conversion", event.target.value)}
         placeholder="Conversion — vs man / vs zone"
         spellCheck={false}
@@ -1981,7 +1982,7 @@ function RouteInspector({
       <input
         aria-label="Coaching note"
         maxLength={ROUTE_COACHING_LIMITS.coachingNote}
-        onBlur={onCoachingCommitted}
+        onBlur={() => onCoachingCommitted("coachingNote")}
         onChange={(event) => onCoaching("coachingNote", event.target.value)}
         placeholder="Coaching note"
         spellCheck={false}
@@ -2918,6 +2919,56 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   };
 
   /**
+   * Everything on the field, in the order a Coach would read it out: his men
+   * first, then what each of them is asked to do, then the notes. Stepping
+   * through it is the only way to reach a Player without a pointer, which
+   * ADR 0016 asks of every one of these.
+   */
+  const fieldItems: readonly FieldItemRef[] = useMemo(
+    () => [
+      ...editor.document.players.map(({ id }) => ({
+        kind: "player" as const,
+        id,
+      })),
+      ...editor.document.paths.map(({ id }) => ({ kind: "path" as const, id })),
+      ...editor.document.labels.map(({ id }) => ({
+        kind: "label" as const,
+        id,
+      })),
+    ],
+    [editor.document],
+  );
+  const pickFieldItem = (item: FieldItemRef): void => {
+    focusInteraction({
+      selection: [item],
+      selectedBranchIndex: undefined,
+      selectedSegmentIndex: undefined,
+      selectedNodeIndex: undefined,
+    });
+  };
+  /** What each of them is called, said the way a Coach would say it aloud. */
+  const fieldItemName = (item: FieldItemRef): string =>
+    (item.kind === "player"
+      ? scene.players.find(({ id }) => id === item.id)?.ariaLabel
+      : item.kind === "path"
+        ? scene.paths.find(({ id }) => id === item.id)?.ariaLabel
+        : scene.labels.find(({ id }) => id === item.id)?.ariaLabel) ??
+    item.kind;
+  const activeItem = interaction.selection[0];
+  /**
+   * What was just picked, said out loud. The halo is the answer for anybody
+   * who can see it; this is the same answer for anybody who cannot, and it
+   * says how many when he has picked more than one.
+   */
+  const activeItemName = activeItem
+    ? `${fieldItemName(activeItem)}${
+        interaction.selection.length > 1
+          ? `, and ${interaction.selection.length - 1} more`
+          : ""
+      }`
+    : "Nothing picked";
+
+  /**
    * A wheel pushes the field in and out about the pointer. A trackpad swipe
    * moves it instead — sideways on its own, and sideways from a held shift,
    * which is the gesture every drawing tool has trained into him.
@@ -3445,6 +3496,17 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       const typing =
         target?.isContentEditable ||
         ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "");
+      /*
+       * A control the Coach has tabbed to activates on Enter and on Space,
+       * and those are the two keys the field also wants. The control wins,
+       * except where the field is plainly the thing being aimed at:
+       * swallowing them here left every button in the app dead to anyone
+       * working without a pointer.
+       */
+      const activating =
+        target?.closest?.(
+          "button, a[href], summary, [role='button'], [role='menuitem'], [role='option']",
+        ) != null;
       const meta = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
 
@@ -3548,16 +3610,18 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         return;
       }
       if (typing || meta || event.altKey) return;
-      if (event.key === " ") {
+      if (event.key === " " && !activating) {
         // Held space turns a drag into a pan. It is not a tool key and has no
         // other job, so it is swallowed rather than scrolling the page.
         event.preventDefault();
         spaceHeldRef.current = true;
         return;
       }
-      if (event.key === "Enter") {
-        // Enter ends the route being drawn; with nothing in flight it is the
-        // machine's own no-op.
+      if (event.key === "Enter" && (!activating || drawingRef.current)) {
+        // Enter ends the route being drawn. Mid-route it belongs to the
+        // field even when a tool button still holds focus — pressing the
+        // field does not move focus, so that button would otherwise keep a
+        // key the Coach is plainly aiming at the route.
         event.preventDefault();
         dispatchFieldRef.current({ type: "finish-drawing" });
         return;
@@ -3778,6 +3842,32 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               selection={selectionKeys}
               svgRef={fieldSvgRef}
             />
+            {/*
+              The picture is a picture; this is the same field as something to
+              work through without a pointer. Ordinary buttons rather than a
+              focus trap over the drawing, so the tab order a screen reader
+              already gives him is the order he reads the Play in, and every
+              one of them picks what it names (ADR 0016).
+            */}
+            <ul aria-label="Everything on the field" className="field-outline">
+              {fieldItems.map((item) => (
+                <li key={`${item.kind}:${item.id}`}>
+                  <button
+                    aria-pressed={
+                      activeItem?.kind === item.kind &&
+                      activeItem.id === item.id
+                    }
+                    onClick={() => pickFieldItem(item)}
+                    type="button"
+                  >
+                    {fieldItemName(item)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p aria-live="polite" className="visually-hidden">
+              {activeItemName}
+            </p>
             {toast ? (
               <div className="toast" role="status">
                 <span>
@@ -3836,9 +3926,15 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                   onCoaching={(field, value) =>
                     editRouteCoaching(selectedPath.id, field, value)
                   }
-                  onCoachingCommitted={() => {
+                  onCoachingCommitted={(field) => {
                     editorStore.endCoalescing();
-                    setCoachingDraft(undefined);
+                    // Only the field being left lets go of the draft. A blur
+                    // can arrive after the Coach has already moved on and
+                    // typed into the next field — and clearing it then would
+                    // wipe what he has just written out from under him.
+                    setCoachingDraft((draft) =>
+                      draft?.field === field ? undefined : draft,
+                    );
                   }}
                   onDelete={() => dispatchField({ type: "delete" })}
                   onDeselect={() => dispatchField({ type: "escape" })}
@@ -3995,9 +4091,14 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                       )
                       .catch(() => undefined);
                   }}
-                  onTextCommitted={() => {
+                  onTextCommitted={(field) => {
                     editorStore.endCoalescing();
-                    setPlayerDraft(undefined);
+                    // As with the coaching fields: a blur that arrives after
+                    // he has moved on must not clear the draft of the field
+                    // he moved on to.
+                    setPlayerDraft((draft) =>
+                      draft?.field === field ? undefined : draft,
+                    );
                   }}
                   player={selectedPlayer}
                   text={playerText(selectedPlayer)}
