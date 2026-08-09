@@ -2,8 +2,11 @@ import {
   applyPlayCommand,
   assignmentForPath,
   createStableId,
+  deletePathsCommand,
   DEFAULT_ZONE_COVERAGE_RADII,
+  defensiveLineKinds,
   defensiveRouteKinds,
+  isLineman,
   labelRolePresets,
   offensiveRouteKinds,
   labelSizeChoices,
@@ -13,13 +16,20 @@ import {
   stickThunderPlay,
   type LabelRole,
   type MovementPath,
+  type Player,
   type PlayCommand,
   type PlayErasure,
   type TextLabel,
 } from "@chalk/domain";
 import {
+  addAlternateRouteCommand,
+  addRouteChoiceCommand,
   applyLabelRoleCommand,
   fieldInteraction,
+  flipPlayerLinesCommand,
+  flipRouteCommand,
+  removeRouteChoiceCommand,
+  setPlayerCommand,
   insertedEntityIds,
   gesturePreviewCommand,
   idleFieldInteraction,
@@ -45,6 +55,7 @@ import {
   type FieldInteractionEvent,
   type FieldInteractionModel,
   type LabelAppearance,
+  type PlayerAppearance,
 } from "@chalk/editor";
 import {
   buildRenderScene,
@@ -1362,6 +1373,227 @@ const routeColorChoices: ReadonlyArray<MovementPath["style"]["color"]> = [
   "gray",
 ];
 
+/** The six shapes the original draws a man with, and its own glyphs for them. */
+const playerSymbolChoices: ReadonlyArray<{
+  symbol: Player["symbol"];
+  glyph: string;
+  name: string;
+}> = [
+  { symbol: "circle", glyph: "○", name: "Circle — receiver" },
+  { symbol: "square", glyph: "□", name: "Square — center" },
+  { symbol: "triangle", glyph: "△", name: "Triangle" },
+  { symbol: "oval", glyph: "⬭", name: "Oval — back" },
+  { symbol: "x", glyph: "✕", name: "X" },
+  { symbol: "none", glyph: "A", name: "Letter only — defender" },
+];
+
+const playerFillChoices: ReadonlyArray<{
+  fill: Player["fill"];
+  name: string;
+}> = [
+  { fill: "none", name: "None" },
+  { fill: "half", name: "Half" },
+  { fill: "solid", name: "Solid" },
+];
+
+/**
+ * What the Coach calls each of a man's lines. The original numbers them in the
+ * order he drew them — the first is the call, the rest are alternates — and
+ * says how it is drawn and how many ways it forks.
+ */
+function lineName(
+  path: MovementPath,
+  index: number,
+  assignment: string | undefined,
+): string {
+  if (defensiveLineKinds.has(path.kind)) {
+    return `${assignment?.trim() || path.kind} · ${path.style.line}`;
+  }
+  if (path.kind === "block") return `Block · ${path.style.line}`;
+  const stem = index === 0 ? "Base stem" : `Alternate ${index}`;
+  const choices =
+    path.branches.length > 0 ? ` · ${path.branches.length} choice` : "";
+  return `${stem} · ${path.style.line}${choices}`;
+}
+
+/**
+ * The original's Player panel: the man himself, then every line he has and the
+ * button that gives him another one. Which of those it offers follows what he
+ * is — a lineman blocks and has no route to run, a defender is given a call.
+ */
+function PlayerInspector({
+  lines,
+  onAddAlternate,
+  onAppearance,
+  onDeselect,
+  onFlip,
+  onRemoveLine,
+  onSelectLine,
+  onText,
+  onTextCommitted,
+  player,
+  text,
+}: {
+  lines: readonly { readonly id: string; readonly name: string }[];
+  onAddAlternate: () => void;
+  onAppearance: (appearance: PlayerAppearance) => void;
+  onDeselect: () => void;
+  onFlip: () => void;
+  onRemoveLine: (pathId: string) => void;
+  onSelectLine: (pathId: string) => void;
+  onText: (field: "label" | "sublabel", value: string) => void;
+  onTextCommitted: () => void;
+  player: Player;
+  text: Readonly<Record<"label" | "sublabel", string>>;
+}) {
+  const lineman = isLineman(player);
+  const defense = player.unit === "defense";
+  const heading = defense
+    ? "Assignments"
+    : lineman
+      ? "Blocking"
+      : "Routes & alternates";
+  const nothingYet = defense
+    ? "No assignment yet. Press Z for a zone drop and B for a blitz path."
+    : lineman
+      ? "No block yet. Press B and click him to draw one."
+      : "No route yet. Press R and click this player to draw one.";
+
+  return (
+    <div className="label-inspector">
+      <div className="section-heading label-heading">
+        <button
+          aria-label="Back to the play"
+          className="back-button"
+          onClick={onDeselect}
+          title="Back to the play — esc"
+          type="button"
+        >
+          ←
+        </button>
+        <span>Player</span>
+      </div>
+      <div className="symbol-row">
+        {playerSymbolChoices.map((choice) => (
+          <button
+            aria-label={choice.name}
+            aria-pressed={player.symbol === choice.symbol}
+            className={player.symbol === choice.symbol ? "active" : undefined}
+            key={choice.symbol}
+            onClick={() => onAppearance({ symbol: choice.symbol })}
+            title={choice.name}
+            type="button"
+          >
+            <span aria-hidden="true">{choice.glyph}</span>
+          </button>
+        ))}
+      </div>
+      <span className="field-label">Fill</span>
+      <div className="segments">
+        {playerFillChoices.map((choice) => (
+          <button
+            className={player.fill === choice.fill ? "active" : undefined}
+            key={choice.fill}
+            onClick={() => onAppearance({ fill: choice.fill })}
+            type="button"
+          >
+            {choice.name}
+          </button>
+        ))}
+      </div>
+      <div className="color-row">
+        {routeColorChoices.map((color) => (
+          <button
+            aria-label={color}
+            aria-pressed={player.color === color}
+            className={player.color === color ? "swatch active" : "swatch"}
+            key={color}
+            onClick={() => onAppearance({ color })}
+            style={{ background: sceneColors[color] }}
+            type="button"
+          />
+        ))}
+      </div>
+      <input
+        aria-label="Letter"
+        onBlur={onTextCommitted}
+        onChange={(event) => onText("label", event.target.value)}
+        placeholder="Letter — X, Y, Z, Q…"
+        spellCheck={false}
+        value={text.label}
+      />
+      <input
+        aria-label="Tag under"
+        onBlur={onTextCommitted}
+        onChange={(event) => onText("sublabel", event.target.value)}
+        placeholder="Tag under — FLAT, STICK…"
+        spellCheck={false}
+        value={text.sublabel}
+      />
+      <span className="section-heading">{heading}</span>
+      {lines.length === 0 ? (
+        <p>{nothingYet}</p>
+      ) : (
+        <div className="line-list">
+          {lines.map((line) => (
+            <div className="line-row" key={line.id}>
+              <span>{line.name}</span>
+              <button onClick={() => onSelectLine(line.id)} type="button">
+                Edit
+              </button>
+              <button
+                aria-label={`Delete ${line.name}`}
+                className="remove"
+                onClick={() => onRemoveLine(line.id)}
+                title="Delete this option"
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {lines.length > 0 && (
+        <div className="help-row">
+          <button
+            onClick={onFlip}
+            title="Mirror every line he has about his stance"
+            type="button"
+          >
+            {defense
+              ? "Flip his assignments"
+              : lineman
+                ? "Flip his block"
+                : "Flip his routes"}
+          </button>
+        </div>
+      )}
+      {!defense && !lineman && (
+        <>
+          <div className="help-row">
+            <button onClick={onAddAlternate} type="button">
+              + Alternate route — new stem from stance
+            </button>
+          </div>
+          <p>
+            An <strong>alternate</strong> starts over at his stance: a different
+            call he could be asked to run, drawn dotted. A{" "}
+            <strong>choice</strong> stays inside one stem — he runs it, then
+            reads and forks. Select a line to add one.
+          </p>
+        </>
+      )}
+      {lineman && (
+        <p>
+          One block per lineman. Select the line and drag its break to set where
+          contact happens.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * The original's Route panel. What it changes follows what the Coach has
  * picked out: a segment takes the line style on its own, a branch takes it
@@ -1370,11 +1602,15 @@ const routeColorChoices: ReadonlyArray<MovementPath["style"]["color"]> = [
 function RouteInspector({
   branchIndex,
   coaching,
+  nodeIndex,
+  onAddChoice,
   onCoaching,
   onCoachingCommitted,
   onDelete,
   onDeselect,
+  onFlip,
   onKind,
+  onRemoveChoice,
   onStraighten,
   onStyle,
   path,
@@ -1383,17 +1619,31 @@ function RouteInspector({
 }: {
   branchIndex?: number;
   coaching: Readonly<Record<RouteCoachingField, string>>;
+  nodeIndex?: number;
+  onAddChoice: () => void;
   onCoaching: (field: RouteCoachingField, value: string) => void;
   onCoachingCommitted: () => void;
   onDelete: () => void;
   onDeselect: () => void;
+  onFlip: () => void;
   onKind: (kind: MovementPath["kind"]) => void;
+  onRemoveChoice: () => void;
   onStraighten: () => void;
   onStyle: (style: Partial<MovementPath["style"]>) => void;
   path: MovementPath;
   segmentIndex?: number;
   unit: "offense" | "defense" | "special-teams";
 }) {
+  // With no break picked, a choice forks off the end, which is where the
+  // original puts it too.
+  const lastNode = path.points.length - 1;
+  const forkAt = Math.max(0, Math.min(lastNode, nodeIndex ?? lastNode));
+  const nodeName =
+    forkAt === 0
+      ? "the start"
+      : forkAt === lastNode
+        ? "the end"
+        : `break ${forkAt}`;
   const line =
     branchIndex === undefined
       ? path.points
@@ -1544,7 +1794,32 @@ function RouteInspector({
         along with the route — they follow it through mirror, duplicate and
         save.
       </p>
+      <span className="section-heading">Choice within this stem</span>
       <div className="help-row">
+        <button onClick={onAddChoice} type="button">
+          + Choice at {nodeName}
+        </button>
+      </div>
+      {branchIndex === undefined ? undefined : (
+        <div className="help-row">
+          <button className="danger" onClick={onRemoveChoice} type="button">
+            Remove this choice
+          </button>
+        </div>
+      )}
+      <p>
+        A <strong>choice</strong> forks this same stem at the break you picked —
+        one release, then he reads. For a whole second line off his stance, use{" "}
+        <strong>alternate route</strong> in the player panel.
+      </p>
+      <div className="help-row">
+        <button
+          onClick={onFlip}
+          title="Mirror this line about where it starts — turns it in the other direction without redrawing"
+          type="button"
+        >
+          Flip
+        </button>
         <button onClick={onStraighten} type="button">
           Straighten
         </button>
@@ -1739,6 +2014,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     readonly field: RouteCoachingField;
     readonly value: string;
   }>();
+  /** The letter or tag the Coach is typing onto a man, held for the same reason. */
+  const [playerDraft, setPlayerDraft] = useState<{
+    readonly playerId: string;
+    readonly field: "label" | "sublabel";
+    readonly value: string;
+  }>();
   // Entities the Coach has just made whose commit has not landed. Selection
   // must not be pruned of something that is still on its way.
   const pendingInsertsRef = useRef<Set<string>>(new Set());
@@ -1849,6 +2130,59 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           ({ id }) => id === interaction.selection[0]!.id,
         )
       : undefined;
+  /** The one selected man, whose Player panel replaces the idle inspector. */
+  const selectedPlayer =
+    activeTool === "select" &&
+    !interaction.drawing &&
+    interaction.selection.length === 1 &&
+    interaction.selection[0]?.kind === "player"
+      ? editor.document.players.find(
+          ({ id }) => id === interaction.selection[0]!.id,
+        )
+      : undefined;
+  /** Every line he has, named the way the original names them. */
+  const playerLines = (player: Player) =>
+    editor.document.paths
+      .filter(({ playerId }) => playerId === player.id)
+      .map((path, index) => ({
+        id: path.id,
+        name: lineName(
+          path,
+          index,
+          assignmentForPath(editor.document, path.id)?.text,
+        ),
+      }));
+  const playerText = (
+    player: Player,
+  ): Readonly<Record<"label" | "sublabel", string>> => {
+    const committed = { label: player.label, sublabel: player.sublabel };
+    return playerDraft?.playerId === player.id
+      ? { ...committed, [playerDraft.field]: playerDraft.value }
+      : committed;
+  };
+  /** Moves what the Coach is working on without changing the Play itself. */
+  const focusInteraction = (next: Partial<FieldInteractionModel>): void => {
+    const model = { ...interactionRef.current, ...next };
+    interactionRef.current = model;
+    setInteraction(model);
+  };
+  /**
+   * A panel action that also moves what the Coach is working on: giving a man
+   * another line selects it, forking a stem narrows to the fork. The insert is
+   * registered as pending for the same reason a drawn route is — the selection
+   * must survive the instant before the save lands.
+   */
+  const runPanelCommand = (
+    command: PlayCommand | undefined,
+    next: Partial<FieldInteractionModel>,
+  ): void => {
+    if (!command) return;
+    for (const id of insertedEntityIds(command)) {
+      pendingInsertsRef.current.add(id);
+    }
+    focusInteraction(next);
+    void editorStore.applyCommand(command).catch(() => undefined);
+  };
   /**
    * The original offers the draw-a-route dot on the selected or hovered
    * Player, under the select tool, when nothing is being drawn or dragged.
@@ -2399,6 +2733,22 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                 <RouteInspector
                   branchIndex={interaction.selectedBranchIndex}
                   coaching={routeCoaching(selectedPath)}
+                  nodeIndex={interaction.selectedNodeIndex}
+                  onAddChoice={() =>
+                    runPanelCommand(
+                      addRouteChoiceCommand(
+                        editor.document,
+                        selectedPath.id,
+                        interaction.selectedNodeIndex,
+                      ),
+                      {
+                        // The Coach lands on the fork he just made, the way
+                        // the original narrows to it.
+                        selectedBranchIndex: selectedPath.branches.length,
+                        selectedSegmentIndex: undefined,
+                      },
+                    )
+                  }
                   onCoaching={(field, value) =>
                     editRouteCoaching(selectedPath.id, field, value)
                   }
@@ -2408,6 +2758,25 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                   }}
                   onDelete={() => dispatchField({ type: "delete" })}
                   onDeselect={() => dispatchField({ type: "escape" })}
+                  onFlip={() =>
+                    runLabelCommand(
+                      flipRouteCommand(editor.document, selectedPath.id),
+                    )
+                  }
+                  onRemoveChoice={() =>
+                    runPanelCommand(
+                      interaction.selectedBranchIndex === undefined
+                        ? undefined
+                        : removeRouteChoiceCommand(
+                            editor.document,
+                            selectedPath.id,
+                            interaction.selectedBranchIndex,
+                          ),
+                      // What he narrowed to is gone, so the whole line is his
+                      // again.
+                      { selectedBranchIndex: undefined },
+                    )
+                  }
                   onKind={(kind) =>
                     runLabelCommand(
                       setRouteKindCommand(
@@ -2440,6 +2809,79 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                   path={selectedPath}
                   segmentIndex={interaction.selectedSegmentIndex}
                   unit={editor.document.unit}
+                />
+              ) : selectedPlayer ? (
+                <PlayerInspector
+                  lines={playerLines(selectedPlayer)}
+                  onAddAlternate={() => {
+                    const id = createStableId("path");
+                    runPanelCommand(
+                      addAlternateRouteCommand(
+                        editor.document,
+                        selectedPlayer.id,
+                        () => id,
+                      ),
+                      // The new stem is his to shape, so he lands on it.
+                      {
+                        selection: [{ kind: "path", id }],
+                        selectedBranchIndex: undefined,
+                        selectedSegmentIndex: undefined,
+                        selectedNodeIndex: undefined,
+                      },
+                    );
+                  }}
+                  onAppearance={(appearance) =>
+                    runLabelCommand(
+                      setPlayerCommand(
+                        editor.document,
+                        selectedPlayer.id,
+                        appearance,
+                      ),
+                    )
+                  }
+                  onDeselect={() => dispatchField({ type: "escape" })}
+                  onFlip={() =>
+                    runLabelCommand(
+                      flipPlayerLinesCommand(
+                        editor.document,
+                        selectedPlayer.id,
+                      ),
+                    )
+                  }
+                  onRemoveLine={(pathId) =>
+                    runLabelCommand(
+                      deletePathsCommand(editor.document, [pathId]),
+                    )
+                  }
+                  onSelectLine={(pathId) =>
+                    focusInteraction({
+                      selection: [{ kind: "path", id: pathId }],
+                      selectedBranchIndex: undefined,
+                      selectedSegmentIndex: undefined,
+                      selectedNodeIndex: undefined,
+                    })
+                  }
+                  onText={(field, value) => {
+                    setPlayerDraft({
+                      playerId: selectedPlayer.id,
+                      field,
+                      value,
+                    });
+                    runLabelCommand(
+                      setPlayerCommand(editor.document, selectedPlayer.id, {
+                        [field]: value,
+                      }),
+                      // Keystrokes merge into one undo entry until he leaves
+                      // the field, the way a note's text does (ADR 0012).
+                      { coalesce: true },
+                    );
+                  }}
+                  onTextCommitted={() => {
+                    editorStore.endCoalescing();
+                    setPlayerDraft(undefined);
+                  }}
+                  player={selectedPlayer}
+                  text={playerText(selectedPlayer)}
                 />
               ) : selectedLabel ? (
                 <LabelInspector

@@ -1382,3 +1382,70 @@ select:focus-visible {
   letter-spacing: 0.6px;
   color: #0072f5;
 }
+/* The Player panel: the six shapes a man is drawn with, then his lines. */
+.symbol-row {
+  display: flex;
+  gap: 6px;
+}
+.symbol-row button {
+  min-width: 0;
+  flex: 1;
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-size: 15px;
+  cursor: pointer;
+}
+.symbol-row button:hover {
+  background: #f2f2f2;
+}
+.symbol-row button.active {
+  background: #ebebeb;
+}
+.line-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.line-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.line-row > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.line-row button {
+  flex: none;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: #0072f5;
+  font-size: 11px;
+  cursor: pointer;
+}
+.line-row button:hover {
+  color: #005fcc;
+}
+.line-row button.remove {
+  color: #c9c9c9;
+  font-size: 15px;
+  line-height: 1;
+}
+.line-row button.remove:hover {
+  color: #e5484d;
+}

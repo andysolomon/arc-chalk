@@ -10,8 +10,13 @@ import {
   type PlayDocument,
 } from "@chalk/domain";
 import {
+  addAlternateRouteCommand,
+  addRouteChoiceCommand,
   applyLabelRoleCommand,
   buildMoveCommand,
+  flipPlayerLinesCommand,
+  flipRouteCommand,
+  removeRouteChoiceCommand,
   fieldHitOptions,
   fieldInteraction,
   gesturePreviewCommand,
@@ -2406,5 +2411,354 @@ describe("what a route is for", () => {
     )!;
 
     expect(playCommandCoalesceKey(first)).toBe(playCommandCoalesceKey(second));
+  });
+});
+
+describe("the other lines he could run", () => {
+  const pathOf = (document: PlayDocument, id: string) =>
+    document.paths.find((candidate) => candidate.id === id)!;
+  const alternateOf = (document: PlayDocument) =>
+    document.paths.find(({ id }) => id === "alternate")!;
+  const createId = () => "alternate";
+  /** The original's 34 and 36 canvas pixels, on the axis each belongs to. */
+  const acrossYards = 34 / (976 / (160 / 3));
+  const deeperYards = 36 / 12;
+
+  it("shapes a second stem like the last line he has, offset and dotted", () => {
+    const before = pathOf(stickThunderPlay, "rx");
+    const document = applyPlayCommand(
+      stickThunderPlay,
+      addAlternateRouteCommand(stickThunderPlay, "x", createId)!,
+    );
+    const alternate = alternateOf(document);
+
+    expect(alternate.playerId).toBe("x");
+    expect(alternate.style.line).toBe("dotted");
+    expect(alternate.variant).toBe("alternate");
+    // It starts where he does, not where the line it was shaped from did.
+    expect(alternate.points[0]).toEqual(
+      document.players.find(({ id }) => id === "x")!.position,
+    );
+    // X lines up left of the ball, so his second stem clears the first to the
+    // left, and every break runs deeper than the one it came from.
+    expect(alternate.points[1]!.lateralYards).toBeCloseTo(
+      before.points[1]!.lateralYards - acrossYards,
+      6,
+    );
+    expect(alternate.points[1]!.depthYards).toBeCloseTo(
+      before.points[1]!.depthYards + deeperYards,
+      6,
+    );
+    // The tip runs on past where the base one finished.
+    expect(alternate.points.at(-1)!.depthYards).toBeCloseTo(
+      before.points.at(-1)!.depthYards + deeperYards + 60 / 12,
+      6,
+    );
+  });
+
+  it("offsets toward the sideline the man lines up on", () => {
+    // Z lines up right of the ball, so his second stem goes the other way.
+    const before = pathOf(stickThunderPlay, "rz");
+    const document = applyPlayCommand(
+      stickThunderPlay,
+      addAlternateRouteCommand(stickThunderPlay, "z", createId)!,
+    );
+
+    expect(alternateOf(document).points[1]!.lateralYards).toBeCloseTo(
+      Math.min(160 / 3 / 2, before.points[1]!.lateralYards + acrossYards),
+      6,
+    );
+  });
+
+  it("holds a stem that would land outside the paint inside it", () => {
+    const sideline = 160 / 3 / 2;
+    // Z's line taken out to the paint: another 34 pixels would clear it.
+    const wide = applyPlayCommand(stickThunderPlay, {
+      kind: "update-path",
+      path: {
+        ...pathOf(stickThunderPlay, "rz"),
+        points: pathOf(stickThunderPlay, "rz").points.map((point) => ({
+          ...point,
+          lateralYards: sideline - 1,
+        })),
+      },
+    });
+    const document = applyPlayCommand(
+      wide,
+      addAlternateRouteCommand(wide, "z", createId)!,
+    );
+    const offset = alternateOf(document).points.slice(1);
+
+    expect(offset).not.toHaveLength(0);
+    for (const point of offset) {
+      expect(point.lateralYards).toBe(sideline);
+    }
+  });
+
+  it("carries the shape of the base line and nothing else", () => {
+    // A bent, part-dotted base line: another call, not a copy of that one.
+    const base = pathOf(stickThunderPlay, "rx");
+    const decorated = applyPlayCommand(stickThunderPlay, {
+      kind: "update-path",
+      path: {
+        ...base,
+        points: [
+          base.points[0]!,
+          {
+            ...base.points[1]!,
+            control: { lateralYards: -14, depthYards: 0 },
+            segmentStyle: { line: "dotted" },
+          },
+          base.points[2]!,
+        ],
+      },
+    });
+    const document = applyPlayCommand(
+      decorated,
+      addAlternateRouteCommand(decorated, "x", createId)!,
+    );
+    const alternate = alternateOf(document);
+
+    expect(alternate.points).toHaveLength(base.points.length);
+    expect(alternate.points.some(({ control }) => control !== undefined)).toBe(
+      false,
+    );
+    expect(
+      alternate.points.some(({ segmentStyle }) => segmentStyle !== undefined),
+    ).toBe(false);
+  });
+
+  it("gives a man with nothing drawn on him a plain stem straight downfield", () => {
+    // The Quarterback has no line of his own in the seeded Play.
+    const document = applyPlayCommand(
+      stickThunderPlay,
+      addAlternateRouteCommand(stickThunderPlay, "q", createId)!,
+    );
+    const alternate = alternateOf(document);
+    const stance = positionOf(document, "q");
+
+    expect(alternate.style.line).toBe("solid");
+    expect(alternate.variant).toBeUndefined();
+    expect(alternate.points).toEqual([
+      stance,
+      {
+        lateralYards: stance.lateralYards,
+        depthYards: stance.depthYards + 150 / 12,
+      },
+    ]);
+  });
+
+  it("declines for a man who is not on the field", () => {
+    expect(
+      addAlternateRouteCommand(stickThunderPlay, "missing", createId),
+    ).toBeUndefined();
+  });
+});
+
+describe("a choice within one stem", () => {
+  const pathOf = (document: PlayDocument, id: string) =>
+    document.paths.find((candidate) => candidate.id === id)!;
+
+  it("forks the stem at the break the Coach picked", () => {
+    const document = applyPlayCommand(
+      stickThunderPlay,
+      addRouteChoiceCommand(stickThunderPlay, "rx", 1)!,
+    );
+    const branch = pathOf(document, "rx").branches[0]!;
+
+    expect(pathOf(document, "rx").branches).toHaveLength(1);
+    expect(branch.fromIndex).toBe(1);
+    expect(branch.points).toHaveLength(1);
+    expect(branch.style).toEqual({
+      line: "dashed",
+      ending: "arrow",
+      color: "ink",
+    });
+  });
+
+  it("turns the original's angle, measured in the frame it was measured in", () => {
+    const before = pathOf(stickThunderPlay, "rx");
+    const document = applyPlayCommand(
+      stickThunderPlay,
+      addRouteChoiceCommand(stickThunderPlay, "rx", 1)!,
+    );
+    const tip = pathOf(document, "rx").branches[0]!.points[0]!;
+    // Read back on the original's canvas, where the turn is defined: the
+    // field is 1.525 times denser across than deep, so the same angle taken
+    // in yards would point somewhere else entirely.
+    const canvas = (point: { lateralYards: number; depthYards: number }) => ({
+      x: point.lateralYards * (976 / (160 / 3)),
+      y: -point.depthYards * 12,
+    });
+    const anchor = canvas(before.points[1]!);
+    const leg = canvas(before.points[2]!);
+    const forked = canvas(tip);
+    const turn =
+      Math.atan2(forked.y - anchor.y, forked.x - anchor.x) -
+      Math.atan2(leg.y - anchor.y, leg.x - anchor.x);
+
+    expect(Math.atan2(Math.sin(turn), Math.cos(turn))).toBeCloseTo(
+      Math.PI / 2.6,
+      6,
+    );
+  });
+
+  it("continues the line when the fork is off its end", () => {
+    // The original turns off a leg of no length here and points every such
+    // fork the same way; ours turns off the leg that reaches the end.
+    const before = pathOf(stickThunderPlay, "rx");
+    const document = applyPlayCommand(
+      stickThunderPlay,
+      addRouteChoiceCommand(stickThunderPlay, "rx")!,
+    );
+    const branch = pathOf(document, "rx").branches[0]!;
+    const running =
+      before.points[2]!.lateralYards - before.points[1]!.lateralYards;
+    const forked =
+      branch.points[0]!.lateralYards - before.points[2]!.lateralYards;
+
+    expect(branch.fromIndex).toBe(2);
+    // X's route finishes running left; the fork keeps going left rather than
+    // doubling back the way a turn off nothing would.
+    expect(Math.sign(forked)).toBe(Math.sign(running));
+  });
+
+  it("never forks shorter than the original's minimum", () => {
+    // rz has one long leg, so its fork takes the leg's length; a short leg
+    // would take the floor instead.
+    const stubby = applyPlayCommand(stickThunderPlay, {
+      kind: "update-path",
+      path: {
+        ...pathOf(stickThunderPlay, "rz"),
+        points: [
+          { lateralYards: 10, depthYards: 0 },
+          { lateralYards: 10, depthYards: 1 },
+        ],
+        branches: [],
+      },
+    });
+    const document = applyPlayCommand(
+      stubby,
+      addRouteChoiceCommand(stubby, "rz", 0)!,
+    );
+    const tip = pathOf(document, "rz").branches[0]!.points[0]!;
+    const length = Math.hypot(
+      (tip.lateralYards - 10) * (976 / (160 / 3)),
+      tip.depthYards * 12,
+    );
+
+    expect(length).toBeCloseTo(70, 6);
+  });
+
+  it("declines on a line with nowhere to fork", () => {
+    expect(
+      addRouteChoiceCommand(stickThunderPlay, "missing", 0),
+    ).toBeUndefined();
+  });
+
+  it("takes away only the choice the Coach is on", () => {
+    let document = applyPlayCommand(
+      stickThunderPlay,
+      addRouteChoiceCommand(stickThunderPlay, "rx", 1)!,
+    );
+    document = applyPlayCommand(
+      document,
+      addRouteChoiceCommand(document, "rx", 2)!,
+    );
+    // The second of the two, so taking it cannot be confused with taking the
+    // first — which is what dropping the head of the list would do.
+    const first = pathOf(document, "rx").branches[0]!;
+    const after = applyPlayCommand(
+      document,
+      removeRouteChoiceCommand(document, "rx", 1)!,
+    );
+
+    expect(pathOf(after, "rx").branches).toEqual([first]);
+    expect(removeRouteChoiceCommand(after, "rx", 4)).toBeUndefined();
+  });
+});
+
+describe("turning a line the other way", () => {
+  const pathOf = (document: PlayDocument, id: string) =>
+    document.paths.find((candidate) => candidate.id === id)!;
+
+  it("reflects a line about where it starts, bends and all", () => {
+    const base = pathOf(stickThunderPlay, "rx");
+    const bent = applyPlayCommand(stickThunderPlay, {
+      kind: "update-path",
+      path: {
+        ...base,
+        points: [
+          base.points[0]!,
+          { ...base.points[1]!, control: { lateralYards: -14, depthYards: 0 } },
+          base.points[2]!,
+        ],
+      },
+    });
+    const flipped = pathOf(
+      applyPlayCommand(bent, flipRouteCommand(bent, "rx")!),
+      "rx",
+    );
+    const axis = base.points[0]!.lateralYards;
+
+    expect(flipped.points[0]!.lateralYards).toBeCloseTo(axis, 6);
+    expect(flipped.points[2]!.lateralYards).toBeCloseTo(
+      2 * axis - base.points[2]!.lateralYards,
+      6,
+    );
+    expect(flipped.points[1]!.control!.lateralYards).toBeCloseTo(
+      2 * axis - -14,
+      6,
+    );
+    // Depth is untouched: he turns, he does not run backwards.
+    expect(flipped.points[2]!.depthYards).toBe(base.points[2]!.depthYards);
+  });
+
+  it("turns twice back to where it started", () => {
+    const once = applyPlayCommand(
+      stickThunderPlay,
+      flipRouteCommand(stickThunderPlay, "rx")!,
+    );
+    const twice = applyPlayCommand(once, flipRouteCommand(once, "rx")!);
+
+    expect(canonicalStringify(pathOf(twice, "rx"))).toBe(
+      canonicalStringify(pathOf(stickThunderPlay, "rx")),
+    );
+  });
+
+  it("turns every line a man has about his own stance, in one entry", () => {
+    // The seeded lines all begin exactly where their man stands, which would
+    // let the axis be read off either. Z's is moved off his stance first so
+    // the two can be told apart, and a choice added so both are carried.
+    const shifted = applyPlayCommand(stickThunderPlay, {
+      kind: "update-path",
+      path: {
+        ...pathOf(stickThunderPlay, "rz"),
+        points: [
+          { lateralYards: 18, depthYards: -1.8333333333333333 },
+          ...pathOf(stickThunderPlay, "rz").points.slice(1),
+        ],
+      },
+    });
+    const document = applyPlayCommand(
+      shifted,
+      addRouteChoiceCommand(shifted, "rz", 1)!,
+    );
+    const command = flipPlayerLinesCommand(document, "z")!;
+    const stance = positionOf(document, "z").lateralYards;
+    const before = pathOf(document, "rz");
+    const flipped = pathOf(applyPlayCommand(document, command), "rz");
+
+    expect(command.kind).toBe("batch");
+    expect(flipped.points[0]!.lateralYards).toBeCloseTo(2 * stance - 18, 6);
+    expect(flipped.branches[0]!.points[0]!.lateralYards).toBeCloseTo(
+      2 * stance - before.branches[0]!.points[0]!.lateralYards,
+      6,
+    );
+  });
+
+  it("declines for a man with nothing to turn", () => {
+    expect(flipPlayerLinesCommand(stickThunderPlay, "q")).toBeUndefined();
+    expect(flipRouteCommand(stickThunderPlay, "missing")).toBeUndefined();
   });
 });

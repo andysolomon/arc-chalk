@@ -619,3 +619,91 @@ test("takes the wording off a route when the Coach empties it", async ({
     "Undo Delete Assignment",
   );
 });
+
+test("gives a man a second line off his stance and keeps the first", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  const x = await playerCenter(page, "x");
+  await page.mouse.click(x.x, x.y);
+  await expect(
+    page.locator(".label-heading").getByText("Player", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".line-row")).toHaveCount(1);
+  await expect(page.locator(".line-row span").first()).toHaveText(
+    "Base stem · solid",
+  );
+
+  await page.getByRole("button", { name: "+ Alternate route" }).click();
+
+  // He now has two, the new one dotted and named as the alternate it is, and
+  // the panel has followed the Coach onto it. The seeded Play draws six lines
+  // already — five stems and the choice off Z's.
+  await expect(page.locator("[data-scene-path]")).toHaveCount(7);
+  await expect(
+    page.locator(".label-heading").getByText("Route", { exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  // Measured again: closing the panel reflows the field, so the point he was
+  // standing on a moment ago is somewhere else now.
+  const xAgain = await playerCenter(page, "x");
+  await page.mouse.click(xAgain.x, xAgain.y);
+  await expect(page.locator(".line-row")).toHaveCount(2);
+  await expect(page.locator(".line-row span").nth(1)).toHaveText(
+    "Alternate 1 · dotted",
+  );
+
+  // One press, one undo entry.
+  await expect(page.getByRole("button", { name: "Undo" })).toHaveAttribute(
+    "title",
+    "Undo Add alternate route",
+  );
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+});
+
+test("forks a stem into a choice and takes it away again", async ({ page }) => {
+  await openEditor(page);
+
+  const onSegment = await fieldPoint(page, 280, 367);
+  await page.mouse.click(onSegment.x, onSegment.y);
+  await expect(
+    page.locator(".label-heading").getByText("Route", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "+ Choice at" }).click();
+
+  // The fork is drawn on the field, and the Coach is narrowed onto it — which
+  // is what puts the way back within reach.
+  await expect(page.locator('[data-scene-path="rx-branch-0"]')).toHaveCount(1);
+  const remove = page.getByRole("button", { name: "Remove this choice" });
+  await expect(remove).toBeVisible();
+
+  await remove.click();
+  await expect(page.locator('[data-scene-path="rx-branch-0"]')).toHaveCount(0);
+  await expect(remove).toBeHidden();
+});
+
+test("turns every line a man has the other way, in one step", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  const tipOf = async () => {
+    const d = await page.locator('[data-scene-path="rx"]').getAttribute("d");
+    return Number(d!.split(" ").at(-2));
+  };
+  const before = await tipOf();
+
+  const x = await playerCenter(page, "x");
+  await page.mouse.click(x.x, x.y);
+  await page.getByRole("button", { name: "Flip his routes" }).click();
+
+  // X breaks in to the middle of the field; flipped, the same route breaks out.
+  const flipped = await tipOf();
+  expect(flipped).toBeGreaterThan(before);
+
+  await page.getByRole("button", { name: "Undo" }).click();
+  expect(await tipOf()).toBeCloseTo(before, 3);
+});

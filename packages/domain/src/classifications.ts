@@ -1,3 +1,4 @@
+import { LEGACY_FIELD_GEOMETRY, legacyCanvasToYards } from "./geometry";
 import {
   playTypeDefinitionSchema,
   type Color,
@@ -6,6 +7,7 @@ import {
   type LegacyPlayType,
   type MovementPath,
   type PathStyle,
+  type Player,
   type PlayTypeDefinition,
   type PlayTypeReference,
 } from "./schema";
@@ -129,6 +131,36 @@ export function routeKindStyle(
  */
 export const defensiveLineKinds: ReadonlySet<MovementPath["kind"]> =
   Object.freeze(new Set<MovementPath["kind"]>(["zone", "blitz", "stunt"]));
+
+/**
+ * Where the original puts the offensive line, and how far off it a man can
+ * stand and still be one of them.
+ */
+const LINEMAN_DEPTH_YARDS = legacyCanvasToYards({
+  x: LEGACY_FIELD_GEOMETRY.midfieldX,
+  y: 448,
+}).depthYards;
+const LINEMAN_DEPTH_TOLERANCE_YARDS = legacyCanvasToYards({
+  x: LEGACY_FIELD_GEOMETRY.midfieldX,
+  y: LEGACY_FIELD_GEOMETRY.lineOfScrimmageY - 14,
+}).depthYards;
+
+/**
+ * Who is on the line. The original reads this off where a man stands rather
+ * than off a role he was given — an offensive player with no letter on him,
+ * level with the ball, is a lineman — and production keeps the same rule
+ * because the same Plays feed it: a formation carries positions, not roles.
+ * What it decides is what the Coach is offered, since a lineman blocks and
+ * has no route to run.
+ */
+export function isLineman(player: Player): boolean {
+  return (
+    player.unit !== "defense" &&
+    player.label.trim() === "" &&
+    Math.abs(player.position.depthYards - LINEMAN_DEPTH_YARDS) <
+      LINEMAN_DEPTH_TOLERANCE_YARDS
+  );
+}
 
 /** The kinds the original offers, by the unit whose Play is open. */
 export const offensiveRouteKinds = Object.freeze([

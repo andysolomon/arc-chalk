@@ -5,11 +5,17 @@ import {
   deletePathsCommand,
   deletePlayersCommand,
   labelRolePresets,
+  legacyCanvasToYards,
+  legacyDepthSpanToYards,
+  legacyLateralSpanToYards,
   routeKindStyle,
+  yardsToLegacyCanvas,
   type Coordinate,
   type LabelRole,
   type MovementPath,
+  type PathBranch,
   type PathPoint,
+  type Player,
   type PlayCommand,
   type PlayDocument,
   type PrimitivePlayCommand,
@@ -298,6 +304,28 @@ export function setLabelTextCommand(
   const label = document.labels.find(({ id }) => id === labelId);
   if (!label || label.text === text) return undefined;
   return { kind: "update-label", label: { ...label, text } };
+}
+
+export type PlayerAppearance = Partial<
+  Pick<Player, "symbol" | "fill" | "color" | "label" | "sublabel">
+>;
+
+/**
+ * How a man is drawn and what is written on him. One builder covers the
+ * appearance and the two pieces of text because they are one update; only the
+ * text is dispatched coalescing, so a click on a symbol is its own undo entry
+ * while a typed letter joins the keystrokes around it (ADR 0012).
+ */
+export function setPlayerCommand(
+  document: PlayDocument,
+  playerId: string,
+  appearance: PlayerAppearance,
+): PlayCommand | undefined {
+  const player = document.players.find(({ id }) => id === playerId);
+  if (!player) return undefined;
+  const next = { ...player, ...appearance };
+  if (canonicalStringify(next) === canonicalStringify(player)) return undefined;
+  return { kind: "update-player", player: next };
 }
 
 export type LabelAppearance = Partial<
@@ -650,4 +678,292 @@ export function setRouteAssignmentCommand(
     kind: "update-assignment",
     assignment: { ...existing, text: trimmed },
   };
+}
+
+// ---------------------------------------------------------------------------
+// The other lines he could run
+// ---------------------------------------------------------------------------
+
+/**
+ * The original's offsets for a new stem, each read on the axis it belongs to:
+ * 34 canvas pixels across the field, 36 and 60 of depth, and 150 of depth for
+ * the plain stem a man with nothing drawn on him gets.
+ */
+const ALTERNATE_OFFSET = Object.freeze({
+  lateralYards: legacyLateralSpanToYards(34),
+  depthYards: legacyDepthSpanToYards(36),
+  tipYards: legacyDepthSpanToYards(60),
+  plainStemYards: legacyDepthSpanToYards(150),
+});
+
+/**
+ * Held inside the paint. The original also pinned a stem below the top of its
+ * fixed canvas; production's frame follows the camera rather than a pixel
+ * row, so depth is left to the drawn frame the way a dragged break is.
+ */
+function insideSidelines(
+  document: PlayDocument,
+  point: Coordinate,
+): Coordinate {
+  const half = document.fieldProfile.widthYards / 2;
+  // Rounded before held, so a rounded value cannot cross back over the
+  // sideline it was just kept inside.
+  const rounded = coordinate(point.lateralYards, point.depthYards);
+  return {
+    lateralYards: Math.max(-half, Math.min(half, rounded.lateralYards)),
+    depthYards: rounded.depthYards,
+  };
+}
+
+/**
+ * A second full line off the same stance: a different call the man could be
+ * asked to run, drawn dotted so the base stem still reads first. It is shaped
+ * like the last line he has, shifted away from the middle of the field and
+ * pushed downfield — and it carries only that shape. The bends, the
+ * per-segment styles and the endings of the line it came from are left
+ * behind, because this is another call rather than a copy of that one.
+ */
+export function addAlternateRouteCommand(
+  document: PlayDocument,
+  playerId: string,
+  createId: () => string,
+): PlayCommand | undefined {
+  const player = document.players.find(({ id }) => id === playerId);
+  if (!player) return undefined;
+  // Exactly where he stands, not a rounding of it: the stem starts on the man.
+  const stance = player.position;
+  // Every line he already has, not just his routes: any of them means the new
+  // one is an alternate to something, which is what makes it dotted.
+  const base = document.paths
+    .filter(({ playerId: on }) => on === playerId)
+    .at(-1);
+  // Away from the middle of the field, so the new stem clears the old one on
+  // the side he has room.
+  const side = player.position.lateralYards < 0 ? -1 : 1;
+
+  const points: PathPoint[] = base
+    ? base.points.map((point, index) =>
+        index === 0
+          ? stance
+          : insideSidelines(document, {
+              lateralYards:
+                point.lateralYards + side * ALTERNATE_OFFSET.lateralYards,
+              depthYards: point.depthYards + ALTERNATE_OFFSET.depthYards,
+            }),
+      )
+    : [
+        stance,
+        coordinate(
+          stance.lateralYards,
+          stance.depthYards + ALTERNATE_OFFSET.plainStemYards,
+        ),
+      ];
+  if (base) {
+    // The tip runs on past where the base one finished. Held again rather
+    // than merely rounded: rounding a value that was just kept inside the
+    // sideline can put it back over.
+    const tip = points.at(-1)!;
+    points[points.length - 1] = insideSidelines(document, {
+      lateralYards: tip.lateralYards,
+      depthYards: tip.depthYards + ALTERNATE_OFFSET.tipYards,
+    });
+  }
+
+  const style = routeKindStyle("route", {
+    line: "solid",
+    ending: "arrow",
+    color: "ink",
+  });
+  return {
+    kind: "batch",
+    label: "Add alternate route",
+    commands: [
+      {
+        kind: "insert-paths",
+        paths: [
+          {
+            index: document.paths.length,
+            item: {
+              id: createId(),
+              kind: "route",
+              playerId,
+              points,
+              branches: [],
+              style: { ...style, ...(base ? { line: "dotted" as const } : {}) },
+              ...(base ? { variant: "alternate" as const } : {}),
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * The original's fork: a little over a quarter turn off the leg the break
+ * runs along, and never shorter than 70 canvas pixels.
+ */
+const CHOICE_TURN_RADIANS = Math.PI / 2.6;
+const CHOICE_MIN_LENGTH_PX = 70;
+
+/**
+ * A choice forks the same stem at the break the Coach picked: one release,
+ * then he reads. Where it points is worked out in the original's own canvas,
+ * because that is the frame the turn was measured in — an angle taken in
+ * yards would come out somewhere else entirely, the field being 1.525 times
+ * denser across than it is deep.
+ *
+ * One divergence, made deliberately: forking at the end of a line, the
+ * original turns off a leg of no length and so sends every such fork the same
+ * way whatever the route was doing. Here the leg that reaches the break
+ * stands in for the one that would leave it, so a fork off the end continues
+ * the line it grew from.
+ */
+export function addRouteChoiceCommand(
+  document: PlayDocument,
+  pathId: string,
+  fromIndex?: number,
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path || path.points.length < 2) return undefined;
+  const last = path.points.length - 1;
+  const from = Math.max(0, Math.min(last, fromIndex ?? last));
+  const anchor = yardsToLegacyCanvas(path.points[from]!);
+  const leg = yardsToLegacyCanvas(
+    path.points[from + 1] ?? path.points[from - 1]!,
+  );
+  // Reaching the break rather than leaving it, the leg runs the other way.
+  const reversed = from === last;
+  const dx = (leg.x - anchor.x) * (reversed ? -1 : 1);
+  const dy = (leg.y - anchor.y) * (reversed ? -1 : 1);
+  const angle = Math.atan2(dy, dx) + CHOICE_TURN_RADIANS;
+  const length = Math.max(CHOICE_MIN_LENGTH_PX, Math.hypot(dx, dy));
+
+  const branch: PathBranch = {
+    fromIndex: from,
+    points: [
+      insideSidelines(
+        document,
+        legacyCanvasToYards({
+          x: anchor.x + Math.cos(angle) * length,
+          y: anchor.y + Math.sin(angle) * length,
+        }),
+      ),
+    ],
+    style: { line: "dashed", ending: "arrow", color: "ink" },
+  };
+  return {
+    kind: "batch",
+    label: "Add choice",
+    commands: [
+      {
+        kind: "update-path",
+        path: { ...path, branches: [...path.branches, branch] },
+      },
+    ],
+  };
+}
+
+export function removeRouteChoiceCommand(
+  document: PlayDocument,
+  pathId: string,
+  branchIndex: number,
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path || !path.branches[branchIndex]) return undefined;
+  return {
+    kind: "batch",
+    label: "Remove choice",
+    commands: [
+      {
+        kind: "update-path",
+        path: {
+          ...path,
+          branches: path.branches.filter((_, index) => index !== branchIndex),
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * Reflects a point, and whatever bend it carries, about a line running
+ * downfield. Nothing is rounded on the way through, the way the domain's own
+ * mirror leaves the arithmetic exact: turning a line twice has to give back
+ * the line, not a rounding of it.
+ */
+function reflectPoint(point: PathPoint, axisLateralYards: number): PathPoint {
+  const across = (value: number) => 2 * axisLateralYards - value;
+  return {
+    ...point,
+    lateralYards: across(point.lateralYards),
+    ...(point.control === undefined
+      ? {}
+      : {
+          control: {
+            lateralYards: across(point.control.lateralYards),
+            depthYards: point.control.depthYards,
+          },
+        }),
+  };
+}
+
+function reflectPath(
+  path: MovementPath,
+  axisLateralYards: number,
+): MovementPath {
+  return {
+    ...path,
+    points: path.points.map((point) => reflectPoint(point, axisLateralYards)),
+    branches: path.branches.map((branch) => ({
+      ...branch,
+      points: branch.points.map((point) =>
+        reflectPoint(point, axisLateralYards),
+      ),
+    })),
+  };
+}
+
+/**
+ * Turns one line the other way without redrawing it. The axis is where the
+ * line starts rather than where the man stands, which is the original's own
+ * choice and the one that leaves an unattached-looking line hinged on itself.
+ */
+export function flipRouteCommand(
+  document: PlayDocument,
+  pathId: string,
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path || path.points.length === 0) return undefined;
+  const next = reflectPath(path, path.points[0]!.lateralYards);
+  if (canonicalStringify(next) === canonicalStringify(path)) return undefined;
+  return {
+    kind: "batch",
+    label: "Flip route",
+    commands: [{ kind: "update-path", path: next }],
+  };
+}
+
+/** Turns every line a man has about his own stance, in one entry. */
+export function flipPlayerLinesCommand(
+  document: PlayDocument,
+  playerId: string,
+): PlayCommand | undefined {
+  const player = document.players.find(({ id }) => id === playerId);
+  if (!player) return undefined;
+  const commands = document.paths
+    .filter(({ playerId: on }) => on === playerId)
+    .map((path) => ({
+      path,
+      next: reflectPath(path, player.position.lateralYards),
+    }))
+    .filter(
+      ({ next, path }) => canonicalStringify(next) !== canonicalStringify(path),
+    )
+    .map(({ next }): PrimitivePlayCommand => ({
+      kind: "update-path",
+      path: next,
+    }));
+  if (commands.length === 0) return undefined;
+  return { kind: "batch", label: "Flip his lines", commands };
 }
