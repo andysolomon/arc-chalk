@@ -153,7 +153,9 @@ const LINEMAN_DEPTH_TOLERANCE_YARDS = legacyCanvasToYards({
  * What it decides is what the Coach is offered, since a lineman blocks and
  * has no route to run.
  */
-export function isLineman(player: Player): boolean {
+export function isLineman(
+  player: Pick<Player, "unit" | "label" | "position">,
+): boolean {
   return (
     player.unit !== "defense" &&
     player.label.trim() === "" &&

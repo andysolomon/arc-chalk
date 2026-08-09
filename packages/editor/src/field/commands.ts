@@ -1,4 +1,5 @@
 import {
+  applyFormation,
   applyPlayCommand,
   assignmentForPath,
   canonicalStringify,
@@ -12,6 +13,7 @@ import {
   routeKindStyle,
   yardsToLegacyCanvas,
   type Coordinate,
+  type Formation,
   type LabelRole,
   type MovementPath,
   type PathBranch,
@@ -20,6 +22,7 @@ import {
   type PlayCommand,
   type PlayDocument,
   type PrimitivePlayCommand,
+  type RealignmentResult,
   type TextLabel,
 } from "@chalk/domain";
 
@@ -1037,4 +1040,31 @@ export function reorderSelectionCommand(
     { ...document, paths, labels },
     direction > 0 ? "Bring forward" : "Send backward",
   );
+}
+
+// ---------------------------------------------------------------------------
+// Formations
+// ---------------------------------------------------------------------------
+
+/**
+ * Putting the men in a set. The domain works out who goes where and carries
+ * what belongs to each man; expressing the result as an ordinary difference
+ * makes it one hash-guarded transaction and one undo entry, whatever it
+ * touched — men moved, routes carried, notes taken along, men added.
+ */
+export function applyFormationCommand(
+  document: PlayDocument,
+  formation: Formation,
+  createId: (prefix: string) => string,
+): { readonly command?: PlayCommand; readonly result: RealignmentResult } {
+  const result = applyFormation(document, formation, createId);
+  const command = diffPlayDocuments(
+    document,
+    result.play,
+    `Applied ${formation.name}`,
+  );
+  return {
+    result,
+    ...(command.commands.length > 0 ? { command } : {}),
+  };
 }

@@ -37,6 +37,23 @@ async function playerCenter(
   return fieldPoint(page, Number(match[1]), Number(match[2]));
 }
 
+/**
+ * Where a man stands on the field, in the frame the field is drawn in. Client
+ * pixels move when a panel grows and the field reflows around it; these do
+ * not, so they are what to compare a Play against itself with.
+ */
+async function playerAt(
+  page: Page,
+  id: string,
+): Promise<{ x: number; y: number }> {
+  const transform = await page
+    .locator(`[data-scene-player="${id}"]`)
+    .getAttribute("transform");
+  const match = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(transform ?? "");
+  if (!match) throw new Error(`Player ${id} has no position.`);
+  return { x: Number(match[1]), y: Number(match[2]) };
+}
+
 async function drag(
   page: Page,
   from: { x: number; y: number },
@@ -856,4 +873,113 @@ test("opens the same menu on a press held still", async ({ page }) => {
   });
   await page.waitForTimeout(700);
   await expect(menu).toBeHidden();
+});
+
+test("puts the men in another set, carries their routes, and takes it all back at once", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const before = await playerAt(page, "z");
+  const routes = await page.locator("[data-scene-path]").count();
+
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  const browser = page.getByRole("dialog", { name: "Formations" });
+  await expect(browser).toBeVisible();
+
+  // Narrowing is how a Coach finds a set. Typing is the other way, and the
+  // two trips sets are the only ones that answer to it.
+  await browser.getByRole("textbox").fill("trips");
+  await expect(browser.getByText("Gun Trips Right")).toBeVisible();
+  await expect(browser.getByText("Gun Doubles Right")).toBeHidden();
+
+  await browser.getByText("Gun Trips Right", { exact: true }).click();
+  await expect(browser).toBeHidden();
+
+  // Trips wants exactly the positions this Play already has, so nobody is
+  // added and nobody is left over — the men move and their routes go along.
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
+  const after = await playerAt(page, "z");
+  expect(Math.abs(after.x - before.x)).toBeGreaterThan(1);
+
+  // Said where he is already looking, with one undo within reach.
+  const toast = page.getByRole("status");
+  await expect(toast).toContainText("Gun Trips Right");
+  await expect(toast).toContainText("carried");
+
+  await toast.getByRole("button", { name: "Undo" }).click();
+  // Polled rather than read once: the undo is a transaction like any other,
+  // so it lands a moment after the press that asked for it.
+  await expect
+    .poll(async () => Math.abs((await playerAt(page, "z")).x - before.x))
+    .toBeLessThan(0.5);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
+});
+
+test("brings on the man a set needs, and leaves the one it has no place for", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  // Gun Spread plays two slots where this Play has a slot and a tight end, so
+  // one man is brought on for the empty slot and the tight end stays where he
+  // is rather than being made into something he is not.
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  const browser = page.getByRole("dialog", { name: "Formations" });
+  await browser.getByRole("button", { name: "10", exact: true }).click();
+  await expect(browser.getByText("Gun Trips Right")).toBeHidden();
+  await browser.getByText("Gun Spread Right", { exact: true }).click();
+
+  await expect(page.locator("[data-scene-player]")).toHaveCount(12);
+  const toast = page.getByRole("status");
+  await expect(toast).toContainText("1 added");
+  await expect(toast).toContainText("1 left in place");
+
+  // A man brought on is the one thing the Coach did not draw himself, so the
+  // set hands him over ready to adjust rather than leaving him to be found.
+  await expect(
+    page.locator(".label-heading").getByText("Player", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Letter" })).toHaveValue("A");
+
+  // All of it — the move, the man brought on — is one step back.
+  await page.keyboard.press("Control+z");
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+});
+
+test("names the set on the field, and shows where another one would put the men", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const picker = page.getByTitle("Browse formations — ⇧⌘F");
+
+  // The seeded Play was drawn out of its set — the X is in tight, the back is
+  // split out — so it is nobody's stock alignment, and the panel says so
+  // rather than naming the nearest thing.
+  await expect(picker).toContainText("Custom alignment");
+
+  await page.keyboard.press("Control+Shift+f");
+  const browser = page.getByRole("dialog", { name: "Formations" });
+  await expect(browser).toBeVisible();
+  await expect(page.locator("[data-formation-ghost]")).toHaveCount(0);
+
+  // Reading the picture is the point of the card, and the ghost is that
+  // reading laid over what is already there.
+  await browser.getByText("Empty Right").hover();
+  const ghost = page.locator('[data-formation-ghost="formation_empty_right"]');
+  await expect(ghost).toBeVisible();
+  await expect(ghost.locator("circle")).toHaveCount(11);
+
+  // Taking one names it: the panel reads the set off the men, and the browser
+  // marks the card the Coach is standing in.
+  await browser.getByText("Empty Right").click();
+  await expect(picker).toContainText("Empty Right");
+  await expect(page.locator("[data-formation-ghost]")).toHaveCount(0);
+
+  await page.keyboard.press("Control+Shift+f");
+  await expect(
+    page.getByRole("dialog", { name: "Formations" }).locator(".on-field"),
+  ).toContainText("Empty Right");
+  await page.keyboard.press("Escape");
+  await expect(browser).toBeHidden();
 });

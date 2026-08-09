@@ -1,3 +1,5 @@
+import { stockFormations } from "@chalk/domain";
+
 /**
  * The original prototype's five chrome overlays: the More menu, the Export
  * menu, the Save/version menu, the command palette, and the shortcut
@@ -57,6 +59,9 @@ export type ActionId =
   | "reverseRoute"
   | "addDepthLabel"
   | "shortcuts"
+  /** The browsers, and every set or call they list, reachable by name. */
+  | "formations"
+  | `formation:${string}`
   | "exportPng"
   | "exportSvg"
   | "printField"
@@ -259,9 +264,9 @@ export const saveItems: readonly MenuEntry[] = [
 ];
 
 /**
- * The original's palette also lists every Formation, Defense and saved Play.
- * Those catalogues do not exist in production yet, so the static commands are
- * carried here and the catalogue entries arrive with the browsers.
+ * The original's palette lists every Formation, Defense and saved Play beside
+ * its static commands. The catalogues arrive with the browsers that own them,
+ * so the entries below are appended from the domain rather than written out.
  */
 export const paletteCommands: readonly MenuEntry[] = [
   { id: "toolSelect", label: "Select tool", shortcut: "V" },
@@ -309,6 +314,11 @@ export const paletteCommands: readonly MenuEntry[] = [
   { id: "reverseRoute", label: "Reverse route" },
   { id: "addDepthLabel", label: "Add depth label to segment" },
   { id: "newPlay", label: "New play" },
+  { id: "formations", label: "Formations", shortcut: "⇧⌘F" },
+  ...stockFormations.map((formation): MenuEntry => ({
+    id: `formation:${formation.id}`,
+    label: `Formation: ${formation.name}`,
+  })),
   { id: "shortcuts", label: "Keyboard shortcuts", shortcut: "?" },
   ...exportGroups.flatMap((group) =>
     group.items

@@ -1,3 +1,9 @@
+import {
+  formationFamilies,
+  formationMeta,
+  yardsToLegacyCanvas,
+  type Formation,
+} from "@chalk/domain";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -651,6 +657,281 @@ export function ContextMenu({
             onDismiss={onDismiss}
           />
         ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A card carries the shape of a set, not only its name — a Coach reads the
+ * picture first. Each one is scaled into its own thumbnail on its own bounds,
+ * in the frame the original measured them in, so the arithmetic here is its
+ * own rather than a second reading of it.
+ */
+function formationThumbnail(formation: Formation): {
+  readonly dots: readonly {
+    readonly x: number;
+    readonly y: number;
+    readonly filled: boolean;
+  }[];
+  readonly lineOfScrimmage: number;
+} {
+  const drawn = formation.slots.map((slot) => ({
+    ...yardsToLegacyCanvas(slot.position),
+    filled: slot.symbol === "square" || slot.symbol === "triangle",
+  }));
+  const xs = drawn.map(({ x }) => x);
+  const ys = drawn.map(({ y }) => y);
+  const middle = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const spanX = Math.max(360, Math.max(...xs) - Math.min(...xs) + 80);
+  const scaleX = 132 / spanX;
+  const top = Math.min(...ys) - 16;
+  const spanY = Math.max(150, Math.max(...ys) - top + 16);
+  const scaleY = Math.min(scaleX, 66 / spanY);
+
+  // The line is wherever most of them are standing, which is the five up
+  // front in every set worth drawing.
+  const crowd = new Map<number, number>();
+  for (const y of ys) crowd.set(y, (crowd.get(y) ?? 0) + 1);
+  const busiest = [...crowd.entries()].sort(
+    (left, right) => right[1] - left[1] || left[0] - right[0],
+  )[0]![0];
+
+  return {
+    dots: drawn.map(({ x, y, filled }) => ({
+      x: 70 + (x - middle) * scaleX,
+      y: 6 + (y - top) * scaleY,
+      filled,
+    })),
+    lineOfScrimmage: 6 + (busiest - top) * scaleY,
+  };
+}
+
+function Chips({
+  choices,
+  onPick,
+  value,
+}: {
+  choices: readonly {
+    readonly value: string;
+    readonly name: string;
+    readonly title: string;
+  }[];
+  onPick: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <div className="chip-row">
+      {choices.map((choice) => (
+        <button
+          aria-pressed={choice.value === value}
+          className={`chip${choice.value === value ? " active" : ""}`}
+          key={choice.value}
+          onClick={() => onPick(choice.value)}
+          title={choice.title}
+          type="button"
+        >
+          {choice.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The book of sets. Only one can be on the field, so picking one is a
+ * decision rather than a list selection: the original applies it and gets out
+ * of the way, and so does this.
+ */
+export function FormationBrowser({
+  currentFormationId,
+  formations,
+  onClose,
+  onPick,
+  onPreview,
+}: {
+  currentFormationId?: string;
+  formations: readonly Formation[];
+  onClose: () => void;
+  onPick: (formationId: string) => void;
+  onPreview: (formationId?: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [personnel, setPersonnel] = useState("all");
+  const [family, setFamily] = useState("all");
+
+  const described = formations.map((formation) => {
+    const meta = formationMeta(formation.slots, {
+      personnelLabel: formation.personnelLabel,
+      strength: formation.strength,
+    });
+    return { formation, ...meta };
+  });
+
+  const search = query.trim().toLowerCase();
+  const hits = described.filter(
+    (card) =>
+      (personnel === "all" || card.personnelLabel === personnel) &&
+      (family === "all" || card.formation.family === family) &&
+      (!search ||
+        `${card.formation.name} ${card.personnelLabel} ${card.strength} ${card.formation.description}`
+          .toLowerCase()
+          .includes(search)),
+  );
+
+  const personnelLabels = [
+    ...new Set(described.map((card) => card.personnelLabel)),
+  ].sort();
+  const count = (matches: (card: (typeof described)[number]) => boolean) =>
+    described.filter(matches).length;
+
+  const groups = formationFamilies
+    .map((group) => ({
+      ...group,
+      cards: hits.filter((card) => card.formation.family === group.key),
+    }))
+    .filter((group) => group.cards.length > 0);
+
+  return (
+    <div
+      className="overlay browser-overlay"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        aria-label="Formations"
+        className="browser"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="browser-head">
+          <div className="browser-title">Formations</div>
+          <input
+            aria-label="Search formations"
+            autoFocus
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search — gun, trips, empty, 12…"
+            spellCheck={false}
+            value={query}
+          />
+          <button
+            className="browser-close"
+            onClick={onClose}
+            title="Close — esc"
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+        <div className="browser-filter">
+          <span>Personnel</span>
+          <Chips
+            choices={[
+              {
+                value: "all",
+                name: "All",
+                title: "Every formation",
+              },
+              ...personnelLabels.map((label) => {
+                const total = count((card) => card.personnelLabel === label);
+                return {
+                  value: label,
+                  name: label,
+                  title: `${label} personnel — ${total} formation${total === 1 ? "" : "s"}`,
+                };
+              }),
+            ]}
+            onPick={setPersonnel}
+            value={personnel}
+          />
+        </div>
+        <div className="browser-filter">
+          <span>Set</span>
+          <Chips
+            choices={[
+              {
+                value: "all",
+                name: "All",
+                title: `Every set — ${described.length}`,
+              },
+              ...formationFamilies
+                .filter((group) =>
+                  described.some((card) => card.formation.family === group.key),
+                )
+                .map((group) => ({
+                  value: group.key,
+                  name: group.shortName,
+                  title: `${group.name} — ${count((card) => card.formation.family === group.key)}`,
+                })),
+            ]}
+            onPick={setFamily}
+            value={family}
+          />
+        </div>
+        <div className="browser-body">
+          {groups.map((group) => (
+            <div key={group.key}>
+              <div className="browser-group-head">
+                <span>{group.name}</span>
+                <span className="browser-count">{group.cards.length}</span>
+              </div>
+              <div className="browser-grid">
+                {group.cards.map((card) => {
+                  const shape = formationThumbnail(card.formation);
+                  const onField = card.formation.id === currentFormationId;
+                  return (
+                    <button
+                      className={`browser-card${onField ? " on-field" : ""}`}
+                      key={card.formation.id}
+                      onBlur={() => onPreview(undefined)}
+                      onClick={() => onPick(card.formation.id)}
+                      onFocus={() => onPreview(card.formation.id)}
+                      onPointerEnter={() => onPreview(card.formation.id)}
+                      onPointerLeave={() => onPreview(undefined)}
+                      type="button"
+                    >
+                      <div className="browser-shape">
+                        <svg role="presentation" viewBox="0 0 140 74">
+                          <line
+                            stroke="#E5E5E5"
+                            strokeWidth={1}
+                            x1={4}
+                            x2={136}
+                            y1={shape.lineOfScrimmage}
+                            y2={shape.lineOfScrimmage}
+                          />
+                          {shape.dots.map((dot, index) => (
+                            <circle
+                              cx={dot.x}
+                              cy={dot.y}
+                              fill={dot.filled ? "#171717" : "#FFFFFF"}
+                              key={index}
+                              r={3.4}
+                              stroke="#171717"
+                              strokeWidth={1}
+                            />
+                          ))}
+                        </svg>
+                      </div>
+                      <span className="browser-name">
+                        {card.formation.name}
+                      </span>
+                      <span className="browser-chip">
+                        {card.personnelLabel} · {card.strength.toUpperCase()}
+                        {onField ? <em>ON FIELD</em> : null}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {groups.length === 0 ? (
+            <p className="browser-empty">
+              No set matches that. Try a personnel group, or clear the search.
+            </p>
+          ) : null}
+        </div>
       </div>
     </div>
   );

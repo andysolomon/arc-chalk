@@ -2,6 +2,7 @@ import {
   applyPlayCommand,
   assignmentForPath,
   createStableId,
+  currentFormation,
   deletePathsCommand,
   DEFAULT_ZONE_COVERAGE_RADII,
   defensiveLineKinds,
@@ -14,7 +15,9 @@ import {
   playErasures,
   PRODUCT_NAME,
   stickThunderPlay,
+  stockFormations,
   type LabelRole,
+  type Formation,
   type MovementPath,
   type Player,
   type PlayCommand,
@@ -24,6 +27,7 @@ import {
 import {
   addAlternateRouteCommand,
   addRouteChoiceCommand,
+  applyFormationCommand,
   applyLabelRoleCommand,
   fieldHitOptions,
   fieldInteraction,
@@ -87,6 +91,7 @@ import {
   CommandPalette,
   ContextMenu,
   ExportMenu,
+  FormationBrowser,
   MoreMenu,
   SaveMenu,
   ShortcutReference,
@@ -94,7 +99,7 @@ import {
 
 type View = "Editor" | "Demo" | "Present" | "Print";
 type Menu = "more" | "export" | "save" | "clear" | null;
-type Overlay = "palette" | "shortcuts" | null;
+type Overlay = "palette" | "shortcuts" | "formations" | null;
 type Tool =
   "select" | "player" | "route" | "motion" | "block" | "zone" | "text";
 
@@ -257,6 +262,8 @@ const SELECTION_BLUE = "#0072F5";
 
 /** The original's own wait before a held press becomes a menu. */
 const LONG_PRESS_MS = 480;
+/** How long the original leaves what just happened on screen. */
+const TOAST_MS = 4200;
 
 /**
  * What a Coach writes on a route beyond drawing it. The read number and the
@@ -1002,6 +1009,49 @@ function RouteHandles({
             );
           })()
         : null}
+    </g>
+  );
+}
+
+/** The size the renderer draws a man at, so a ghost of him is the same size. */
+const GHOST_RADIUS_PX = 12;
+
+/**
+ * Where the men would stand if the Coach took the set his pointer is over.
+ * Drawn in grey under the browser's own dim, so he can compare it with what
+ * is on the field without leaving the list — the picture is the answer.
+ */
+function FormationGhost({
+  formationId,
+  projection,
+}: {
+  formationId?: string;
+  projection: SvgProjection;
+}) {
+  const formation = formationId
+    ? stockFormations.find(({ id }) => id === formationId)
+    : undefined;
+  if (!formation) return null;
+  return (
+    <g
+      className="formation-ghost"
+      data-formation-ghost={formation.id}
+      pointerEvents="none"
+    >
+      {formation.slots.map((slot) => {
+        const at = projectCoordinate(slot.position, projection);
+        return (
+          <circle
+            cx={at.x}
+            cy={at.y}
+            fill="none"
+            key={slot.id}
+            r={GHOST_RADIUS_PX}
+            stroke="#8f8f8f"
+            strokeWidth={1.5}
+          />
+        );
+      })}
     </g>
   );
 }
@@ -1840,11 +1890,17 @@ function RouteInspector({
 }
 
 function Inspector({
+  formation,
+  formationHint,
   labelEditor,
+  onOpenFormations,
   onOpenPalette,
   onOpenShortcuts,
 }: {
+  formation?: Formation;
+  formationHint: string;
   labelEditor?: React.ReactNode;
+  onOpenFormations: () => void;
   onOpenPalette: () => void;
   onOpenShortcuts: () => void;
 }) {
@@ -1858,9 +1914,14 @@ function Inspector({
   return (
     <aside className="inspector" aria-label="Play inspector">
       <InspectorSection title="Formation">
-        <button className="wide-picker">
-          <span>Custom alignment</span>
-          <span>– &nbsp;›</span>
+        <button
+          className="wide-picker"
+          data-current-formation={formation?.id}
+          onClick={onOpenFormations}
+          title="Browse formations — ⇧⌘F"
+        >
+          <span>{formation?.name ?? "Custom alignment"}</span>
+          <span>{formation?.personnelLabel ?? "–"} &nbsp;›</span>
         </button>
         <button className="round-add" aria-label="Save current formation">
           +
@@ -1873,10 +1934,7 @@ function Inspector({
             <button>R hash</button>
           </div>
         </div>
-        <p>
-          Players move to the new alignment and every route stays attached to
-          the man running it. Your 12 labels stay put.
-        </p>
+        <p>{formationHint}</p>
       </InspectorSection>
       <InspectorSection title="Line call">
         <div className="button-grid">
@@ -2032,6 +2090,16 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   const [contextMenu, setContextMenu] = useState<{
     readonly x: number;
     readonly y: number;
+  }>();
+  /** The set under the Coach's pointer in the browser, drawn on the field. */
+  const [previewFormationId, setPreviewFormationId] = useState<string>();
+  /**
+   * What just happened, said where he is already looking, with one undo
+   * within reach. The original holds it for a little over four seconds.
+   */
+  const [toast, setToast] = useState<{
+    readonly name: string;
+    readonly text: string;
   }>();
   // A press held still on a touch or a Pencil opens the same menu the mouse
   // opens with its right button, so the timer is armed on the press and
@@ -2497,6 +2565,73 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     };
   };
 
+  /** Which set is on the field, by name, as the browser and the panel say it. */
+  const onFieldFormation = useMemo(
+    () => currentFormation(editor.document, stockFormations),
+    [editor.document],
+  );
+  /** What a realignment would leave alone, said before he asks for one. */
+  const formationHint = useMemo(() => {
+    const offense = editor.document.players.filter(
+      ({ unit }) => unit !== "defense",
+    ).length;
+    if (offense === 0) {
+      return "There is no offense on the field yet, so this drops the formation in as it is.";
+    }
+    const defenders = editor.document.players.length - offense;
+    const notes = editor.document.labels.length;
+    const kept = [
+      defenders > 0
+        ? `${defenders} defender${defenders > 1 ? "s" : ""}`
+        : undefined,
+      notes > 0 ? `${notes} label${notes > 1 ? "s" : ""}` : undefined,
+    ].filter(Boolean);
+    return `Players move to the new alignment and every route stays attached to the man running it.${
+      kept.length > 0 ? ` Your ${kept.join(" and ")} stay put.` : ""
+    }`;
+  }, [editor.document]);
+
+  /**
+   * Putting the men in a set is the Coach's whole gesture: apply it, follow
+   * him onto the men it had to add, and say what happened where he is already
+   * looking. One transaction, so one press of undo takes all of it back.
+   */
+  const applyFormationPick = (formationId: string): void => {
+    const formation = stockFormations.find(({ id }) => id === formationId);
+    if (!formation) return;
+    setOverlay(null);
+    setPreviewFormationId(undefined);
+    const { command, result } = applyFormationCommand(
+      editor.document,
+      formation,
+      createStableId,
+    );
+    const { plan } = result;
+    const parts = [
+      plan.movedCount > 0 ? `${plan.movedCount} moved` : undefined,
+      plan.carriedPathCount > 0
+        ? `${plan.carriedPathCount} ${plan.carriedPathCount === 1 ? "route" : "routes"} carried`
+        : undefined,
+      result.addedPlayerIds.length > 0
+        ? `${result.addedPlayerIds.length} added`
+        : undefined,
+      plan.orphans.length > 0
+        ? `${plan.orphans.length} left in place`
+        : undefined,
+    ].filter(Boolean);
+    setToast({
+      name: formation.name,
+      text: parts.length > 0 ? `— ${parts.join(", ")}` : "— already aligned",
+    });
+    runPanelCommand(command, {
+      selection: result.addedPlayerIds.map((id) => ({
+        kind: "player" as const,
+        id,
+      })),
+      drawing: undefined,
+    });
+  };
+
   /**
    * Bringing forward and sending back are unavailable when the selection is
    * already as far as it goes — or is only Players, who draw above every line
@@ -2558,7 +2693,23 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     deleteSelection: () => dispatchFieldRef.current({ type: "delete" }),
     bringForward: reorderAction(1),
     sendBackward: reorderAction(-1),
+    formations: () => {
+      setOpenMenu(null);
+      setOverlay("formations");
+    },
+    ...Object.fromEntries(
+      stockFormations.map((formation) => [
+        `formation:${formation.id}`,
+        () => applyFormationPick(formation.id),
+      ]),
+    ),
   };
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(undefined), TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -2584,6 +2735,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         if (!typing) dispatchFieldRef.current({ type: "escape" });
         return;
       }
+      if (meta && event.shiftKey && key === "f") {
+        event.preventDefault();
+        setOpenMenu(null);
+        setOverlay("formations");
+        return;
+      }
       if (meta && key === "k") {
         event.preventDefault();
         setOpenMenu(null);
@@ -2594,6 +2751,16 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         event.preventDefault();
         setOverlay(null);
         setOpenMenu((current) => (current === "save" ? null : "save"));
+        return;
+      }
+      if (meta && key === "z" && !typing) {
+        // The shortcut panel has always listed these; until now only the
+        // header buttons ran them. Left to the browser inside a text field,
+        // where undo means the words rather than the Play.
+        event.preventDefault();
+        void (event.shiftKey ? editorStore.redo() : editorStore.undo()).catch(
+          () => undefined,
+        );
         return;
       }
       if (meta && key === "a" && !typing) {
@@ -2812,6 +2979,10 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                       selectedSegmentIndex={interaction.selectedSegmentIndex}
                     />
                   ) : null}
+                  <FormationGhost
+                    formationId={previewFormationId}
+                    projection={scene.viewport}
+                  />
                   {leaderHandleAt ? (
                     <circle
                       className="handle-target"
@@ -2837,6 +3008,23 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               selection={selectionKeys}
               svgRef={fieldSvgRef}
             />
+            {toast ? (
+              <div className="toast" role="status">
+                <span>
+                  <strong>{toast.name}</strong> {toast.text}
+                </span>
+                <button
+                  onClick={() => {
+                    setToast(undefined);
+                    undo();
+                  }}
+                  title="Undo — ⌘Z"
+                  type="button"
+                >
+                  Undo
+                </button>
+              </div>
+            ) : null}
           </div>
           <div className="timeline" aria-label="Playback controls">
             <button aria-label="Play">▶</button>
@@ -3058,6 +3246,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                 />
               ) : undefined
             }
+            formation={onFieldFormation}
+            formationHint={formationHint}
+            onOpenFormations={() => setOverlay("formations")}
             onOpenPalette={() => setOverlay("palette")}
             onOpenShortcuts={() => setOverlay("shortcuts")}
           />
@@ -3110,6 +3301,18 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       ) : null}
       {overlay === "shortcuts" ? (
         <ShortcutReference onClose={() => setOverlay(null)} />
+      ) : null}
+      {overlay === "formations" ? (
+        <FormationBrowser
+          currentFormationId={onFieldFormation?.id}
+          formations={stockFormations}
+          onClose={() => {
+            setOverlay(null);
+            setPreviewFormationId(undefined);
+          }}
+          onPick={applyFormationPick}
+          onPreview={setPreviewFormationId}
+        />
       ) : null}
       <ContextMenu
         actions={actions}
