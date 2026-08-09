@@ -449,3 +449,49 @@ test("narrows to one segment of a route, then to a branch", async ({
   // The branch's own break is the only one it offers to move.
   await expect(page.locator("[data-node-handle]")).toHaveCount(1);
 });
+
+test("restyles a route, then one segment of it on its own", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  // Selecting a route opens the Route panel in place of the idle one.
+  const onSegment = await fieldPoint(page, 280, 367);
+  await page.mouse.click(onSegment.x, onSegment.y);
+  await expect(page.getByText("Formation", { exact: true })).toBeHidden();
+  // "Route" is both the panel's heading and one of its kind buttons.
+  await expect(
+    page.locator(".label-heading").getByText("Route", { exact: true }),
+  ).toBeVisible();
+
+  // Restyling with nothing picked out takes the whole line.
+  await page.getByRole("button", { name: "Dashed" }).click();
+  await expect(page.locator('[data-scene-path="rx"]')).toHaveAttribute(
+    "stroke-dasharray",
+    "8 6",
+  );
+  await expect(page.getByRole("button", { name: "Undo" })).toHaveAttribute(
+    "title",
+    "Undo Edit route",
+  );
+
+  // Narrowing to a segment and restyling leaves the rest of the line alone.
+  // The point is measured again because the panel that opened on selection
+  // reflows the workspace, and on the narrower iPad layout that moves the
+  // field out from under a coordinate taken before it appeared.
+  await page.waitForTimeout(600);
+  const onSegmentAgain = await fieldPoint(page, 280, 367);
+  await page.mouse.click(onSegmentAgain.x, onSegmentAgain.y);
+  await expect(page.locator('[data-line-highlight="segment"]')).toHaveCount(1);
+  await page.getByRole("button", { name: "Dotted" }).click();
+
+  // The route is now drawn in pieces, because one leg reads differently
+  // from the rest — the renderer splits a line wherever its style changes.
+  await expect(page.locator('[data-scene-path^="rx-segment-"]')).toHaveCount(2);
+  await expect(
+    page.locator('[data-scene-path^="rx-segment-"][stroke-dasharray="2 6"]'),
+  ).toHaveCount(1);
+  await expect(
+    page.locator('[data-scene-path^="rx-segment-"][stroke-dasharray="8 6"]'),
+  ).toHaveCount(1);
+});

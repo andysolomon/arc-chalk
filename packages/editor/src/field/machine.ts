@@ -737,9 +737,13 @@ export function pruneFieldSelection(
   ) {
     return model;
   }
+  // Spread rather than rebuilt: the line and break the Coach narrowed to
+  // survive an edit to the very thing he narrowed to, so he can make two
+  // changes to one segment in a row.
   return {
+    ...model,
     selection,
     gesture,
-    ...(drawing === undefined ? {} : { drawing }),
+    ...(drawing === undefined ? { drawing: undefined } : { drawing }),
   };
 }
