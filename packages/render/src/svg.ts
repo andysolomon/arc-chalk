@@ -1,6 +1,7 @@
 import {
   classifyZoneCoverage,
   DEFAULT_ZONE_COVERAGE_RADII,
+  LEGACY_FIELD_GEOMETRY,
   type Color,
   type Coordinate,
   type FieldProfile,
@@ -271,10 +272,29 @@ function buildTicks(
   });
 }
 
+/**
+ * What a route says about itself at the end of the line: the number the
+ * quarterback reads it on, and the words stacked the other way — the man's
+ * Assignment, what it converts to, and the point the Coach makes off it.
+ */
+export interface SvgRouteCoaching {
+  readonly read?: {
+    readonly id: string;
+    readonly center: SvgPoint;
+    readonly radius: number;
+    readonly text: SvgTextPrimitive;
+  };
+  readonly notes: readonly {
+    readonly id: string;
+    readonly text: SvgTextPrimitive;
+  }[];
+}
+
 export interface SvgScenePath {
   readonly id: string;
   readonly kind: ScenePath["kind"];
   readonly variant?: ScenePath["variant"];
+  readonly coaching?: SvgRouteCoaching;
   readonly strokes: readonly SvgPathStroke[];
   readonly ticks: readonly (SvgTick & { readonly color: Color })[];
   readonly coverageArea?: SvgCoverageArea;
@@ -697,6 +717,146 @@ function buildSvgField(
   };
 }
 
+/**
+ * The original's Coach density, which is the one it opens on: the read
+ * number at 13, the Assignment at 12, and the conversion and note a point
+ * smaller. Choosing a density is a separate control the original also offers
+ * and production has not built, so these are the numbers it starts from.
+ */
+const COACH_DENSITY = Object.freeze({
+  read: 13,
+  label: 12,
+  get note(): number {
+    return Math.max(10, this.label - 1);
+  },
+});
+
+/**
+ * The original measures these offsets in its own canvas pixels, and our
+ * viewBox draws the same field about eight per cent larger. Scaling them
+ * keeps each mark the distance from the line the original put it rather than
+ * a fixed count of pixels nearer. Depth sets the factor; the lateral axis
+ * differs from it by a little over one per cent, which is under a third of a
+ * pixel across the largest offset here.
+ */
+const MARK_SCALE =
+  editorSvgViewport.depthPixelsPerYard /
+  LEGACY_FIELD_GEOMETRY.depthPixelsPerYard;
+const READ_OFFSET = 20 * MARK_SCALE;
+const NOTE_OFFSET = 22 * MARK_SCALE;
+const NOTE_STEP = (COACH_DENSITY.label + 5) * MARK_SCALE;
+
+/**
+ * Every mark hangs off the last leg of the line, so it reads as belonging to
+ * where the route finishes: the read number to one side of it and the words
+ * to the other, exactly as the original arranges them.
+ */
+function buildRouteCoaching(
+  path: ScenePath,
+  viewport: SvgProjection,
+): SvgRouteCoaching | undefined {
+  const end = path.points.at(-1);
+  const before = path.points.at(-2);
+  if (!end || !before) return undefined;
+
+  const notes: { readonly kind: string; readonly text: SvgTextPrimitive }[] =
+    [];
+  const hasRead = path.readOrder !== undefined;
+  if (!hasRead && !path.assignment && !path.conversion && !path.coachingNote) {
+    return undefined;
+  }
+
+  const tip = projectCoordinate(end, viewport);
+  const tail = projectCoordinate(before, viewport);
+  const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
+  const nx = -Math.sin(angle);
+  const ny = Math.cos(angle);
+
+  const read =
+    path.readOrder === undefined
+      ? undefined
+      : {
+          id: `${path.id}-read`,
+          center: {
+            x: tip.x + nx * READ_OFFSET,
+            y: tip.y + ny * READ_OFFSET,
+          },
+          radius: COACH_DENSITY.read * 0.68 * MARK_SCALE,
+          text: {
+            text: String(path.readOrder),
+            x: tip.x + nx * READ_OFFSET,
+            y: tip.y + ny * READ_OFFSET,
+            fill: "#0072F5",
+            fontFamily: "Geist Mono, monospace" as const,
+            fontSize: COACH_DENSITY.read,
+            fontWeight: 500,
+            letterSpacing: 0,
+          },
+        };
+
+  const stack: {
+    readonly kind: string;
+    readonly value: string;
+    readonly fill: string;
+    readonly mono: boolean;
+    readonly size: number;
+    readonly track: number;
+  }[] = [];
+  if (path.assignment) {
+    stack.push({
+      kind: "assignment",
+      value: path.assignment.toUpperCase(),
+      fill: "#4D4D4D",
+      mono: true,
+      size: COACH_DENSITY.label,
+      track: 0.7,
+    });
+  }
+  if (path.conversion) {
+    stack.push({
+      kind: "conversion",
+      value: path.conversion,
+      fill: "#8F8F8F",
+      mono: true,
+      size: COACH_DENSITY.note,
+      track: 0,
+    });
+  }
+  if (path.coachingNote) {
+    stack.push({
+      kind: "note",
+      value: path.coachingNote,
+      fill: "#8F8F8F",
+      mono: false,
+      size: COACH_DENSITY.note,
+      track: 0,
+    });
+  }
+  for (const [index, entry] of stack.entries()) {
+    const offset = NOTE_OFFSET + index * NOTE_STEP;
+    notes.push({
+      kind: entry.kind,
+      text: {
+        text: entry.value,
+        x: tip.x - nx * offset,
+        y: tip.y - ny * offset,
+        fill: entry.fill,
+        fontFamily: entry.mono
+          ? ("Geist Mono, monospace" as const)
+          : ("Geist, sans-serif" as const),
+        fontSize: entry.size,
+        fontWeight: 500,
+        letterSpacing: entry.track,
+      },
+    });
+  }
+
+  return {
+    ...(read === undefined ? {} : { read }),
+    notes: notes.map(({ kind, text }) => ({ id: `${path.id}-${kind}`, text })),
+  };
+}
+
 export function buildSvgRenderScene(
   scene: RenderScene,
   frame: SvgViewport = editorSvgViewport,
@@ -751,10 +911,13 @@ export function buildSvgRenderScene(
           : stroke,
       );
 
+      const coaching = buildRouteCoaching(path, viewport);
+
       return {
         id: path.id,
         kind: path.kind,
         ...(path.variant === undefined ? {} : { variant: path.variant }),
+        ...(coaching === undefined ? {} : { coaching }),
         strokes,
         ticks: buildTicks(path.points, viewport).map((tick) => ({
           ...tick,

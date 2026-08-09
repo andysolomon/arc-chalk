@@ -1292,6 +1292,57 @@ select:focus-visible {
   color: #8f8f8f;
   margin-top: 6px;
 }
+/* The Coaching fields, at the original's own metrics. */
+.coaching-row {
+  display: flex;
+  gap: 6px;
+}
+.label-inspector .coaching-row input,
+.label-inspector > input {
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+  color: var(--ink);
+  outline: none;
+}
+.label-inspector .coaching-row > input {
+  flex: 1;
+}
+.label-inspector input:focus {
+  box-shadow: 0 0 0 1px #005fcc;
+}
+.read-field {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  width: 92px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.read-field > span {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+.label-inspector .read-field input {
+  min-width: 0;
+  flex: 1;
+  height: auto;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: "Geist Mono", monospace;
+  text-align: right;
+}
 .label-inspector p {
   font-size: 11px;
   color: #8f8f8f;

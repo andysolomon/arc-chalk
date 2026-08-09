@@ -1,4 +1,4 @@
-import { canonicalStringify } from "@chalk/domain";
+import { applyPlayCommand, canonicalStringify } from "@chalk/domain";
 import { buildRenderScene, buildSvgRenderScene } from "@chalk/render";
 import {
   footballPathPrimitivePlay,
@@ -180,5 +180,106 @@ describe("RenderScene", () => {
     expect(
       first.labels.find(({ id }) => id === "label-coaching")?.position,
     ).toEqual({ x: 220.8, y: 303 });
+  });
+});
+
+describe("what a route says about itself", () => {
+  /** The seeded X route, with everything a Coach can write on one. */
+  const coached = applyPlayCommand(stickThunderPlay, {
+    kind: "batch",
+    commands: [
+      {
+        kind: "update-path",
+        path: {
+          ...stickThunderPlay.paths.find(({ id }) => id === "rx")!,
+          readOrder: 2,
+          conversion: "vs man: fade",
+          coachingNote: "Push vertical off the release",
+        },
+      },
+      {
+        kind: "insert-assignments",
+        assignments: [
+          {
+            index: stickThunderPlay.assignments.length,
+            item: {
+              id: "assignment_x",
+              playerId: "x",
+              text: "Stick",
+              actions: [{ id: "action_x", kind: "movement", pathId: "rx" }],
+            },
+          },
+        ],
+      },
+    ],
+  });
+
+  it("carries the Coach's wording to the line it is about", () => {
+    const path = buildRenderScene(coached).paths.find(({ id }) => id === "rx");
+
+    // The wording belongs to the man (ADR 0011); the scene resolves it to
+    // the line so it can be drawn where the line ends.
+    expect(path?.assignment).toBe("Stick");
+    expect(path?.readOrder).toBe(2);
+    expect(path?.conversion).toBe("vs man: fade");
+  });
+
+  it("draws nothing on a route the Coach has not written on", () => {
+    const bare = buildSvgRenderScene(buildRenderScene(stickThunderPlay));
+
+    expect(bare.paths.every(({ coaching }) => coaching === undefined)).toBe(
+      true,
+    );
+  });
+
+  it("hangs the read one way off the end of the line and the words the other", () => {
+    const scene = buildSvgRenderScene(buildRenderScene(coached));
+    const coaching = scene.paths.find(({ id }) => id === "rx")?.coaching;
+    const tip = scene.paths
+      .find(({ id }) => id === "rx")!
+      .strokes[0]!.d.split(" ")
+      .slice(-2)
+      .map(Number);
+
+    expect(coaching?.read?.text.text).toBe("2");
+    expect(coaching?.read?.text.fill).toBe("#0072F5");
+    // The read and the first of the words sit on opposite sides of the line.
+    const readSide = coaching!.read!.center.x - tip[0]!;
+    const wordSide = coaching!.notes[0]!.text.x - tip[0]!;
+    expect(Math.sign(readSide)).toBe(-Math.sign(wordSide));
+
+    expect(coaching?.notes.map(({ id }) => id)).toEqual([
+      "rx-assignment",
+      "rx-conversion",
+      "rx-note",
+    ]);
+    // The Assignment is the loudest of the three, and shouts.
+    expect(coaching?.notes[0]?.text).toMatchObject({
+      text: "STICK",
+      fill: "#4D4D4D",
+      fontFamily: "Geist Mono, monospace",
+      fontSize: 12,
+    });
+    expect(coaching?.notes[2]?.text).toMatchObject({
+      text: "Push vertical off the release",
+      fill: "#8F8F8F",
+      fontFamily: "Geist, sans-serif",
+      fontSize: 11,
+    });
+  });
+
+  it("stacks the words evenly away from the line", () => {
+    const coaching = buildSvgRenderScene(buildRenderScene(coached)).paths.find(
+      ({ id }) => id === "rx",
+    )!.coaching!;
+    const between = (first: number, second: number) =>
+      Math.hypot(
+        coaching.notes[second]!.text.x - coaching.notes[first]!.text.x,
+        coaching.notes[second]!.text.y - coaching.notes[first]!.text.y,
+      );
+
+    expect(between(0, 1)).toBeCloseTo(between(1, 2), 6);
+    // The original's step for its Coach density, carried into our frame.
+    expect(between(0, 1)).toBeCloseTo((12 + 5) * (13 / 12), 6);
   });
 });
