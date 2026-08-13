@@ -1765,3 +1765,130 @@ test("hands the field to the finger once the Pencil is out", async ({
   expect(await playerAt(page, "q")).toEqual(qBefore);
   await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
 });
+
+/**
+ * A phone shows the Play and nothing that changes it (Phase 4.5). These run
+ * at a phone's own size on whichever browser the project names, because what
+ * makes a screen a phone here is how big it is, not what it is.
+ */
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("shows the Play to be read, and will not let it be changed", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(
+      page.getByRole("img", { name: "Stick — Thunder football play" }),
+    ).toBeVisible();
+    await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+    await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+    // None of the editing chrome is here to be reached at all.
+    await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
+    await expect(page.getByLabel("Drawing tools")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Inspector" })).toHaveCount(
+      0,
+    );
+
+    // A thumb dragged across a man moves the field, not the man.
+    const qBefore = await playerAt(page, "q");
+    const finger = contact(page, "touch", 71);
+    const q = await playerCenter(page, "q");
+    await finger.down(q);
+    await finger.move({ x: q.x - 70, y: q.y - 40 });
+    await finger.up({ x: q.x - 70, y: q.y - 40 });
+    expect(await playerAt(page, "q")).toEqual(qBefore);
+    expect((await cameraOf(page)).x).toBeGreaterThan(0);
+
+    // Nor does a keyboard reach the field — one arrives paired, and what it
+    // would reach is a Play the Coach cannot see he has changed. The camera
+    // keys are the visible proof that the shortcuts are off; the ones beside
+    // them delete men and undo the last thing he did on this device.
+    // Backspace is left out of this on purpose: with the field's shortcuts
+    // off, nothing swallows it, and WebKit still reads it as the back button.
+    const looking = await cameraOf(page);
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("v");
+    await page.keyboard.press("Control+0");
+    await page.keyboard.press("Control+2");
+    await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+    expect(await playerAt(page, "q")).toEqual(qBefore);
+    expect(await cameraOf(page)).toEqual(looking);
+
+    // And the Play is still readable without sight: every man, line and note
+    // is named, in the order a Coach would read them out.
+    await expect(
+      page.getByRole("list", { name: "Everything on the field" }),
+    ).toHaveCount(1);
+    // Stick — Thunder is eleven men, five lines and twelve notes.
+    await expect(
+      page
+        .getByRole("list", { name: "Everything on the field" })
+        .getByRole("listitem"),
+    ).toHaveCount(11 + 5 + 12);
+    await expect(
+      page
+        .getByRole("list", { name: "Everything on the field" })
+        .getByRole("listitem")
+        .filter({ hasText: "X offense player" }),
+    ).toHaveCount(1);
+  });
+
+  test("gives the editor back when the screen is big enough again", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+
+    // A phone turned on its side is still a phone: wide enough now, and
+    // nowhere near deep enough.
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+
+    // A tablet is not, and the editor comes back without a reload.
+    await page.setViewportSize({ width: 834, height: 1194 });
+    await expect(page.getByLabel("Drawing tools")).toBeVisible();
+    await expect(page.getByText("Read only", { exact: true })).toHaveCount(0);
+
+    // Gone in for a close look at one man, and then the window is a phone
+    // again: what he can only read, he reads whole.
+    await page.keyboard.press("Control+Equal");
+    await expect
+      .poll(async () => (await cameraOf(page)).width)
+      .toBeLessThan(1068);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+    await expect
+      .poll(async () => (await cameraOf(page)).width)
+      .toBeCloseTo(1068, 3);
+
+    // A close look taken on the phone is his, and picking the tablet back up
+    // does not throw it away.
+    const first = contact(page, "touch", 73);
+    const second = contact(page, "touch", 74);
+    const at = await fieldPoint(page, 500, 260);
+    await first.down({ x: at.x - 40, y: at.y });
+    await second.down({ x: at.x + 40, y: at.y });
+    await second.move({ x: at.x + 130, y: at.y });
+    await expect
+      .poll(async () => (await cameraOf(page)).width)
+      .toBeLessThan(1068);
+    const close = await cameraOf(page);
+    await first.up({ x: at.x - 40, y: at.y });
+    await second.up({ x: at.x + 130, y: at.y });
+
+    await page.setViewportSize({ width: 834, height: 1194 });
+    await expect(page.getByLabel("Drawing tools")).toBeVisible();
+    expect((await cameraOf(page)).width).toBeCloseTo(close.width, 3);
+
+    const qBefore = await playerAt(page, "q");
+    const finger = contact(page, "touch", 72);
+    const q = await playerCenter(page, "q");
+    await finger.down(q);
+    await finger.move({ x: q.x + 60, y: q.y });
+    await finger.up({ x: q.x + 60, y: q.y });
+    await expect
+      .poll(async () => (await playerAt(page, "q")).x)
+      .toBeGreaterThan(qBefore.x);
+  });
+});
