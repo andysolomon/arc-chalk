@@ -1430,20 +1430,13 @@ test("gives a finger the forty-four pixels it is owed, on the screen it is reall
   // the screen is — so this is measured on the glass rather than in the frame.
   test.skip(browserName !== "webkit", "the coarse-pointer device");
   await openEditor(page);
-  const z = await playerCenter(page, "z");
-  await page.mouse.click(z.x, z.y);
-  await page.locator('[data-scene-path="rz"]').click({ force: true });
+  // Picked with the finger it is owed to. The tablet would call itself coarse
+  // whatever reached it, which is exactly the answer that cannot be trusted.
+  await contact(page, "touch", 41).tap(await routeMidpoint(page, "rz"));
 
-  const handles = page.locator("circle.handle-target");
-  await expect.poll(async () => handles.count()).toBeGreaterThan(0);
-  const smallest = Math.min(
-    ...(await handles.evaluateAll((elements) =>
-      elements.map((element) => element.getBoundingClientRect().width),
-    )),
-  );
   // Half a pixel of slack, because the browser rounds the box it reports and
   // the arithmetic lands this on the minimum exactly rather than above it.
-  expect(smallest).toBeGreaterThanOrEqual(43.5);
+  expect(await smallestHandle(page)).toBeGreaterThanOrEqual(43.5);
 });
 
 test("gives the field to a keyboard, and says what it has picked", async ({
@@ -1498,4 +1491,277 @@ test("lets a control the Coach tabbed to have its own Enter and Space", async ({
   await expect(
     page.getByText("Keyboard shortcuts", { exact: true }),
   ).toBeVisible();
+});
+
+/**
+ * One pointer of one kind on the glass. The browsers under test will not
+ * synthesise a Pencil or a second finger, so the events are made here — the
+ * field does its own hit testing from the coordinates, so where they are
+ * dispatched does not matter, only where they say they are.
+ */
+function contact(page: Page, pointerType: string, pointerId: number) {
+  const send = (type: string, at: { x: number; y: number }) =>
+    field(page).dispatchEvent(type, {
+      pointerId,
+      pointerType,
+      button: 0,
+      buttons: type === "pointerdown" || type === "pointermove" ? 1 : 0,
+      isPrimary: true,
+      clientX: at.x,
+      clientY: at.y,
+    });
+  return {
+    down: (at: { x: number; y: number }) => send("pointerdown", at),
+    move: (at: { x: number; y: number }) => send("pointermove", at),
+    up: (at: { x: number; y: number }) => send("pointerup", at),
+    tap: async (at: { x: number; y: number }) => {
+      await send("pointerdown", at);
+      await send("pointerup", at);
+    },
+  };
+}
+
+/** A point half way along a route, in client pixels. */
+async function routeMidpoint(
+  page: Page,
+  id: string,
+): Promise<{ x: number; y: number }> {
+  const at = await page
+    .locator(`[data-scene-path="${id}"]`)
+    .evaluate((element) => {
+      const path = element as unknown as SVGPathElement;
+      const point = path.getPointAtLength(path.getTotalLength() / 2);
+      return { x: point.x, y: point.y };
+    });
+  return fieldPoint(page, at.x, at.y);
+}
+
+/** The smallest grab target on screen, in CSS pixels. */
+async function smallestHandle(page: Page): Promise<number> {
+  const handles = page.locator("circle.handle-target");
+  await expect.poll(async () => handles.count()).toBeGreaterThan(0);
+  return Math.min(
+    ...(await handles.evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().width),
+    )),
+  );
+}
+
+test("gives a Pencil the precision it was reached for, and a finger the room it needs", async ({
+  page,
+}) => {
+  await openEditor(page);
+  // A tablet answers `(pointer: coarse)` whichever the Coach picked up, so
+  // the field goes by what actually touched it (ADR 0016).
+  await contact(page, "touch", 11).tap(await routeMidpoint(page, "rz"));
+  await expect(
+    page.locator(".label-heading").getByText("Route", { exact: true }),
+  ).toBeVisible();
+  // Half a pixel of slack, because the browser rounds the box it reports.
+  expect(await smallestHandle(page)).toBeGreaterThanOrEqual(43.5);
+
+  // The same route, now under a Pencil: the tip means what it points at, and
+  // a target sized for a fingertip is precision thrown away.
+  await contact(page, "pen", 12).tap(await routeMidpoint(page, "rz"));
+  await expect.poll(async () => smallestHandle(page)).toBeLessThan(43.5);
+
+  // A handle takes its own press, so the field never sees it. It is still the
+  // Pencil, and a Coach who only ever reaches for handles with it must not be
+  // handed a fingertip's targets for the rest of the session.
+  await contact(page, "touch", 13).tap(await routeMidpoint(page, "rz"));
+  await expect.poll(async () => smallestHandle(page)).toBeGreaterThan(43.5);
+  await page
+    .locator("circle.handle-target")
+    .first()
+    .dispatchEvent("pointerdown", {
+      pointerId: 14,
+      pointerType: "pen",
+      button: 0,
+      buttons: 1,
+      isPrimary: true,
+    });
+  await expect.poll(async () => smallestHandle(page)).toBeLessThan(43.5);
+});
+
+test("does not draw with the hand holding the Pencil", async ({ page }) => {
+  await openEditor(page);
+  const xBefore = await playerAt(page, "x");
+  const zBefore = await playerAt(page, "z");
+
+  const pen = contact(page, "pen", 21);
+  const palm = contact(page, "touch", 22);
+
+  // The heel of his hand lands before the tip does — on another man, and
+  // moving, because a hand settling on glass slides.
+  const resting = await playerCenter(page, "z");
+  await palm.down(resting);
+  await palm.move({ x: resting.x - 40, y: resting.y + 20 });
+
+  // The Pencil arrives, and everything the hand had started stops being a
+  // gesture: what it had picked up is put back down where it was.
+  const from = await playerCenter(page, "x");
+  const looking = await cameraOf(page);
+  await pen.down(from);
+  await pen.move({ x: from.x + 20, y: from.y + 10 });
+
+  // The hand goes on sliding under the stroke — back the way it came, which
+  // is the direction that would show if the field were still following it —
+  // and none of it counts.
+  await palm.move({ x: resting.x + 90, y: resting.y - 60 });
+  await palm.up({ x: resting.x + 90, y: resting.y - 60 });
+
+  // It settles again mid-stroke, on another man, and drags him nowhere: a
+  // contact that arrives while the tip is on the glass is the hand, whatever
+  // it lands on.
+  const heel = contact(page, "touch", 23);
+  await heel.down(resting);
+  await heel.move({ x: resting.x + 60, y: resting.y - 50 });
+  await heel.up({ x: resting.x + 60, y: resting.y - 50 });
+
+  await pen.move({ x: from.x + 40, y: from.y + 20 });
+  await pen.up({ x: from.x + 40, y: from.y + 20 });
+
+  await expect
+    .poll(async () => (await playerAt(page, "x")).x)
+    .toBeGreaterThan(xBefore.x);
+  expect(await playerAt(page, "z")).toEqual(zBefore);
+  // Nor did the hand move the field out from under the line he was drawing.
+  expect(await cameraOf(page)).toEqual(looking);
+  // One stroke, one entry: the palm did not leave one of its own.
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Move Player");
+  await undo.click();
+  await expect.poll(async () => playerAt(page, "x")).toEqual(xBefore);
+  await expect(undo).toBeDisabled();
+
+  // And the hand the Pencil interrupted is off the books. The next finger
+  // down is one finger moving the field, not the second half of a pinch with
+  // a palm that is no longer there.
+  const next = contact(page, "touch", 24);
+  const grass = await fieldPoint(page, 900, 120);
+  await next.down(grass);
+  await next.move({ x: grass.x - 60, y: grass.y });
+  await next.up({ x: grass.x - 60, y: grass.y });
+  const moved = await cameraOf(page);
+  expect(moved.width).toBeCloseTo(1068, 3);
+  expect(moved.x).toBeGreaterThan(0);
+});
+
+test("does not let the resting hand carry a part-drawn route", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const pen = contact(page, "pen", 51);
+  const palm = contact(page, "touch", 52);
+
+  // A route begun with the Pencil off a man's stance, and left part-drawn:
+  // the next press puts the next break down, so the line follows the tip
+  // between them.
+  await page.keyboard.press("r");
+  const start = await playerCenter(page, "q");
+  await pen.down(start);
+  const preview = page.locator("[data-drawing-preview]");
+  await expect(preview).toHaveAttribute("d", /^M /);
+
+  // The hand is on the glass while the tip is, so its press is refused
+  // outright. It is still there when the tip comes up, and it slides.
+  await palm.down({ x: start.x + 30, y: start.y + 30 });
+  await pen.up(start);
+  const drawn = await preview.getAttribute("d");
+  await palm.move({ x: start.x + 160, y: start.y + 120 });
+
+  // The line still reaches for the tip, not for the hand.
+  await expect(preview).toHaveAttribute("d", drawn!);
+
+  // The Coach puts the next break down and holds the tip there, which is how
+  // a segment is bent. His hand comes off the glass part way through — and a
+  // press the field refused must not be able to end one it accepted.
+  await pen.down({ x: start.x - 100, y: start.y });
+  await palm.up({ x: start.x + 160, y: start.y + 120 });
+  await pen.move({ x: start.x - 100, y: start.y - 60 });
+  await expect(preview).toHaveAttribute("d", /Q /);
+
+  await page.keyboard.press("Escape");
+});
+
+test("keeps the field moving under the finger a pinch leaves behind", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const qBefore = await playerAt(page, "q");
+  const first = contact(page, "touch", 61);
+  const second = contact(page, "touch", 62);
+
+  // Two fingers on a man: a pinch, not a drag, so he is not going anywhere.
+  const at = await playerCenter(page, "q");
+  const apart = { x: at.x + 120, y: at.y };
+  await first.down(at);
+  await second.down(apart);
+  // And the rest of the hand landing joins the pinch rather than starting
+  // anything of its own: two fingers are what a pinch is measured between,
+  // so a third on another man does not reach for him.
+  const third = contact(page, "touch", 63);
+  const other = await playerCenter(page, "z");
+  await third.down(other);
+  await second.move({ x: apart.x + 90, y: apart.y });
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeLessThan(1068);
+  await expect(page.locator('[data-scene-player="z"].selected')).toHaveCount(0);
+  await third.up(other);
+
+  // One finger comes off, which is how a pinch usually ends. The other is
+  // still down and still moving, and the field goes with it rather than
+  // waiting to be lifted.
+  const zoomed = await cameraOf(page);
+  await second.up({ x: apart.x + 90, y: apart.y });
+  await first.move({ x: at.x - 80, y: at.y });
+  await expect
+    .poll(async () => (await cameraOf(page)).x)
+    .toBeGreaterThan(zoomed.x);
+  await first.up({ x: at.x - 80, y: at.y });
+
+  // And through all of it, the man underneath was never picked up.
+  expect(await playerAt(page, "q")).toEqual(qBefore);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+});
+
+test("hands the field to the finger once the Pencil is out", async ({
+  page,
+}) => {
+  await openEditor(page);
+  // Until then a finger is the only pointer he has, so it still picks men up.
+  const finger = contact(page, "touch", 31);
+  const q = await playerCenter(page, "q");
+  const qBefore = await playerAt(page, "q");
+  await finger.down(q);
+  await finger.move({ x: q.x + 60, y: q.y });
+  await finger.up({ x: q.x + 60, y: q.y });
+  await expect
+    .poll(async () => (await playerAt(page, "q")).x)
+    .toBeGreaterThan(qBefore.x);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect.poll(async () => playerAt(page, "q")).toEqual(qBefore);
+
+  // A Pencil touches the field, and the hands change jobs: the tip draws,
+  // and the finger moves the field under it.
+  await contact(page, "pen", 32).tap(await playerCenter(page, "q"));
+  await page.keyboard.press("Control+Equal");
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeLessThan(1068);
+  const looking = await cameraOf(page);
+
+  const across = contact(page, "touch", 33);
+  const grass = await playerCenter(page, "q");
+  await across.down(grass);
+  await across.move({ x: grass.x - 90, y: grass.y - 30 });
+  await across.up({ x: grass.x - 90, y: grass.y - 30 });
+
+  await expect
+    .poll(async () => (await cameraOf(page)).x)
+    .toBeGreaterThan(looking.x);
+  // And the man he dragged across stayed exactly where he was.
+  expect(await playerAt(page, "q")).toEqual(qBefore);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
 });

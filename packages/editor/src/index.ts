@@ -4,4 +4,5 @@ export * from "./camera";
 export * from "./editor-store";
 export * from "./field";
 export * from "./smart-snapping";
+export * from "./stylus";
 export * from "./undo-history";
