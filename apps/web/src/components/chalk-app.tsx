@@ -88,6 +88,14 @@ import {
   localSaveMessage,
   localSaveStatus,
   pruneFieldSelection,
+  idleStylus,
+  penInterrupts,
+  stylusDown,
+  stylusIsPrecise,
+  stylusRejects,
+  stylusUp,
+  touchNavigates,
+  type StylusState,
   type EditorUndoState,
   type EditorVersionSummary,
   type FieldDrawingState,
@@ -323,20 +331,33 @@ const TOAST_MS = 4200;
 type RouteCoachingField =
   "readOrder" | "assignment" | "conversion" | "coachingNote";
 
+/** Whether the device's own pointer is a blunt one, as the browser sees it. */
+function deviceIsCoarse(): boolean {
+  return (
+    typeof globalThis.matchMedia === "function" &&
+    globalThis.matchMedia("(pointer: coarse)").matches
+  );
+}
+
 /**
  * How big a handle's invisible target is. Touch needs 44 CSS px (ADR 0016),
  * but a mouse does not: at that size a handle swallows the middle of a short
  * segment, and the segment underneath can no longer be clicked at all. A
  * fine pointer keeps the original's smaller targets and its precision.
+ *
+ * An iPad is the case that decides how this is asked. It calls itself coarse
+ * whichever pointer the Coach has picked up, so asking the device would hand a
+ * Pencil the finger's targets and lose exactly the precision he reached for it
+ * to get. What last touched the field is the better answer.
  */
-function handleTargetSize(zoom = 1): {
+function handleTargetSize(
+  zoom: number,
+  precise: boolean,
+): {
   readonly node: number;
   readonly control: number;
 } {
-  const coarse =
-    typeof globalThis.matchMedia === "function" &&
-    globalThis.matchMedia("(pointer: coarse)").matches;
-  const base = coarse ? { node: 22, control: 44 } : { node: 13, control: 20 };
+  const base = precise ? { node: 13, control: 20 } : { node: 22, control: 44 };
   // These are CSS pixels, and the frame is drawn in frame units — so they
   // are divided by how big a frame unit actually is, and a handle stays the
   // size his finger is however far in he has zoomed and however small the
@@ -875,6 +896,7 @@ function RouteHandles({
   branchIndex,
   onHandleDown,
   path,
+  precise,
   projection,
   selectedNodeIndex,
   selectedSegmentIndex,
@@ -884,13 +906,15 @@ function RouteHandles({
   branchIndex?: number;
   onHandleDown: (handle: FieldHandleRef, event: React.PointerEvent) => void;
   path: MovementPath;
+  /** Whether the pointer in the Coach's hand is a precise one. */
+  precise: boolean;
   projection: SvgProjection;
   selectedNodeIndex?: number;
   selectedSegmentIndex?: number;
   /** How many CSS pixels one frame unit is drawn at. */
   zoom: number;
 }) {
-  const target = handleTargetSize(zoom);
+  const target = handleTargetSize(zoom, precise);
   const line = lineOf(path, branchIndex);
   // A branch runs from the break it was split off at, so that point leads
   // the line and gives the first bend handle something to measure from.
@@ -2353,6 +2377,13 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   }>(undefined);
   /** Where a pan gesture last was, in client pixels. */
   const panRef = useRef<{ x: number; y: number }>(undefined);
+  /**
+   * Which pointer the Coach has in his hand. An iPad calls itself coarse
+   * whichever one it is, so the field watches what actually touches it
+   * (ADR 0016).
+   */
+  const stylusRef = useRef<StylusState>(idleStylus);
+  const [precisePointer, setPrecisePointer] = useState(() => !deviceIsCoarse());
   /** Whether space is down, which turns any drag into a pan. */
   const spaceHeldRef = useRef(false);
   // Entities the Coach has just made whose commit has not landed. Selection
@@ -2708,7 +2739,28 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     clearTimeout(longPressRef.current);
     longPressRef.current = undefined;
   };
+  /** Remember what touched the field, and size its targets for it. */
+  const noteStylus = (next: StylusState): void => {
+    stylusRef.current = next;
+    setPrecisePointer(stylusIsPrecise(next, deviceIsCoarse()));
+  };
+  /** Give up whatever the fingers had started, without touching the pen's. */
+  const abandonTouchGesture = (): void => {
+    touchesRef.current.clear();
+    pinchRef.current = undefined;
+    panRef.current = undefined;
+    cancelLongPress();
+    dispatchField({ type: "pointer-cancel" });
+  };
   const onFieldPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+    // The hand holding a Pencil rests on the glass. While the tip is down,
+    // everything else touching the screen is that hand.
+    if (stylusRejects(stylusRef.current, event.pointerType)) return;
+    // And the heel of it usually lands first, so by the time the tip arrives
+    // the field may already believe it is being panned. It is not.
+    if (penInterrupts(stylusRef.current, event.pointerType))
+      abandonTouchGesture();
+    noteStylus(stylusDown(stylusRef.current, event.pointerType));
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -2723,14 +2775,28 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         // A second finger turns the gesture into a pinch, so whatever the
         // first one had started is abandoned rather than dragged along.
         pinchRef.current = pinchOf();
+        panRef.current = undefined;
         cancelLongPress();
         dispatchField({ type: "pointer-cancel" });
         return;
       }
+      // A third finger joins the pinch and does nothing of its own. Two are
+      // what a pinch is measured between, and the rest of the hand landing
+      // must not start something underneath it.
+      if (touchesRef.current.size > 2) {
+        cancelLongPress();
+        return;
+      }
     }
     // Held space or a held alt moves the field instead of what is on it —
-    // the gestures every drawing tool has trained into him.
-    if (spaceHeldRef.current || event.altKey) {
+    // the gestures every drawing tool has trained into him. So does a finger,
+    // once a Pencil has been out: the tip draws and the hand moves the field,
+    // which is what ADR 0016 means by leaving touch the viewport.
+    if (
+      spaceHeldRef.current ||
+      event.altKey ||
+      touchNavigates(stylusRef.current, event.pointerType)
+    ) {
       panRef.current = { x: event.clientX, y: event.clientY };
       cancelLongPress();
       return;
@@ -2792,6 +2858,11 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       );
       return;
     }
+    // The hand that was resting while the Pencil drew is still resting when it
+    // comes up, and it slides. Its press was refused, so the machine has no
+    // gesture of its own to end — but a route left part-drawn would follow it
+    // anyway, which is the one thing a rejected palm can still reach.
+    if (touchNavigates(stylusRef.current, event.pointerType)) return;
     dispatchField({ type: "pointer-move", input: fieldPointerInput(event) });
     // Asked after the move, not before it: this very event is what turns a
     // still press into a drag, and reading the gesture first would always find
@@ -2804,9 +2875,21 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     if (interactionRef.current.gesture.kind !== "pressing") cancelLongPress();
   };
   const onFieldPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    const rejected = stylusRejects(stylusRef.current, event.pointerType);
+    noteStylus(stylusUp(stylusRef.current, event.pointerType));
+    if (rejected) return;
     cancelLongPress();
+    const pinching = pinchRef.current !== undefined;
     touchesRef.current.delete(event.pointerId);
     if (touchesRef.current.size < 2) pinchRef.current = undefined;
+    // A pinch that loses a finger becomes a pan under the one still down. It
+    // is picked up where that finger actually is, so the field does not jump
+    // to wherever the pinch started.
+    const [remaining] = touchesRef.current.values();
+    if (pinching && remaining && touchesRef.current.size === 1) {
+      panRef.current = { ...remaining };
+      return;
+    }
     if (panRef.current) {
       panRef.current = undefined;
       return;
@@ -2826,6 +2909,13 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   ): void => {
     // The handle owns this press; the field must not also start a move.
     event.stopPropagation();
+    if (stylusRejects(stylusRef.current, event.pointerType)) return;
+    // Which means the field never sees it, so the pointer in hand is recorded
+    // here too — otherwise a Pencil that only ever grabs handles would keep
+    // being handed a finger's targets.
+    if (penInterrupts(stylusRef.current, event.pointerType))
+      abandonTouchGesture();
+    noteStylus(stylusDown(stylusRef.current, event.pointerType));
     const target = fieldSvgRef.current;
     try {
       target?.setPointerCapture(event.pointerId);
@@ -2856,6 +2946,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     });
   };
   const onFieldPointerCancel = (event: React.PointerEvent<SVGSVGElement>) => {
+    const rejected = stylusRejects(stylusRef.current, event.pointerType);
+    noteStylus(stylusUp(stylusRef.current, event.pointerType));
+    if (rejected) return;
     touchesRef.current.delete(event.pointerId);
     if (touchesRef.current.size < 2) pinchRef.current = undefined;
     panRef.current = undefined;
@@ -3807,6 +3900,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                       branchIndex={interaction.selectedBranchIndex}
                       onHandleDown={onHandleDown}
                       path={selectedPath}
+                      precise={precisePointer}
                       projection={scene.viewport}
                       selectedNodeIndex={interaction.selectedNodeIndex}
                       selectedSegmentIndex={interaction.selectedSegmentIndex}
