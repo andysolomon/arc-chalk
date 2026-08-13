@@ -1825,3 +1825,62 @@ select:focus-visible {
   color: var(--ink);
   font-size: 12px;
 }
+
+/*
+ * A screen too small to work on shows the Play instead of the editor. The
+ * shell's own minimum width is what the editor needs to lay its panels out;
+ * this is the layout that has none of them.
+ */
+.view-reading {
+  min-width: 0;
+}
+.reading-topbar {
+  gap: 8px;
+  padding: 0 12px;
+}
+.reading-name {
+  overflow: hidden;
+  flex: 1;
+  font-size: 13px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reading-chip {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--hover);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.view-reading .editor-stage {
+  box-shadow: none;
+}
+.view-reading .field-wrap {
+  padding: 12px;
+  background: var(--paper);
+}
+/* The outline is the way through the Play without sight, on any screen. */
+.view-reading .field-outline li {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.reading-note {
+  flex: none;
+  padding: 11px 16px calc(11px + env(safe-area-inset-bottom));
+  margin: 0;
+  background: var(--canvas);
+  box-shadow: 0 -1px 0 var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}

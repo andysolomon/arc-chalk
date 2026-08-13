@@ -88,6 +88,7 @@ import {
   localSaveMessage,
   localSaveStatus,
   pruneFieldSelection,
+  editorScreenQuery,
   idleStylus,
   penInterrupts,
   stylusDown,
@@ -2384,6 +2385,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
    */
   const stylusRef = useRef<StylusState>(idleStylus);
   const [precisePointer, setPrecisePointer] = useState(() => !deviceIsCoarse());
+  /**
+   * Whether this screen is too small to work on, and so shows the Play to be
+   * read instead. A phone on the sideline is for looking at what was called,
+   * and a thumb on the glass must not move a man on it.
+   */
+  const [reading, setReading] = useState(false);
   /** Whether space is down, which turns any drag into a pan. */
   const spaceHeldRef = useRef(false);
   // Entities the Coach has just made whose commit has not landed. Selection
@@ -2791,8 +2798,10 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     // Held space or a held alt moves the field instead of what is on it —
     // the gestures every drawing tool has trained into him. So does a finger,
     // once a Pencil has been out: the tip draws and the hand moves the field,
-    // which is what ADR 0016 means by leaving touch the viewport.
+    // which is what ADR 0016 means by leaving touch the viewport. On a screen
+    // too small to work on, moving the field is all any pointer does.
     if (
+      reading ||
       spaceHeldRef.current ||
       event.altKey ||
       touchNavigates(stylusRef.current, event.pointerType)
@@ -3563,6 +3572,24 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     return () => observer.disconnect();
   }, []);
 
+  // Watched rather than read once, because a phone turned on its side is a
+  // different screen and the Coach turns it over without reloading anything.
+  useEffect(() => {
+    if (typeof globalThis.matchMedia !== "function") return;
+    const query = globalThis.matchMedia(editorScreenQuery);
+    const read = () => {
+      const tooSmall = !query.matches;
+      setReading(tooSmall);
+      // Whatever corner of the field he had been working in, a screen he can
+      // only read shows the Play whole to begin with. He can still go in for
+      // a closer look; he should not have to come back out for the first one.
+      if (tooSmall) setCamera(fitCamera(EDITOR_FRAME));
+    };
+    read();
+    query.addEventListener("change", read);
+    return () => query.removeEventListener("change", read);
+  }, []);
+
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(undefined), TOAST_MS);
@@ -3585,6 +3612,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      // A keyboard reaches a phone too — paired, or on a screen the browser
+      // has shrunk — and every shortcut below this line changes the Play.
+      if (reading) return;
       const target = event.target as HTMLElement | null;
       const typing =
         target?.isContentEditable ||
@@ -3777,7 +3807,14 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       globalThis.removeEventListener("keydown", onKeyDown);
       globalThis.removeEventListener("keyup", onKeyUp);
     };
-  }, [contextMenu, editorStore, openMenu, overlay, showSelectionOnKey]);
+  }, [
+    contextMenu,
+    editorStore,
+    openMenu,
+    overlay,
+    reading,
+    showSelectionOnKey,
+  ]);
 
   useEffect(() => {
     if (!openMenu) return;
@@ -3813,6 +3850,47 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       zonesHidden={zonesHidden}
     />
   );
+
+  if (reading) {
+    // A phone shows the Play and nothing that changes it. The field still
+    // moves — a Coach on the sideline wants a closer look at one man — but
+    // every pointer here only moves the camera, so the picture in his hand is
+    // the picture that was called.
+    return (
+      <div className="chalk-shell view-reading">
+        <header className="topbar reading-topbar">
+          <div className="chalk-mark" aria-hidden="true">
+            <i />
+          </div>
+          <strong className="brand">{PRODUCT_NAME}</strong>
+          <span className="reading-name">{editor.document.name}</span>
+          <span className="reading-chip">Read only</span>
+        </header>
+        <main className="editor-stage">
+          <div className="field-wrap">
+            <FieldDiagram
+              camera={camera}
+              onPointerCancel={onFieldPointerCancel}
+              onPointerDown={onFieldPointerDown}
+              onPointerMove={onFieldPointerMove}
+              onPointerUp={onFieldPointerUp}
+              scene={scene}
+              svgRef={fieldSvgRef}
+            />
+            <ul aria-label="Everything on the field" className="field-outline">
+              {fieldItems.map((item) => (
+                <li key={`${item.kind}:${item.id}`}>{fieldItemName(item)}</li>
+              ))}
+            </ul>
+          </div>
+        </main>
+        <p className="reading-note">
+          This screen is too small to work on. Open the Play on a tablet or a
+          computer to change it.
+        </p>
+      </div>
+    );
+  }
 
   if (activeView !== "Editor") {
     return (
