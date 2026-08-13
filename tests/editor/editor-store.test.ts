@@ -13,6 +13,14 @@ import {
   type EditorVersionSummary,
 } from "@chalk/editor";
 
+/**
+ * When these Plays were worked on. History is kept for seven days, so a store
+ * that stamps its entries at a fixed hour and a store that reads the real
+ * clock disagree about them the moment that week is up — a test that passes
+ * for a week and then rots. Every store here reads this one.
+ */
+const WORKED_ON_MS = 1_786_000_000_000;
+
 function deferred<T>(): {
   readonly promise: Promise<T>;
   readonly resolve: (value: T) => void;
@@ -288,7 +296,7 @@ describe("EditorStore undo and redo", () => {
       createMutationId: () => `mutation_${++mutation}`,
       createUndoEntryId: () => `undo_${++entry}`,
       monotonicNow: () => 0,
-      wallClockNow: () => 1_786_000_000_000,
+      wallClockNow: () => WORKED_ON_MS,
     });
     return { store, commits, initialHash };
   }
@@ -414,6 +422,7 @@ describe("EditorStore undo and redo", () => {
         },
       },
       monotonicNow: () => 0,
+      wallClockNow: () => WORKED_ON_MS,
     });
 
     expect(store.getSnapshot().undo.canUndo).toBe(true);
@@ -471,7 +480,7 @@ describe("EditorStore named versions", () => {
     const summaries: EditorVersionSummary[] = [];
     const commits: EditorPersistenceCommit[] = [];
     let current: PlayDocument = stickThunderPlay;
-    let clock = 1_786_000_000_000;
+    let clock = WORKED_ON_MS;
 
     const store = createEditorStore({
       initialDocument: stickThunderPlay,
