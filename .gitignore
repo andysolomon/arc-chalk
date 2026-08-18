@@ -19,3 +19,6 @@ test-results/
 
 # Redundant re-extraction of the source archive (identical to the repo root copy)
 Chalk Football Play Editor-2/
+
+# Vercel project link (machine-local)
+.vercel
