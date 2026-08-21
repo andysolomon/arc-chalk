@@ -73,9 +73,13 @@ test("opens the original field-first editor shell and its modes", async ({
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Present" }).click();
-  await expect(page.getByText("Present mode")).toBeVisible();
+  const present = page.getByRole("region", { name: "Present" });
+  await expect(present).toBeVisible();
+  await expect(present.getByText("Stick — Thunder")).toBeVisible();
+  await expect(present.getByText("← → variations")).toBeVisible();
+  await expect(page.getByRole("button", { name: "esc" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Editor" }).click();
+  await page.getByRole("button", { name: "esc" }).click();
   await expect(
     page.getByRole("navigation", { name: "Drawing tools" }),
   ).toBeVisible();
@@ -119,6 +123,66 @@ test("opens the original field-first editor shell and its modes", async ({
   await expect(
     page.getByRole("img", { name: "Mesh — Alert football play" }),
   ).toBeVisible();
+});
+
+test("opens Print preview as the letter-landscape sheet and leaves on Escape", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page
+    .getByRole("navigation", { name: "Workspace views" })
+    .getByRole("button", { name: "Print" })
+    .click();
+
+  const sheet = page.getByRole("region", { name: "Print preview" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText("Stick — Thunder")).toBeVisible();
+  await expect(sheet.getByText("Pass")).toBeVisible();
+  await expect(
+    sheet.getByText("letter landscape · half-inch margins · coach type"),
+  ).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Print this" })).toBeVisible();
+  await expect(page.locator(".print-diagram svg.field-diagram")).toBeVisible();
+  await expect(
+    page.getByText(
+      "letter landscape, half-inch margins — this is what export → print produces · esc returns to the editor",
+    ),
+  ).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Drawing tools" }),
+  ).toBeVisible();
+});
+
+test("changes the markings and the words from the inspector without moving the Play", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const inspector = page.getByRole("complementary", { name: "Play inspector" });
+
+  await expect(inspector.getByText("Page", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await expect(page.locator("[data-scene-label]")).toHaveCount(12);
+  await expect(page.locator("[data-field-yard-line]")).toHaveCount(9);
+
+  await inspector.getByRole("button", { name: "Half field" }).click();
+  await expect(page.locator("[data-field-yard-line]")).toHaveCount(7);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+
+  await inspector.getByRole("button", { name: "Blank" }).click();
+  await expect(page.locator("[data-field-yard-line]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+
+  await inspector.getByRole("button", { name: "Full field" }).click();
+  await expect(page.locator("[data-field-yard-line]")).toHaveCount(9);
+
+  await inspector.getByRole("button", { name: "Text" }).click();
+  await expect(page.locator("[data-scene-label]")).toHaveCount(0);
+  await inspector.getByRole("button", { name: "Text" }).click();
+  await expect(page.locator("[data-scene-label]")).toHaveCount(12);
 });
 
 test("drives the snap rail toggle and live status-bar camera controls", async ({
@@ -345,6 +409,12 @@ test("names a version and restores it after a reload", async ({ page }) => {
   // button carries the same word.
   await page.getByRole("button", { name: "Snapshot" }).click();
   await expect(page.getByText("Install week")).toBeVisible();
+
+  const inspector = page.getByRole("complementary", { name: "Play inspector" });
+  await inspector.getByRole("button", { name: "Show" }).click();
+  await expect(inspector.getByText("Install week")).toBeVisible();
+  await expect(inspector.getByText("just now")).toBeVisible();
+  await inspector.getByRole("button", { name: "Hide" }).click();
 
   await playName.fill("Thursday rewrite");
   await playName.press("Enter");

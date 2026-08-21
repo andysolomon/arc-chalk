@@ -424,10 +424,10 @@ describe("Chalk application shell", () => {
     await user.type(name, "Mesh — Alert");
     await user.click(screen.getByRole("button", { name: "Present" }));
 
-    expect(screen.getByText("Present mode")).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Play name" })).toHaveValue(
-      "Mesh — Alert",
-    );
+    expect(screen.getByRole("region", { name: "Present" })).toBeVisible();
+    expect(screen.getByText("Mesh — Alert")).toBeVisible();
+    expect(screen.getByText("← → variations")).toBeVisible();
+    expect(screen.getByRole("button", { name: "esc" })).toBeVisible();
     await waitFor(() => {
       expect(editorStore.getSnapshot().document.name).toBe("Mesh — Alert");
     });
@@ -436,7 +436,8 @@ describe("Chalk application shell", () => {
     expect(
       screen.queryByRole("button", { name: "Saved on this device" }),
     ).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Editor" }));
+    expect(screen.queryByRole("textbox", { name: "Play name" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "esc" }));
     expect(
       screen.getByRole("button", { name: "Saved on this device" }),
     ).toBeVisible();
@@ -537,6 +538,143 @@ describe("Chalk application shell", () => {
       container.querySelector("[data-label-leader='label-alert']"),
     ).toHaveAttribute("stroke-dasharray", "4 3");
   });
+
+  it("scales Present type 1.25× and returns to the editor on esc", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
+
+    const editorLabel = container.querySelector("[data-scene-label] text");
+    const editorSize = editorLabel?.getAttribute("font-size");
+    expect(editorSize).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Present" }));
+    const present = screen.getByRole("region", { name: "Present" });
+    const presentLabel = present.querySelector("[data-scene-label] text");
+    expect(Number(presentLabel?.getAttribute("font-size"))).toBeGreaterThan(
+      Number(editorSize),
+    );
+    expect(present.querySelector("svg.field-diagram")).toHaveAttribute(
+      "data-type-preset",
+      "coach",
+    );
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("region", { name: "Present" })).toBeNull();
+    expect(
+      screen.getByRole("navigation", { name: "Drawing tools" }),
+    ).toBeVisible();
+  });
+
+  it("shows the letter-landscape Print sheet and prints it", async () => {
+    const user = userEvent.setup();
+    const popup = {
+      document: { write: vi.fn(), close: vi.fn() },
+      focus: vi.fn(),
+      print: vi.fn(),
+    };
+    const open = vi
+      .spyOn(window, "open")
+      .mockReturnValue(popup as unknown as Window);
+
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(
+      within(
+        screen.getByRole("navigation", { name: "Workspace views" }),
+      ).getByRole("button", { name: "Print" }),
+    );
+    const sheet = screen.getByRole("region", { name: "Print preview" });
+    expect(within(sheet).getByText("Stick — Thunder")).toBeVisible();
+    expect(within(sheet).getByText("Pass")).toBeVisible();
+    expect(
+      within(sheet).getByText(
+        "letter landscape · half-inch margins · coach type",
+      ),
+    ).toBeVisible();
+    expect(sheet.querySelector("svg.field-diagram")).toHaveAttribute(
+      "data-type-preset",
+      "coach",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Print this" }));
+    expect(open).toHaveBeenCalledWith("", "_blank");
+    expect(popup.document.write).toHaveBeenCalledWith(
+      expect.stringContaining("<h1>Stick — Thunder</h1>"),
+    );
+    expect(popup.document.write).toHaveBeenCalledWith(
+      expect.stringContaining("<span>Pass</span>"),
+    );
+    expect(popup.document.write).toHaveBeenCalledWith(
+      expect.stringContaining("@page{size:letter landscape;margin:0.5in}"),
+    );
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("region", { name: "Print preview" })).toBeNull();
+    expect(
+      screen.getByRole("navigation", { name: "Drawing tools" }),
+    ).toBeVisible();
+    open.mockRestore();
+  });
+
+  it("prints the same letter-landscape sheet from Export → Print the field", async () => {
+    const user = userEvent.setup();
+    const popup = {
+      document: { write: vi.fn(), close: vi.fn() },
+      focus: vi.fn(),
+      print: vi.fn(),
+    };
+    const open = vi
+      .spyOn(window, "open")
+      .mockReturnValue(popup as unknown as Window);
+
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: "Print the field" }));
+
+    expect(open).toHaveBeenCalledWith("", "_blank");
+    expect(popup.document.write).toHaveBeenCalledWith(
+      expect.stringContaining("<h1>Stick — Thunder</h1>"),
+    );
+    expect(popup.document.write).toHaveBeenCalledWith(
+      expect.stringContaining("@page{size:letter landscape;margin:0.5in}"),
+    );
+    expect(popup.document.write).toHaveBeenCalledWith(
+      expect.stringContaining(".field-paper{fill:#fff;stroke:#e5e5e5}"),
+    );
+    expect(
+      screen.getByRole("navigation", { name: "Drawing tools" }),
+    ).toBeVisible();
+    open.mockRestore();
+  });
+
+  it("prints in the Print type when that preset is selected", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+    const inspector = screen.getByRole("complementary", {
+      name: "Play inspector",
+    });
+
+    await user.click(
+      within(inspector).getByRole("button", { name: /^Print$/ }),
+    );
+    await user.click(
+      within(
+        screen.getByRole("navigation", { name: "Workspace views" }),
+      ).getByRole("button", { name: "Print" }),
+    );
+
+    const sheet = screen.getByRole("region", { name: "Print preview" });
+    expect(
+      within(sheet).getByText(
+        "letter landscape · half-inch margins · print type",
+      ),
+    ).toBeVisible();
+    expect(sheet.querySelector("svg.field-diagram")).toHaveAttribute(
+      "data-type-preset",
+      "print",
+    );
+  });
 });
 
 describe("Chalk device durability surfaces", () => {
@@ -551,7 +689,7 @@ describe("Chalk device durability surfaces", () => {
         {
           id: "revision_1",
           label: "Install week",
-          createdAtMs: 1,
+          createdAtMs: Date.now(),
           documentHash: "h",
         },
       ],
@@ -600,6 +738,42 @@ describe("Chalk device durability surfaces", () => {
 
     await user.click(screen.getByRole("button", { name: "Restore" }));
     expect(restored).toEqual(["revision_1"]);
+
+    const inspector = screen.getByRole("complementary", {
+      name: "Play inspector",
+    });
+    expect(within(inspector).getByText("History 1")).toBeVisible();
+    await user.click(within(inspector).getByRole("button", { name: "Show" }));
+    expect(within(inspector).getByText("just now")).toBeVisible();
+    expect(within(inspector).getByText("Install week")).toBeVisible();
+    expect(
+      within(inspector).getByText(
+        "Named snapshots of this play, kept across a closed tab. Restoring is itself undoable.",
+      ),
+    ).toBeVisible();
+    await user.click(
+      within(inspector).getByRole("button", { name: "Restore" }),
+    );
+    expect(restored).toEqual(["revision_1", "revision_1"]);
+  });
+
+  it("points History at named snapshots instead of a 90-second autosave", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+    const inspector = screen.getByRole("complementary", {
+      name: "Play inspector",
+    });
+
+    expect(
+      within(inspector).getByText("History", { exact: true }),
+    ).toBeVisible();
+    await user.click(within(inspector).getByRole("button", { name: "Show" }));
+    expect(
+      within(inspector).getByText(
+        "Nothing saved back yet. Name a Snapshot from Save when you want a state you can come back to.",
+      ),
+    ).toBeVisible();
+    expect(within(inspector).queryByText(/90 seconds/)).toBeNull();
   });
 
   it("tells the Coach the app closed unexpectedly without claiming lost work", async () => {
@@ -867,6 +1041,98 @@ describe("Chalk editor overlays", () => {
     expect(
       screen.getByRole("complementary", { name: "Play inspector" }),
     ).toBeVisible();
+  });
+
+  it("changes what prints under the play without moving the players", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
+    const inspector = screen.getByRole("complementary", {
+      name: "Play inspector",
+    });
+
+    expect(within(inspector).getByText("Page")).toBeVisible();
+    expect(
+      within(inspector).getByText(
+        "Changes what prints under the play — the players and lines never move.",
+      ),
+    ).toBeVisible();
+    expect(container.querySelectorAll("[data-field-yard-line]")).toHaveLength(
+      9,
+    );
+    expect(container.querySelectorAll("[data-scene-player]")).toHaveLength(11);
+
+    await user.click(
+      within(inspector).getByRole("button", { name: "Half field" }),
+    );
+    expect(container.querySelectorAll("[data-field-yard-line]")).toHaveLength(
+      7,
+    );
+    expect(container.querySelectorAll("[data-scene-player]")).toHaveLength(11);
+
+    await user.click(
+      within(inspector).getByRole("button", { name: "Scout card" }),
+    );
+    expect(container.querySelectorAll("[data-field-yard-line]")).toHaveLength(
+      1,
+    );
+    expect(container.querySelector("[data-field-sideline]")).toBeNull();
+
+    await user.click(
+      within(inspector).getByRole("button", { name: "Playbook page" }),
+    );
+    expect(container.querySelector("svg.field-diagram")).toHaveAttribute(
+      "data-field-style",
+      "light",
+    );
+    expect(container.querySelectorAll("[data-field-yard-line]")).toHaveLength(
+      9,
+    );
+    expect(container.querySelector("[data-field-sideline]")).toBeNull();
+
+    await user.click(within(inspector).getByRole("button", { name: "Blank" }));
+    expect(container.querySelector("[data-field-yard-line]")).toBeNull();
+    expect(container.querySelectorAll("[data-scene-player]")).toHaveLength(11);
+  });
+
+  it("scales the words and hides a family of marks from the type and layer controls", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
+    const inspector = screen.getByRole("complementary", {
+      name: "Play inspector",
+    });
+
+    expect(
+      within(inspector).getByText(
+        "Dense — reads, assignments, conversions and notes all on the field.",
+      ),
+    ).toBeVisible();
+    expect(container.querySelectorAll("[data-scene-label]")).toHaveLength(12);
+
+    await user.click(within(inspector).getByRole("button", { name: "Player" }));
+    expect(
+      within(inspector).getByText(
+        "Bigger type, assignments only — what a player reads across a room.",
+      ),
+    ).toBeVisible();
+    expect(container.querySelector("svg.field-diagram")).toHaveAttribute(
+      "data-type-preset",
+      "player",
+    );
+
+    await user.click(
+      within(inspector).getByRole("button", { name: /^Print$/ }),
+    );
+    expect(
+      within(inspector).getByText(
+        "Pure black, no color fills — survives a copier.",
+      ),
+    ).toBeVisible();
+
+    await user.click(within(inspector).getByRole("button", { name: "Text" }));
+    expect(container.querySelector("[data-scene-label]")).toBeNull();
+    expect(
+      within(inspector).getByRole("button", { name: "Text" }),
+    ).toHaveAttribute("aria-pressed", "false");
   });
 
   it("opens the shortcut reference from the inspector and closes it on Escape", async () => {

@@ -10,6 +10,17 @@ import type {
 } from "@chalk/domain";
 import { assignmentForPath, buildFieldLandmarks } from "@chalk/domain";
 
+import {
+  defaultPresentation,
+  effectiveLayers,
+  pageKindSpec,
+  resolveTypeDensity,
+  type FieldMarkingStyle,
+  type Presentation,
+  type TypeDensity,
+  type TypePresetId,
+} from "./presentation";
+
 export interface ScenePlayer extends Pick<
   Player,
   | "id"
@@ -71,7 +82,10 @@ export interface RenderScene {
     readonly profile: FieldProfile;
     readonly landmarks: FieldLandmarks;
     readonly lineOfScrimmageDepthYards: 0;
+    readonly style: FieldMarkingStyle;
   };
+  readonly typePreset: TypePresetId;
+  readonly type: TypeDensity;
   readonly players: readonly ScenePlayer[];
   readonly paths: readonly ScenePath[];
   readonly labels: readonly SceneLabel[];
@@ -79,6 +93,7 @@ export interface RenderScene {
 
 export interface RenderSceneOptions {
   readonly fieldWindow?: FieldWindow;
+  readonly presentation?: Presentation;
 }
 
 function resolveLabelPosition(
@@ -128,15 +143,24 @@ export function buildRenderScene(
   play: PlayDocument,
   options: RenderSceneOptions = {},
 ): RenderScene {
+  const presentation = options.presentation ?? defaultPresentation;
+  const page = pageKindSpec(presentation.pageKind);
+  const layers = effectiveLayers(presentation);
   return {
     schemaVersion: 2,
     playId: play.id,
     playName: play.name,
     field: {
       profile: structuredClone(play.fieldProfile),
-      landmarks: buildFieldLandmarks(play.fieldProfile, options.fieldWindow),
+      landmarks: buildFieldLandmarks(
+        play.fieldProfile,
+        options.fieldWindow ?? page.window,
+      ),
       lineOfScrimmageDepthYards: 0,
+      style: page.style,
     },
+    typePreset: presentation.typePreset,
+    type: resolveTypeDensity(presentation),
     players: play.players.map(
       ({
         id,
@@ -186,28 +210,33 @@ export function buildRenderScene(
           style,
           ...(variant === undefined ? {} : { variant }),
           ...(coverageArea === undefined ? {} : { coverageArea }),
-          ...(readOrder === undefined ? {} : { readOrder }),
-          ...(conversion === undefined ? {} : { conversion }),
-          ...(coachingNote === undefined ? {} : { coachingNote }),
-          ...(assignment ? { assignment } : {}),
+          ...(layers.reads && readOrder !== undefined ? { readOrder } : {}),
+          ...(layers.notes && conversion !== undefined ? { conversion } : {}),
+          ...(layers.notes && coachingNote !== undefined
+            ? { coachingNote }
+            : {}),
+          ...(layers.assigns && assignment ? { assignment } : {}),
         };
       },
     ),
-    labels: play.labels.map((label) => ({
-      id: label.id,
-      position: resolveLabelPosition(play, label),
-      text: label.text,
-      color: label.color,
-      size: label.size,
-      box: label.box,
-      boxColor: label.boxColor,
-      ...(label.caps === undefined ? {} : { caps: label.caps }),
-      ...(label.mono === undefined ? {} : { mono: label.mono }),
-      ...(label.role === undefined ? {} : { role: label.role }),
-      ...(label.unit === undefined ? {} : { unit: label.unit }),
-      ...(label.leader === undefined ? {} : { leader: label.leader }),
-    })),
+    labels: layers.text
+      ? play.labels.map((label) => ({
+          id: label.id,
+          position: resolveLabelPosition(play, label),
+          text: label.text,
+          color: label.color,
+          size: label.size,
+          box: label.box,
+          boxColor: label.boxColor,
+          ...(label.caps === undefined ? {} : { caps: label.caps }),
+          ...(label.mono === undefined ? {} : { mono: label.mono }),
+          ...(label.role === undefined ? {} : { role: label.role }),
+          ...(label.unit === undefined ? {} : { unit: label.unit }),
+          ...(label.leader === undefined ? {} : { leader: label.leader }),
+        }))
+      : [],
   };
 }
 
+export * from "./presentation";
 export * from "./svg";

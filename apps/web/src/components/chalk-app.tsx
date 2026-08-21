@@ -126,6 +126,14 @@ import {
   type SvgPathStroke,
   type SvgShapePrimitive,
   type SvgTextPrimitive,
+  defaultPresentation,
+  fieldLayerCatalog,
+  pageKindCatalog,
+  typePresetCatalog,
+  type FieldLayerId,
+  type PageKindId,
+  type Presentation,
+  type TypePresetId,
 } from "@chalk/render";
 import {
   useCallback,
@@ -137,7 +145,9 @@ import {
 } from "react";
 
 import type { ChalkRuntime } from "../app/editor-runtime";
+import { agoStamp } from "./ago-stamp";
 import { type ActionMap } from "./editor-command-surface";
+import { openPrintField, svgMarkupForPrint } from "./print-field";
 import {
   ClearMenu,
   CommandPalette,
@@ -508,6 +518,8 @@ export function FieldDiagram({
   return (
     <svg
       className="field-diagram"
+      data-field-style={scene.field.style}
+      data-type-preset={scene.typePreset}
       role="img"
       aria-label={`${scene.playName} football play`}
       // The field is driven by pointer events; letting mousedown run its
@@ -713,6 +725,7 @@ export function FieldDiagram({
                 ].map((stroke) => (
                   <path
                     d={stroke.d}
+                    data-print-chrome=""
                     data-selected-path={path.id}
                     fill="none"
                     key={`sel-${stroke.id}`}
@@ -844,6 +857,7 @@ export function FieldDiagram({
             <SceneText text={label.text} />
             {selected("label", label.id) ? (
               <rect
+                data-print-chrome=""
                 data-selected-label={label.id}
                 fill="none"
                 height={label.text.fontSize + 14}
@@ -893,6 +907,7 @@ export function FieldDiagram({
             {selected("player", player.id) ? (
               <circle
                 className="selection-halo"
+                data-print-chrome=""
                 fill="none"
                 r={19}
                 stroke={SELECTION_BLUE}
@@ -911,6 +926,7 @@ export function FieldDiagram({
                 className="route-dot"
                 cx={0}
                 cy={-26}
+                data-print-chrome=""
                 data-route-dot={player.id}
                 fill={SELECTION_BLUE}
                 onPointerDown={(event) => {
@@ -929,7 +945,7 @@ export function FieldDiagram({
           </g>
         ))}
       </g>
-      {overlay}
+      {overlay ? <g data-print-chrome="">{overlay}</g> : null}
     </svg>
   );
 }
@@ -2110,11 +2126,15 @@ function Inspector({
   call,
   concepts,
   defenderCount,
+  layers,
   lineCalls,
   linemanCount,
   onConcept,
   onLineCall,
+  onPageKind,
   onSpotBall,
+  onToggleLayer,
+  onTypePreset,
   formation,
   formationHint,
   labelEditor,
@@ -2122,6 +2142,11 @@ function Inspector({
   onOpenFormations,
   onOpenPalette,
   onOpenShortcuts,
+  onRestoreVersion,
+  pageKind,
+  typeHint,
+  typePreset,
+  versions,
 }: {
   ballSpots: readonly {
     readonly spot: BallSpot;
@@ -2135,6 +2160,7 @@ function Inspector({
     Record<string, { readonly on: boolean; readonly available: boolean }>
   >;
   defenderCount: number;
+  layers: Presentation["layers"];
   lineCalls: readonly {
     readonly key: string;
     readonly name: string;
@@ -2143,7 +2169,10 @@ function Inspector({
   }[];
   onConcept: (key: string) => void;
   onLineCall: (key: string) => void;
+  onPageKind: (kind: PageKindId) => void;
   onSpotBall: (spot: BallSpot) => void;
+  onToggleLayer: (layer: FieldLayerId) => void;
+  onTypePreset: (preset: TypePresetId) => void;
   linemanCount: number;
   formation?: Formation;
   formationHint: string;
@@ -2152,6 +2181,11 @@ function Inspector({
   onOpenFormations: () => void;
   onOpenPalette: () => void;
   onOpenShortcuts: () => void;
+  onRestoreVersion: (revisionId: string) => void;
+  pageKind: PageKindId;
+  typeHint: string;
+  typePreset: TypePresetId;
+  versions: readonly EditorVersionSummary[];
 }) {
   if (labelEditor) {
     return (
@@ -2295,6 +2329,64 @@ function Inspector({
           Four Verticals <span>Pass</span>
         </div>
       </section>
+      <HistorySection onRestore={onRestoreVersion} versions={versions} />
+      <InspectorSection title="Page">
+        <div className="page-kinds">
+          {pageKindCatalog.map((kind) => (
+            <button
+              aria-pressed={pageKind === kind.id}
+              className={pageKind === kind.id ? "active" : undefined}
+              key={kind.id}
+              onClick={() => onPageKind(kind.id)}
+              type="button"
+            >
+              {kind.name}
+            </button>
+          ))}
+        </div>
+        <p>
+          Changes what prints under the play — the players and lines never move.
+        </p>
+        <div className="sub-heading">Type</div>
+        <div className="segments">
+          {typePresetCatalog.map((preset) => (
+            <button
+              aria-pressed={typePreset === preset.id}
+              className={typePreset === preset.id ? "active" : undefined}
+              key={preset.id}
+              onClick={() => onTypePreset(preset.id)}
+              title={preset.hint}
+              type="button"
+            >
+              {preset.name}
+            </button>
+          ))}
+        </div>
+        <p>{typeHint}</p>
+        <div className="sub-heading">Show on the field</div>
+        <div className="layer-toggles">
+          {fieldLayerCatalog.map((layer) => {
+            const on = layers[layer.id];
+            return (
+              <button
+                aria-pressed={on}
+                className={on ? "active" : undefined}
+                key={layer.id}
+                onClick={() => onToggleLayer(layer.id)}
+                title={
+                  on
+                    ? `Hide ${layer.name.toLowerCase()} everywhere, exports included`
+                    : `Show ${layer.name.toLowerCase()} again`
+                }
+                type="button"
+              >
+                <span className="layer-dot" />
+                {layer.name}
+              </button>
+            );
+          })}
+        </div>
+      </InspectorSection>
       <InspectorSection title="Help">
         <div className="help-row">
           <button onClick={onOpenPalette} type="button">
@@ -2306,6 +2398,75 @@ function Inspector({
         </div>
       </InspectorSection>
     </aside>
+  );
+}
+
+function HistorySection({
+  onRestore,
+  versions,
+}: {
+  onRestore: (revisionId: string) => void;
+  versions: readonly EditorVersionSummary[];
+}) {
+  const [open, setOpen] = useState(false);
+  const count = versions.length;
+
+  return (
+    <section className="inspector-section">
+      <div className="section-heading history-heading">
+        <span>History{count ? ` ${count}` : ""}</span>
+        <button
+          aria-expanded={open}
+          onClick={() => setOpen((shown) => !shown)}
+          title="Earlier states of this play"
+          type="button"
+        >
+          {open ? "Hide" : "Show"}
+        </button>
+      </div>
+      {open ? (
+        <>
+          {count > 0 ? (
+            <div className="history-list">
+              {versions.map((version, index) => {
+                const label = version.label ?? "Unnamed version";
+                return (
+                  <div className="history-row" key={version.id}>
+                    <span className="history-ago">
+                      {agoStamp(version.createdAtMs)}
+                    </span>
+                    <span
+                      className={
+                        index === 0 ? "history-label current" : "history-label"
+                      }
+                      title={label}
+                    >
+                      {label}
+                    </span>
+                    <button
+                      onClick={() => onRestore(version.id)}
+                      title="Put this state back on the field — undo returns to now"
+                      type="button"
+                    >
+                      Restore
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="history-empty">
+              Nothing saved back yet. Name a Snapshot from Save when you want a
+              state you can come back to.
+            </p>
+          )}
+          <p>
+            Named snapshots of this play, kept across a closed tab. Restoring is
+            itself undoable.
+          </p>
+        </>
+      ) : null}
+    </section>
   );
 }
 
@@ -2327,6 +2488,8 @@ function InspectorSection({
 export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   const { editorStore } = runtime;
   const [activeView, setActiveView] = useState<View>("Editor");
+  const [presentation, setPresentation] =
+    useState<Presentation>(defaultPresentation);
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [openMenu, setOpenMenu] = useState<Menu>(null);
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -2344,6 +2507,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   // authoritative model so no event ever reduces against a stale one.
   const interactionRef = useRef<FieldInteractionModel>(interaction);
   const fieldSvgRef = useRef<SVGSVGElement | null>(null);
+  const printSvgRef = useRef<SVGSVGElement | null>(null);
   const labelTextInputRef = useRef<HTMLInputElement | null>(null);
   // A label the Coach has just placed is waiting to be typed into. A ref,
   // not state: nothing renders from it, and clearing it must not re-render.
@@ -2535,10 +2699,15 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         : editor.document,
     [editor.document, previewCommand],
   );
-  const scene = useMemo(
-    () => buildSvgRenderScene(buildRenderScene(previewDocument)),
-    [previewDocument],
-  );
+  const scene = useMemo(() => {
+    const forView: Presentation =
+      activeView === "Present"
+        ? { ...presentation, present: true }
+        : presentation;
+    return buildSvgRenderScene(
+      buildRenderScene(previewDocument, { presentation: forView }),
+    );
+  }, [activeView, previewDocument, presentation]);
   const selectionKeys = useMemo(
     () =>
       new Set(
@@ -2727,7 +2896,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     const result = fieldInteraction(interactionRef.current, event, {
       document,
       get scene() {
-        renderScene ??= buildRenderScene(document);
+        renderScene ??= buildRenderScene(document, { presentation });
         return renderScene;
       },
       // What a screen pixel is worth in yards changes with the camera and
@@ -2842,7 +3011,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   ) => {
     const document = editorStore.getSnapshot().document;
     const found = hitTestField(
-      buildRenderScene(document),
+      buildRenderScene(document, { presentation }),
       fieldPointFromClient(clientX, clientY),
       {
         lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard,
@@ -3613,6 +3782,32 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     };
   };
 
+  const goToView = useCallback((view: View): void => {
+    setActiveView(view);
+    setOpenMenu(null);
+    setOverlay(null);
+  }, []);
+
+  /**
+   * The letter-landscape field sheet. Print preview's "Print this" and
+   * Export → Print the field are the same print, as the original's
+   * `exportPdf` is.
+   */
+  const printTheField = (): void => {
+    const svg = printSvgRef.current ?? fieldSvgRef.current;
+    if (!svg) return;
+    const play = editorStore.getSnapshot().document;
+    openPrintField({
+      playName: play.name,
+      category: play.playType?.name ?? "",
+      svgMarkup: svgMarkupForPrint(svg, {
+        width: scene.viewport.width,
+        height: scene.viewport.height,
+      }),
+    });
+    setOpenMenu(null);
+  };
+
   /**
    * What production can run today. A command the editor cannot yet perform is
    * deliberately absent so the menus show it as unavailable rather than
@@ -3637,8 +3832,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       dispatchFieldRef.current({ type: "mirror" });
       setOpenMenu(null);
     },
-    present: () => setActiveView("Present"),
-    print: () => setActiveView("Print"),
+    present: () => goToView("Present"),
+    print: () => goToView("Print"),
+    printField: printTheField,
     shortcuts: () => setOverlay("shortcuts"),
     // Chalk saves continuously (ADR 0012); an explicit Save flushes whatever
     // the Coach is still typing rather than pretending durability is manual.
@@ -3770,6 +3966,27 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         ) != null;
       const meta = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
+
+      if (!typing && (activeView === "Present" || activeView === "Print")) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          goToView("Editor");
+          return;
+        }
+        if (activeView === "Present") {
+          if (
+            event.key === "ArrowLeft" ||
+            event.key === "ArrowRight" ||
+            event.key === " "
+          ) {
+            // Variation stepping and playback wait on later phases; the keys
+            // still belong to Present so they do not leak into the editor.
+            event.preventDefault();
+            return;
+          }
+        }
+        return;
+      }
 
       if (event.key === "Escape") {
         if (contextMenu) {
@@ -3946,8 +4163,10 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       globalThis.removeEventListener("keyup", onKeyUp);
     };
   }, [
+    activeView,
     contextMenu,
     editorStore,
+    goToView,
     openMenu,
     overlay,
     reading,
@@ -3977,7 +4196,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       onRedo={redo}
       onRestoreVersion={restoreVersion}
       onUndo={undo}
-      onView={setActiveView}
+      onView={goToView}
       openMenu={openMenu}
       playName={editor.draftPlayName}
       resetPlayName={editorStore.resetPlayNameDraft}
@@ -4030,13 +4249,54 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     );
   }
 
-  if (activeView !== "Editor") {
+  const typeName =
+    typePresetCatalog.find(({ id }) => id === presentation.typePreset)?.name ??
+    "Coach";
+  const playCategory = editor.document.playType?.name ?? "";
+  const statusHint =
+    activeView === "Print"
+      ? "letter landscape, half-inch margins — this is what export → print produces · esc returns to the editor"
+      : "drag the blue dot above a player to draw his route — double-click a line to add a node · ⌫ delete";
+
+  if (activeView === "Present") {
     return (
-      <div className={`chalk-shell view-${activeView.toLowerCase()}`}>
+      <div className="chalk-shell view-present">
+        <PresentMode
+          onLeave={() => goToView("Editor")}
+          playName={editor.document.name}
+          positionLine=""
+          scene={scene}
+        />
+      </div>
+    );
+  }
+
+  if (activeView === "Print") {
+    return (
+      <div className="chalk-shell view-print">
+        {header}
+        <PrintMode
+          category={playCategory}
+          onPrint={printTheField}
+          playName={editor.document.name}
+          scene={scene}
+          svgRef={printSvgRef}
+          typeName={typeName.toLowerCase()}
+        />
+        <div className="statusbar">
+          <span>{statusHint}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeView === "Demo") {
+    return (
+      <div className="chalk-shell view-demo">
         {header}
         <div className="mode-placeholder">
           <FieldDiagram scene={scene} />
-          <div className="mode-label">{activeView} mode</div>
+          <div className="mode-label">Demo mode</div>
         </div>
       </div>
     );
@@ -4487,6 +4747,27 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
             onOpenFormations={() => setOverlay("formations")}
             onOpenPalette={() => setOverlay("palette")}
             onOpenShortcuts={() => setOverlay("shortcuts")}
+            onRestoreVersion={restoreVersion}
+            onPageKind={(pageKind) =>
+              setPresentation((current) => ({ ...current, pageKind }))
+            }
+            onToggleLayer={(layer: FieldLayerId) =>
+              setPresentation((current) => ({
+                ...current,
+                layers: { ...current.layers, [layer]: !current.layers[layer] },
+              }))
+            }
+            onTypePreset={(typePreset) =>
+              setPresentation((current) => ({ ...current, typePreset }))
+            }
+            pageKind={presentation.pageKind}
+            layers={presentation.layers}
+            typePreset={presentation.typePreset}
+            typeHint={
+              typePresetCatalog.find(({ id }) => id === presentation.typePreset)
+                ?.hint ?? typePresetCatalog[0]!.hint
+            }
+            versions={editor.versions}
           />
         ) : (
           <button
@@ -4500,10 +4781,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         )}
       </div>
       <div className="statusbar">
-        <span>
-          drag the blue dot above a player to draw his route — double-click a
-          line to add a node · ⌫ delete
-        </span>
+        <span>{statusHint}</span>
         <div className="status-controls">
           <div className="status-zoom">
             <button
@@ -4794,6 +5072,86 @@ function DeviceNotices({
           </button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Full-window Present: the Play, the name, and esc back. Type is already
+ * scaled 1.25× in the scene; this is the chrome around it. Animation and
+ * variation stepping wait on later phases — the original's "← → variations"
+ * copy stays so the affordance is visible.
+ */
+function PresentMode({
+  onLeave,
+  playName,
+  positionLine,
+  scene,
+}: {
+  onLeave: () => void;
+  playName: string;
+  positionLine: string;
+  scene: SvgRenderScene;
+}) {
+  return (
+    <div aria-label="Present" className="present-mode" role="region">
+      <div className="present-stage">
+        <FieldDiagram scene={scene} />
+      </div>
+      <div className="present-bar">
+        <div className="present-name">{playName}</div>
+        <div className="present-pos">{positionLine}</div>
+        <div className="present-hint">← → variations</div>
+        <button
+          onClick={onLeave}
+          title="Back to the editor — esc"
+          type="button"
+        >
+          esc
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Letter-landscape Print preview. The sheet is what Export → Print the field
+ * produces; "Print this" runs that same print.
+ */
+function PrintMode({
+  category,
+  onPrint,
+  playName,
+  scene,
+  svgRef,
+  typeName,
+}: {
+  category: string;
+  onPrint: () => void;
+  playName: string;
+  scene: SvgRenderScene;
+  svgRef: React.Ref<SVGSVGElement>;
+  typeName: string;
+}) {
+  return (
+    <div aria-label="Print preview" className="print-mode" role="region">
+      <div className="print-sheet">
+        <div className="print-margins">
+          <div className="print-hd">
+            <div className="print-title">{playName}</div>
+            <div className="print-cat">{category}</div>
+          </div>
+          <div className="print-diagram">
+            <FieldDiagram scene={scene} svgRef={svgRef} />
+          </div>
+        </div>
+      </div>
+      <div className="print-actions">
+        <button onClick={onPrint} type="button">
+          Print this
+        </button>
+        <span>letter landscape · half-inch margins · {typeName} type</span>
+      </div>
     </div>
   );
 }

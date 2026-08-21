@@ -40,21 +40,33 @@ import { expect, test, type Page } from "@playwright/test";
  * lower halves disagreed with the original everywhere at once.
  */
 const parityGap: Readonly<Record<string, number>> = {
-  // 1.7750% (24,538 px), from 1.8624% (25,746 px).
-  editor: 0.0178,
+  // 1.7134% (23,685 px), from 1.7750% (24,538 px). History sits below the
+  // fold on the idle Editor, so this number did not move when the section
+  // landed.
+  editor: 0.0172,
+  // Present fills the window, so the known field-aspect gap (original 1000×620,
+  // production 1068×525) is the whole picture rather than a column. The
+  // original also draws an animation scrubber and a "1 / 5 · STICK — THUNDER"
+  // variation line here; both wait on later phases (timing playback, the
+  // concept family). First measurement 17.96% (248,333 px).
+  present: 0.1797,
+  // Print hides the tool rail and inspector, so what remains is the field
+  // geometry the Editor already disagrees about, on a letter-landscape sheet
+  // whose chrome matches. First measurement 0.84% (11,638 px).
+  print: 0.0085,
   // The five chrome overlays. Each sits at or just under the Editor's own gap
   // because the panel covers part of the field it disagrees about — what is
   // left is the shell behind them, not the overlay. Their item lists, ordering
   // and copy already match the original.
-  moreMenu: 0.0179, // 1.7882%, from 1.8752%
-  exportMenu: 0.0172, // 1.7153%, from 1.8027%
-  saveMenu: 0.0179, // 1.7869%, from 1.8743%
-  commandPalette: 0.0178, // 1.7762%, from 1.8563%
-  // Higher than the rest for one reason: reaching "Shortcuts ?" scrolls the
-  // inspector, and the original's inspector carries History, Page and Type
-  // sections production has not built. The panel itself matches — its rows and
-  // wrapped rows measure the original's 28 px and 62 px exactly.
-  shortcuts: 0.0265, // 2.6469%, from 2.7198%
+  moreMenu: 0.0173, // 1.7273% (23,877 px), from 1.7882%
+  exportMenu: 0.0166, // 1.6536% (22,859 px), from 1.7153%
+  saveMenu: 0.0173, // 1.7252% (23,849 px), from 1.7869%
+  commandPalette: 0.0172, // 1.7182% (23,752 px), from 1.7762%
+  // Still the highest because reaching "Shortcuts ?" scrolls the inspector
+  // onto History, Page and Type. Those sections are now built; what remains
+  // is the field behind the panel and the original's 90-second autosave copy
+  // we did not reproduce. Named snapshots land here instead.
+  shortcuts: 0.0251, // 2.5044% (34,619 px), from 2.5033% (34,604 px)
   // The book of sets. Its All / Favorites / Mine tab strip, the star on every
   // card and the footer that saves the offense on the field as a set of its
   // own are now built and measured. What still holds it above the Editor's
@@ -110,6 +122,43 @@ test.describe("production shell against the canonical original", () => {
         maxDiffPixelRatio: allowedGap("editor"),
       },
     );
+  });
+
+  test("Present matches the original desktop golden", async ({ page }) => {
+    await loadProductionShell(page);
+    await page
+      .getByRole("navigation", { name: "Workspace views" })
+      .getByRole("button", { name: "Present", exact: true })
+      .click();
+    await expect(page.getByRole("region", { name: "Present" })).toBeVisible();
+
+    await expect(page).toHaveScreenshot(
+      "original-present-desktop-1440x960.png",
+      {
+        animations: "disabled",
+        caret: "hide",
+        fullPage: true,
+        maxDiffPixelRatio: allowedGap("present"),
+      },
+    );
+  });
+
+  test("Print matches the original desktop golden", async ({ page }) => {
+    await loadProductionShell(page);
+    await page
+      .getByRole("navigation", { name: "Workspace views" })
+      .getByRole("button", { name: "Print", exact: true })
+      .click();
+    await expect(
+      page.getByRole("region", { name: "Print preview" }),
+    ).toBeVisible();
+
+    await expect(page).toHaveScreenshot("original-print-desktop-1440x960.png", {
+      animations: "disabled",
+      caret: "hide",
+      fullPage: true,
+      maxDiffPixelRatio: allowedGap("print"),
+    });
   });
 });
 
