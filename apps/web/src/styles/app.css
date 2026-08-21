@@ -852,14 +852,12 @@ select:focus-visible {
   flex: 1;
   display: grid;
   place-items: center;
-  padding: 76px 12px;
   overflow: hidden;
-  background: linear-gradient(#fafafa 0 9%, #fff 9% 87%, #fafafa 87%);
+  background: var(--canvas);
 }
 .field-diagram {
   width: 100%;
-  max-width: 1068px;
-  aspect-ratio: 1068/525;
+  aspect-ratio: 1000 / 620;
   overflow: visible;
   touch-action: none;
   user-select: none;

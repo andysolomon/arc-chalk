@@ -21,6 +21,8 @@ export const LEGACY_FIELD_GEOMETRY = Object.freeze({
   midfieldX: 500,
   viewWidth: 1000,
   viewHeight: 620,
+  /** `(viewWidth − 976) / 2` — grass either side of the sidelines. */
+  fieldInsetX: 12,
 });
 
 /** Converts a lateral pixel span — a width or radius, not a position. */

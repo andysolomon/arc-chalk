@@ -10,10 +10,14 @@ import {
   zoomCamera,
   type Camera,
 } from "@chalk/editor";
+import { editorSvgViewport } from "@chalk/render";
 import { describe, expect, it } from "vitest";
 
 /** The editor's own frame, which is what the renderer draws into. */
-const frame = { width: 1068, height: 525 };
+const frame = {
+  width: editorSvgViewport.width,
+  height: editorSvgViewport.height,
+};
 /** The original's 70 pixels of room, as a proportion of the frame's width. */
 const PADDING_RATIO = 70 / 1000;
 const fit = fitCamera(frame);
@@ -26,7 +30,12 @@ const showing = (camera: Camera) => ({
 
 describe("where the Coach is looking", () => {
   it("starts showing the whole frame, and says so", () => {
-    expect(fit).toEqual({ x: 0, y: 0, width: 1068, height: 525 });
+    expect(fit).toEqual({
+      x: 0,
+      y: 0,
+      width: editorSvgViewport.width,
+      height: editorSvgViewport.height,
+    });
     expect(isAtFit(fit, frame)).toBe(true);
     expect(cameraZoom(fit, frame)).toBe(1);
   });

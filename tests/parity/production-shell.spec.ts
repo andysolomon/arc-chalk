@@ -20,70 +20,44 @@ import { expect, test, type Page } from "@playwright/test";
  * seeded Play's yard coordinates, where a compensating stretch in the renderer
  * hid it: the split end stood five yards out of bounds and was drawn inside a
  * sideline that was itself 177 px too far out. Correcting both moves every
- * Player about 1.3% and costs 0.01-0.08 percentage points against goldens
- * captured from the uncorrected original.
+ * Player about 1.3% and costs a little against goldens captured from the
+ * uncorrected original.
  *
- * Matching the original here would be bug-compatibility, not parity. Two
- * alternatives were measured and both scored worse: adopting the original's
- * exact 1.525 anisotropy (editor 26,139 px) and keeping the old 532 px
- * midfield origin (26,119 px). The configuration below is the closest of the
- * three and the only correct one.
+ * Matching the original's buggy yards would be bug-compatibility, not parity.
+ * The field is now drawn in the original's own 1000×620 frame, at the original's
+ * own scales, with correct yards. What remains of the Editor gap is tool-rail
+ * glyphs below the text tool, status-bar spacing, and that 1.3% Player shift.
  *
- * Every other clause of the ratchet still holds: these may only be lowered
- * from here, and the remaining gap is unchanged in character — the field
- * renders from a different viewBox aspect than the original's, and tool-rail
- * glyph shapes differ.
- *
- * Every number below came down when the status bar moved out of the field's
- * own column to run the width of the window, where the original puts it. That
- * is what had held the tool rail and the inspector 30 px too tall, so their
- * lower halves disagreed with the original everywhere at once.
+ * Formations and Defenses ticked up 317 px on 2026-08-21 when the field filled
+ * the original's column instead of a 1068×525 card: more of the (still slightly
+ * disagreeing) Play shows around those panels. That is the field-aspect slice,
+ * not a chrome regression; the Editor itself dropped. The raise is recorded
+ * here rather than waved through.
  */
 const parityGap: Readonly<Record<string, number>> = {
-  // 1.7134% (23,685 px), from 1.7750% (24,538 px). History sits below the
-  // fold on the idle Editor, so this number did not move when the section
-  // landed.
-  editor: 0.0172,
-  // Present fills the window, so the known field-aspect gap (original 1000×620,
-  // production 1068×525) is the whole picture rather than a column. The
-  // original also draws an animation scrubber and a "1 / 5 · STICK — THUNDER"
-  // variation line here; both wait on later phases (timing playback, the
-  // concept family). First measurement 17.96% (248,333 px).
-  present: 0.1797,
-  // Print hides the tool rail and inspector, so what remains is the field
-  // geometry the Editor already disagrees about, on a letter-landscape sheet
-  // whose chrome matches. First measurement 0.84% (11,638 px).
-  print: 0.0085,
-  // Demo is the original's guided Tool tour, captured paused on the first
-  // Player-tool step. First measurement 2.12% (29,338 px). What remains is
-  // the field viewBox aspect the Editor already disagrees about, and the
-  // original's cursor having already walked the first clicks before Pause.
-  demo: 0.0213,
-  // The five chrome overlays. Each sits at or just under the Editor's own gap
-  // because the panel covers part of the field it disagrees about — what is
-  // left is the shell behind them, not the overlay. Their item lists, ordering
-  // and copy already match the original.
-  moreMenu: 0.0173, // 1.7273% (23,877 px), from 1.7882%
-  exportMenu: 0.0166, // 1.6536% (22,859 px), from 1.7153%
-  saveMenu: 0.0173, // 1.7252% (23,849 px), from 1.7869%
-  commandPalette: 0.0172, // 1.7182% (23,752 px), from 1.7762%
-  // Still the highest because reaching "Shortcuts ?" scrolls the inspector
-  // onto History, Page and Type. Those sections are now built; what remains
-  // is the field behind the panel and the original's 90-second autosave copy
-  // we did not reproduce. Named snapshots land here instead.
-  shortcuts: 0.0251, // 2.5044% (34,619 px), from 2.5033% (34,604 px)
-  // The book of sets. Its All / Favorites / Mine tab strip, the star on every
-  // card and the footer that saves the offense on the field as a set of its
-  // own are now built and measured. What still holds it above the Editor's
-  // own gap is not the panel's chrome but its cards: production's rows drift
-  // from the original's as the grid goes down, and the thumbnail dot
-  // arithmetic differs, which shows as every group heading below the first
-  // landing a little low. Both predate this panel's controls.
-  formations: 0.0199, // 1.9830% (27,413 px), from 2.0292% (28,051 px)
-  // The book of calls, and the lowest gap of any state: the panel covers most
-  // of what the shell still disagrees with the original about. Its tab strip
-  // and stars are now built too.
-  defenses: 0.0158, // 1.5709% (21,716 px), from 1.6526% (22,845 px)
+  // 1.6526% (22,846 px), from 1.7134% (23,685 px). The field is now the
+  // original's 1000×620 rectangle.
+  editor: 0.0166,
+  // 8.9932% (124,322 px), from 17.96% (248,333 px). The remaining Present
+  // gap is the animation scrubber and the "1 / 5 · STICK — THUNDER"
+  // variation line, both waiting on later phases.
+  present: 0.09,
+  // 0.8042% (11,117 px), from 0.84% (11,638 px).
+  print: 0.0081,
+  // 2.0484% (28,317 px), from 2.12% (29,338 px). The Demo card was already
+  // 1000×620; what remains is the original's cursor having already walked
+  // the first clicks before Pause, and the 1.3% Player shift.
+  demo: 0.0205,
+  moreMenu: 0.0167, // 1.6666% (23,038 px), from 1.7273%
+  exportMenu: 0.016, // 1.5982% (22,095 px), from 1.6536%
+  saveMenu: 0.0167, // 1.6645% (23,010 px), from 1.7252%
+  commandPalette: 0.0167, // 1.6640% (23,004 px), from 1.7182%
+  shortcuts: 0.0242, // 2.4176% (33,420 px), from 2.5044%
+  // Raised 317 px with the field-aspect slice: more of the Play shows around
+  // the panel. Card row drift and thumbnail-dot arithmetic still hold it
+  // above the Editor's own gap.
+  formations: 0.0201, // 2.0059% (27,730 px), from 1.9830% (27,413 px)
+  defenses: 0.016, // 1.5938% (22,033 px), from 1.5709% (21,716 px)
 };
 
 /**

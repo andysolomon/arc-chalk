@@ -46,6 +46,17 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 
 | State              | Gap measured                   | Date                           |
 | ------------------ | ------------------------------ | ------------------------------ |
+| Present            | 8.99% (124,322 px)             | 2026-08-21 (field viewBox)     |
+| Editor             | 1.65% (22,846 px of 1,382,400) | 2026-08-21 (field viewBox)     |
+| Keyboard shortcuts | 2.42% (33,420 px)              | 2026-08-21 (field viewBox)     |
+| Demo               | 2.05% (28,317 px)              | 2026-08-21 (field viewBox)     |
+| Formations browser | 2.01% (27,730 px)              | 2026-08-21 (field viewBox)     |
+| More menu          | 1.67% (23,038 px)              | 2026-08-21 (field viewBox)     |
+| Save/version menu  | 1.66% (23,010 px)              | 2026-08-21 (field viewBox)     |
+| Command palette    | 1.66% (23,004 px)              | 2026-08-21 (field viewBox)     |
+| Export menu        | 1.60% (22,095 px)              | 2026-08-21 (field viewBox)     |
+| Defenses browser   | 1.59% (22,033 px)              | 2026-08-21 (field viewBox)     |
+| Print              | 0.80% (11,117 px)              | 2026-08-21 (field viewBox)     |
 | Editor             | 1.71% (23,685 px of 1,382,400) | 2026-08-21                     |
 | Present            | 17.96% (248,333 px)            | 2026-08-21 (first measurement) |
 | Print              | 0.84% (11,638 px)              | 2026-08-21 (first measurement) |
@@ -127,11 +138,11 @@ Two things measured here that were not obvious from a screenshot:
 
 Known contributors to the remaining Editor gap:
 
-- **The field renders from a different viewBox aspect than the original's.** The original's field SVG is 1092 px wide with a 1.3 aspect; production's is 1068 px with a 2.03 aspect. Matching the container width alone made the gap _worse_ (31,535 px) because the Play scaled with it, so this is a `RenderScene` geometry question rather than a CSS one and is left for the field work.
 - Tool-rail glyph shapes below the text tool still differ from the original's.
 - Status bar spacing does not match.
+- Finding #3: production stores correct yards, so Players sit about 1.3% off goldens captured from the uncorrected original.
 
-Present's first measurement is higher because that same field-aspect gap is now the whole window, and because two original Present pieces wait on later phases: the animation scrubber (`0.0s / 3.1s`) and the variation line (`1 / 5 · STICK — THUNDER`). Print hides the tool rail and inspector, so it sits under the Editor's own gap.
+The field is now the original's 1000×620 frame. Present dropped from 17.96% to 8.99% because that aspect is the whole window; what remains there is the animation scrubber (`0.0s / 3.1s`) and the variation line (`1 / 5 · STICK — THUNDER`). Print hides the tool rail and inspector, so it sits under the Editor's own gap. Demo's remaining gap is the original's cursor having already walked the first clicks before Pause.
 
 The earlier hand-captured comparison is retained as `screenshots/production-slice-editor-desktop-1440x960.png`.
 

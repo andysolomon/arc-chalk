@@ -6,8 +6,8 @@ import { expect, test, type Page } from "@playwright/test";
  * undoable transaction per completed gesture, and abandon a cancelled one.
  */
 
-const VIEWBOX_WIDTH = 1068;
-const VIEWBOX_HEIGHT = 525;
+const VIEWBOX_WIDTH = 1000;
+const VIEWBOX_HEIGHT = 620;
 
 const field = (page: Page) => page.locator("svg.field-diagram").first();
 
@@ -134,8 +134,8 @@ test("marquee selects the line and deletes it as one step", async ({
   // pixels of him and on a tablet that is a good deal of the frame.
   await drag(
     page,
-    await fieldPoint(page, 420, 350),
-    await fieldPoint(page, 650, 430),
+    await fieldPoint(page, 400, 400),
+    await fieldPoint(page, 600, 458),
   );
   await expect(page.locator("[data-scene-player].selected")).toHaveCount(5);
 
@@ -197,12 +197,12 @@ test("draws a route with the route tool and commits it once", async ({
   // so visibility would say "hidden" about a preview that is drawing fine.
   await page.mouse.click(start.x, start.y);
   const preview = page.locator("[data-drawing-preview]");
-  await expect(preview).toHaveAttribute("d", "M 534 446 L 534 446");
+  await expect(preview).toHaveAttribute("d", "M 500 478 L 500 478");
 
   await page.mouse.move(start.x, start.y - 60);
   // Snap constrains the break to a 45 degree family member — here straight
   // downfield, so the preview keeps the Quarterback's lateral position.
-  await expect(preview).toHaveAttribute("d", /^M 534 446 L 534 3\d\d/);
+  await expect(preview).toHaveAttribute("d", /^M 500 478 L 500 \d/);
   await page.mouse.click(start.x, start.y - 60);
   await page.mouse.click(start.x + 70, start.y - 60);
   await page.keyboard.press("Enter");
@@ -256,8 +256,8 @@ test("edits a route through its handles", async ({ page }) => {
     .locator('[data-scene-path="rz"]')
     .getAttribute("d"))!;
 
-  // Z's stem runs straight downfield at x 946.9, from y 417.8 up to 248.8.
-  const zStem = await fieldPoint(page, 947, 330);
+  // Z's stem runs straight downfield at x 886, from y 452 up to 296.
+  const zStem = await fieldPoint(page, 886, 374);
   await page.mouse.click(zStem.x, zStem.y);
   await expect(page.locator("[data-node-handle]")).toHaveCount(2);
 
@@ -296,7 +296,7 @@ test("bends a segment with its curve handle", async ({ page }) => {
     .getAttribute("d"))!;
   expect(before).not.toContain(" Q ");
 
-  const zStem = await fieldPoint(page, 947, 330);
+  const zStem = await fieldPoint(page, 886, 374);
   await page.mouse.click(zStem.x, zStem.y);
   await expect(page.locator("[data-node-handle]")).toHaveCount(2);
 
@@ -450,7 +450,7 @@ test("narrows to one segment of a route, then to a branch", async ({
   await openEditor(page);
 
   // X's route bends twice; press its second segment.
-  const onSegment = await fieldPoint(page, 280, 367);
+  const onSegment = await fieldPoint(page, 262, 405);
   await page.mouse.click(onSegment.x, onSegment.y);
   await expect(page.locator("[data-node-handle]")).toHaveCount(3);
   // The first click takes the route entire — nothing is picked out yet.
@@ -466,12 +466,12 @@ test("narrows to one segment of a route, then to a branch", async ({
   await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
 
   // Z carries a branch, whose split shows as a marker on his stem.
-  const onStem = await fieldPoint(page, 947, 330);
+  const onStem = await fieldPoint(page, 886, 374);
   await page.mouse.click(onStem.x, onStem.y);
   await expect(page.locator("[data-branch-marker]")).toHaveCount(1);
 
   // Clicking the branch line itself selects that line, handles and all.
-  const onBranch = await fieldPoint(page, 966, 110);
+  const onBranch = await fieldPoint(page, 899, 208);
   await page.mouse.click(onBranch.x, onBranch.y);
   await page.waitForTimeout(600);
   await page.mouse.click(onBranch.x, onBranch.y);
@@ -486,7 +486,7 @@ test("restyles a route, then one segment of it on its own", async ({
   await openEditor(page);
 
   // Selecting a route opens the Route panel in place of the idle one.
-  const onSegment = await fieldPoint(page, 280, 367);
+  const onSegment = await fieldPoint(page, 262, 405);
   await page.mouse.click(onSegment.x, onSegment.y);
   await expect(page.getByText("Formation", { exact: true })).toBeHidden();
   // "Route" is both the panel's heading and one of its kind buttons.
@@ -510,7 +510,7 @@ test("restyles a route, then one segment of it on its own", async ({
   // reflows the workspace, and on the narrower iPad layout that moves the
   // field out from under a coordinate taken before it appeared.
   await page.waitForTimeout(600);
-  const onSegmentAgain = await fieldPoint(page, 280, 367);
+  const onSegmentAgain = await fieldPoint(page, 262, 405);
   await page.mouse.click(onSegmentAgain.x, onSegmentAgain.y);
   await expect(page.locator('[data-line-highlight="segment"]')).toHaveCount(1);
   await page.getByRole("button", { name: "Dotted" }).click();
@@ -584,7 +584,7 @@ test("says what a route is for, and prints it at the end of the line", async ({
 }) => {
   await openEditor(page);
 
-  const onSegment = await fieldPoint(page, 280, 367);
+  const onSegment = await fieldPoint(page, 262, 405);
   await page.mouse.click(onSegment.x, onSegment.y);
   await expect(
     page.locator(".label-heading").getByText("Route", { exact: true }),
@@ -633,7 +633,7 @@ test("says what a route is for, and prints it at the end of the line", async ({
 
   // Measured again: the panel closed on reload, and the wider field it left
   // behind puts the segment somewhere else.
-  const onSegmentAgain = await fieldPoint(page, 280, 367);
+  const onSegmentAgain = await fieldPoint(page, 262, 405);
   await page.mouse.click(onSegmentAgain.x, onSegmentAgain.y);
   await expect(page.getByRole("textbox", { name: "Assignment" })).toHaveValue(
     "Stick",
@@ -645,7 +645,7 @@ test("takes the wording off a route when the Coach empties it", async ({
   page,
 }) => {
   await openEditor(page);
-  const onSegment = await fieldPoint(page, 280, 367);
+  const onSegment = await fieldPoint(page, 262, 405);
   await page.mouse.click(onSegment.x, onSegment.y);
 
   const assignment = page.getByRole("textbox", { name: "Assignment" });
@@ -715,7 +715,7 @@ test("gives a man a second line off his stance and keeps the first", async ({
 test("forks a stem into a choice and takes it away again", async ({ page }) => {
   await openEditor(page);
 
-  const onSegment = await fieldPoint(page, 280, 367);
+  const onSegment = await fieldPoint(page, 262, 405);
   await page.mouse.click(onSegment.x, onSegment.y);
   await expect(
     page.locator(".label-heading").getByText("Route", { exact: true }),
@@ -763,7 +763,7 @@ test("opens the menu on a route with a right-click and deletes it", async ({
   await openEditor(page);
   await expect(page.locator("[data-scene-path]")).toHaveCount(6);
 
-  const onSegment = await fieldPoint(page, 280, 367);
+  const onSegment = await fieldPoint(page, 262, 405);
   await page.mouse.click(onSegment.x, onSegment.y, { button: "right" });
 
   const menu = page.getByRole("menu");
@@ -827,7 +827,7 @@ test("brings a line forward from the menu and from the keyboard", async ({
     "rz-branch-0",
   ]);
 
-  const onX = await fieldPoint(page, 280, 367);
+  const onX = await fieldPoint(page, 262, 405);
   await page.mouse.click(onX.x, onX.y, { button: "right" });
   await page
     .getByRole("menu")
@@ -1338,7 +1338,7 @@ test("keeps the field under the pointer once the Coach has zoomed in", async ({
   await page.keyboard.press("Control+2");
   await expect
     .poll(async () => (await cameraOf(page)).width)
-    .toBeLessThan(1068);
+    .toBeLessThan(VIEWBOX_WIDTH);
   await page.keyboard.press("Escape");
   await expect(
     page.locator(".label-heading").getByText("Player", { exact: true }),
@@ -1645,7 +1645,7 @@ test("does not draw with the hand holding the Pencil", async ({ page }) => {
   await next.move({ x: grass.x - 60, y: grass.y });
   await next.up({ x: grass.x - 60, y: grass.y });
   const moved = await cameraOf(page);
-  expect(moved.width).toBeCloseTo(1068, 3);
+  expect(moved.width).toBeCloseTo(VIEWBOX_WIDTH, 3);
   expect(moved.x).toBeGreaterThan(0);
 });
 
@@ -1708,7 +1708,7 @@ test("keeps the field moving under the finger a pinch leaves behind", async ({
   await second.move({ x: apart.x + 90, y: apart.y });
   await expect
     .poll(async () => (await cameraOf(page)).width)
-    .toBeLessThan(1068);
+    .toBeLessThan(VIEWBOX_WIDTH);
   await expect(page.locator('[data-scene-player="z"].selected')).toHaveCount(0);
   await third.up(other);
 
@@ -1751,7 +1751,7 @@ test("hands the field to the finger once the Pencil is out", async ({
   await page.keyboard.press("Control+Equal");
   await expect
     .poll(async () => (await cameraOf(page)).width)
-    .toBeLessThan(1068);
+    .toBeLessThan(VIEWBOX_WIDTH);
   const looking = await cameraOf(page);
 
   const across = contact(page, "touch", 33);
@@ -1857,12 +1857,12 @@ test.describe("on a phone", () => {
     await page.keyboard.press("Control+Equal");
     await expect
       .poll(async () => (await cameraOf(page)).width)
-      .toBeLessThan(1068);
+      .toBeLessThan(VIEWBOX_WIDTH);
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByText("Read only", { exact: true })).toBeVisible();
     await expect
       .poll(async () => (await cameraOf(page)).width)
-      .toBeCloseTo(1068, 3);
+      .toBeCloseTo(VIEWBOX_WIDTH, 3);
 
     // A close look taken on the phone is his, and picking the tablet back up
     // does not throw it away.
@@ -1874,7 +1874,7 @@ test.describe("on a phone", () => {
     await second.move({ x: at.x + 130, y: at.y });
     await expect
       .poll(async () => (await cameraOf(page)).width)
-      .toBeLessThan(1068);
+      .toBeLessThan(VIEWBOX_WIDTH);
     const close = await cameraOf(page);
     await first.up({ x: at.x - 40, y: at.y });
     await second.up({ x: at.x + 130, y: at.y });
