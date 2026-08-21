@@ -100,6 +100,7 @@ Metrics matched to the original by measurement:
 | Play title width     | 410 px          | 310 px          | 410 px          |
 | Play Type control x  | 794             | 695             | 795             |
 | Tool-rail glyph      | 18 × 18 at x 19 | 22 × 22 at x 17 | 18 × 18 at x 19 |
+| Rail below Text      | Clear/Snap 40×40 at y 808/852; collapse 40×22 at y 896 | (unmeasured)    | same boxes      |
 | Inspector body width | 256 px          | 252 px          | 256 px          |
 
 ### The five chrome overlays
@@ -138,9 +139,10 @@ Two things measured here that were not obvious from a screenshot:
 
 Known contributors to the remaining Editor gap:
 
-- Tool-rail glyph shapes below the text tool still differ from the original's.
 - Status bar spacing does not match.
 - Finding #3: production stores correct yards, so Players sit about 1.3% off goldens captured from the uncorrected original.
+
+Tool-rail glyphs below Text (Clear, Snap, Hide-the-tools) measure the original's own boxes: 18 × 18 SVGs at x 19, Clear/Snap 40 × 40 at y 808 / 852, collapse 40 × 22 at y 896. They are no longer a remaining gap.
 
 The field is now the original's 1000×620 frame. Present dropped from 17.96% to 8.99% because that aspect is the whole window; what remains there is the animation scrubber (`0.0s / 3.1s`) and the variation line (`1 / 5 · STICK — THUNDER`). Print hides the tool rail and inspector, so it sits under the Editor's own gap. Demo's remaining gap is the original's cursor having already walked the first clicks before Pause.
 

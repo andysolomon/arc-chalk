@@ -144,6 +144,26 @@ describe("Chalk application shell", () => {
       ),
     ).toEqual(["M9 15.5 L9 6.5", "M4.5 6.5 L13.5 6.5"]);
     expect(glyph("Text — T")?.querySelector("text")).toHaveTextContent("T");
+    expect(glyph("Text — T")?.querySelector("g")).toBeNull();
+    expect(glyph("Text — T")).toHaveAttribute("width", "18");
+    expect(glyph("Text — T")).toHaveAttribute("height", "18");
+
+    expect(
+      [...(glyph("Clear a layer")?.querySelectorAll("path") ?? [])].map(
+        (path) => path.getAttribute("d"),
+      ),
+    ).toEqual([
+      "M3 15.2 L15 15.2",
+      "M6.4 15.2 L3.6 12.1 L10.2 3.6 L14 6.4 Z",
+      "M7.2 9.1 L11.4 12.2",
+    ]);
+    expect(glyph("Clear a layer")?.querySelector("g")).toBeNull();
+
+    const collapse = within(rail).getByRole("button", {
+      name: "Hide the tools",
+    });
+    expect(collapse).toHaveTextContent("‹");
+    expect(collapse).toHaveClass("rail-collapse");
 
     const snap = within(rail).getByRole("button", {
       name: "Angle snap 45 degrees — S",
@@ -154,6 +174,8 @@ describe("Chalk application shell", () => {
       "d",
       "M4 3.5 L4 14.5 L15 14.5",
     );
+    expect(snap.querySelector("g")).toBeNull();
+    expect(snap.querySelector("svg")).toHaveAttribute("width", "18");
 
     await user.click(snap);
     expect(snap).toHaveAttribute("aria-pressed", "false");

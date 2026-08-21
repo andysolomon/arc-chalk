@@ -820,6 +820,12 @@ select:focus-visible {
   width: 18px;
   height: 18px;
 }
+/* Header menus pad their trigger; the rail's Clear is a 40×40 tool button. */
+.tool-rail .menu > button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+}
 .tool-rail .snap-toggle[aria-pressed="true"] {
   background: #ebebeb;
   color: var(--ink);
@@ -832,8 +838,10 @@ select:focus-visible {
 }
 .tool-rail .rail-collapse {
   height: 22px;
+  padding: 0;
   color: #b4b4b4;
   font-size: 12px;
+  line-height: 1;
 }
 
 .editor-stage {

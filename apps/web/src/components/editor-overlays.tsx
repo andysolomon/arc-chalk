@@ -23,6 +23,7 @@ import {
   type ActionMap,
   type MenuEntry,
 } from "./editor-command-surface";
+import { RailIcon } from "./rail-icons";
 
 function MenuItem({
   actions,
@@ -180,7 +181,7 @@ export function ClearMenu({
         title="Clear a layer"
         type="button"
       >
-        <EraseIcon />
+        <RailIcon glyph="erase" />
       </button>
       <div className="menu-panel clear-panel" hidden={!open}>
         <div className="menu-heading">Clear</div>
@@ -197,30 +198,6 @@ export function ClearMenu({
         <p className="menu-note">{clearMenuHint}</p>
       </div>
     </div>
-  );
-}
-
-/**
- * The original's eraser, in its own coordinates: a block on a rule with the
- * mark it has just rubbed out. The rail draws every icon at 18 px, so the
- * original's 18-unit grid is carried over rather than re-plotted onto the
- * 24-unit one the drawing tools use.
- */
-function EraseIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 18 18">
-      <g
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-      >
-        <path d="M3 15.2 L15 15.2" />
-        <path d="M6.4 15.2 L3.6 12.1 L10.2 3.6 L14 6.4 Z" />
-        <path d="M7.2 9.1 L11.4 12.2" />
-      </g>
-    </svg>
   );
 }
 

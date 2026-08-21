@@ -25,8 +25,9 @@ import { expect, test, type Page } from "@playwright/test";
  *
  * Matching the original's buggy yards would be bug-compatibility, not parity.
  * The field is now drawn in the original's own 1000×620 frame, at the original's
- * own scales, with correct yards. What remains of the Editor gap is tool-rail
- * glyphs below the text tool, status-bar spacing, and that 1.3% Player shift.
+ * own scales, with correct yards. Tool-rail glyphs below Text (Clear, Snap,
+ * collapse) measure the original's own 18×18 at x 19 and 40×22 collapse.
+ * What remains of the Editor gap is status-bar spacing and that 1.3% Player shift.
  *
  * Formations and Defenses ticked up 317 px on 2026-08-21 when the field filled
  * the original's column instead of a 1068×525 card: more of the (still slightly
