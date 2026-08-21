@@ -1,16 +1,19 @@
 chalk-beta - Chalk Production Beta - Progress
 Generated: 2026-08-04 16:50:45 EDT
-Updated: 2026-08-21 16:45:00 EDT
+Updated: 2026-08-21 19:45:00 EDT
 On completion, move this file and the plan to docs/archive/.
 
-[ ] 0.0 - Phase 0 - Canonical prototype inventory and parity lock
+[x] 0.0 - Phase 0 - Canonical prototype inventory and parity lock
     [x] 0.1 - Establish the restored original as the canonical visual and behavioral specification
     [x] 0.2 - Create the governing parity matrix and mark the alternate design exploration rejected
-    [ ] 0.3 - Capture every top-level view, panel, menu, modal, selection state, and supported viewport
-        Evidence: the canonical Playwright harness now locks Editor, Demo, Present, Print, and seven global editor overlays at the first desktop viewport; remaining states and viewports are still open.
-    [ ] 0.4 - Inventory every control, action, shortcut, gesture, persistence transition, sample, and output at item level
-    [ ] 0.5 - Create golden documents, generated outputs, and behavior scripts for every parity group
-    [ ] 0.6 - Review and record any explicit parity exceptions before major implementation
+    [x] 0.3 - Capture every top-level view, panel, menu, modal, selection state, and supported viewport
+        Evidence: `tests/parity/original-prototype.spec.ts` locks Editor, Demo, Present, Print; More, Export, Save, palette, shortcuts, Formations, Defenses, Clear, Snapshot, and Export → Position; Player, route, and label selection plus the player context menu; Focus mode and tools hidden; iPad Editor/Present/Print at 834×1194; and the original's squeezed phone Editor at 390×844. Named files live in `docs/parity/screenshots/`. New original goldens are not production pixel ratchets.
+    [x] 0.4 - Inventory every control, action, shortcut, gesture, persistence transition, sample, and output at item level
+        Evidence: `docs/parity/capability-inventory.md` maps each control, shortcut row, persistence key, seed, and Export action to an owned phase. `tests/parity/capability-inventory.test.ts` asserts the original HTML and `editor-command-surface.ts` still share shortcutRows, export labels, More verbs, Clear labels, and `fpd.*` keys.
+    [x] 0.5 - Create golden documents, generated outputs, and behavior scripts for every parity group
+        Evidence: serialized goldens in `docs/parity/canonical-data-fixtures.md` including `timing-primitives.ts`; interaction-state goldens in 0.3; `docs/parity/behavior-scripts.md` plus `tests/parity/original-behavior.spec.ts` for happy paths and original B1 / finding-#7 scripts. Generated PNG/SVG/print-file goldens remain Phase 9.4 against those named Export actions.
+    [x] 0.6 - Review and record any explicit parity exceptions before major implementation
+        Evidence: remaining review findings #5–#13 and B4–B7 are triaged in `docs/original-prototype-parity-matrix.md` and `docs/reviews/README.md`. `Chalk Beta Design Prototype.html` stays rejected. The prototype file is unchanged.
 [x] 1.0 - Phase 1 - Workspace and architectural guardrails
     [x] 1.1 - Scaffold the Bun workspace, Vite React TypeScript web shell, and root Convex directory
     [x] 1.2 - Create domain, contracts, editor, render, local-db, sync, exports, and test-fixtures packages

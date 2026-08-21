@@ -8,7 +8,8 @@ const prototypeServer = resolve(
 
 export default defineConfig({
   testDir: import.meta.dirname,
-  testMatch: /(original-prototype|production-shell)\.spec\.ts/,
+  testMatch:
+    /(original-prototype|original-behavior|production-shell)\.spec\.ts/,
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
@@ -30,7 +31,7 @@ export default defineConfig({
   projects: [
     {
       name: "original",
-      testMatch: "original-prototype.spec.ts",
+      testMatch: /original-(prototype|behavior)\.spec\.ts/,
       use: { baseURL: "http://127.0.0.1:4174" },
     },
     {

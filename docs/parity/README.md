@@ -1,6 +1,6 @@
 # Prototype parity evidence
 
-The restored original prototype is the Coach-facing specification. Captures in this directory are evidence for incremental comparison; they do not approve differences.
+The restored original prototype is the Coach-facing specification. Captures in this directory are evidence for incremental comparison; they do not approve differences. The item-level inventory is [`capability-inventory.md`](capability-inventory.md). Behavior scripts are [`behavior-scripts.md`](behavior-scripts.md).
 
 ## Automated canonical prototype capture
 
@@ -39,6 +39,29 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 | Keyboard shortcuts | `screenshots/original-editor-shortcuts-desktop-1440x960.png`       |
 | Formation browser  | `screenshots/original-editor-formations-desktop-1440x960.png`      |
 | Defense browser    | `screenshots/original-editor-defenses-desktop-1440x960.png`        |
+| Clear menu         | `screenshots/original-editor-clear-menu-desktop-1440x960.png`      |
+| Snapshot naming    | `screenshots/original-editor-snapshot-desktop-1440x960.png`        |
+| Export Position    | `screenshots/original-editor-export-position-desktop-1440x960.png` |
+
+## Desktop selection, inspector, and chrome collapse
+
+| State              | Original golden                                                         |
+| ------------------ | ----------------------------------------------------------------------- |
+| Player selected    | `screenshots/original-editor-player-selected-desktop-1440x960.png`      |
+| Route selected     | `screenshots/original-editor-route-selected-desktop-1440x960.png`       |
+| Label selected     | `screenshots/original-editor-label-selected-desktop-1440x960.png`       |
+| Player context menu| `screenshots/original-editor-context-menu-desktop-1440x960.png`         |
+| Focus mode         | `screenshots/original-editor-focus-mode-desktop-1440x960.png`           |
+| Tools hidden       | `screenshots/original-editor-tools-hidden-desktop-1440x960.png`         |
+
+## Supported viewports
+
+| State           | Original golden                                   | Note |
+| --------------- | ------------------------------------------------- | ---- |
+| Editor iPad     | `screenshots/original-editor-ipad-834x1194.png`   | 834 × 1194 |
+| Present iPad    | `screenshots/original-present-ipad-834x1194.png`  | 834 × 1194 |
+| Print iPad      | `screenshots/original-print-ipad-834x1194.png`    | 834 × 1194 |
+| Editor phone    | `screenshots/original-editor-phone-390x844.png`   | Original squeezes the editor; production phone is read-only (Phase 4.5) |
 
 ## Production against the original
 
@@ -148,4 +171,4 @@ The field is now the original's 1000×620 frame. Present dropped from 17.96% to 
 
 The earlier hand-captured comparison is retained as `screenshots/production-slice-editor-desktop-1440x960.png`.
 
-This is still an initial baseline. Phase 0 remains open until every menu, modal, panel, selection state, supported viewport, output, shortcut, and input workflow has named evidence.
+Phase 0 is closed. The item-level inventory is `capability-inventory.md`. Behavior scripts and defect mapping are `behavior-scripts.md`. New original goldens below are **not** production pixel ratchets; Phase 4.1 may add those later.

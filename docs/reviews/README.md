@@ -31,19 +31,19 @@ Add a column as each new review lands. Findings flagged independently by more th
 | 3 | Lateral yardage ~53% too large (two-scale field) | High | static | corrected — Phase 2.2 |
 | 4 | Live text/drag edits bypass `commit`, `dirty` not set | High | static | corrected — Phase 3.2/3.3 |
 | B3 | Intentional clear is auto-undone on reload | Med-High | behavioral | corrected — Phase 3.4 |
-| 5 | Formation role matching is first-match | Med | static | untriaged |
-| 6 | Animation speed depends on route angle | Med | static | untriaged |
-| 7 | `1–9` read-order shortcut advertised, not implemented | Med | static | untriaged |
-| 8 | `insertDefense` deletes offensive labels by heuristic | Med | static | untriaged |
-| 9 | `exportFrames` silent 40-frame cap + serial downloads | Med | static | untriaged |
-| B4 | A named snapshot can be relabeled "Autosave" | Med | behavioral | untriaged |
-| B5 | Packaged app cannot start offline (unpkg React) | Med | behavioral | untriaged |
-| B6 | Touch gestures / object context actions incomplete | Med | behavioral | untriaged |
-| B7 | Library and picker rows not keyboard-operable | Med | behavioral | untriaged |
-| 10 | Blocked popups fail silently in all print paths | Low-Med | static | untriaged |
-| 11 | `isLineman` hardcodes line depth | Low-Med | static | untriaged |
-| 12 | `printPlaybook` page numbers drift past ~30 plays | Low | static | untriaged |
-| 13 | Full-document clone per `pointermove` | Low (perf) | static | untriaged |
+| 5 | Formation role matching is first-match | Med | static | required — Phase 6.2 |
+| 6 | Animation speed depends on route angle | Med | static | prevented by design — Phase 2.3 |
+| 7 | `1–9` read-order shortcut advertised, not implemented | Med | static | required — remaining 4.1 |
+| 8 | `insertDefense` deletes offensive labels by heuristic | Med | static | corrected — Phase 4.4 |
+| 9 | `exportFrames` silent 40-frame cap + serial downloads | Med | static | required — Phase 9.3 |
+| B4 | A named snapshot can be relabeled "Autosave" | Med | behavioral | corrected — Phase 3.4 |
+| B5 | Packaged app cannot start offline (unpkg React) | Med | behavioral | prevented by design — Phase 1 / 10 |
+| B6 | Touch gestures / object context actions incomplete | Med | behavioral | corrected — Phase 4.3 / 4.5 |
+| B7 | Library and picker rows not keyboard-operable | Med | behavioral | partial — 4.4 browsers; required — Phase 6.1 library |
+| 10 | Blocked popups fail silently in all print paths | Low-Med | static | required — Phase 9.4 |
+| 11 | `isLineman` hardcodes line depth | Low-Med | static | required — Phase 6.2 |
+| 12 | `printPlaybook` page numbers drift past ~30 plays | Low | static | required — Phase 9.2 |
+| 13 | Full-document clone per `pointermove` | Low (perf) | static | prevented by design — Phase 4.2 |
 
 **Status values:** `untriaged` · `required — Phase N` (a corrected expectation that phase must satisfy) · `corrected — Phase N` (already delivered) · `prevented by design` (the production architecture makes it unreachable) · `wontfix` (say why) · `disputed` (reviewers disagree)
 
@@ -68,7 +68,7 @@ Independently, the production rebuild absorbed most of the same corrections as a
 
 **B2 is the one that remains, and it is the reason this triage still matters.** B1 was corrected in Phase 4.1 Demo/Tour: a demo handoff is a new Play via `EditorStore.adoptPlay`, so saving it cannot rewrite the Play that was open. B2 is a behavior an implementer would otherwise reproduce faithfully, because the matrix's standing rule is that the rebuild must be identical to the original. It is recorded as an approved correction in the parity matrix and assigned to Phase 6.1.
 
-The `untriaged` rows still need a decision each before their owning phase closes.
+The remaining open rows are assigned to the phases that own them. #5 and #11 wait on Formation management (6.2). #7 is remaining 4.1 shortcut fidelity. #9, #10, and #12 wait on exports (Phase 9). B2 and the library half of B7 wait on the Play library (6.1).
 
 ---
 

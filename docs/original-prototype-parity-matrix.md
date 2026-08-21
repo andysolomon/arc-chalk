@@ -1,6 +1,6 @@
 # Original Chalk Prototype Parity Matrix
 
-Status: governing inventory; item-level capture in progress
+Status: Phase 0 inventory locked
 Canonical source: `Chalk Football Play Editor-2/Chalk Play Editor.dc.html`
 Canonical runnable support: `Chalk Football Play Editor-2/support.js`
 Decision: ADR 0039
@@ -38,7 +38,23 @@ Two lessons worth keeping:
 
 The parity ratchets in `tests/parity/production-shell.spec.ts` rose 0.01–0.08 percentage points when this was fixed, because those goldens are captured from the uncorrected original. That rise is approved under this section rather than treated as a regression: matching the original here would be bug-compatibility, not parity.
 
-The remaining reviewed findings (#5–#13, B4–B7) are not yet triaged into phases. They are defects in the original, not parity requirements; none should be reproduced deliberately, and each needs a decision before its owning phase closes.
+The remaining reviewed findings are triaged below. They are defects in the original, not parity requirements; none should be reproduced deliberately.
+
+| Defect | Decision | Phase |
+|---|---|---|
+| #5 first-match formation roles | **Open.** Production `recognizeFormation` still takes the first unused man of the matching role. Corrected expectation: greedy distance matching. | 6.2 |
+| #6 animation speed vs heading | **Prevented.** `evaluateMovement` uses yard length. Playback UI remains Phase 5. | 2.3 |
+| #7 advertised `1–9` read order | **Open.** Original digits only apply while drawing. Production has `setRouteReadCommand` and the inspector, but no `1–9` keyboard binding on a selected route. | Remaining 4.1 |
+| #8 `insertDefense` blue-letter heuristic | **Corrected.** Production `applyDefensiveCall` clears defensive labels by unit and binding, not by a blue single-letter heuristic. | 4.4 |
+| #9 `exportFrames` 40-cap and serial downloads | **Open.** Do not reproduce the silent cap. | 9.3 |
+| #10 silent print popup failure | **Open.** Report a blocked popup instead of failing quietly. | 9.4 |
+| #11 `isLineman` hardcoded depth | **Open.** Production still uses converted constant y=448 (`LINEMAN_DEPTH_YARDS`), not the live line. | 6.2 |
+| #12 `printPlaybook` page numbers | **Open.** Do not reproduce the drift past ~30 Plays. | 9.2 |
+| #13 clone-per-pointermove | **Prevented.** Mid-drag state is a transient preview, not a document clone. | 4.2 |
+| B4 named snapshot relabeled Autosave | **Corrected.** Named versions are append-only; nothing automatic may rename one. | 3.4 |
+| B5 unpkg offline | **Prevented.** Vite/PWA shell, no unpkg React. | 1 / 10 |
+| B6 touch/context incomplete | **Corrected.** Context menu landed in 4.3; Pencil, coarse targets, and phone read-only in 4.5. | 4.3 / 4.5 |
+| B7 keyboard on library and pickers | **Partial.** Formation and defense search keys are in 4.4. Library rows remain. | Open — 6.1 |
 
 ## Visual system and shell
 
@@ -107,9 +123,11 @@ IndexedDB repositories and migrations, persistent hash-guarded undo, encrypted b
 
 ## Evidence required before parity can be claimed
 
-- Screenshot baselines for every top-level mode, panel, menu, modal, selection state, and responsive state.
-- A control/action inventory generated from source and manually verified in the running prototype.
-- Complete shortcut and pointer/touch/stylus gesture maps.
-- Serialized fixtures for every player, route, branch, label, Formation, defense, Concept family, timing, and output state.
-- Golden samples for every export and printed document.
-- Behavior scripts for all feature groups, including corrected expectations for documented prototype defects.
+Phase 0 evidence is in place. Later phases still owe production-vs-original ratchets and generated-file goldens where named below.
+
+- Screenshot baselines for every top-level mode, panel, menu, modal, selection state, and responsive state — `docs/parity/README.md`.
+- A control/action inventory generated from source and verified in the running prototype — `docs/parity/capability-inventory.md`, locked by `tests/parity/capability-inventory.test.ts`.
+- Complete shortcut and pointer/touch/stylus gesture maps — shortcut rows in the inventory; gestures in Phases 4.2–4.5.
+- Serialized fixtures for every player, route, branch, label, Formation, defense, Concept family, timing, and output state — `docs/parity/canonical-data-fixtures.md` plus stock catalogues in the domain.
+- Golden samples for every export and printed document — Print-mode and Export-menu goldens now; generated files owed by Phase 9.4.
+- Behavior scripts for all feature groups, including corrected expectations for documented prototype defects — `docs/parity/behavior-scripts.md`.

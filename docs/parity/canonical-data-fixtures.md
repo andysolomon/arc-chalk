@@ -59,4 +59,14 @@ The offensive golden represents an 11-personnel Stick Play in Gun Doubles Right 
 
 Permanent released-version fixtures lock Play document v1, Play document v2, and Play envelope v1. Automated evidence covers sequential v1→v2→v3 migration, current Play and Playbook envelope round trips, generated metadata round trips, canonical hash properties, arbitrary legacy Assignment wording, malformed IDs and references, reusable-source revision rules, and privacy-safe Share Publication projection.
 
-Phase 0.5 remains open for the remaining original timing, output, and interaction-state golden captures; the Phase 2 domain and deterministic rendering coverage is complete.
+## Timing primitive coverage
+
+Production fixture: `packages/test-fixtures/src/timing-primitives.ts`
+
+Equal 10-yard vertical and horizontal stems plus a delayed jet (`delayMs: 200`, `holdMs: 400`). `tests/domain/timing-primitives.test.ts` proves duration is a function of grass yards, not heading (finding #6), and that the jet waits, moves, holds, and completes at integer timestamps.
+
+## Interaction-state and viewport goldens
+
+`tests/parity/original-prototype.spec.ts` now locks Clear, Snapshot, Export → Position view, Player/route/label selection, the player context menu, Focus mode, tools hidden, iPad Editor/Present/Print, and the original's squeezed phone Editor. See `docs/parity/README.md`.
+
+Phase 0.5 is closed for serialized documents, interaction-state goldens, and timing. Generated PNG/SVG/print-file goldens remain Phase 9.4 against the named Export actions in `capability-inventory.md`. The Phase 2 domain and deterministic rendering coverage is complete.
