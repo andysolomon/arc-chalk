@@ -32,12 +32,11 @@ test.describe("canonical prototype happy paths", () => {
     await clickPlayerByLetter(page, "Q");
     await expect(page.getByPlaceholder("Letter — X, Y, Z, Q…")).toBeVisible();
     await page.keyboard.press("Backspace");
-    await expect(page.getByPlaceholder("Letter — X, Y, Z, Q…")).toHaveCount(0);
+    await expect(page.locator("svg text", { hasText: /^Q$/ })).toHaveCount(0);
     await page.keyboard.press("Control+z");
-    await clickPlayerByLetter(page, "Q");
-    await expect(page.getByPlaceholder("Letter — X, Y, Z, Q…")).toHaveValue(
-      "Q",
-    );
+    await expect(
+      page.locator("svg text", { hasText: /^Q$/ }).first(),
+    ).toBeVisible();
   });
 
   test("the Formation browser lists shotgun sets", async ({ page }) => {
@@ -46,7 +45,7 @@ test.describe("canonical prototype happy paths", () => {
     await expect(
       page.getByPlaceholder("Search — gun, trips, empty, 12…"),
     ).toBeVisible();
-    await expect(page.getByText("Gun Doubles Right")).toBeVisible();
+    await expect(page.getByText("Gun Doubles Right").first()).toBeVisible();
   });
 
   test("Present then Escape returns to the editor", async ({ page }) => {

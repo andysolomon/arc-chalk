@@ -5,6 +5,7 @@ import {
   clickFieldPoint,
   clickPlayerByLetter,
   loadCanonicalPrototype,
+  openPlayerContextMenu,
 } from "./prototype-harness";
 
 const captureMode = async (
@@ -186,7 +187,8 @@ test.describe("canonical prototype selection and inspector states", () => {
   });
 
   test("a selected label has a locked desktop golden", async ({ page }) => {
-    await page.getByText("YES / NO", { exact: true }).click();
+    // YES / NO sits at canvas (930, 238); its outline hit-rect eats a text click.
+    await clickFieldPoint(page, 930, 238);
     await expect(page.getByText("Meaning", { exact: true })).toBeVisible();
     await captureNamedGolden(
       page,
@@ -197,9 +199,9 @@ test.describe("canonical prototype selection and inspector states", () => {
   test("the player context menu has a locked desktop golden", async ({
     page,
   }) => {
-    await clickPlayerByLetter(page, "Q", "right");
+    await openPlayerContextMenu(page, "Q");
     await expect(
-      page.getByRole("button", { name: "Bring forward", exact: true }),
+      page.getByRole("button", { name: /Bring forward/ }),
     ).toBeVisible();
     await captureNamedGolden(
       page,
@@ -253,9 +255,12 @@ test.describe("canonical prototype supported viewports", () => {
   test("Print has a locked iPad golden", async ({ page }) => {
     await page.setViewportSize({ width: 834, height: 1194 });
     await loadCanonicalPrototype(page);
-    await page.getByRole("button", { name: "Print", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Print", exact: true })
+      .first()
+      .click();
     await expect(
-      page.getByRole("button", { name: "Print", exact: true }),
+      page.getByRole("button", { name: "Print this", exact: true }),
     ).toBeVisible();
     await captureNamedGolden(page, "original-print-ipad-834x1194.png");
   });

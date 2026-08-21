@@ -51,7 +51,7 @@ const shortcutRows = [
   ["Delete selection", "⌫"],
 ] as const;
 
-const exportLabels = [
+const sharedExportLabels = [
   "Download PNG",
   "Download SVG",
   "Print the field",
@@ -59,14 +59,27 @@ const exportLabels = [
   "Position view",
   "Quiz + answer key",
   "Receivers",
-  "Backs",
-  "Line",
-  "QB",
-  "Defense",
-  "Scout card — 4-up",
-  "Practice cards — 2-up",
   "Call sheet",
   "Full playbook",
+] as const;
+
+/** The original writes these with JS unicode escapes; production stores the glyphs. */
+const originalEscapedExportLabels = [
+  "Scout card \\u2014 4-up",
+  "Practice cards \\u2014 2-up",
+  "Wristband \\u2014 8 cells",
+  "Slide \\u2014 1920\\u00d71080",
+  "Progression strip \\u2014 4 frames",
+  "Frame sequence \\u2014 PNGs",
+] as const;
+
+const productionExportLabels = [
+  "Scout card — 4-up",
+  "Practice cards — 2-up",
+  "Wristband — 8 cells",
+  "Slide — 1920×1080",
+  "Progression strip — 4 frames",
+  "Frame sequence — PNGs",
 ] as const;
 
 const moreMenuNames = [
@@ -112,8 +125,14 @@ describe("canonical prototype command-surface inventory", () => {
   });
 
   it("lists every Export menu label in both sources", () => {
-    for (const label of exportLabels) {
+    for (const label of sharedExportLabels) {
       expect(originalHtml).toContain(label);
+      expect(commandSurface).toContain(label);
+    }
+    for (const label of originalEscapedExportLabels) {
+      expect(originalHtml).toContain(label);
+    }
+    for (const label of productionExportLabels) {
       expect(commandSurface).toContain(label);
     }
     expect(originalHtml).toContain("DIAGRAM");
