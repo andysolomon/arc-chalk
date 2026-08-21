@@ -165,7 +165,6 @@ import {
 import type { ChalkRuntime } from "../app/editor-runtime";
 import { agoStamp } from "./ago-stamp";
 import { type ActionMap } from "./editor-command-surface";
-import { openPrintField, svgMarkupForPrint } from "./print-field";
 import {
   ClearMenu,
   CommandPalette,
@@ -177,6 +176,8 @@ import {
   SaveMenu,
   ShortcutReference,
 } from "./editor-overlays";
+import { openPrintField, svgMarkupForPrint } from "./print-field";
+import { RailIcon } from "./rail-icons";
 
 type View = "Editor" | "Demo" | "Present" | "Print";
 type Menu = "more" | "export" | "save" | "clear" | null;
@@ -189,89 +190,15 @@ const tools: Array<{
   id: Tool;
   label: string;
   shortcut: string;
-  glyph: ToolGlyph;
 }> = [
-  { id: "select", label: "Select", shortcut: "V", glyph: "select" },
-  { id: "player", label: "Player", shortcut: "P", glyph: "player" },
-  { id: "route", label: "Route", shortcut: "R", glyph: "route" },
-  { id: "motion", label: "Motion", shortcut: "M", glyph: "motion" },
-  { id: "block", label: "Block", shortcut: "B", glyph: "block" },
-  { id: "zone", label: "Zone drop", shortcut: "Z", glyph: "zone" },
-  { id: "text", label: "Text", shortcut: "T", glyph: "text" },
+  { id: "select", label: "Select", shortcut: "V" },
+  { id: "player", label: "Player", shortcut: "P" },
+  { id: "route", label: "Route", shortcut: "R" },
+  { id: "motion", label: "Motion", shortcut: "M" },
+  { id: "block", label: "Block", shortcut: "B" },
+  { id: "zone", label: "Zone drop", shortcut: "Z" },
+  { id: "text", label: "Text", shortcut: "T" },
 ];
-
-type ToolGlyph = Tool | "snap";
-
-/** The canonical prototype's rail artwork, kept on its original 18-unit grid. */
-function ToolIcon({ glyph }: { glyph: ToolGlyph }) {
-  const icons: Record<ToolGlyph, React.ReactNode> = {
-    select: (
-      <path
-        d="M4.5 2.5 L4.5 14.5 L8 11.6 L10 16 L12 15.1 L10 10.8 L14.5 10.5 Z"
-        fill="currentColor"
-        stroke="none"
-      />
-    ),
-    player: <circle cx="9" cy="9" r="5.5" />,
-    route: (
-      <>
-        <path d="M3.5 15 L9.5 15 L9.5 5" />
-        <path d="M6.5 7.5 L9.5 4 L12.5 7.5" />
-      </>
-    ),
-    motion: (
-      <>
-        <path d="M2.5 12.5 L10.5 12.5" strokeDasharray="2.5 2.5" />
-        <path d="M9.5 9 L13 12.5 L9.5 16" />
-      </>
-    ),
-    block: (
-      <>
-        <path d="M9 15.5 L9 6.5" />
-        <path d="M4.5 6.5 L13.5 6.5" strokeWidth="2" />
-      </>
-    ),
-    zone: (
-      <>
-        <path d="M3 15.5 L7.5 10" strokeDasharray="2.5 2.5" />
-        <circle cx="11" cy="6.5" r="4" />
-      </>
-    ),
-    text: (
-      <text
-        fill="currentColor"
-        fontSize="13"
-        fontWeight="500"
-        stroke="none"
-        textAnchor="middle"
-        x="9"
-        y="13.5"
-      >
-        T
-      </text>
-    ),
-    snap: (
-      <>
-        <path d="M4 3.5 L4 14.5 L15 14.5" />
-        <path d="M4 8.5 A6 6 0 0 1 10 14.5" strokeDasharray="2.5 2.5" />
-      </>
-    ),
-  };
-
-  return (
-    <svg aria-hidden="true" viewBox="0 0 18 18">
-      <g
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-      >
-        {icons[glyph]}
-      </g>
-    </svg>
-  );
-}
 
 const stickThunderScene = buildSvgRenderScene(
   buildRenderScene(stickThunderPlay),
@@ -4409,7 +4336,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                 title={`${tool.label} — ${tool.shortcut}`}
                 aria-label={`${tool.label} — ${tool.shortcut}`}
               >
-                <ToolIcon glyph={tool.glyph} />
+                <RailIcon glyph={tool.id} />
               </button>
             ))}
             <span className="rail-spacer" />
@@ -4427,7 +4354,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               title="Angle snap 45° — S (hold Shift to toggle while drawing)"
               type="button"
             >
-              <ToolIcon glyph="snap" />
+              <RailIcon glyph="snap" />
             </button>
             <button
               className="rail-collapse"
@@ -5306,7 +5233,7 @@ function DemoMode({
           const active = step.tool === tool.id;
           return (
             <div className={active ? "active" : undefined} key={tool.id}>
-              <ToolIcon glyph={tool.glyph} />
+              <RailIcon glyph={tool.id} />
               <span>{demoToolShortcuts[tool.id]}</span>
             </div>
           );
