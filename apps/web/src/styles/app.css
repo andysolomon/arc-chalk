@@ -1641,20 +1641,97 @@ select:focus-visible {
   gap: 10px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
-.browser-card {
+/*
+ * Which book is open — the whole one, the starred, or the Coach's own. It
+ * rides in the head beside the search, where the original puts it, so nothing
+ * below it moves.
+ */
+.browser-tabs {
   display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: #f2f2f2;
+}
+.browser-tab {
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.browser-tab.active {
+  background: var(--paper);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  color: var(--ink);
+}
+/*
+ * A card is a set with two things beside it — the star that keeps it, and on
+ * the Coach's own sets the cross that lets it go — so the card is the frame
+ * and the pick is the button inside it.
+ */
+.browser-card {
+  position: relative;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.browser-pick {
+  display: flex;
+  width: 100%;
   flex-direction: column;
   gap: 6px;
   padding: 8px 9px 9px;
   border: 0;
   border-radius: 8px;
-  background: var(--paper);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  background: transparent;
+  color: inherit;
   cursor: pointer;
   text-align: left;
 }
 .browser-card:hover {
   background: #fafafa;
+}
+.browser-star,
+.browser-remove {
+  position: absolute;
+  top: 6px;
+  display: flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  line-height: 1;
+}
+.browser-star {
+  right: 6px;
+  color: #e5e5e5;
+}
+.browser-star.on {
+  color: #f5b300;
+}
+.browser-star svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+.browser-remove {
+  right: 28px;
+  color: #c9c9c9;
+  font-size: 13px;
+}
+.browser-remove:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #e5484d;
 }
 .browser-card.on-field {
   box-shadow: 0 0 0 1px #0072f5;
@@ -1753,6 +1830,47 @@ select:focus-visible {
   color: var(--muted);
   font-size: 11px;
   line-height: 15px;
+}
+.save-foot {
+  gap: 10px;
+}
+.save-foot > span {
+  flex: 2;
+}
+.browser-foot > input {
+  min-width: 0;
+  height: 30px;
+  flex: 1;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  color: var(--ink);
+  font-size: 12px;
+  outline: none;
+}
+.browser-foot > input:focus {
+  box-shadow: 0 0 0 1px #005fcc;
+}
+.browser-save {
+  height: 30px;
+  flex: none;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.browser-save:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+.browser-save:disabled {
+  color: #c9c9c9;
+  cursor: default;
 }
 .browser-toggle {
   display: flex;

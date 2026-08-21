@@ -745,45 +745,155 @@ function Chips({
 }
 
 /**
+ * How a Coach narrows a book down to the part of it he reaches for: the whole
+ * thing, the ones he starred, or the ones he saved himself. A tab is not a
+ * filter chip — it decides which book is open, so it sits above the filters
+ * and reads as a segmented control the way the original's does.
+ */
+function BrowserTabs({
+  onPick,
+  tabs,
+  value,
+}: {
+  onPick: (value: string) => void;
+  tabs: readonly { readonly value: string; readonly name: string }[];
+  value: string;
+}) {
+  return (
+    <div className="browser-tabs" role="tablist">
+      {tabs.map((tab) => (
+        <button
+          aria-selected={tab.value === value}
+          className={`browser-tab${tab.value === value ? " active" : ""}`}
+          key={tab.value}
+          onClick={() => onPick(tab.value)}
+          role="tab"
+          type="button"
+        >
+          {tab.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The star that keeps a set within reach. It sits inside a card that is
+ * itself a button, so it stops the click travelling — starring a set is not
+ * picking it, and a Coach who stars one does not want it on the field.
+ */
+function FavoriteStar({
+  favorite,
+  onToggle,
+}: {
+  favorite: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
+      aria-pressed={favorite}
+      className={`browser-star${favorite ? " on" : ""}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      title={favorite ? "Remove from favorites" : "Add to favorites"}
+      type="button"
+    >
+      <svg aria-hidden="true" viewBox="0 0 16 16">
+        <path d="M8 1.9 9.9 5.8 14.2 6.4 11.1 9.4 11.8 13.7 8 11.7 4.2 13.7 4.9 9.4 1.8 6.4 6.1 5.8 Z" />
+      </svg>
+    </button>
+  );
+}
+
+/** Favorites first, and otherwise the order the book already had them in. */
+const favoritesFirst = <T,>(
+  cards: readonly T[],
+  isFavorite: (card: T) => boolean,
+): readonly T[] =>
+  [...cards].sort(
+    (left, right) => Number(isFavorite(right)) - Number(isFavorite(left)),
+  );
+
+/**
  * The book of sets. Only one can be on the field, so picking one is a
  * decision rather than a list selection: the original applies it and gets out
  * of the way, and so does this.
  */
 export function FormationBrowser({
   currentFormationId,
+  favoriteIds,
   formations,
+  offensivePlayerCount,
   onClose,
   onPick,
   onPreview,
+  onRemove,
+  onSave,
+  onToggleFavorite,
 }: {
   currentFormationId?: string;
+  favoriteIds: readonly string[];
   formations: readonly Formation[];
+  offensivePlayerCount: number;
   onClose: () => void;
   onPick: (formationId: string) => void;
   onPreview: (formationId?: string) => void;
+  onRemove: (formationId: string) => void;
+  onSave: (name: string) => void;
+  onToggleFavorite: (formationId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [personnel, setPersonnel] = useState("all");
   const [family, setFamily] = useState("all");
+  const [tab, setTab] = useState("all");
+  const [draftName, setDraftName] = useState("");
 
+  const starred = new Set(favoriteIds);
   const described = formations.map((formation) => {
     const meta = formationMeta(formation.slots, {
       personnelLabel: formation.personnelLabel,
       strength: formation.strength,
     });
-    return { formation, ...meta };
+    return { formation, ...meta, favorite: starred.has(formation.id) };
   });
 
   const search = query.trim().toLowerCase();
-  const hits = described.filter(
-    (card) =>
-      (personnel === "all" || card.personnelLabel === personnel) &&
-      (family === "all" || card.formation.family === family) &&
-      (!search ||
-        `${card.formation.name} ${card.personnelLabel} ${card.strength} ${card.formation.description}`
-          .toLowerCase()
-          .includes(search)),
+  const hits = favoritesFirst(
+    described.filter(
+      (card) =>
+        (tab === "all" ||
+          (tab === "favorites"
+            ? card.favorite
+            : card.formation.family === "custom")) &&
+        (personnel === "all" || card.personnelLabel === personnel) &&
+        (family === "all" || card.formation.family === family) &&
+        (!search ||
+          `${card.formation.name} ${card.personnelLabel} ${card.strength} ${card.formation.description}`
+            .toLowerCase()
+            .includes(search)),
+    ),
+    (card) => card.favorite,
   );
+
+  const canSave = draftName.trim().length > 0 && offensivePlayerCount > 0;
+  const saveTitle =
+    offensivePlayerCount > 0
+      ? "Save the offense on the field as a formation"
+      : "Put an offense on the field first";
+  const saveHint =
+    offensivePlayerCount > 0
+      ? `Saves the ${offensivePlayerCount} offensive player${
+          offensivePlayerCount === 1 ? "" : "s"
+        } on the field — alignment, symbols and labels. Routes are not included.`
+      : "Put an offense on the field first, then save it as a formation.";
+  const save = () => {
+    if (!canSave) return;
+    onSave(draftName.trim());
+    setDraftName("");
+  };
 
   const personnelLabels = [
     ...new Set(described.map((card) => card.personnelLabel)),
@@ -819,6 +929,15 @@ export function FormationBrowser({
             placeholder="Search — gun, trips, empty, 12…"
             spellCheck={false}
             value={query}
+          />
+          <BrowserTabs
+            onPick={setTab}
+            tabs={[
+              { value: "all", name: "All" },
+              { value: "favorites", name: "Favorites" },
+              { value: "custom", name: "Mine" },
+            ]}
+            value={tab}
           />
           <button
             className="browser-close"
@@ -886,47 +1005,66 @@ export function FormationBrowser({
                   const shape = formationThumbnail(card.formation);
                   const onField = card.formation.id === currentFormationId;
                   return (
-                    <button
+                    <div
                       className={`browser-card${onField ? " on-field" : ""}`}
                       key={card.formation.id}
-                      onBlur={() => onPreview(undefined)}
-                      onClick={() => onPick(card.formation.id)}
-                      onFocus={() => onPreview(card.formation.id)}
-                      onPointerEnter={() => onPreview(card.formation.id)}
-                      onPointerLeave={() => onPreview(undefined)}
-                      type="button"
                     >
-                      <div className="browser-shape">
-                        <svg role="presentation" viewBox="0 0 140 74">
-                          <line
-                            stroke="#E5E5E5"
-                            strokeWidth={1}
-                            x1={4}
-                            x2={136}
-                            y1={shape.lineOfScrimmage}
-                            y2={shape.lineOfScrimmage}
-                          />
-                          {shape.dots.map((dot, index) => (
-                            <circle
-                              cx={dot.x}
-                              cy={dot.y}
-                              fill={dot.filled ? "#171717" : "#FFFFFF"}
-                              key={index}
-                              r={3.4}
-                              stroke="#171717"
+                      <button
+                        className="browser-pick"
+                        onBlur={() => onPreview(undefined)}
+                        onClick={() => onPick(card.formation.id)}
+                        onFocus={() => onPreview(card.formation.id)}
+                        onPointerEnter={() => onPreview(card.formation.id)}
+                        onPointerLeave={() => onPreview(undefined)}
+                        type="button"
+                      >
+                        <div className="browser-shape">
+                          <svg role="presentation" viewBox="0 0 140 74">
+                            <line
+                              stroke="#E5E5E5"
                               strokeWidth={1}
+                              x1={4}
+                              x2={136}
+                              y1={shape.lineOfScrimmage}
+                              y2={shape.lineOfScrimmage}
                             />
-                          ))}
-                        </svg>
-                      </div>
-                      <span className="browser-name">
-                        {card.formation.name}
-                      </span>
-                      <span className="browser-chip">
-                        {card.personnelLabel} · {card.strength.toUpperCase()}
-                        {onField ? <em>ON FIELD</em> : null}
-                      </span>
-                    </button>
+                            {shape.dots.map((dot, index) => (
+                              <circle
+                                cx={dot.x}
+                                cy={dot.y}
+                                fill={dot.filled ? "#171717" : "#FFFFFF"}
+                                key={index}
+                                r={3.4}
+                                stroke="#171717"
+                                strokeWidth={1}
+                              />
+                            ))}
+                          </svg>
+                        </div>
+                        <span className="browser-name">
+                          {card.formation.name}
+                        </span>
+                        <span className="browser-chip">
+                          {card.personnelLabel} · {card.strength.toUpperCase()}
+                          {onField ? <em>ON FIELD</em> : null}
+                        </span>
+                      </button>
+                      <FavoriteStar
+                        favorite={card.favorite}
+                        onToggle={() => onToggleFavorite(card.formation.id)}
+                      />
+                      {card.formation.family === "custom" ? (
+                        <button
+                          aria-label={`Remove ${card.formation.name}`}
+                          className="browser-remove"
+                          onClick={() => onRemove(card.formation.id)}
+                          title="Remove this formation"
+                          type="button"
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                    </div>
                   );
                 })}
               </div>
@@ -934,9 +1072,37 @@ export function FormationBrowser({
           ))}
           {groups.length === 0 ? (
             <p className="browser-empty">
-              No set matches that. Try a personnel group, or clear the search.
+              {tab === "favorites"
+                ? "No favorites yet — star a formation to keep it here."
+                : tab === "custom"
+                  ? "Nothing saved yet. Set an offense on the field and save it below."
+                  : "Nothing matches that search and personnel."}
             </p>
           ) : null}
+        </div>
+        <div className="browser-foot save-foot">
+          <input
+            aria-label="Save the offense on the field as"
+            onChange={(event) => setDraftName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              save();
+            }}
+            placeholder="Save the offense on the field as…"
+            spellCheck={false}
+            value={draftName}
+          />
+          <button
+            className="browser-save"
+            disabled={!canSave}
+            onClick={save}
+            title={saveTitle}
+            type="button"
+          >
+            Save
+          </button>
+          <span>{saveHint}</span>
         </div>
       </div>
     </div>
@@ -1053,33 +1219,43 @@ function defenseThumbnail(
 export function DefenseBrowser({
   calls,
   currentCallId,
+  favoriteIds,
   onClose,
   onPick,
   onPreview,
   onToggleAssignments,
+  onToggleFavorite,
   withAssignments,
 }: {
   calls: readonly DefensiveCall[];
   currentCallId?: string;
+  favoriteIds: readonly string[];
   onClose: () => void;
   onPick: (callId: string) => void;
   onPreview: (callId?: string) => void;
   onToggleAssignments: () => void;
+  onToggleFavorite: (callId: string) => void;
   withAssignments: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [front, setFront] = useState("all");
   const [coverage, setCoverage] = useState("all");
+  const [tab, setTab] = useState("all");
 
+  const starred = new Set(favoriteIds);
   const search = query.trim().toLowerCase();
-  const hits = calls.filter(
-    (call) =>
-      (front === "all" || call.front === front) &&
-      (coverage === "all" || call.coverage === coverage) &&
-      (!search ||
-        `${call.formation.name} ${call.formation.description} ${call.front} ${call.coverage}`
-          .toLowerCase()
-          .includes(search)),
+  const hits = favoritesFirst(
+    calls.filter(
+      (call) =>
+        (tab === "all" || starred.has(call.formation.id)) &&
+        (front === "all" || call.front === front) &&
+        (coverage === "all" || call.coverage === coverage) &&
+        (!search ||
+          `${call.formation.name} ${call.formation.description} ${call.front} ${call.coverage}`
+            .toLowerCase()
+            .includes(search)),
+    ),
+    (call) => starred.has(call.formation.id),
   );
 
   const coverages = [...new Set(calls.map((call) => call.coverage))].sort();
@@ -1120,6 +1296,14 @@ export function DefenseBrowser({
             placeholder="Search — cover 3, nickel, blitz…"
             spellCheck={false}
             value={query}
+          />
+          <BrowserTabs
+            onPick={setTab}
+            tabs={[
+              { value: "all", name: "All" },
+              { value: "favorites", name: "Favorites" },
+            ]}
+            value={tab}
           />
           <button
             className="browser-close"
@@ -1188,89 +1372,97 @@ export function DefenseBrowser({
                   const shape = defenseThumbnail(call, withAssignments);
                   const onField = call.formation.id === currentCallId;
                   return (
-                    <button
+                    <div
                       className={`browser-card${onField ? " on-field" : ""}`}
                       key={call.formation.id}
-                      onBlur={() => onPreview(undefined)}
-                      onClick={() => onPick(call.formation.id)}
-                      onFocus={() => onPreview(call.formation.id)}
-                      onPointerEnter={() => onPreview(call.formation.id)}
-                      onPointerLeave={() => onPreview(undefined)}
-                      type="button"
                     >
-                      <div className="browser-shape">
-                        <svg role="presentation" viewBox="0 0 180 96">
-                          <line
-                            stroke="#E5E5E5"
-                            strokeWidth={1}
-                            x1={4}
-                            x2={176}
-                            y1={shape.lineOfScrimmage}
-                            y2={shape.lineOfScrimmage}
-                          />
-                          {shape.line.map((dot, index) => (
-                            <circle
-                              cx={dot.x}
-                              cy={dot.y}
-                              fill="#FFFFFF"
-                              key={index}
-                              r={3}
-                              stroke="#D4D4D4"
+                      <button
+                        className="browser-pick"
+                        onBlur={() => onPreview(undefined)}
+                        onClick={() => onPick(call.formation.id)}
+                        onFocus={() => onPreview(call.formation.id)}
+                        onPointerEnter={() => onPreview(call.formation.id)}
+                        onPointerLeave={() => onPreview(undefined)}
+                        type="button"
+                      >
+                        <div className="browser-shape">
+                          <svg role="presentation" viewBox="0 0 180 96">
+                            <line
+                              stroke="#E5E5E5"
                               strokeWidth={1}
+                              x1={4}
+                              x2={176}
+                              y1={shape.lineOfScrimmage}
+                              y2={shape.lineOfScrimmage}
                             />
-                          ))}
-                          {shape.art.map((stroke, index) => (
-                            <polyline
-                              fill="none"
-                              key={index}
-                              points={stroke.points}
-                              stroke={stroke.stroke}
-                              strokeDasharray={stroke.dash}
-                              strokeWidth={1.2}
-                            />
-                          ))}
-                          {shape.areas.map((area, index) => (
-                            <g key={index}>
-                              <ellipse
-                                cx={area.x}
-                                cy={area.y}
-                                fill={area.fill}
-                                opacity={0.26}
-                                rx={area.radiusX}
-                                ry={area.radiusY}
+                            {shape.line.map((dot, index) => (
+                              <circle
+                                cx={dot.x}
+                                cy={dot.y}
+                                fill="#FFFFFF"
+                                key={index}
+                                r={3}
+                                stroke="#D4D4D4"
+                                strokeWidth={1}
                               />
-                              <ellipse
-                                cx={area.x}
-                                cy={area.y}
+                            ))}
+                            {shape.art.map((stroke, index) => (
+                              <polyline
                                 fill="none"
-                                rx={area.radiusX}
-                                ry={area.radiusY}
-                                stroke={area.fill}
-                                strokeDasharray="2.5 2"
+                                key={index}
+                                points={stroke.points}
+                                stroke={stroke.stroke}
+                                strokeDasharray={stroke.dash}
                                 strokeWidth={1.2}
                               />
-                            </g>
-                          ))}
-                          {shape.defenders.map((dot, index) => (
-                            <circle
-                              cx={dot.x}
-                              cy={dot.y}
-                              fill="#171717"
-                              key={index}
-                              r={4.6}
-                            />
-                          ))}
-                        </svg>
-                      </div>
-                      <span className="browser-name">
-                        {call.formation.name}
-                      </span>
-                      <span className="browser-chip">
-                        {call.formation.slots.length} men ·{" "}
-                        {call.formation.description}
-                        {onField ? <em>ON FIELD</em> : null}
-                      </span>
-                    </button>
+                            ))}
+                            {shape.areas.map((area, index) => (
+                              <g key={index}>
+                                <ellipse
+                                  cx={area.x}
+                                  cy={area.y}
+                                  fill={area.fill}
+                                  opacity={0.26}
+                                  rx={area.radiusX}
+                                  ry={area.radiusY}
+                                />
+                                <ellipse
+                                  cx={area.x}
+                                  cy={area.y}
+                                  fill="none"
+                                  rx={area.radiusX}
+                                  ry={area.radiusY}
+                                  stroke={area.fill}
+                                  strokeDasharray="2.5 2"
+                                  strokeWidth={1.2}
+                                />
+                              </g>
+                            ))}
+                            {shape.defenders.map((dot, index) => (
+                              <circle
+                                cx={dot.x}
+                                cy={dot.y}
+                                fill="#171717"
+                                key={index}
+                                r={4.6}
+                              />
+                            ))}
+                          </svg>
+                        </div>
+                        <span className="browser-name">
+                          {call.formation.name}
+                        </span>
+                        <span className="browser-chip">
+                          {call.formation.slots.length} men ·{" "}
+                          {call.formation.description}
+                          {onField ? <em>ON FIELD</em> : null}
+                        </span>
+                      </button>
+                      <FavoriteStar
+                        favorite={starred.has(call.formation.id)}
+                        onToggle={() => onToggleFavorite(call.formation.id)}
+                      />
+                    </div>
                   );
                 })}
               </div>
@@ -1278,7 +1470,9 @@ export function DefenseBrowser({
           ))}
           {groups.length === 0 ? (
             <p className="browser-empty">
-              No call matches that. Try a front, or clear the search.
+              {tab === "favorites"
+                ? "No favorites yet — star a call to keep it here."
+                : "No defense matches that."}
             </p>
           ) : null}
         </div>

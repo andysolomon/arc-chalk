@@ -25,6 +25,7 @@ import {
   routePresetNames,
   stickThunderPlay,
   stockConcepts,
+  formationFromOffense,
   stockDefensiveCalls,
   stockFormations,
   type LabelRole,
@@ -1201,15 +1202,17 @@ const GHOST_RADIUS_PX = 12;
  */
 function FormationGhost({
   formationId,
+  formations,
   projection,
 }: {
   formationId?: string;
+  formations: readonly Formation[];
   projection: SvgProjection;
 }) {
   // Both books hold Formations — a set is one, and a call is one with its
   // assignments beside it — so one ghost answers for either.
   const formation = formationId
-    ? (stockFormations.find(({ id }) => id === formationId) ??
+    ? (formations.find(({ id }) => id === formationId) ??
       stockDefensiveCalls.find(
         ({ formation: value }) => value.id === formationId,
       )?.formation)
@@ -2450,6 +2453,78 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     editorStore.getSnapshot,
     editorStore.getSnapshot,
   );
+
+  /**
+   * The sets the Coach saved himself and what he starred in either book. Held
+   * here and written through to the device, so the browser answers at once
+   * and the answer survives closing Chalk. A favorite is about this Coach on
+   * this device rather than about the Play, so none of it enters a document.
+   */
+  const [coachFormations, setCoachFormations] = useState<readonly Formation[]>(
+    runtime.coachSets.formations,
+  );
+  const [favoriteFormationIds, setFavoriteFormationIds] = useState<
+    readonly string[]
+  >(runtime.coachSets.favoriteFormationIds);
+  const [favoriteCallIds, setFavoriteCallIds] = useState<readonly string[]>(
+    runtime.coachSets.favoriteCallIds,
+  );
+  /** Both books at once: what Chalk ships, then what the Coach kept. */
+  const allFormations = useMemo(
+    (): readonly Formation[] => [...stockFormations, ...coachFormations],
+    [coachFormations],
+  );
+
+  const toggled = (ids: readonly string[], id: string): readonly string[] =>
+    ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id];
+
+  const toggleFavoriteFormation = (formationId: string): void => {
+    const next = toggled(favoriteFormationIds, formationId);
+    setFavoriteFormationIds(next);
+    void runtime.setFavoriteFormations(next);
+  };
+
+  const toggleFavoriteCall = (callId: string): void => {
+    const next = toggled(favoriteCallIds, callId);
+    setFavoriteCallIds(next);
+    void runtime.setFavoriteCalls(next);
+  };
+
+  /**
+   * The offense on the field, kept as a set of its own. The Coach named it to
+   * reach for it, so — as the original does — it is starred the moment it is
+   * saved rather than waiting to be starred later.
+   */
+  const saveCoachFormation = (name: string): void => {
+    const formation = formationFromOffense(editor.document, {
+      id: createStableId("formation"),
+      playbookId: editor.document.playbookId,
+      name,
+      slotId: () => createStableId("slot"),
+    });
+    if (!formation) return;
+    // A second set under a name he already used replaces the first, so the
+    // name a Coach reaches for means one thing.
+    setCoachFormations((current) => [
+      ...current.filter((kept) => kept.name !== name),
+      formation,
+    ]);
+    void runtime.saveCoachFormation(formation);
+    const next = [
+      ...favoriteFormationIds.filter((id) => id !== formation.id),
+      formation.id,
+    ];
+    setFavoriteFormationIds(next);
+    void runtime.setFavoriteFormations(next);
+    setToast({ name: formation.name, text: "— saved as a formation" });
+  };
+
+  const removeCoachFormation = (formationId: string): void => {
+    setCoachFormations((current) =>
+      current.filter(({ id }) => id !== formationId),
+    );
+    void runtime.removeCoachFormation(formationId);
+  };
   // Mid-drag the Coach sees the committed document with the gesture's own
   // command previewed on top — the exact document a release would commit.
   const previewCommand = gesturePreviewCommand(interaction, editor.document);
@@ -2613,14 +2688,23 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
    * registered as pending for the same reason a drawn route is — the selection
    * must survive the instant before the save lands.
    */
+  /**
+   * Entities a command is about to make, held as pending until the commit
+   * lands. Kept in one stable callback so reaching the ref stays out of
+   * render, however the command arrived.
+   */
+  const markInsertsPending = useCallback((command: PlayCommand): void => {
+    for (const id of insertedEntityIds(command)) {
+      pendingInsertsRef.current.add(id);
+    }
+  }, []);
+
   const runPanelCommand = (
     command: PlayCommand | undefined,
     next: Partial<FieldInteractionModel>,
   ): void => {
     if (!command) return;
-    for (const id of insertedEntityIds(command)) {
-      pendingInsertsRef.current.add(id);
-    }
+    markInsertsPending(command);
     focusInteraction(next);
     void editorStore.applyCommand(command).catch(() => undefined);
   };
@@ -2663,9 +2747,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     interactionRef.current = result.model;
     setInteraction(result.model);
     if (result.command) {
-      for (const id of insertedEntityIds(result.command)) {
-        pendingInsertsRef.current.add(id);
-      }
+      markInsertsPending(result.command);
       void editorStore.applyCommand(result.command).catch(() => undefined);
     }
     // Finishing a route hands the Coach back the select tool, as the
@@ -3282,8 +3364,8 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
 
   /** Which set is on the field, by name, as the browser and the panel say it. */
   const onFieldFormation = useMemo(
-    () => currentFormation(editor.document, stockFormations),
-    [editor.document],
+    () => currentFormation(editor.document, allFormations),
+    [allFormations, editor.document],
   );
   const zoomPercentage = Math.round(cameraZoom(camera, EDITOR_FRAME) * 100);
   const formationStatus =
@@ -3479,7 +3561,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
    * looking. One transaction, so one press of undo takes all of it back.
    */
   const applyFormationPick = (formationId: string): void => {
-    const formation = stockFormations.find(({ id }) => id === formationId);
+    const formation = allFormations.find(({ id }) => id === formationId);
     if (!formation) return;
     setOverlay(null);
     setPreviewFormationId(undefined);
@@ -4050,6 +4132,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                   ) : null}
                   <FormationGhost
                     formationId={previewFormationId}
+                    formations={allFormations}
                     projection={scene.viewport}
                   />
                   {leaderHandleAt ? (
@@ -4505,6 +4588,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       {overlay === "defenses" ? (
         <DefenseBrowser
           calls={stockDefensiveCalls}
+          favoriteIds={favoriteCallIds}
           currentCallId={onFieldCall?.formation.id}
           onClose={() => {
             setOverlay(null);
@@ -4513,19 +4597,28 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           onPick={applyCallPick}
           onPreview={setPreviewFormationId}
           onToggleAssignments={() => setCallAssignments((on) => !on)}
+          onToggleFavorite={toggleFavoriteCall}
           withAssignments={callAssignments}
         />
       ) : null}
       {overlay === "formations" ? (
         <FormationBrowser
           currentFormationId={onFieldFormation?.id}
-          formations={stockFormations}
+          favoriteIds={favoriteFormationIds}
+          formations={allFormations}
+          offensivePlayerCount={
+            editor.document.players.filter(({ unit }) => unit !== "defense")
+              .length
+          }
           onClose={() => {
             setOverlay(null);
             setPreviewFormationId(undefined);
           }}
           onPick={applyFormationPick}
           onPreview={setPreviewFormationId}
+          onRemove={removeCoachFormation}
+          onSave={saveCoachFormation}
+          onToggleFavorite={toggleFavoriteFormation}
         />
       ) : null}
       <ContextMenu

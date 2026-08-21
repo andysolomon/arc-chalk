@@ -3,6 +3,7 @@ import {
   assignRoles,
   ballLateralYards,
   currentFormation,
+  formationFromOffense,
   formationMeta,
   formationSchema,
   formationStillApplied,
@@ -580,6 +581,106 @@ describe("reading which set is on the field", () => {
     const play = playOn(setNamed("Gun Trips Right"));
     expect(
       currentFormation({ ...play, players: [] }, stockFormations),
+    ).toBeUndefined();
+  });
+});
+
+describe("the offense on the field, kept as a set of its own", () => {
+  const named = {
+    id: "formation_saved",
+    playbookId: "playbook_under_test",
+    name: "Andy's Empty",
+    slotId: (index: number) => `slot_saved_${index}`,
+  };
+
+  it("reads the set off the men, so only the name is the Coach's to give", () => {
+    const play = playOn(setNamed("Gun Trips Right"));
+    const saved = formationFromOffense(play, named)!;
+
+    // It has to be a Formation before anything else — a set Chalk cannot
+    // validate is a set it cannot keep.
+    expect(() => formationSchema.parse(saved)).not.toThrow();
+    expect(saved.name).toBe("Andy's Empty");
+    expect(saved.family).toBe("custom");
+    expect(saved.unit).toBe("offense");
+    expect(saved.playbookId).toBe("playbook_under_test");
+
+    const offense = play.players.filter(({ unit }) => unit !== "defense");
+    expect(saved.slots).toHaveLength(offense.length);
+    expect(saved.description).toBe(`${offense.length} pl`);
+    // Personnel and strength are what the men say they are, not what the set
+    // it came from was called.
+    const read = formationMeta(offense);
+    expect(saved.personnelLabel).toBe(read.personnelLabel);
+    expect(saved.strength).toBe(read.strength);
+    // Every man keeps his place, his mark and his letter.
+    expect(saved.slots.map(({ position }) => position)).toEqual(
+      offense.map(({ position }) => position),
+    );
+    expect(saved.slots.map(({ label }) => label)).toEqual(
+      offense.map(({ label }) => label),
+    );
+    expect(saved.slots.map(({ symbol }) => symbol)).toEqual(
+      offense.map(({ symbol }) => symbol),
+    );
+  });
+
+  it("names a role for every man, so a route survives being realigned into it", () => {
+    const saved = formationFromOffense(
+      playOn(setNamed("Gun Doubles Right")),
+      named,
+    )!;
+    expect(saved.slots.every(({ role }) => role.length > 0)).toBe(true);
+  });
+
+  it("leaves the defense out — this is the offense he set", () => {
+    const play = playOn(setNamed("Gun Trips Right"));
+    const withDefense: PlayDocument = {
+      ...play,
+      players: [
+        ...play.players,
+        {
+          ...play.players[0]!,
+          id: "player_defender",
+          unit: "defense",
+          label: "M",
+        },
+      ],
+    };
+    const saved = formationFromOffense(withDefense, named)!;
+    expect(saved.slots.every(({ unit }) => unit === "offense")).toBe(true);
+    expect(saved.slots).toHaveLength(
+      play.players.filter(({ unit }) => unit !== "defense").length,
+    );
+  });
+
+  it("spots the ball where the men put it, and reads the hash off it", () => {
+    const play = playOn(setNamed("Gun Trips Right"));
+    const offense = play.players.filter(({ unit }) => unit !== "defense");
+    const middle = formationFromOffense(play, named)!;
+    expect(middle.ball.position.lateralYards).toBeCloseTo(
+      ballLateralYards(offense),
+    );
+    expect(middle.ball.hash).toBe("middle");
+
+    // Move the whole offense to the right of the field and the set says so.
+    const shifted: PlayDocument = {
+      ...play,
+      players: play.players.map((player) => ({
+        ...player,
+        position: {
+          ...player.position,
+          lateralYards: player.position.lateralYards + 12,
+        },
+      })),
+    };
+    expect(formationFromOffense(shifted, named)!.ball.hash).toBe("right");
+  });
+
+  it("has nothing to keep when there is no offense on the field", () => {
+    const play = playOn(setNamed("Gun Trips Right"));
+    expect(
+      formationFromOffense({ ...play, players: [] }, named),
     ).toBeUndefined();
   });
 });

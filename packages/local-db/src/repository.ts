@@ -11,6 +11,7 @@ import {
   playbookSchema,
   undoHistorySchema,
   type BackupPayload,
+  type Formation,
   type PlayDocument,
   type PlayRevision,
   type PlaybookEnvelope,
@@ -931,6 +932,26 @@ class DexieLocalRepository implements ChalkLocalRepository {
       (left, right) =>
         left.createdAtMs - right.createdAtMs || left.id.localeCompare(right.id),
     );
+  }
+
+  async saveFormation(formation: Formation): Promise<void> {
+    await this.#database.formations.put(
+      formationSchema.parse(structuredClone(formation)),
+    );
+  }
+
+  async listFormations(playbookId: string): Promise<readonly Formation[]> {
+    const records = await this.#database.formations
+      .where("playbookId")
+      .equals(playbookId)
+      .toArray();
+    return records
+      .map((value) => formationSchema.parse(value))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  async deleteFormation(formationId: string): Promise<void> {
+    await this.#database.formations.delete(formationId);
   }
 
   async setPreference(preference: LocalPreference): Promise<void> {

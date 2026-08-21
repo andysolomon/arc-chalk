@@ -52,6 +52,10 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 | Save/version menu | 1.81% (25,027 px) | 2026-08-06 (first measurement) |
 | More menu | 1.81% (25,040 px) | 2026-08-06 (first measurement) |
 | Keyboard shortcuts | 2.64% (36,477 px) | 2026-08-06 |
+| Formations browser | 1.98% (27,413 px) | 2026-08-21 |
+| Formations browser | 2.03% (28,051 px) | 2026-08-06 (first measurement) |
+| Defenses browser | 1.57% (21,716 px) | 2026-08-21 |
+| Defenses browser | 1.65% (22,845 px) | 2026-08-06 (first measurement) |
 | Keyboard shortcuts | 3.48% (48,152 px) | 2026-08-06 (first measurement) |
 | Editor | 1.89% (26,186 px of 1,382,400) | 2026-08-06 |
 | Editor | 2.14% (29,631 px of 1,382,400) | 2026-08-06 (first measurement) |
@@ -93,8 +97,10 @@ panel itself matches — its single-line rows measure the original's 28 px and i
 three-line rows the original's 62 px.
 
 A command production cannot yet run stays listed and is shown unavailable
-rather than accepting a click and doing nothing. The Formation, Defense and
-saved-Play entries the original's palette also carries arrive with the browsers.
+rather than accepting a click and doing nothing. The palette carries the
+original's Formation and Defense entries for the sets and calls Chalk ships;
+a set the Coach saved himself reaches the palette when `paletteCommands` stops
+being a module constant, which is where the saved-Play entries arrive too.
 
 Two things measured here that were not obvious from a screenshot:
 

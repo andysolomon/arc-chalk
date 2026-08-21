@@ -55,18 +55,18 @@ const parityGap: Readonly<Record<string, number>> = {
   // sections production has not built. The panel itself matches — its rows and
   // wrapped rows measure the original's 28 px and 62 px exactly.
   shortcuts: 0.0265, // 2.6469%, from 2.7198%
-  // The book of sets, above the Editor's own gap for one reason: the
-  // original's browser carries an All / Favorites / Mine tab strip and a
-  // footer that saves the offense on the field as a set of its own. Both need
-  // somewhere to keep a Coach's own formations, which production does not have
-  // yet, so they are absent rather than drawn dead. What is built — the
-  // search, the personnel and set filters, the grouping, the cards and their
-  // thumbnails — matches.
-  formations: 0.0203, // 2.0292% (28,051 px)
+  // The book of sets. Its All / Favorites / Mine tab strip, the star on every
+  // card and the footer that saves the offense on the field as a set of its
+  // own are now built and measured. What still holds it above the Editor's
+  // own gap is not the panel's chrome but its cards: production's rows drift
+  // from the original's as the grid goes down, and the thumbnail dot
+  // arithmetic differs, which shows as every group heading below the first
+  // landing a little low. Both predate this panel's controls.
+  formations: 0.0199, // 1.9830% (27,413 px), from 2.0292% (28,051 px)
   // The book of calls, and the lowest gap of any state: the panel covers most
   // of what the shell still disagrees with the original about. Its tab strip
-  // is absent for the same reason the Formations one is.
-  defenses: 0.0166, // 1.6526% (22,845 px)
+  // and stars are now built too.
+  defenses: 0.0158, // 1.5709% (21,716 px), from 1.6526% (22,845 px)
 };
 
 /**
