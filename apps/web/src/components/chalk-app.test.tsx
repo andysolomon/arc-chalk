@@ -2,8 +2,9 @@ import {
   footballPathPrimitivePlay,
   playerLabelPrimitivePlay,
 } from "@chalk/test-fixtures";
-import { stickThunderPlay } from "@chalk/domain";
+import { stickThunderPlay, stockFormations } from "@chalk/domain";
 import {
+  applyFormationCommand,
   createEditorStore,
   type EditorPersistence,
   type EditorStore,
@@ -51,9 +52,10 @@ function createTestEditorStore(
         mutationId: input.mutation.id,
       }),
   },
+  initialDocument = stickThunderPlay,
 ): EditorStore {
   return createEditorStore({
-    initialDocument: stickThunderPlay,
+    initialDocument,
     initialDocumentHash: "initial_hash",
     persistence,
     createMutationId: () => "mutation_test",
@@ -88,6 +90,131 @@ describe("Chalk application shell", () => {
       128,
     );
     expect(container.querySelectorAll("[data-field-number]")).toHaveLength(8);
+  });
+
+  it("uses the prototype rail glyphs and makes angle snapping a real toggle", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
+    const rail = screen.getByRole("navigation", { name: "Drawing tools" });
+    const glyph = (name: string) =>
+      within(rail).getByRole("button", { name }).querySelector("svg");
+
+    expect(glyph("Select — V")).toHaveAttribute("viewBox", "0 0 18 18");
+    expect(glyph("Select — V")?.querySelector("path")).toHaveAttribute(
+      "d",
+      "M4.5 2.5 L4.5 14.5 L8 11.6 L10 16 L12 15.1 L10 10.8 L14.5 10.5 Z",
+    );
+    expect(
+      [...(glyph("Route — R")?.querySelectorAll("path") ?? [])].map((path) =>
+        path.getAttribute("d"),
+      ),
+    ).toEqual(["M3.5 15 L9.5 15 L9.5 5", "M6.5 7.5 L9.5 4 L12.5 7.5"]);
+    expect(
+      [...(glyph("Zone drop — Z")?.querySelectorAll("path") ?? [])].map(
+        (path) => path.getAttribute("d"),
+      ),
+    ).toEqual(["M3 15.5 L7.5 10"]);
+    const playerGlyph = glyph("Player — P")?.querySelector("circle");
+    expect(playerGlyph).toHaveAttribute("cx", "9");
+    expect(playerGlyph).toHaveAttribute("cy", "9");
+    expect(playerGlyph).toHaveAttribute("r", "5.5");
+    expect(
+      [...(glyph("Motion — M")?.querySelectorAll("path") ?? [])].map((path) =>
+        path.getAttribute("d"),
+      ),
+    ).toEqual(["M2.5 12.5 L10.5 12.5", "M9.5 9 L13 12.5 L9.5 16"]);
+    expect(
+      [...(glyph("Block — B")?.querySelectorAll("path") ?? [])].map((path) =>
+        path.getAttribute("d"),
+      ),
+    ).toEqual(["M9 15.5 L9 6.5", "M4.5 6.5 L13.5 6.5"]);
+    expect(glyph("Text — T")?.querySelector("text")).toHaveTextContent("T");
+
+    const snap = within(rail).getByRole("button", {
+      name: "Angle snap 45 degrees — S",
+    });
+    expect(snap).toHaveAttribute("aria-pressed", "true");
+    expect(snap.querySelectorAll("path")).toHaveLength(2);
+    expect(snap.querySelector("path")).toHaveAttribute(
+      "d",
+      "M4 3.5 L4 14.5 L15 14.5",
+    );
+
+    await user.click(snap);
+    expect(snap).toHaveAttribute("aria-pressed", "false");
+    expect(container.querySelector(".status-controls")).toHaveTextContent(
+      "SNAP OFF",
+    );
+
+    snap.focus();
+    await user.keyboard("{Enter}");
+    expect(snap).toHaveAttribute("aria-pressed", "true");
+    await user.keyboard("s");
+    expect(snap).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("drives the live camera controls and tells the truth about the idle formation", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
+    const field = container.querySelector("svg.field-diagram");
+
+    expect(screen.getByText("CUSTOM ALIGNMENT")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Fit the field — 100% zoom" }),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(Number(field?.getAttribute("viewBox")?.split(" ")[2])).toBeCloseTo(
+      854.4,
+    );
+    expect(
+      screen.getByRole("button", { name: "Fit the field — 125% zoom" }),
+    ).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: "Fit the field — 125% zoom" }),
+    );
+    expect(field).toHaveAttribute("viewBox", "0 0 1068 525");
+
+    const outline = screen.getByRole("list", {
+      name: "Everything on the field",
+    });
+    await user.click(
+      within(outline).getByRole("button", { name: "Q offense player" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Fit to selection" }));
+    const selectionCamera = field?.getAttribute("viewBox");
+    expect(selectionCamera).not.toBe("0 0 1068 525");
+    expect(
+      container.querySelector("[data-formation-status]"),
+    ).toBeEmptyDOMElement();
+
+    await user.click(
+      screen.getByRole("button", { name: "Center on the ball" }),
+    );
+    expect(field?.getAttribute("viewBox")).not.toBe(selectionCamera);
+  });
+
+  it("names a stock formation in the status bar only when it is really active", () => {
+    const emptyRight = stockFormations.find(
+      ({ id }) => id === "formation_empty_right",
+    )!;
+    const formed = applyFormationCommand(
+      stickThunderPlay,
+      emptyRight,
+      (prefix) => `${prefix}_formed`,
+    ).result.play;
+
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          editorStore: createTestEditorStore(undefined, formed),
+        })}
+      />,
+    );
+
+    expect(screen.getByText("EMPTY RIGHT · 11")).toBeVisible();
+    expect(screen.queryByText("CUSTOM ALIGNMENT")).toBeNull();
   });
 
   it("keeps the play name editable and exposes the original modes", async () => {

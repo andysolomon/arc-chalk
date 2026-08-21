@@ -820,15 +820,12 @@ select:focus-visible {
   width: 18px;
   height: 18px;
 }
-.tool-circle {
-  width: 12px;
-  height: 12px;
-  border: 1.7px solid currentColor;
-  border-radius: 50%;
+.tool-rail .snap-toggle[aria-pressed="true"] {
+  background: #ebebeb;
+  color: var(--ink);
 }
-.tool-text {
-  font-family: Georgia, serif;
-  font-size: 16px;
+.tool-rail .snap-toggle[aria-pressed="false"] {
+  color: #b4b4b4;
 }
 .rail-spacer {
   flex: 1;
@@ -1012,6 +1009,47 @@ select:focus-visible {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.status-controls,
+.status-zoom {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.status-controls {
+  gap: 12px;
+}
+.status-zoom {
+  gap: 2px;
+}
+.status-controls > button:not(.save-state),
+.status-zoom button {
+  height: 20px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  cursor: pointer;
+}
+.status-zoom button:first-child,
+.status-zoom button:last-child {
+  width: 20px;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+}
+.status-zoom .zoom-percentage {
+  min-width: 42px;
+  padding: 0 4px;
+}
+.status-controls > button:not(.save-state):hover,
+.status-zoom button:hover {
+  background: #ebebeb;
+  color: var(--ink);
 }
 
 .inspector {
