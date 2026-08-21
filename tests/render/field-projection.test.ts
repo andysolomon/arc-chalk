@@ -103,8 +103,8 @@ describe("one projection draws the whole field", () => {
 
     // Depth stays readable while the full width fits across the frame; the
     // two scales are not interchangeable.
-    expect(projection.depthPixelsPerYard).toBe(13);
-    expect(projection.lateralPixelsPerYard).toBeCloseTo(19.575, 3);
+    expect(projection.depthPixelsPerYard).toBe(12);
+    expect(projection.lateralPixelsPerYard).toBeCloseTo(18.3, 10);
     expect(projection.lateralPixelsPerYard).not.toBe(
       projection.depthPixelsPerYard,
     );
@@ -174,13 +174,14 @@ describe("zone coverage", () => {
     const scene = buildSvgRenderScene(buildRenderScene(zonePlay));
     const coverage = scene.paths[0]?.coverageArea;
     expect(coverage).toBeDefined();
-    // Centred on the drop's end, and elliptical because the two axes differ.
+    // Centred on the drop's end. The original's default is eleven canvas
+    // pixels on both axes, so the bubble is round on the drawing and
+    // elliptical on the grass.
     expect(coverage!.center).toEqual(
       projectCoordinate({ lateralYards: 4, depthYards: 10 }, scene.viewport),
     );
-    expect(coverage!.radiusX).toBeGreaterThan(0);
-    expect(coverage!.radiusY).toBeGreaterThan(0);
-    expect(coverage!.radiusX).not.toBeCloseTo(coverage!.radiusY, 3);
+    expect(coverage!.radiusX).toBeCloseTo(11, 6);
+    expect(coverage!.radiusY).toBeCloseTo(11, 6);
     // Ten yards deep in the middle of the field reads as a curl drop.
     expect(coverage!.type).toBe("curl");
   });

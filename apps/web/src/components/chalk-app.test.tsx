@@ -180,7 +180,7 @@ describe("Chalk application shell", () => {
 
     await user.click(screen.getByRole("button", { name: "Zoom in" }));
     expect(Number(field?.getAttribute("viewBox")?.split(" ")[2])).toBeCloseTo(
-      854.4,
+      800,
     );
     expect(
       screen.getByRole("button", { name: "Fit the field — 125% zoom" }),
@@ -189,7 +189,7 @@ describe("Chalk application shell", () => {
     await user.click(
       screen.getByRole("button", { name: "Fit the field — 125% zoom" }),
     );
-    expect(field).toHaveAttribute("viewBox", "0 0 1068 525");
+    expect(field).toHaveAttribute("viewBox", "0 0 1000 620");
 
     const outline = screen.getByRole("list", {
       name: "Everything on the field",
@@ -199,7 +199,7 @@ describe("Chalk application shell", () => {
     );
     await user.click(screen.getByRole("button", { name: "Fit to selection" }));
     const selectionCamera = field?.getAttribute("viewBox");
-    expect(selectionCamera).not.toBe("0 0 1068 525");
+    expect(selectionCamera).not.toBe("0 0 1000 620");
     expect(
       container.querySelector("[data-formation-status]"),
     ).toBeEmptyDOMElement();

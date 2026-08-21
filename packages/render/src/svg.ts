@@ -130,15 +130,18 @@ export interface SvgTextPrimitive {
   readonly letterSpacing: number;
 }
 
+/**
+ * The original's own frame. Yard space stays the source of truth; this is
+ * only how that space is shown, and it has to be the same rectangle the
+ * original drew into or the Play sits in a different picture.
+ */
 export const editorSvgViewport: SvgViewport = Object.freeze({
-  width: 1068,
-  height: 525,
-  // The centre of the inset field span, so a Player on the midfield line and
-  // the drawn midfield line land on the same pixel.
-  midfieldX: 534,
-  lineOfScrimmageY: 394,
-  depthPixelsPerYard: 13,
-  fieldInsetX: 12,
+  width: LEGACY_FIELD_GEOMETRY.viewWidth,
+  height: LEGACY_FIELD_GEOMETRY.viewHeight,
+  midfieldX: LEGACY_FIELD_GEOMETRY.midfieldX,
+  lineOfScrimmageY: LEGACY_FIELD_GEOMETRY.lineOfScrimmageY,
+  depthPixelsPerYard: LEGACY_FIELD_GEOMETRY.depthPixelsPerYard,
+  fieldInsetX: LEGACY_FIELD_GEOMETRY.fieldInsetX,
 });
 
 export function projectCoordinate(
@@ -794,12 +797,10 @@ function buildSvgField(
 }
 
 /**
- * The original measures these offsets in its own canvas pixels, and our
- * viewBox draws the same field about eight per cent larger. Scaling them
- * keeps each mark the distance from the line the original put it rather than
- * a fixed count of pixels nearer. Depth sets the factor; the lateral axis
- * differs from it by a little over one per cent, which is under a third of a
- * pixel across the largest offset here.
+ * The original measures these offsets in its own canvas pixels. The editor
+ * frame is that canvas, so the factor is 1; it stays a ratio so a different
+ * frame would still keep each mark the distance from the line the original
+ * put it rather than a fixed count of pixels nearer.
  */
 const MARK_SCALE =
   editorSvgViewport.depthPixelsPerYard /

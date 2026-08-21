@@ -26,18 +26,18 @@ describe("RenderScene", () => {
     // The Quarterback is on the midfield line, so he lands on the drawn
     // midfield line rather than two pixels beside it.
     expect(scene.players.find(({ id }) => id === "q")?.position).toEqual({
-      x: 534,
-      y: 446,
+      x: 500,
+      y: 478,
     });
     expect(scene.paths.find(({ id }) => id === "rx")?.strokes[0]?.d).toBe(
-      "M 337.18 417.833 L 328.623 378.833 L 133.943 331.167",
+      "M 316 452 L 308 416 L 126 372",
     );
     expect(scene.paths.find(({ id }) => id === "rz")?.branches[0]).toEqual({
       id: "rz-branch-0",
       strokes: [
         {
           id: "rz-branch-0",
-          d: "M 946.893 248.833 L 974.705 58.167",
+          d: "M 886 296 L 912 120",
           style: {
             line: "dotted",
             ending: "arrow",
@@ -57,7 +57,7 @@ describe("RenderScene", () => {
       scene.field.yardLines.find(({ isLineOfScrimmage }) =>
         Boolean(isLineOfScrimmage),
       )?.y1,
-    ).toBe(394);
+    ).toBe(430);
   });
 
   it("projects every original football path primitive behind one interface", () => {
@@ -103,10 +103,10 @@ describe("RenderScene", () => {
     expect(zone.coverageArea).toEqual({
       id: "path-zone-coverage",
       type: "curl",
-      center: { x: 592.725, y: 225 },
+      center: { x: 554.9, y: 274 },
       // 5.25 yards across and 2.5 yards deep, each on its own scale.
-      radiusX: 102.76875,
-      radiusY: 32.5,
+      radiusX: 96.075,
+      radiusY: 30,
       fill: "#8B3FE0",
     });
     expect(zone.strokes[0]?.style.ending).toBe("none");
@@ -171,15 +171,15 @@ describe("RenderScene", () => {
     expect(
       first.labels.find(({ id }) => id === "label-alert")?.leader,
     ).toMatchObject({
-      x2: 808.05,
-      y2: 264,
+      x2: 756.2,
+      y2: 310,
       stroke: "#E5484D",
       strokeDasharray: "4 3",
       endpointRadius: 2.6,
     });
     expect(
       first.labels.find(({ id }) => id === "label-coaching")?.position,
-    ).toEqual({ x: 220.8, y: 303 });
+    ).toEqual({ x: 207.2, y: 346 });
   });
 });
 
@@ -280,6 +280,6 @@ describe("what a route says about itself", () => {
 
     expect(between(0, 1)).toBeCloseTo(between(1, 2), 6);
     // The original's step for its Coach density, carried into our frame.
-    expect(between(0, 1)).toBeCloseTo((12 + 5) * (13 / 12), 6);
+    expect(between(0, 1)).toBeCloseTo(12 + 5, 6);
   });
 });
