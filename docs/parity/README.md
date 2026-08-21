@@ -49,6 +49,7 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 | Editor             | 1.71% (23,685 px of 1,382,400) | 2026-08-21                     |
 | Present            | 17.96% (248,333 px)            | 2026-08-21 (first measurement) |
 | Print              | 0.84% (11,638 px)              | 2026-08-21 (first measurement) |
+| Demo               | 2.12% (29,338 px)              | 2026-08-21 (first measurement) |
 | Export menu        | 1.65% (22,859 px)              | 2026-08-21                     |
 | Command palette    | 1.72% (23,752 px)              | 2026-08-21                     |
 | Save/version menu  | 1.73% (23,849 px)              | 2026-08-21                     |
@@ -79,6 +80,7 @@ Closed so far:
 - Inspector body copy for Concept and Defense is no longer truncated.
 - History in the inspector lists the Coach's named snapshots — the same versions Save already keeps — instead of the original's 90-second autosave ring. Restoring is the existing undoable restore. The original empty copy about states landing every 90 seconds is not reproduced.
 - Present is a full-window field on `#171717` with the play name, `← → variations`, and `esc` back. Type scales 1.25× on top of the current preset. Print is the letter-landscape sheet with title, category, field, "Print this", and `letter landscape · half-inch margins · {type} type`. Export → Print the field is that same print.
+- Demo is the original's five guided sequences. Opening a tour in the editor is a new Play; the Play that was open is left unchanged.
 
 Metrics matched to the original by measurement:
 

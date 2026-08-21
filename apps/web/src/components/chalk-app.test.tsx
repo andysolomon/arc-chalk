@@ -4,8 +4,10 @@ import {
 } from "@chalk/test-fixtures";
 import {
   formationFromOffense,
+  hashPlayDocument,
   stickThunderPlay,
   stockFormations,
+  type PlayDocument,
 } from "@chalk/domain";
 import {
   applyFormationCommand,
@@ -563,6 +565,61 @@ describe("Chalk application shell", () => {
     expect(
       screen.getByRole("navigation", { name: "Drawing tools" }),
     ).toBeVisible();
+  });
+
+  it("runs the original Tool tour and opens a demo as a new Play", async () => {
+    const user = userEvent.setup();
+    const records = new Map<string, PlayDocument>([
+      [stickThunderPlay.id, stickThunderPlay],
+    ]);
+    const editorStore = createTestEditorStore({
+      commitPlay: async (input) => {
+        records.set(input.play.id, input.play);
+        return {
+          playId: input.play.id,
+          documentHash: await hashPlayDocument(input.play),
+          committedAtMs: 100,
+          mutationId: input.mutation.id,
+        };
+      },
+    });
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
+
+    await user.click(
+      within(
+        screen.getByRole("navigation", { name: "Workspace views" }),
+      ).getByRole("button", { name: "Demo" }),
+    );
+    const demo = screen.getByRole("region", { name: "Demo" });
+    expect(within(demo).getByText("Player tool")).toBeVisible();
+    expect(screen.getByText("Drawing tools — guided tour")).toBeVisible();
+    expect(screen.getByText("Stick — Thunder")).toBeVisible();
+
+    await user.click(within(demo).getByRole("button", { name: "Pause" }));
+    await user.click(within(demo).getByRole("button", { name: "Defense" }));
+    expect(screen.getByText("Cover 3 — Fire Zone")).toBeVisible();
+    expect(within(demo).getByText("Offense in gray")).toBeVisible();
+
+    await user.click(
+      within(demo).getByRole("button", {
+        name: "Open this play in the editor",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole("region", { name: "Demo" })).toBeNull();
+    });
+    expect(screen.getByRole("textbox", { name: "Play name" })).toHaveValue(
+      "Cover 3 — Fire Zone",
+    );
+    expect(records.get(stickThunderPlay.id)).toEqual(stickThunderPlay);
+    expect(
+      [...records.values()].some(
+        (play) =>
+          play.id !== stickThunderPlay.id &&
+          play.name === "Cover 3 — Fire Zone",
+      ),
+    ).toBe(true);
   });
 
   it("shows the letter-landscape Print sheet and prints it", async () => {

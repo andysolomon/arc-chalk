@@ -6,6 +6,8 @@ export * from "./classifications";
 export * from "./commands";
 export * from "./defense-catalogue";
 export * from "./defenses";
+export * from "./demo";
+export * from "./demo-catalogue";
 export * from "./field-profile";
 export * from "./formation-catalogue";
 export * from "./formations";
