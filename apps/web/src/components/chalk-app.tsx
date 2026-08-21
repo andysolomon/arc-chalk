@@ -43,6 +43,7 @@ import {
   addDepthLabelCommand,
   alignPlayersCommand,
   cameraForBounds,
+  cameraZoom,
   type FrameBounds,
   centreCamera,
   fitCamera,
@@ -159,10 +160,10 @@ const tools: Array<{
   id: Tool;
   label: string;
   shortcut: string;
-  glyph: string;
+  glyph: ToolGlyph;
 }> = [
-  { id: "select", label: "Select", shortcut: "V", glyph: "pointer" },
-  { id: "player", label: "Player", shortcut: "P", glyph: "circle" },
+  { id: "select", label: "Select", shortcut: "V", glyph: "select" },
+  { id: "player", label: "Player", shortcut: "P", glyph: "player" },
   { id: "route", label: "Route", shortcut: "R", glyph: "route" },
   { id: "motion", label: "Motion", shortcut: "M", glyph: "motion" },
   { id: "block", label: "Block", shortcut: "B", glyph: "block" },
@@ -170,28 +171,74 @@ const tools: Array<{
   { id: "text", label: "Text", shortcut: "T", glyph: "text" },
 ];
 
-function ToolIcon({ glyph }: { glyph: string }) {
-  if (glyph === "circle") return <span className="tool-circle" />;
-  if (glyph === "text") return <span className="tool-text">T</span>;
+type ToolGlyph = Tool | "snap";
 
-  const paths: Record<string, React.ReactNode> = {
-    pointer: <path d="m8 5 9 8-5 .7 2.8 5-2.8 1.5-2.7-5-3.3 3z" />,
-    route: <path d="M6 18h5V8m0 0-3 3m3-3 3 3" />,
-    motion: <path d="M5 12h12m0 0-4-4m4 4-4 4" strokeDasharray="2 2" />,
-    block: <path d="M6 17 17 6m-3 0h3v3" />,
-    zone: <path d="M6 17c4-1 3-7 8-8m0 0-3-1m3 1-1 3" strokeDasharray="2 2" />,
+/** The canonical prototype's rail artwork, kept on its original 18-unit grid. */
+function ToolIcon({ glyph }: { glyph: ToolGlyph }) {
+  const icons: Record<ToolGlyph, React.ReactNode> = {
+    select: (
+      <path
+        d="M4.5 2.5 L4.5 14.5 L8 11.6 L10 16 L12 15.1 L10 10.8 L14.5 10.5 Z"
+        fill="currentColor"
+        stroke="none"
+      />
+    ),
+    player: <circle cx="9" cy="9" r="5.5" />,
+    route: (
+      <>
+        <path d="M3.5 15 L9.5 15 L9.5 5" />
+        <path d="M6.5 7.5 L9.5 4 L12.5 7.5" />
+      </>
+    ),
+    motion: (
+      <>
+        <path d="M2.5 12.5 L10.5 12.5" strokeDasharray="2.5 2.5" />
+        <path d="M9.5 9 L13 12.5 L9.5 16" />
+      </>
+    ),
+    block: (
+      <>
+        <path d="M9 15.5 L9 6.5" />
+        <path d="M4.5 6.5 L13.5 6.5" strokeWidth="2" />
+      </>
+    ),
+    zone: (
+      <>
+        <path d="M3 15.5 L7.5 10" strokeDasharray="2.5 2.5" />
+        <circle cx="11" cy="6.5" r="4" />
+      </>
+    ),
+    text: (
+      <text
+        fill="currentColor"
+        fontSize="13"
+        fontWeight="500"
+        stroke="none"
+        textAnchor="middle"
+        x="9"
+        y="13.5"
+      >
+        T
+      </text>
+    ),
+    snap: (
+      <>
+        <path d="M4 3.5 L4 14.5 L15 14.5" />
+        <path d="M4 8.5 A6 6 0 0 1 10 14.5" strokeDasharray="2.5 2.5" />
+      </>
+    ),
   };
 
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
+    <svg aria-hidden="true" viewBox="0 0 18 18">
       <g
-        fill={glyph === "pointer" ? "currentColor" : "none"}
+        fill="none"
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="1.6"
       >
-        {paths[glyph]}
+        {icons[glyph]}
       </g>
     </svg>
   );
@@ -3238,6 +3285,15 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     () => currentFormation(editor.document, stockFormations),
     [editor.document],
   );
+  const zoomPercentage = Math.round(cameraZoom(camera, EDITOR_FRAME) * 100);
+  const formationStatus =
+    interaction.selection.length > 0 || interaction.drawing
+      ? ""
+      : editor.document.players.some(({ unit }) => unit !== "defense")
+        ? onFieldFormation
+          ? `${onFieldFormation.name.toUpperCase()} · ${onFieldFormation.personnelLabel}`
+          : "CUSTOM ALIGNMENT"
+        : "";
   /** Which call is on the field, by name, as the browser says it. */
   const onFieldCall = useMemo(
     () => currentDefensiveCall(editor.document, stockDefensiveCalls),
@@ -3928,8 +3984,15 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               onToggle={() => toggleMenu("clear")}
               open={openMenu === "clear"}
             />
-            <button aria-label="Angle snap 45 degrees">
-              <ToolIcon glyph="route" />
+            <button
+              aria-label="Angle snap 45 degrees — S"
+              aria-pressed={snapEnabled}
+              className="snap-toggle"
+              onClick={() => setSnapEnabled((enabled) => !enabled)}
+              title="Angle snap 45° — S (hold Shift to toggle while drawing)"
+              type="button"
+            >
+              <ToolIcon glyph="snap" />
             </button>
             <button
               className="rail-collapse"
@@ -4358,14 +4421,61 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           drag the blue dot above a player to draw his route — double-click a
           line to add a node · ⌫ delete
         </span>
-        <span>
-          {/* One string, so live values cannot disturb the original's
-              exact spacing. */}
-          {`− \u00A0 100% \u00A0 + \u00A0\u00A0 SELECTION \u00A0\u00A0 BALL \u00A0\u00A0 CUSTOM ALIGNMENT \u00A0\u00A0 SNAP ${
-            snapEnabled ? "ON" : "OFF"
-          } \u00A0\u00A0 ${editor.document.players.length}P · ${
-            editor.document.paths.filter(({ kind }) => kind === "route").length
-          }R \u00A0\u00A0`}
+        <div className="status-controls">
+          <div className="status-zoom">
+            <button
+              aria-label="Zoom out"
+              onClick={() =>
+                setCamera((current) => zoomCamera(current, 1.25, EDITOR_FRAME))
+              }
+              title="Zoom out — ⌘-"
+              type="button"
+            >
+              −
+            </button>
+            <button
+              aria-label={`Fit the field — ${zoomPercentage}% zoom`}
+              className="zoom-percentage"
+              onClick={() => setCamera(fitCamera(EDITOR_FRAME))}
+              title="Fit the field — ⌘0"
+              type="button"
+            >
+              {zoomPercentage}%
+            </button>
+            <button
+              aria-label="Zoom in"
+              onClick={() =>
+                setCamera((current) =>
+                  zoomCamera(current, 1 / 1.25, EDITOR_FRAME),
+                )
+              }
+              title="Zoom in — ⌘="
+              type="button"
+            >
+              +
+            </button>
+          </div>
+          <button
+            aria-label="Fit to selection"
+            onClick={showSelection}
+            title="Fit to selection — ⌘2"
+            type="button"
+          >
+            SELECTION
+          </button>
+          <button
+            aria-label="Center on the ball"
+            onClick={showTheBall}
+            title="Center on the ball"
+            type="button"
+          >
+            BALL
+          </button>
+          <span data-formation-status>{formationStatus}</span>
+          <span>SNAP {snapEnabled ? "ON" : "OFF"}</span>
+          <span>
+            {editor.document.players.length}P · {editor.document.paths.length}R
+          </span>
           <button
             aria-label={localSaveMessage(editor.localSave)}
             className={`save-state ${editor.localSave.phase}`}
@@ -4384,7 +4494,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           >
             {localSaveStatus(editor.localSave)}
           </button>
-        </span>
+        </div>
       </div>
       {overlay === "palette" ? (
         <CommandPalette actions={actions} onClose={() => setOverlay(null)} />

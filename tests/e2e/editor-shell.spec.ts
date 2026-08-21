@@ -9,6 +9,14 @@ const LOCAL_SAVE_BUDGET_MS = 50;
  */
 const acknowledgementCeilingMs = process.env.CI ? 400 : LOCAL_SAVE_BUDGET_MS;
 
+const cameraOf = async (page: import("@playwright/test").Page) => {
+  const viewBox = await page
+    .locator("svg.field-diagram")
+    .getAttribute("viewBox");
+  const [x, y, width, height] = (viewBox ?? "").split(" ").map(Number);
+  return { x, y, width, height };
+};
+
 test("opens the original field-first editor shell and its modes", async ({
   page,
 }) => {
@@ -79,6 +87,68 @@ test("opens the original field-first editor shell and its modes", async ({
   await expect(
     page.getByRole("img", { name: "Mesh — Alert football play" }),
   ).toBeVisible();
+});
+
+test("drives the snap rail toggle and live status-bar camera controls", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const snap = page.getByRole("button", {
+    name: "Angle snap 45 degrees — S",
+  });
+  await expect(snap).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-formation-status]")).toHaveText(
+    "CUSTOM ALIGNMENT",
+  );
+  await expect(
+    page.getByRole("button", { name: "Fit the field — 100% zoom" }),
+  ).toBeVisible();
+
+  await snap.click();
+  await expect(snap).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".status-controls")).toContainText("SNAP OFF");
+  await snap.focus();
+  await page.keyboard.press("Enter");
+  await expect(snap).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("s");
+  await expect(snap).toHaveAttribute("aria-pressed", "false");
+
+  const fit = await cameraOf(page);
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeLessThan(fit.width!);
+  await expect(
+    page.getByRole("button", { name: "Fit the field — 125% zoom" }),
+  ).toBeVisible();
+  const zoomed = await cameraOf(page);
+
+  const fieldItem = page
+    .getByRole("list", { name: "Everything on the field" })
+    .getByRole("button", { name: "Q offense player" });
+  await fieldItem.focus();
+  await page.keyboard.press("Enter");
+  await expect(fieldItem).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Fit to selection" }).click();
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeLessThan(zoomed.width!);
+  const selection = await cameraOf(page);
+  await expect(page.locator("[data-formation-status]")).toBeEmpty();
+
+  await page.getByRole("button", { name: "Center on the ball" }).click();
+  await expect.poll(async () => (await cameraOf(page)).y).not.toBe(selection.y);
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-formation-status]")).toHaveText(
+    "CUSTOM ALIGNMENT",
+  );
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  await page.getByText("Empty Right", { exact: true }).click();
+  await expect(page.locator("[data-formation-status]")).toHaveText(
+    "EMPTY RIGHT · 11",
+  );
 });
 
 test("undoes and redoes a Play edit across a reload", async ({ page }) => {
