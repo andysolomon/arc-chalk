@@ -11,6 +11,12 @@ import {
 } from "@chalk/domain";
 
 import type { RenderScene, ScenePath } from "./index";
+import {
+  labelFontSize,
+  type FieldMarkingStyle,
+  type TypeDensity,
+  type TypePresetId,
+} from "./presentation";
 
 /**
  * The frame the field is drawn into. Depth scale is fixed here; the lateral
@@ -66,6 +72,11 @@ export const svgColors: Readonly<Record<Color, string>> = Object.freeze({
   gray: "#8F8F8F",
   yellow: "#F5D90A",
 });
+
+/** Print type swaps every palette colour for ink so a copier keeps the Play. */
+function paint(hex: string, flat: boolean): string {
+  return flat ? svgColors.ink : hex;
+}
 
 export type SvgShapePrimitive =
   | {
@@ -404,6 +415,7 @@ export interface SvgLine {
 }
 
 export interface SvgFieldScene {
+  readonly style: FieldMarkingStyle;
   readonly sidelines: readonly SvgLine[];
   readonly yardLines: readonly (SvgLine & {
     readonly isLineOfScrimmage: boolean;
@@ -423,6 +435,7 @@ export interface SvgRenderScene {
   readonly schemaVersion: 2;
   readonly playId: string;
   readonly playName: string;
+  readonly typePreset: TypePresetId;
   readonly viewport: SvgProjection;
   readonly field: SvgFieldScene;
   readonly players: readonly (Omit<
@@ -460,8 +473,9 @@ export interface SvgRenderScene {
 function buildSvgPlayer(
   player: RenderScene["players"][number],
   viewport: SvgProjection,
+  flat: boolean,
 ): SvgRenderScene["players"][number] {
-  const color = svgColors[player.color];
+  const color = paint(svgColors[player.color], flat);
   const base = player.fill === "solid" ? color : "#FFFFFF";
   const shapes: SvgShapePrimitive[] = [];
 
@@ -566,7 +580,7 @@ function buildSvgPlayer(
       text: player.sublabel.toUpperCase(),
       x: 0,
       y: 30,
-      fill: "#4D4D4D",
+      fill: paint("#4D4D4D", flat),
       fontFamily: "Geist Mono, monospace",
       fontSize: 9,
       fontWeight: 400,
@@ -591,14 +605,16 @@ function buildSvgPlayer(
 function buildSvgLabel(
   label: RenderScene["labels"][number],
   viewport: SvgProjection,
+  type: TypeDensity,
 ): SvgRenderScene["labels"][number] {
   const position = projectCoordinate(label.position, viewport);
   const text = label.caps ? label.text.toUpperCase() : label.text;
-  const width = Math.max(20, text.length * label.size * 0.6) + 14;
-  const height = label.size + 10;
-  const color = svgColors[label.color];
-  const boxColor = svgColors[label.boxColor];
-  const centerY = position.y - label.size * 0.35;
+  const size = labelFontSize(label.size, type.label);
+  const width = Math.max(20, text.length * size * 0.6) + 14;
+  const height = size + 10;
+  const color = paint(svgColors[label.color], type.flat);
+  const boxColor = paint(svgColors[label.boxColor], type.flat);
+  const centerY = position.y - size * 0.35;
   let box: SvgShapePrimitive | undefined;
 
   if (label.box === "circle") {
@@ -606,7 +622,7 @@ function buildSvgLabel(
       kind: "circle",
       cx: position.x,
       cy: centerY,
-      r: label.size * 0.95,
+      r: size * 0.95,
       fill: "#FFFFFF",
       stroke: boxColor,
       strokeWidth: 1.6,
@@ -615,7 +631,7 @@ function buildSvgLabel(
     box = {
       kind: "rect",
       x: position.x - width / 2,
-      y: position.y - label.size - 4,
+      y: position.y - size - 4,
       width,
       height,
       rx: 2,
@@ -661,10 +677,21 @@ function buildSvgLabel(
       y: position.y,
       fill: color,
       fontFamily: label.mono ? "Geist Mono, monospace" : "Geist, sans-serif",
-      fontSize: label.size,
+      fontSize: size,
       fontWeight: 500,
       letterSpacing: label.mono ? 0.6 : 0,
     },
+  };
+}
+
+function emptyField(style: FieldMarkingStyle): SvgFieldScene {
+  return {
+    style,
+    sidelines: [],
+    yardLines: [],
+    hashMarks: [],
+    sidelineMarks: [],
+    numbers: [],
   };
 }
 
@@ -672,6 +699,9 @@ function buildSvgField(
   scene: RenderScene,
   viewport: SvgProjection,
 ): SvgFieldScene {
+  const style = scene.field.style;
+  if (style === "blank") return emptyField(style);
+
   const { landmarks, profile } = scene.field;
   const top = projectDepth(landmarks.window.maxDepthYards, viewport);
   const bottom = projectDepth(landmarks.window.minDepthYards, viewport);
@@ -681,7 +711,33 @@ function buildSvgField(
   const rightSideline = projectLateral(profile.widthYards / 2, viewport);
   const lateralScale = viewport.lateralPixelsPerYard;
 
+  const yardLines = landmarks.yardLines.map(
+    ({ depthYards, isLineOfScrimmage }) => {
+      const y = projectDepth(depthYards, viewport);
+      return {
+        id: `yard-line-${depthYards}`,
+        x1: leftSideline,
+        y1: y,
+        x2: rightSideline,
+        y2: y,
+        isLineOfScrimmage,
+      };
+    },
+  );
+
+  if (style === "los") {
+    return {
+      ...emptyField(style),
+      yardLines: yardLines.filter(({ isLineOfScrimmage }) => isLineOfScrimmage),
+    };
+  }
+
+  if (style === "light") {
+    return { ...emptyField(style), yardLines };
+  }
+
   return {
+    style,
     sidelines: landmarks.sidelines.map(({ lateralYards }, index) => {
       const x = projectLateral(lateralYards, viewport);
       return {
@@ -692,17 +748,7 @@ function buildSvgField(
         y2: bottom,
       };
     }),
-    yardLines: landmarks.yardLines.map(({ depthYards, isLineOfScrimmage }) => {
-      const y = projectDepth(depthYards, viewport);
-      return {
-        id: `yard-line-${depthYards}`,
-        x1: leftSideline,
-        y1: y,
-        x2: rightSideline,
-        y2: y,
-        isLineOfScrimmage,
-      };
-    }),
+    yardLines,
     hashMarks: landmarks.hashMarks.map(
       ({ lateralYards, depthYards, lengthYards }, index) => {
         const x = projectLateral(lateralYards, viewport);
@@ -748,20 +794,6 @@ function buildSvgField(
 }
 
 /**
- * The original's Coach density, which is the one it opens on: the read
- * number at 13, the Assignment at 12, and the conversion and note a point
- * smaller. Choosing a density is a separate control the original also offers
- * and production has not built, so these are the numbers it starts from.
- */
-const COACH_DENSITY = Object.freeze({
-  read: 13,
-  label: 12,
-  get note(): number {
-    return Math.max(10, this.label - 1);
-  },
-});
-
-/**
  * The original measures these offsets in its own canvas pixels, and our
  * viewBox draws the same field about eight per cent larger. Scaling them
  * keeps each mark the distance from the line the original put it rather than
@@ -774,7 +806,6 @@ const MARK_SCALE =
   LEGACY_FIELD_GEOMETRY.depthPixelsPerYard;
 const READ_OFFSET = 20 * MARK_SCALE;
 const NOTE_OFFSET = 22 * MARK_SCALE;
-const NOTE_STEP = (COACH_DENSITY.label + 5) * MARK_SCALE;
 
 /**
  * Every mark hangs off the last leg of the line, so it reads as belonging to
@@ -784,6 +815,7 @@ const NOTE_STEP = (COACH_DENSITY.label + 5) * MARK_SCALE;
 function buildRouteCoaching(
   path: ScenePath,
   viewport: SvgProjection,
+  type: TypeDensity,
 ): SvgRouteCoaching | undefined {
   const end = path.points.at(-1);
   const before = path.points.at(-2);
@@ -801,6 +833,8 @@ function buildRouteCoaching(
   const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
   const nx = -Math.sin(angle);
   const ny = Math.cos(angle);
+  const noteSize = Math.max(10, type.label - 1);
+  const noteStep = (type.label + 5) * MARK_SCALE;
 
   const read =
     path.readOrder === undefined
@@ -811,14 +845,14 @@ function buildRouteCoaching(
             x: tip.x + nx * READ_OFFSET,
             y: tip.y + ny * READ_OFFSET,
           },
-          radius: COACH_DENSITY.read * 0.68 * MARK_SCALE,
+          radius: type.read * 0.68 * MARK_SCALE,
           text: {
             text: String(path.readOrder),
             x: tip.x + nx * READ_OFFSET,
             y: tip.y + ny * READ_OFFSET,
-            fill: "#0072F5",
+            fill: paint("#0072F5", type.flat),
             fontFamily: "Geist Mono, monospace" as const,
-            fontSize: COACH_DENSITY.read,
+            fontSize: type.read,
             fontWeight: 500,
             letterSpacing: 0,
           },
@@ -836,9 +870,9 @@ function buildRouteCoaching(
     stack.push({
       kind: "assignment",
       value: path.assignment.toUpperCase(),
-      fill: "#4D4D4D",
+      fill: paint("#4D4D4D", type.flat),
       mono: true,
-      size: COACH_DENSITY.label,
+      size: type.label,
       track: 0.7,
     });
   }
@@ -846,9 +880,9 @@ function buildRouteCoaching(
     stack.push({
       kind: "conversion",
       value: path.conversion,
-      fill: "#8F8F8F",
+      fill: paint("#8F8F8F", type.flat),
       mono: true,
-      size: COACH_DENSITY.note,
+      size: noteSize,
       track: 0,
     });
   }
@@ -856,14 +890,14 @@ function buildRouteCoaching(
     stack.push({
       kind: "note",
       value: path.coachingNote,
-      fill: "#8F8F8F",
+      fill: paint("#8F8F8F", type.flat),
       mono: false,
-      size: COACH_DENSITY.note,
+      size: noteSize,
       track: 0,
     });
   }
   for (const [index, entry] of stack.entries()) {
-    const offset = NOTE_OFFSET + index * NOTE_STEP;
+    const offset = NOTE_OFFSET + index * noteStep;
     notes.push({
       kind: entry.kind,
       text: {
@@ -894,13 +928,24 @@ export function buildSvgRenderScene(
   // Resolved once against this Play's Field Profile, then shared by every
   // projection in the scene.
   const viewport = createSvgProjection(scene.field.profile, frame);
+  const type = scene.type;
+  const strokeColor = type.flat ? ("ink" as const) : undefined;
+  const withFlatColor = <T extends { style: { color: Color } }>(
+    stroke: T,
+  ): T =>
+    strokeColor
+      ? { ...stroke, style: { ...stroke.style, color: strokeColor } }
+      : stroke;
   return {
     schemaVersion: 2,
     playId: scene.playId,
     playName: scene.playName,
+    typePreset: scene.typePreset,
     viewport,
     field: buildSvgField(scene, viewport),
-    players: scene.players.map((player) => buildSvgPlayer(player, viewport)),
+    players: scene.players.map((player) =>
+      buildSvgPlayer(player, viewport, type.flat),
+    ),
     paths: scene.paths.map((path) => {
       const endpoint = path.points.at(-1);
       // A zone drop that was never sized still owns its default bubble, the
@@ -925,7 +970,7 @@ export function buildSvgRenderScene(
               radiusX:
                 coverage.radiusLateralYards * viewport.lateralPixelsPerYard,
               radiusY: coverage.radiusDepthYards * viewport.depthPixelsPerYard,
-              fill: coverageFills[coverage.type],
+              fill: paint(coverageFills[coverage.type], type.flat),
             }
           : undefined;
       const strokes = buildPathStrokes(
@@ -933,15 +978,18 @@ export function buildSvgRenderScene(
         path.points,
         path.style,
         viewport,
-      ).map((stroke, index, all) =>
-        coverageArea &&
-        index === all.length - 1 &&
-        stroke.style.ending === "bubble"
-          ? { ...stroke, style: { ...stroke.style, ending: "none" as const } }
-          : stroke,
-      );
+      ).map((stroke, index, all) => {
+        const ended =
+          coverageArea &&
+          index === all.length - 1 &&
+          stroke.style.ending === "bubble"
+            ? { ...stroke, style: { ...stroke.style, ending: "none" as const } }
+            : stroke;
+        return withFlatColor(ended);
+      });
 
-      const coaching = buildRouteCoaching(path, viewport);
+      const coaching = buildRouteCoaching(path, viewport, type);
+      const ink = strokeColor ?? path.style.color;
 
       return {
         id: path.id,
@@ -952,7 +1000,7 @@ export function buildSvgRenderScene(
         strokes,
         ticks: buildTicks(path.points, viewport).map((tick) => ({
           ...tick,
-          color: path.style.color,
+          color: ink,
         })),
         ...(coverageArea === undefined ? {} : { coverageArea }),
         branches: path.branches.map((branch, index) => {
@@ -967,15 +1015,17 @@ export function buildSvgRenderScene(
           const points = [branchStart, ...branch.points];
           return {
             id,
-            strokes: buildPathStrokes(id, points, branch.style, viewport),
+            strokes: buildPathStrokes(id, points, branch.style, viewport).map(
+              withFlatColor,
+            ),
             ticks: buildTicks(points, viewport).map((tick) => ({
               ...tick,
-              color: branch.style.color,
+              color: strokeColor ?? branch.style.color,
             })),
           };
         }),
       };
     }),
-    labels: scene.labels.map((label) => buildSvgLabel(label, viewport)),
+    labels: scene.labels.map((label) => buildSvgLabel(label, viewport, type)),
   };
 }

@@ -891,6 +891,9 @@ select:focus-visible {
   stroke: #e7e7e7;
   stroke-width: 1;
 }
+.field-diagram[data-field-style="light"] .field-grid {
+  stroke: #f2f2f2;
+}
 .hash {
   stroke: #ececec;
   stroke-width: 1;
@@ -1204,6 +1207,154 @@ select:focus-visible {
   font-size: 10px;
 }
 
+.history-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.history-heading button {
+  min-height: 22px;
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+.history-heading button:hover {
+  color: var(--ink);
+}
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 3px 0 4px;
+  border-radius: 6px;
+}
+.history-row:hover {
+  background: #f2f2f2;
+}
+.history-ago {
+  flex: none;
+  width: 64px;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #4d4d4d;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-label.current {
+  color: var(--ink);
+}
+.history-row button {
+  flex: none;
+  padding: 9px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.history-row button:hover {
+  color: #005fcc;
+}
+.inspector p.history-empty {
+  margin: 0;
+  padding: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.page-kinds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: #f2f2f2;
+}
+.page-kinds button {
+  min-width: 0;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.page-kinds button.active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.sub-heading {
+  margin: 14px 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.layer-toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.layer-toggles button {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.layer-toggles button:hover {
+  background: #ebebeb;
+}
+.layer-toggles button.active {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+}
+.layer-toggles button.active:hover {
+  background: #fff;
+}
+.layer-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: #d4d4d4;
+}
+.layer-toggles button.active .layer-dot {
+  background: var(--blue);
+}
+
 .mode-placeholder {
   position: relative;
   flex: 1;
@@ -1226,9 +1377,169 @@ select:focus-visible {
   color: #fff;
   font-size: 12px;
 }
-.view-present .topbar {
+
+.present-mode {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  display: flex;
+  flex-direction: column;
+  background: #171717;
+}
+.present-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 26px 26px 0;
+}
+.present-stage .field-diagram {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  aspect-ratio: auto;
+}
+.present-bar {
+  height: 54px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 26px;
+}
+.present-name {
+  flex: none;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+}
+.present-pos {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: #8f8f8f;
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.present-hint {
+  flex: none;
+  color: #8f8f8f;
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+}
+.present-bar button {
+  flex: none;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: #8f8f8f;
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  cursor: pointer;
+}
+.present-bar button:hover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.print-mode {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 22px;
+  overflow: hidden;
+  background: #fafafa;
+}
+.print-sheet {
+  position: relative;
+  width: auto;
+  max-width: min(100%, 1000px);
+  height: 100%;
+  max-height: 100%;
+  aspect-ratio: 11 / 8.5;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 2px 2px rgba(0, 0, 0, 0.04),
+    0 14px 30px -10px rgba(0, 0, 0, 0.1);
+}
+.print-margins {
+  position: absolute;
+  top: 5.88%;
+  right: 4.55%;
+  bottom: 5.88%;
+  left: 4.55%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+.print-hd {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.print-title {
+  color: #171717;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.print-cat {
+  color: #8f8f8f;
+  font-family: "Geist Mono", monospace;
+  font-size: 12px;
+}
+.print-diagram {
+  width: 100%;
+  flex: none;
+  aspect-ratio: 1000 / 620;
+}
+.print-diagram .field-diagram {
+  width: 100%;
+  max-width: none;
+  aspect-ratio: 1000 / 620;
+}
+.print-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.print-actions button {
+  height: 30px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 6px;
   background: #171717;
   color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.print-actions button:hover {
+  background: #000;
+}
+.print-actions span {
+  color: #8f8f8f;
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
 }
 
 @media (max-width: 1180px) {
@@ -1245,10 +1556,10 @@ select:focus-visible {
   .inspector {
     width: 278px;
   }
-  .statusbar span:first-child {
+  .statusbar:has(.status-controls) > span:first-child {
     display: none;
   }
-  .statusbar {
+  .statusbar:has(.status-controls) {
     justify-content: flex-end;
   }
 }
