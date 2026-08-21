@@ -1,5 +1,9 @@
 import { isLineman } from "./classifications";
-import { LEGACY_FIELD_GEOMETRY, legacyCanvasToYards } from "./geometry";
+import {
+  LEGACY_FIELD_GEOMETRY,
+  legacyCanvasToYards,
+  legacyLateralSpanToYards,
+} from "./geometry";
 import type {
   Coordinate,
   Formation,
@@ -585,4 +589,73 @@ export function currentFormation(
   if (named && formationStillApplied(play, named)) return named;
   const read = recognizeFormation(play, catalogue);
   return read.confidence >= RECOGNITION_THRESHOLD ? read.formation : undefined;
+}
+
+/**
+ * The margin either side of the ball inside which a set counts as spotted in
+ * the middle. The original measured it in the forty canvas pixels it drew in.
+ */
+const HASH_MARGIN_YARDS = legacyLateralSpanToYards(40);
+
+/**
+ * The offense on the field, read back as a set of its own. A Coach who has
+ * moved his men into something he wants again should not have to describe it
+ * twice, so everything the set needs — its personnel, its strength, the roles
+ * that let a route survive being realigned into it, the ball it is aligned to
+ * and the hash that ball sits on — is read off the men rather than asked for.
+ * Only the name is his to give.
+ *
+ * Defenders are left out: this is the offense he set, and a defensive call is
+ * a separate thing the Coach picks from its own book.
+ */
+export function formationFromOffense(
+  play: PlayDocument,
+  named: {
+    readonly id: string;
+    readonly playbookId: string;
+    readonly name: string;
+    readonly slotId: (index: number) => string;
+  },
+): Formation | undefined {
+  const offense = offensivePlayers(play);
+  if (offense.length === 0) return undefined;
+
+  const meta = formationMeta(offense);
+  const lateralYards = ballLateralYards(offense);
+
+  return {
+    schemaVersion: 1,
+    id: named.id,
+    playbookId: named.playbookId,
+    revision: 1,
+    name: named.name,
+    unit: "offense",
+    description: `${offense.length} pl`,
+    family: "custom",
+    personnelLabel: meta.personnelLabel,
+    strength: meta.strength,
+    ball: {
+      position: { lateralYards, depthYards: 0 },
+      hash:
+        lateralYards < -HASH_MARGIN_YARDS
+          ? "left"
+          : lateralYards > HASH_MARGIN_YARDS
+            ? "right"
+            : "middle",
+    },
+    slots: offense.map((player, index) => ({
+      id: named.slotId(index),
+      unit: "offense" as const,
+      // `assignRoles` places every man, and falls back to H itself for one
+      // it cannot read; a slot's role is never empty.
+      role: meta.roles[index] ?? "H",
+      position: player.position,
+      symbol: player.symbol,
+      label: player.label,
+      sublabel: player.sublabel,
+      fill: player.fill,
+      color: player.color,
+    })),
+    rolePairs: [],
+  };
 }

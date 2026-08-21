@@ -17,6 +17,38 @@ const cameraOf = async (page: import("@playwright/test").Page) => {
   return { x, y, width, height };
 };
 
+/**
+ * What the device really has under a preference key. A star is written
+ * without blocking the Coach, so a test that reloads must wait for the write
+ * rather than for a moment — and waiting on the record is also the proof that
+ * the star was kept on the device at all.
+ */
+const storedIds = (page: import("@playwright/test").Page, key: string) =>
+  page.evaluate(
+    (preferenceKey) =>
+      new Promise<string[]>((resolve) => {
+        const open = indexedDB.open("chalk-production-beta");
+        open.onerror = () => resolve([]);
+        open.onsuccess = () => {
+          const database = open.result;
+          const request = database
+            .transaction("preferences", "readonly")
+            .objectStore("preferences")
+            .get(preferenceKey);
+          const finish = (ids: string[]) => {
+            database.close();
+            resolve(ids);
+          };
+          request.onerror = () => finish([]);
+          request.onsuccess = () => {
+            const record = request.result as { value?: string[] } | undefined;
+            finish(record?.value ?? []);
+          };
+        };
+      }),
+    key,
+  );
+
 test("opens the original field-first editor shell and its modes", async ({
   page,
 }) => {
@@ -149,6 +181,102 @@ test("drives the snap rail toggle and live status-bar camera controls", async ({
   await expect(page.locator("[data-formation-status]")).toHaveText(
     "EMPTY RIGHT · 11",
   );
+});
+
+test("stars a set, keeps the offense as one of his own, and reopens both", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  const book = page.getByRole("dialog", { name: "Formations" });
+
+  await book.getByRole("tab", { name: "Favorites" }).click();
+  await expect(
+    book.getByText("No favorites yet — star a formation to keep it here."),
+  ).toBeVisible();
+
+  await book.getByRole("tab", { name: "Mine" }).click();
+  await expect(
+    book.getByText(
+      "Nothing saved yet. Set an offense on the field and save it below.",
+    ),
+  ).toBeVisible();
+
+  // The offense that is already on the field, kept under a name of his own.
+  const name = book.getByRole("textbox", {
+    name: "Save the offense on the field as",
+  });
+  await expect(book.getByRole("button", { name: "Save" })).toBeDisabled();
+  await name.fill("Andy's Empty");
+  await book.getByRole("button", { name: "Save" }).click();
+
+  await expect(book.getByText("Andy's Empty")).toBeVisible();
+  await expect(name).toHaveValue("");
+  // Naming it stars it, so it is under Favorites without being starred again.
+  await book.getByRole("tab", { name: "Favorites" }).click();
+  await expect(book.getByText("Andy's Empty")).toBeVisible();
+
+  // Star a set Chalk ships, so both kinds are kept.
+  await book.getByRole("tab", { name: "All" }).click();
+  await book.getByRole("button", { name: "Add to favorites" }).first().click();
+  await page.keyboard.press("Escape");
+
+  // A call is starred in its own book.
+  await page.getByTitle("Browse defenses — ⇧⌘D").click();
+  const calls = page.getByRole("dialog", { name: "Defenses" });
+  await calls.getByRole("button", { name: "Add to favorites" }).first().click();
+  await page.keyboard.press("Escape");
+
+  // Everything survives closing Chalk, because it is on the device — and it
+  // is on the device before the reload, which is the thing being claimed.
+  await expect
+    .poll(() => storedIds(page, "formations.favorites.v1"))
+    .toHaveLength(2);
+  await expect
+    .poll(() => storedIds(page, "defenses.favorites.v1"))
+    .toHaveLength(1);
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Stick — Thunder",
+  );
+
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  const reopened = page.getByRole("dialog", { name: "Formations" });
+  await reopened.getByRole("tab", { name: "Mine" }).click();
+  await expect(reopened.getByText("Andy's Empty")).toBeVisible();
+  await reopened.getByRole("tab", { name: "Favorites" }).click();
+  await expect(
+    reopened.getByRole("button", { name: "Remove from favorites" }),
+  ).toHaveCount(2);
+
+  // His own set can be let go again, and the letting go also lasts.
+  await reopened.getByRole("tab", { name: "Mine" }).click();
+  await reopened.getByRole("button", { name: "Remove Andy's Empty" }).click();
+  await expect(
+    reopened.getByText(
+      "Nothing saved yet. Set an offense on the field and save it below.",
+    ),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.reload();
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  await page
+    .getByRole("dialog", { name: "Formations" })
+    .getByRole("tab", { name: "Mine" })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Formations" }).getByText("Andy's Empty"),
+  ).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await page.getByTitle("Browse defenses — ⇧⌘D").click();
+  const reopenedCalls = page.getByRole("dialog", { name: "Defenses" });
+  await reopenedCalls.getByRole("tab", { name: "Favorites" }).click();
+  await expect(
+    reopenedCalls.getByRole("button", { name: "Remove from favorites" }),
+  ).toHaveCount(1);
 });
 
 test("undoes and redoes a Play edit across a reload", async ({ page }) => {

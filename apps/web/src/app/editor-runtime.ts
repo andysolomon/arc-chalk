@@ -6,6 +6,7 @@ import {
   parseEncryptedBackup,
   serializeEncryptedBackup,
   stickThunderPlay,
+  type Formation,
   type PlaybookEnvelope,
 } from "@chalk/domain";
 import {
@@ -23,6 +24,25 @@ import {
 
 const DATABASE_NAME = "chalk-production-beta";
 const SEED_TIME = 1_786_000_000_000;
+
+/**
+ * Which sets and calls the Coach starred. The original kept these beside the
+ * work rather than inside it — a favorite is how this Coach reaches for a set
+ * on this device, not a fact about the Play — so they live in preferences and
+ * never travel in a Play's document.
+ */
+const FAVORITE_FORMATIONS_KEY = "formations.favorites.v1";
+const FAVORITE_CALLS_KEY = "defenses.favorites.v1";
+
+/** The sets a Coach saved himself, and what he starred in either book. */
+export interface CoachSets {
+  readonly formations: readonly Formation[];
+  readonly favoriteFormationIds: readonly string[];
+  readonly favoriteCallIds: readonly string[];
+}
+
+const readIds = (value: unknown): readonly string[] =>
+  Array.isArray(value) ? value.filter((id) => typeof id === "string") : [];
 
 const starterPlaybook: PlaybookEnvelope = {
   schemaVersion: 1,
@@ -47,6 +67,13 @@ export interface ChalkRuntime {
   readonly editorStore: EditorStore;
   readonly recovery: SessionRecovery;
   readonly storage: StorageHealth;
+  /** What the Coach had saved and starred when this session opened. */
+  readonly coachSets: CoachSets;
+  /** Keeps a set the Coach named, so it is there the next time he opens Chalk. */
+  saveCoachFormation(formation: Formation): Promise<void>;
+  removeCoachFormation(formationId: string): Promise<void>;
+  setFavoriteFormations(ids: readonly string[]): Promise<void>;
+  setFavoriteCalls(ids: readonly string[]): Promise<void>;
   /** Frees the disposable previews and search projections Chalk can rebuild. */
   releaseDerivedStorage(): Promise<StorageHealth>;
   /** Encrypts the Coach's work on this device before it becomes a file. */
@@ -103,10 +130,42 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     persistence,
   });
 
+  const [coachFormations, favoriteFormations, favoriteCalls] =
+    await Promise.all([
+      repository.listFormations(stickThunderPlay.playbookId),
+      repository.getPreference(FAVORITE_FORMATIONS_KEY),
+      repository.getPreference(FAVORITE_CALLS_KEY),
+    ]);
+
+  const rememberIds = async (key: string, ids: readonly string[]) => {
+    await repository.setPreference({
+      key,
+      value: [...ids],
+      updatedAtMs: Date.now(),
+    });
+  };
+
   return {
     editorStore,
     recovery,
     storage: await repository.storageHealth(),
+    coachSets: {
+      formations: coachFormations,
+      favoriteFormationIds: readIds(favoriteFormations?.value),
+      favoriteCallIds: readIds(favoriteCalls?.value),
+    },
+    async saveCoachFormation(formation) {
+      await repository.saveFormation(formation);
+    },
+    async removeCoachFormation(formationId) {
+      await repository.deleteFormation(formationId);
+    },
+    async setFavoriteFormations(ids) {
+      await rememberIds(FAVORITE_FORMATIONS_KEY, ids);
+    },
+    async setFavoriteCalls(ids) {
+      await rememberIds(FAVORITE_CALLS_KEY, ids);
+    },
     async releaseDerivedStorage() {
       await repository.clearDerivedData();
       return repository.storageHealth();

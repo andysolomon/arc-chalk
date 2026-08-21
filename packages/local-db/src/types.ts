@@ -261,6 +261,11 @@ export interface ChalkLocalRepository {
   putConflict(conflict: LocalConflict): Promise<void>;
   listUnresolvedConflicts(): Promise<readonly LocalConflict[]>;
 
+  /** The sets a Coach saved himself, beside the ones Chalk ships. */
+  saveFormation(formation: Formation): Promise<void>;
+  listFormations(playbookId: string): Promise<readonly Formation[]>;
+  deleteFormation(formationId: string): Promise<void>;
+
   setPreference(preference: LocalPreference): Promise<void>;
   getPreference(key: string): Promise<LocalPreference | undefined>;
   putImage(image: LocalImageBlob): Promise<void>;

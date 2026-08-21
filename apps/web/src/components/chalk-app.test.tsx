@@ -2,7 +2,11 @@ import {
   footballPathPrimitivePlay,
   playerLabelPrimitivePlay,
 } from "@chalk/test-fixtures";
-import { stickThunderPlay, stockFormations } from "@chalk/domain";
+import {
+  formationFromOffense,
+  stickThunderPlay,
+  stockFormations,
+} from "@chalk/domain";
 import {
   applyFormationCommand,
   createEditorStore,
@@ -24,6 +28,15 @@ function createTestRuntime(
     editorStore: createTestEditorStore(),
     recovery: { interrupted: false },
     storage: { persisted: true, pressure: "healthy" },
+    coachSets: {
+      formations: [],
+      favoriteFormationIds: [],
+      favoriteCallIds: [],
+    },
+    saveCoachFormation: () => Promise.resolve(),
+    removeCoachFormation: () => Promise.resolve(),
+    setFavoriteFormations: () => Promise.resolve(),
+    setFavoriteCalls: () => Promise.resolve(),
     releaseDerivedStorage: () =>
       Promise.resolve({ persisted: true, pressure: "healthy" as const }),
     exportEncryptedBackup: () => Promise.resolve("{}"),
@@ -215,6 +228,190 @@ describe("Chalk application shell", () => {
 
     expect(screen.getByText("EMPTY RIGHT · 11")).toBeVisible();
     expect(screen.queryByText("CUSTOM ALIGNMENT")).toBeNull();
+  });
+
+  it("stars a set, keeps it under Favorites, and tells the device", async () => {
+    const user = userEvent.setup();
+    const setFavoriteFormations = vi.fn<ChalkRuntime["setFavoriteFormations"]>(
+      () => Promise.resolve(),
+    );
+    render(<ChalkApp runtime={createTestRuntime({ setFavoriteFormations })} />);
+
+    await user.click(screen.getByTitle("Browse formations — ⇧⌘F"));
+    const book = screen.getByRole("dialog", { name: "Formations" });
+
+    // Favorites is empty until the Coach stars something, and says so in the
+    // original's own words rather than the search's.
+    await user.click(within(book).getByRole("tab", { name: "Favorites" }));
+    expect(
+      within(book).getByText(
+        "No favorites yet — star a formation to keep it here.",
+      ),
+    ).toBeVisible();
+
+    await user.click(within(book).getByRole("tab", { name: "All" }));
+    const stars = within(book).getAllByRole("button", {
+      name: "Add to favorites",
+    });
+    await user.click(stars[0]!);
+    expect(setFavoriteFormations).toHaveBeenCalledTimes(1);
+    expect(setFavoriteFormations.mock.calls[0]![0]).toHaveLength(1);
+
+    await user.click(within(book).getByRole("tab", { name: "Favorites" }));
+    const kept = within(book).getAllByRole("button", {
+      name: "Remove from favorites",
+    });
+    expect(kept).toHaveLength(1);
+
+    // Starring is not picking — the set does not land on the field.
+    expect(book).toBeVisible();
+
+    await user.click(kept[0]!);
+    expect(
+      within(book).getByText(
+        "No favorites yet — star a formation to keep it here.",
+      ),
+    ).toBeVisible();
+    expect(setFavoriteFormations).toHaveBeenLastCalledWith([]);
+  });
+
+  it("stars a call, and keeps the two books' favorites apart", async () => {
+    const user = userEvent.setup();
+    const setFavoriteCalls = vi.fn<ChalkRuntime["setFavoriteCalls"]>(() =>
+      Promise.resolve(),
+    );
+    const setFavoriteFormations = vi.fn<ChalkRuntime["setFavoriteFormations"]>(
+      () => Promise.resolve(),
+    );
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({ setFavoriteCalls, setFavoriteFormations })}
+      />,
+    );
+
+    await user.click(screen.getByTitle("Browse defenses — ⇧⌘D"));
+    const book = screen.getByRole("dialog", { name: "Defenses" });
+    await user.click(within(book).getByRole("tab", { name: "Favorites" }));
+    expect(
+      within(book).getByText("No favorites yet — star a call to keep it here."),
+    ).toBeVisible();
+
+    await user.click(within(book).getByRole("tab", { name: "All" }));
+    await user.click(
+      within(book).getAllByRole("button", { name: "Add to favorites" })[0]!,
+    );
+    expect(setFavoriteCalls).toHaveBeenCalledTimes(1);
+    // A starred call is not a starred set.
+    expect(setFavoriteFormations).not.toHaveBeenCalled();
+
+    await user.click(within(book).getByRole("tab", { name: "Favorites" }));
+    expect(
+      within(book).getAllByRole("button", { name: "Remove from favorites" }),
+    ).toHaveLength(1);
+  });
+
+  it("keeps the offense on the field as a set of the Coach's own", async () => {
+    const user = userEvent.setup();
+    const saveCoachFormation = vi.fn<ChalkRuntime["saveCoachFormation"]>(() =>
+      Promise.resolve(),
+    );
+    const setFavoriteFormations = vi.fn<ChalkRuntime["setFavoriteFormations"]>(
+      () => Promise.resolve(),
+    );
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          saveCoachFormation,
+          setFavoriteFormations,
+        })}
+      />,
+    );
+
+    await user.click(screen.getByTitle("Browse formations — ⇧⌘F"));
+    const book = screen.getByRole("dialog", { name: "Formations" });
+
+    await user.click(within(book).getByRole("tab", { name: "Mine" }));
+    expect(
+      within(book).getByText(
+        "Nothing saved yet. Set an offense on the field and save it below.",
+      ),
+    ).toBeVisible();
+
+    // The Save button will not act on an unnamed set.
+    const save = within(book).getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute(
+      "title",
+      "Save the offense on the field as a formation",
+    );
+
+    const name = within(book).getByRole("textbox", {
+      name: "Save the offense on the field as",
+    });
+    await user.type(name, "Andy's Empty");
+    expect(save).toBeEnabled();
+    await user.click(save);
+
+    expect(saveCoachFormation).toHaveBeenCalledTimes(1);
+    const saved = saveCoachFormation.mock.calls[0]![0];
+    expect(saved.name).toBe("Andy's Empty");
+    expect(saved.family).toBe("custom");
+
+    // The Coach named it to reach for it, so it is starred at once — and it
+    // is his set, so it can be let go again.
+    expect(setFavoriteFormations).toHaveBeenLastCalledWith([saved.id]);
+    expect(within(book).getByText("Andy's Empty")).toBeVisible();
+    expect(name).toHaveValue("");
+    expect(
+      within(book).getByRole("button", { name: "Remove Andy's Empty" }),
+    ).toBeVisible();
+  });
+
+  it("opens the Coach's saved sets beside the ones Chalk ships", async () => {
+    const user = userEvent.setup();
+    const mine = formationFromOffense(stickThunderPlay, {
+      id: "formation_mine",
+      playbookId: stickThunderPlay.playbookId,
+      name: "Andy's Empty",
+      slotId: (index) => `slot_mine_${index}`,
+    })!;
+    const removeCoachFormation = vi.fn<ChalkRuntime["removeCoachFormation"]>(
+      () => Promise.resolve(),
+    );
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          coachSets: {
+            formations: [mine],
+            favoriteFormationIds: [mine.id],
+            favoriteCallIds: [],
+          },
+          removeCoachFormation,
+        })}
+      />,
+    );
+
+    await user.click(screen.getByTitle("Browse formations — ⇧⌘F"));
+    const book = screen.getByRole("dialog", { name: "Formations" });
+
+    // It is in all three books: the whole one, the starred, and his own.
+    for (const tab of ["All", "Favorites", "Mine"]) {
+      await user.click(within(book).getByRole("tab", { name: tab }));
+      expect(within(book).getByText("Andy's Empty")).toBeVisible();
+    }
+    expect(
+      within(book).getByRole("button", { name: "Remove from favorites" }),
+    ).toBeVisible();
+
+    await user.click(
+      within(book).getByRole("button", { name: "Remove Andy's Empty" }),
+    );
+    expect(removeCoachFormation).toHaveBeenCalledWith(mine.id);
+    expect(
+      within(book).getByText(
+        "Nothing saved yet. Set an offense on the field and save it below.",
+      ),
+    ).toBeVisible();
   });
 
   it("keeps the play name editable and exposes the original modes", async () => {

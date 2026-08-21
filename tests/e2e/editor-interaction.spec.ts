@@ -920,7 +920,9 @@ test("puts the men in another set, carries their routes, and takes it all back a
 
   // Narrowing is how a Coach finds a set. Typing is the other way, and the
   // two trips sets are the only ones that answer to it.
-  await browser.getByRole("textbox").fill("trips");
+  await browser
+    .getByRole("textbox", { name: "Search formations" })
+    .fill("trips");
   await expect(browser.getByText("Gun Trips Right")).toBeVisible();
   await expect(browser.getByText("Gun Doubles Right")).toBeHidden();
 
