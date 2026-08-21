@@ -84,6 +84,17 @@ test("opens the original field-first editor shell and its modes", async ({
     page.getByRole("navigation", { name: "Drawing tools" }),
   ).toBeVisible();
 
+  await page.getByRole("button", { name: "Demo", exact: true }).click();
+  const demo = page.getByRole("region", { name: "Demo" });
+  await expect(demo).toBeVisible();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect(demo.getByText("Player tool")).toBeVisible();
+  await expect(page.getByText("Drawing tools — guided tour")).toBeVisible();
+  await page.getByRole("button", { name: "Editor", exact: true }).click();
+  await expect(
+    page.getByRole("navigation", { name: "Drawing tools" }),
+  ).toBeVisible();
+
   const playName = page.getByRole("textbox", { name: "Play name" });
   const localSave = page.getByRole("button", {
     name: "Saved on this device",
@@ -155,6 +166,81 @@ test("opens Print preview as the letter-landscape sheet and leaves on Escape", a
   await expect(
     page.getByRole("navigation", { name: "Drawing tools" }),
   ).toBeVisible();
+});
+
+test("opens a demo into a new Play and leaves the previous Play unchanged", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Stick — Thunder",
+  );
+
+  await page
+    .getByRole("navigation", { name: "Workspace views" })
+    .getByRole("button", { name: "Demo", exact: true })
+    .click();
+  const demo = page.getByRole("region", { name: "Demo" });
+  await expect(demo).toBeVisible();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await demo.getByRole("button", { name: "Defense" }).click();
+  await expect(demo.getByText("Offense in gray")).toBeVisible();
+  await demo
+    .getByRole("button", { name: "Open this play in the editor" })
+    .click();
+
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Cover 3 — Fire Zone",
+  );
+  await expect(
+    page.getByRole("button", { name: "Saved on this device" }),
+  ).toBeVisible();
+
+  const stored = await page.evaluate(
+    () =>
+      new Promise<Array<{ id: string; name: string }>>((resolve) => {
+        const open = indexedDB.open("chalk-production-beta");
+        open.onerror = () => resolve([]);
+        open.onsuccess = () => {
+          const database = open.result;
+          const request = database
+            .transaction("plays", "readonly")
+            .objectStore("plays")
+            .getAll();
+          request.onerror = () => {
+            database.close();
+            resolve([]);
+          };
+          request.onsuccess = () => {
+            const rows =
+              (request.result as Array<{
+                id: string;
+                document?: { name?: string };
+              }>) ?? [];
+            database.close();
+            resolve(
+              rows.map((row) => ({
+                id: row.id,
+                name: row.document?.name ?? "",
+              })),
+            );
+          };
+        };
+      }),
+  );
+
+  expect(stored).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: "play-8lkpvgj",
+        name: "Stick — Thunder",
+      }),
+      expect.objectContaining({ name: "Cover 3 — Fire Zone" }),
+    ]),
+  );
+  expect(
+    stored.find((play) => play.name === "Cover 3 — Fire Zone")?.id,
+  ).not.toBe("play-8lkpvgj");
 });
 
 test("changes the markings and the words from the inspector without moving the Play", async ({

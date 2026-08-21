@@ -1,5 +1,7 @@
 import {
   hashPlayDocument,
+  demoHandoffPlay,
+  demoTour,
   stickThunderPlay,
   type PlayDocument,
 } from "@chalk/domain";
@@ -623,5 +625,49 @@ describe("EditorStore named versions", () => {
     await expect(store.restoreVersion("revision_1")).resolves.toEqual({
       status: "unavailable",
     });
+  });
+
+  it("adopts a demo as a new Play and leaves the previous record untouched", async () => {
+    const initialHash = await hashPlayDocument(stickThunderPlay);
+    const records = new Map<string, PlayDocument>([
+      [stickThunderPlay.id, stickThunderPlay],
+    ]);
+    const commits: EditorPersistenceCommit[] = [];
+    const store = createEditorStore({
+      initialDocument: stickThunderPlay,
+      initialDocumentHash: initialHash,
+      persistence: {
+        async commitPlay(input) {
+          commits.push(input);
+          records.set(input.play.id, input.play);
+          return {
+            playId: input.play.id,
+            documentHash: await hashPlayDocument(input.play),
+            committedAtMs: 100,
+            mutationId: input.mutation.id,
+          };
+        },
+      },
+      createMutationId: () => "mutation_demo",
+      monotonicNow: () => 0,
+      wallClockNow: () => WORKED_ON_MS,
+    });
+
+    const opened = demoHandoffPlay(demoTour("defense"), {
+      id: "play_from_demo",
+      playbookId: stickThunderPlay.playbookId,
+    });
+    await expect(store.adoptPlay(opened)).resolves.toEqual(
+      expect.objectContaining({ ok: true }),
+    );
+
+    expect(store.getSnapshot().document.id).toBe("play_from_demo");
+    expect(store.getSnapshot().document.name).toBe("Cover 3 — Fire Zone");
+    expect(store.getSnapshot().undo.canUndo).toBe(false);
+    expect(commits[0]?.expectedDocumentHash).toBeUndefined();
+    expect(commits[0]?.play.id).toBe("play_from_demo");
+    expect(records.get(stickThunderPlay.id)).toBe(stickThunderPlay);
+    expect(records.get(stickThunderPlay.id)?.name).toBe("Stick — Thunder");
+    expect(records.get("play_from_demo")?.name).toBe("Cover 3 — Fire Zone");
   });
 });

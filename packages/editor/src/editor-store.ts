@@ -3,6 +3,7 @@ import {
   canonicalSha256,
   canonicalStringify,
   createStableId,
+  createUndoHistory,
   describePlayCommand,
   diffPlayDocuments,
   playCommandCoalesceKey,
@@ -28,7 +29,8 @@ export const LOCAL_SAVE_BUDGET_MS = 50;
 
 export interface EditorPersistenceCommit {
   readonly play: PlayDocument;
-  readonly expectedDocumentHash: string;
+  /** Absent on the first write of a Play that has no prior identity. */
+  readonly expectedDocumentHash?: string;
   readonly mutation: { readonly id: string };
   readonly undoHistory?: UndoHistory;
 }
@@ -156,6 +158,13 @@ export interface EditorStore {
     this: void,
     document: PlayDocument,
   ): Promise<EditorCommitOutcome>;
+  /**
+   * Replaces the working document with a new identity. The Play that was
+   * open is left where it is; the next save writes a new record. Demo
+   * handoff uses this so opening a tour cannot rewrite the Coach's work
+   * (parity-matrix B1).
+   */
+  adoptPlay(this: void, document: PlayDocument): Promise<EditorCommitOutcome>;
   retryLocalSave(this: void): Promise<EditorCommitOutcome | undefined>;
   undo(this: void): Promise<EditorUndoOutcome>;
   redo(this: void): Promise<EditorUndoOutcome>;
@@ -235,7 +244,7 @@ export function createEditorStore({
     initialUndoHistory,
     wallClockNow(),
   );
-  let persistedDocumentHash = initialDocumentHash;
+  let persistedDocumentHash: string | undefined = initialDocumentHash;
   let latestSequence = 0;
   let saveTail: Promise<void> = Promise.resolve();
 
@@ -285,7 +294,9 @@ export function createEditorStore({
     try {
       const receipt = await persistence.commitPlay({
         play: committedDocument,
-        expectedDocumentHash: persistedDocumentHash,
+        ...(persistedDocumentHash === undefined
+          ? {}
+          : { expectedDocumentHash: persistedDocumentHash }),
         mutation: { id: createMutationId() },
         ...(committedHistory === undefined
           ? {}
@@ -321,7 +332,7 @@ export function createEditorStore({
           ...current,
           localSave: {
             phase: "error",
-            documentHash: persistedDocumentHash,
+            documentHash: persistedDocumentHash ?? documentHash,
             budgetMs: saveBudgetMs,
             durationMs,
           },
@@ -425,7 +436,9 @@ export function createEditorStore({
     readonly EditorVersionSummary[]
   > => {
     if (!persistence.listPlayVersions) return state.getState().versions;
-    return publishVersions(await persistence.listPlayVersions(document.id));
+    return publishVersions(
+      await persistence.listPlayVersions(state.getState().document.id),
+    );
   };
 
   const commitDocument = (
@@ -438,6 +451,24 @@ export function createEditorStore({
       showDocument(committedDocument);
       publishUndo();
       return persist(committedDocument, sequence, requestedAtMs, history);
+    });
+  };
+
+  const adoptPlay = (
+    nextDocument: PlayDocument,
+  ): Promise<EditorCommitOutcome> => {
+    const adopted = playDocumentSchema.parse(nextDocument);
+    const { sequence, requestedAtMs } = startSaving();
+    return enqueue(async () => {
+      if (adopted.id !== state.getState().document.id) {
+        history = createUndoHistory(adopted.id, wallClockNow());
+        persistedDocumentHash = undefined;
+      }
+      documentHash = await canonicalSha256(adopted);
+      showDocument(adopted);
+      publishUndo();
+      state.setState((current) => ({ ...current, versions: [] }));
+      return persist(adopted, sequence, requestedAtMs, history);
     });
   };
 
@@ -505,6 +536,7 @@ export function createEditorStore({
     applyCommand,
     applyEdit,
     commitDocument,
+    adoptPlay,
     retryLocalSave() {
       if (state.getState().localSave.phase !== "error") {
         return Promise.resolve(undefined);
@@ -524,7 +556,7 @@ export function createEditorStore({
       return enqueue(async () => {
         try {
           const version = await persistence.createNamedVersion!({
-            playId: document.id,
+            playId: state.getState().document.id,
             revisionId: createVersionId(),
             label: named,
           });

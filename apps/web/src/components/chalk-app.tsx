@@ -9,6 +9,23 @@ import {
   currentFormation,
   deletePathsCommand,
   DEFAULT_ZONE_COVERAGE_RADII,
+  DEMO_HEADER_TITLE,
+  DEMO_STATUS_HINT,
+  demoCursor,
+  demoHandoffPlay,
+  demoItemOpacity,
+  demoPanelRowOn,
+  demoPlayLabel,
+  demoPulses,
+  demoToolShortcuts,
+  demoTour,
+  demoTours,
+  gotoDemoStep,
+  startDemo,
+  tickDemo,
+  toggleDemoPlay,
+  type DemoPlayback,
+  type DemoTour,
   defensiveLineKinds,
   defensiveRouteKinds,
   isLineman,
@@ -17,6 +34,7 @@ import {
   labelSizeChoices,
   playErasureCommand,
   playErasures,
+  legacyCanvasToYards,
   PRODUCT_NAME,
   blockPresets,
   defensivePresets,
@@ -279,17 +297,22 @@ const routeDashes: Record<SvgPathStroke["style"]["line"], string | undefined> =
 
 function RoutePath({
   d,
+  draw = 1,
   id,
   style,
 }: {
   d: string;
+  draw?: number;
   id: string;
   style: SvgPathStroke["style"];
 }) {
+  if (draw <= 0) return null;
   const markerEnd =
-    style.ending === "none"
+    style.ending === "none" || draw <= 0.97
       ? undefined
       : `url(#chalk-${style.ending}-${style.color})`;
+  const dashed = routeDashes[style.line];
+  const tracing = draw < 1 && dashed === undefined;
 
   return (
     <path
@@ -297,8 +320,11 @@ function RoutePath({
       data-scene-path={id}
       fill="none"
       markerEnd={markerEnd}
+      opacity={tracing ? undefined : draw}
+      pathLength={tracing ? 1 : undefined}
       stroke={sceneColors[style.color]}
-      strokeDasharray={routeDashes[style.line]}
+      strokeDasharray={tracing ? 1 : dashed}
+      strokeDashoffset={tracing ? 1 - draw : undefined}
       strokeLinecap="round"
       strokeLinejoin="round"
       strokeWidth="2.5"
@@ -485,6 +511,7 @@ function selectionKey(kind: "player" | "path" | "label", id: string): string {
 
 export function FieldDiagram({
   camera,
+  reveal,
   scene = stickThunderScene,
   selection,
   overlay,
@@ -496,6 +523,11 @@ export function FieldDiagram({
 }: {
   /** The part of the drawn frame on screen; absent shows all of it. */
   camera?: Camera;
+  /**
+   * How far each entity has appeared, 0–1. Demo uses this to draw the
+   * original's step reveal; absent means everything is on the field.
+   */
+  reveal?: (id: string) => number;
   scene?: SvgRenderScene;
   /** Keys like "player:q" — absent means a non-interactive rendering. */
   selection?: ReadonlySet<string>;
@@ -715,235 +747,269 @@ export function FieldDiagram({
         ))}
       </g>
       <g className="routes">
-        {scene.paths.map((path) => (
-          <g aria-label={path.ariaLabel} key={path.id} role="img">
-            <title>{path.ariaLabel}</title>
-            {selected("path", path.id)
-              ? [
-                  ...path.strokes,
-                  ...path.branches.flatMap((b) => b.strokes),
-                ].map((stroke) => (
-                  <path
-                    d={stroke.d}
-                    data-print-chrome=""
-                    data-selected-path={path.id}
-                    fill="none"
-                    key={`sel-${stroke.id}`}
-                    opacity="0.18"
-                    pointerEvents="none"
-                    stroke={SELECTION_BLUE}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="8.5"
-                  />
-                ))
-              : null}
-            {path.coverageArea ? (
-              <g data-scene-coverage={path.coverageArea.id}>
-                <ellipse
-                  cx={path.coverageArea.center.x}
-                  cy={path.coverageArea.center.y}
-                  fill={path.coverageArea.fill}
-                  opacity="0.26"
-                  rx={path.coverageArea.radiusX}
-                  ry={path.coverageArea.radiusY}
-                />
-                <ellipse
-                  cx={path.coverageArea.center.x}
-                  cy={path.coverageArea.center.y}
-                  fill="none"
-                  rx={path.coverageArea.radiusX}
-                  ry={path.coverageArea.radiusY}
-                  stroke={path.coverageArea.fill}
-                  strokeDasharray="5 4"
-                  strokeWidth="1.9"
-                />
-              </g>
-            ) : null}
-            {path.strokes.map((stroke) => (
-              <RoutePath {...stroke} key={stroke.id} />
-            ))}
-            {path.ticks.map(({ color, ...tick }, index) => (
-              <line
-                data-scene-tick={`${path.id}-${index}`}
-                key={`${path.id}-tick-${index}`}
-                stroke={sceneColors[color]}
-                strokeLinecap="round"
-                strokeWidth="2.5"
-                {...tick}
-              />
-            ))}
-            {path.coaching ? (
-              <g className="route-coaching" pointerEvents="none">
-                {path.coaching.read ? (
-                  <g data-scene-read={path.coaching.read.id}>
-                    <circle
-                      cx={path.coaching.read.center.x}
-                      cy={path.coaching.read.center.y}
-                      fill="#fff"
-                      r={path.coaching.read.radius}
+        {scene.paths.map((path) => {
+          const shown = reveal?.(path.id) ?? 1;
+          if (shown <= 0) return null;
+          const tickOpacity =
+            shown <= 0.5 ? 0 : Math.min(1, (shown - 0.5) / 0.3);
+          return (
+            <g aria-label={path.ariaLabel} key={path.id} role="img">
+              <title>{path.ariaLabel}</title>
+              {selected("path", path.id)
+                ? [
+                    ...path.strokes,
+                    ...path.branches.flatMap((b) => b.strokes),
+                  ].map((stroke) => (
+                    <path
+                      d={stroke.d}
+                      data-print-chrome=""
+                      data-selected-path={path.id}
+                      fill="none"
+                      key={`sel-${stroke.id}`}
+                      opacity="0.18"
+                      pointerEvents="none"
                       stroke={SELECTION_BLUE}
-                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="8.5"
                     />
-                    <SceneText
-                      text={{
-                        ...path.coaching.read.text,
-                        // Centred in the circle rather than sitting on its
-                        // middle, the way a number in a bubble reads.
-                        y:
-                          path.coaching.read.text.y +
-                          path.coaching.read.text.fontSize * 0.35,
-                      }}
+                  ))
+                : null}
+              {path.coverageArea ? (
+                <g data-scene-coverage={path.coverageArea.id} opacity={shown}>
+                  <ellipse
+                    cx={path.coverageArea.center.x}
+                    cy={path.coverageArea.center.y}
+                    fill={path.coverageArea.fill}
+                    opacity="0.26"
+                    rx={path.coverageArea.radiusX}
+                    ry={path.coverageArea.radiusY}
+                  />
+                  <ellipse
+                    cx={path.coverageArea.center.x}
+                    cy={path.coverageArea.center.y}
+                    fill="none"
+                    rx={path.coverageArea.radiusX}
+                    ry={path.coverageArea.radiusY}
+                    stroke={path.coverageArea.fill}
+                    strokeDasharray="5 4"
+                    strokeWidth="1.9"
+                  />
+                </g>
+              ) : null}
+              {path.strokes.map((stroke) => (
+                <RoutePath {...stroke} draw={shown} key={stroke.id} />
+              ))}
+              {tickOpacity > 0
+                ? path.ticks.map(({ color, ...tick }, index) => (
+                    <line
+                      data-scene-tick={`${path.id}-${index}`}
+                      key={`${path.id}-tick-${index}`}
+                      opacity={tickOpacity}
+                      stroke={sceneColors[color]}
+                      strokeLinecap="round"
+                      strokeWidth="2.5"
+                      {...tick}
                     />
-                  </g>
-                ) : null}
-                {path.coaching.notes.map((note) => (
-                  <g data-scene-coaching={note.id} key={note.id}>
-                    <SceneText text={note.text} />
-                  </g>
-                ))}
-              </g>
-            ) : null}
-            {path.branches.flatMap((branch) => [
-              ...branch.strokes.map((stroke) => (
-                <RoutePath {...stroke} key={stroke.id} />
-              )),
-              ...branch.ticks.map(({ color, ...tick }, index) => (
-                <line
-                  data-scene-tick={`${branch.id}-${index}`}
-                  key={`${branch.id}-tick-${index}`}
-                  stroke={sceneColors[color]}
-                  strokeLinecap="round"
-                  strokeWidth="2.5"
-                  {...tick}
-                />
-              )),
-            ])}
-          </g>
-        ))}
+                  ))
+                : null}
+              {path.coaching ? (
+                <g
+                  className="route-coaching"
+                  opacity={shown}
+                  pointerEvents="none"
+                >
+                  {path.coaching.read ? (
+                    <g data-scene-read={path.coaching.read.id}>
+                      <circle
+                        cx={path.coaching.read.center.x}
+                        cy={path.coaching.read.center.y}
+                        fill="#fff"
+                        r={path.coaching.read.radius}
+                        stroke={SELECTION_BLUE}
+                        strokeWidth="1.4"
+                      />
+                      <SceneText
+                        text={{
+                          ...path.coaching.read.text,
+                          // Centred in the circle rather than sitting on its
+                          // middle, the way a number in a bubble reads.
+                          y:
+                            path.coaching.read.text.y +
+                            path.coaching.read.text.fontSize * 0.35,
+                        }}
+                      />
+                    </g>
+                  ) : null}
+                  {path.coaching.notes.map((note) => (
+                    <g data-scene-coaching={note.id} key={note.id}>
+                      <SceneText text={note.text} />
+                    </g>
+                  ))}
+                </g>
+              ) : null}
+              {path.branches.flatMap((branch, branchIndex) => {
+                const branchShown = reveal?.(`${path.id}.b${branchIndex}`) ?? 1;
+                if (branchShown <= 0) return [];
+                const branchTick =
+                  branchShown <= 0.5
+                    ? 0
+                    : Math.min(1, (branchShown - 0.5) / 0.3);
+                return [
+                  ...branch.strokes.map((stroke) => (
+                    <RoutePath {...stroke} draw={branchShown} key={stroke.id} />
+                  )),
+                  ...(branchTick > 0
+                    ? branch.ticks.map(({ color, ...tick }, index) => (
+                        <line
+                          data-scene-tick={`${branch.id}-${index}`}
+                          key={`${branch.id}-tick-${index}`}
+                          opacity={branchTick}
+                          stroke={sceneColors[color]}
+                          strokeLinecap="round"
+                          strokeWidth="2.5"
+                          {...tick}
+                        />
+                      ))
+                    : []),
+                ];
+              })}
+            </g>
+          );
+        })}
       </g>
       <g className="field-annotations">
-        {scene.labels.map((label) => (
-          <g
-            aria-label={label.ariaLabel}
-            data-label-role={label.role}
-            data-scene-label={label.id}
-            key={label.id}
-            role="img"
-          >
-            <title>{label.ariaLabel}</title>
-            {label.leader ? (
-              <>
-                <line
-                  data-label-leader={label.id}
-                  opacity={label.leader.opacity}
-                  stroke={label.leader.stroke}
-                  strokeDasharray={label.leader.strokeDasharray}
-                  strokeWidth={label.leader.strokeWidth}
-                  x1={label.leader.x1}
-                  x2={label.leader.x2}
-                  y1={label.leader.y1}
-                  y2={label.leader.y2}
+        {scene.labels.map((label) => {
+          const shown = reveal?.(label.id) ?? 1;
+          if (shown <= 0) return null;
+          return (
+            <g
+              aria-label={label.ariaLabel}
+              data-label-role={label.role}
+              data-scene-label={label.id}
+              key={label.id}
+              opacity={shown}
+              role="img"
+            >
+              <title>{label.ariaLabel}</title>
+              {label.leader ? (
+                <>
+                  <line
+                    data-label-leader={label.id}
+                    opacity={label.leader.opacity}
+                    stroke={label.leader.stroke}
+                    strokeDasharray={label.leader.strokeDasharray}
+                    strokeWidth={label.leader.strokeWidth}
+                    x1={label.leader.x1}
+                    x2={label.leader.x2}
+                    y1={label.leader.y1}
+                    y2={label.leader.y2}
+                  />
+                  <circle
+                    cx={label.leader.x2}
+                    cy={label.leader.y2}
+                    fill={label.leader.stroke}
+                    r={label.leader.endpointRadius}
+                  />
+                </>
+              ) : null}
+              {label.box ? <SceneShape shape={label.box} /> : null}
+              <SceneText text={label.text} />
+              {selected("label", label.id) ? (
+                <rect
+                  data-print-chrome=""
+                  data-selected-label={label.id}
+                  fill="none"
+                  height={label.text.fontSize + 14}
+                  pointerEvents="none"
+                  rx={4}
+                  stroke={SELECTION_BLUE}
+                  strokeDasharray="3 3"
+                  strokeWidth={1}
+                  width={
+                    Math.max(
+                      24,
+                      label.text.text.length * label.text.fontSize * 0.62,
+                    ) + 16
+                  }
+                  x={
+                    label.position.x -
+                    (Math.max(
+                      24,
+                      label.text.text.length * label.text.fontSize * 0.62,
+                    ) +
+                      16) /
+                      2
+                  }
+                  y={label.position.y - label.text.fontSize - 6}
                 />
-                <circle
-                  cx={label.leader.x2}
-                  cy={label.leader.y2}
-                  fill={label.leader.stroke}
-                  r={label.leader.endpointRadius}
-                />
-              </>
-            ) : null}
-            {label.box ? <SceneShape shape={label.box} /> : null}
-            <SceneText text={label.text} />
-            {selected("label", label.id) ? (
-              <rect
-                data-print-chrome=""
-                data-selected-label={label.id}
-                fill="none"
-                height={label.text.fontSize + 14}
-                pointerEvents="none"
-                rx={4}
-                stroke={SELECTION_BLUE}
-                strokeDasharray="3 3"
-                strokeWidth={1}
-                width={
-                  Math.max(
-                    24,
-                    label.text.text.length * label.text.fontSize * 0.62,
-                  ) + 16
-                }
-                x={
-                  label.position.x -
-                  (Math.max(
-                    24,
-                    label.text.text.length * label.text.fontSize * 0.62,
-                  ) +
-                    16) /
-                    2
-                }
-                y={label.position.y - label.text.fontSize - 6}
-              />
-            ) : null}
-          </g>
-        ))}
+              ) : null}
+            </g>
+          );
+        })}
       </g>
       <g className="players">
-        {scene.players.map((player) => (
-          <g
-            aria-label={player.ariaLabel}
-            className={selected("player", player.id) ? "selected" : undefined}
-            data-scene-player={player.id}
-            key={player.id}
-            onPointerEnter={
-              onHoverPlayer ? () => onHoverPlayer(player.id) : undefined
-            }
-            onPointerLeave={
-              onHoverPlayer ? () => onHoverPlayer(undefined) : undefined
-            }
-            role="img"
-            transform={`translate(${player.position.x} ${player.position.y})`}
-          >
-            <title>{player.ariaLabel}</title>
-            {selected("player", player.id) ? (
-              <circle
-                className="selection-halo"
-                data-print-chrome=""
-                fill="none"
-                r={19}
-                stroke={SELECTION_BLUE}
-                strokeWidth={1.5}
-                opacity={0.3}
-              />
-            ) : null}
-            {player.shapes.map((shape, index) => (
-              <SceneShape key={`${player.id}-shape-${index}`} shape={shape} />
-            ))}
-            {player.texts.map((text, index) => (
-              <SceneText key={`${player.id}-text-${index}`} text={text} />
-            ))}
-            {routeDotPlayerId === player.id ? (
-              <circle
-                className="route-dot"
-                cx={0}
-                cy={-26}
-                data-print-chrome=""
-                data-route-dot={player.id}
-                fill={SELECTION_BLUE}
-                onPointerDown={(event) => {
-                  // The dot owns this press: it starts a route rather than
-                  // letting the field begin a move.
-                  event.stopPropagation();
-                  onStartRoute?.(player.id);
-                }}
-                r={5}
-                stroke="#FFFFFF"
-                strokeWidth={1.5}
-              >
-                <title>Drag off to draw a route from this player</title>
-              </circle>
-            ) : null}
-          </g>
-        ))}
+        {scene.players.map((player) => {
+          const shown = reveal?.(player.id) ?? 1;
+          if (shown <= 0) return null;
+          return (
+            <g
+              aria-label={player.ariaLabel}
+              className={selected("player", player.id) ? "selected" : undefined}
+              data-scene-player={player.id}
+              key={player.id}
+              onPointerEnter={
+                onHoverPlayer ? () => onHoverPlayer(player.id) : undefined
+              }
+              onPointerLeave={
+                onHoverPlayer ? () => onHoverPlayer(undefined) : undefined
+              }
+              opacity={shown}
+              role="img"
+              transform={`translate(${player.position.x} ${player.position.y})`}
+            >
+              <title>{player.ariaLabel}</title>
+              {selected("player", player.id) ? (
+                <circle
+                  className="selection-halo"
+                  data-print-chrome=""
+                  fill="none"
+                  r={19}
+                  stroke={SELECTION_BLUE}
+                  strokeWidth={1.5}
+                  opacity={0.3}
+                />
+              ) : null}
+              {player.shapes.map((shape, index) => (
+                <SceneShape key={`${player.id}-shape-${index}`} shape={shape} />
+              ))}
+              {player.texts.map((text, index) => (
+                <SceneText key={`${player.id}-text-${index}`} text={text} />
+              ))}
+              {routeDotPlayerId === player.id ? (
+                <circle
+                  className="route-dot"
+                  cx={0}
+                  cy={-26}
+                  data-print-chrome=""
+                  data-route-dot={player.id}
+                  fill={SELECTION_BLUE}
+                  onPointerDown={(event) => {
+                    // The dot owns this press: it starts a route rather than
+                    // letting the field begin a move.
+                    event.stopPropagation();
+                    onStartRoute?.(player.id);
+                  }}
+                  r={5}
+                  stroke="#FFFFFF"
+                  strokeWidth={1.5}
+                >
+                  <title>Drag off to draw a route from this player</title>
+                </circle>
+              ) : null}
+            </g>
+          );
+        })}
       </g>
       {overlay ? <g data-print-chrome="">{overlay}</g> : null}
     </svg>
@@ -2490,6 +2556,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   const [activeView, setActiveView] = useState<View>("Editor");
   const [presentation, setPresentation] =
     useState<Presentation>(defaultPresentation);
+  const [demoPlayName, setDemoPlayName] = useState(
+    () => demoTour("tools").playName,
+  );
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [openMenu, setOpenMenu] = useState<Menu>(null);
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -3788,6 +3857,20 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     setOverlay(null);
   }, []);
 
+  const openDemoInEditor = useCallback(
+    (tour: DemoTour): void => {
+      const current = editorStore.getSnapshot().document;
+      const play = demoHandoffPlay(tour, {
+        playbookId: current.playbookId,
+      });
+      void editorStore.adoptPlay(play).then(() => {
+        setInteraction(idleFieldInteraction);
+        goToView("Editor");
+      });
+    },
+    [editorStore, goToView],
+  );
+
   /**
    * The letter-landscape field sheet. Print preview's "Print this" and
    * Export → Print the field are the same print, as the original's
@@ -3967,6 +4050,10 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       const meta = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
 
+      if (!typing && activeView === "Demo") {
+        // Arrows and space belong to the tour; editor shortcuts stay off.
+        return;
+      }
       if (!typing && (activeView === "Present" || activeView === "Print")) {
         if (event.key === "Escape") {
           event.preventDefault();
@@ -4189,6 +4276,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       actions={actions}
       activeView={activeView}
       commitPlayName={commitPlayName}
+      demoPlayName={demoPlayName}
       focused={focused}
       onCloseMenu={() => setOpenMenu(null)}
       onCreateVersion={createVersion}
@@ -4256,7 +4344,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   const statusHint =
     activeView === "Print"
       ? "letter landscape, half-inch margins — this is what export → print produces · esc returns to the editor"
-      : "drag the blue dot above a player to draw his route — double-click a line to add a node · ⌫ delete";
+      : activeView === "Demo"
+        ? DEMO_STATUS_HINT
+        : "drag the blue dot above a player to draw his route — double-click a line to add a node · ⌫ delete";
 
   if (activeView === "Present") {
     return (
@@ -4294,9 +4384,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     return (
       <div className="chalk-shell view-demo">
         {header}
-        <div className="mode-placeholder">
-          <FieldDiagram scene={scene} />
-          <div className="mode-label">Demo mode</div>
+        <DemoMode
+          onOpenInEditor={openDemoInEditor}
+          onTourChange={(next) => setDemoPlayName(next.playName)}
+        />
+        <div className="statusbar">
+          <span>{statusHint}</span>
         </div>
       </div>
     );
@@ -5082,6 +5175,282 @@ function DeviceNotices({
  * variation stepping wait on later phases — the original's "← → variations"
  * copy stays so the affordance is visible.
  */
+function DemoCursorOverlay({
+  playback,
+  tour,
+  viewport,
+}: {
+  playback: DemoPlayback;
+  tour: DemoTour;
+  viewport: Parameters<typeof projectCoordinate>[1];
+}) {
+  const at = (point: { x: number; y: number }) =>
+    projectCoordinate(legacyCanvasToYards(point), viewport);
+  const cursor = demoCursor(tour, playback);
+  return (
+    <>
+      {demoPulses(tour, playback).map((pulse, index) => {
+        const point = at(pulse);
+        return (
+          <circle
+            cx={point.x}
+            cy={point.y}
+            fill="none"
+            key={`pulse-${index}`}
+            opacity={pulse.opacity}
+            pointerEvents="none"
+            r={pulse.r}
+            stroke="#0072F5"
+            strokeWidth={1.6}
+          />
+        );
+      })}
+      {cursor ? (
+        <g
+          pointerEvents="none"
+          transform={`translate(${at(cursor).x} ${at(cursor).y})`}
+        >
+          <path
+            d="M0 0 L0 21 L5.4 16.2 L8.6 23 L12 21.4 L8.8 14.8 L15.6 14.2 Z"
+            fill="rgba(0,0,0,0.18)"
+            transform="translate(1.5 2)"
+          />
+          <path
+            d="M0 0 L0 21 L5.4 16.2 L8.6 23 L12 21.4 L8.8 14.8 L15.6 14.2 Z"
+            fill="#FFFFFF"
+            stroke="#171717"
+            strokeLinejoin="round"
+            strokeWidth="1.4"
+          />
+        </g>
+      ) : null}
+    </>
+  );
+}
+
+function DemoMode({
+  onOpenInEditor,
+  onTourChange,
+}: {
+  onOpenInEditor: (tour: DemoTour) => void;
+  onTourChange: (tour: DemoTour) => void;
+}) {
+  const [playback, setPlayback] = useState<DemoPlayback>(() =>
+    startDemo("tools", performance.now()),
+  );
+  const tour = demoTour(playback.tourId);
+  const step = tour.steps[playback.stepIndex] ?? tour.steps[0]!;
+  const scene = useMemo(
+    () => buildSvgRenderScene(buildRenderScene(demoTour(playback.tourId).play)),
+    [playback.tourId],
+  );
+  const lastStep = tour.steps.length - 1;
+
+  useEffect(() => {
+    onTourChange(tour);
+  }, [onTourChange, tour]);
+
+  useEffect(() => {
+    if (!playback.playing) return;
+    let frame = 0;
+    const loop = (now: number) => {
+      setPlayback((current) =>
+        tickDemo(current, demoTour(current.tourId), now),
+      );
+      frame = requestAnimationFrame(loop);
+    };
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
+  }, [playback.playing]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setPlayback((current) =>
+          gotoDemoStep(
+            current,
+            demoTour(current.tourId),
+            current.stepIndex + 1,
+            performance.now(),
+          ),
+        );
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setPlayback((current) =>
+          gotoDemoStep(
+            current,
+            demoTour(current.tourId),
+            current.stepIndex - 1,
+            performance.now(),
+          ),
+        );
+      } else if (event.key === " ") {
+        event.preventDefault();
+        setPlayback((current) =>
+          toggleDemoPlay(current, demoTour(current.tourId), performance.now()),
+        );
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const playLabel = demoPlayLabel(playback, tour);
+  const reveal = (id: string) => demoItemOpacity(tour, playback, id);
+
+  return (
+    <div aria-label="Demo" className="demo-mode" role="region">
+      <nav aria-label="Drawing tools" className="demo-rail">
+        {tools.map((tool) => {
+          const active = step.tool === tool.id;
+          return (
+            <div className={active ? "active" : undefined} key={tool.id}>
+              <ToolIcon glyph={tool.glyph} />
+              <span>{demoToolShortcuts[tool.id]}</span>
+            </div>
+          );
+        })}
+      </nav>
+      <div className="demo-stage">
+        <div className="demo-canvas">
+          <FieldDiagram
+            overlay={
+              <DemoCursorOverlay
+                playback={playback}
+                tour={tour}
+                viewport={scene.viewport}
+              />
+            }
+            reveal={reveal}
+            scene={scene}
+          />
+        </div>
+        <div className="demo-caption">
+          <div className="demo-caption-copy">
+            <div className="demo-caption-head">
+              <strong>{step.title}</strong>
+              <span className="demo-keys">{step.keys}</span>
+              <span className="demo-step-num">
+                {playback.stepIndex + 1} / {tour.steps.length}
+              </span>
+            </div>
+            <p>{step.caption}</p>
+          </div>
+          <div className="demo-dots">
+            {tour.steps.map((candidate, index) => (
+              <button
+                aria-label={candidate.title}
+                aria-current={index === playback.stepIndex ? "true" : undefined}
+                className={
+                  index < playback.stepIndex
+                    ? "done"
+                    : index === playback.stepIndex
+                      ? "current"
+                      : undefined
+                }
+                key={candidate.title}
+                onClick={() =>
+                  setPlayback((current) =>
+                    gotoDemoStep(current, tour, index, performance.now()),
+                  )
+                }
+                title={candidate.title}
+                type="button"
+              />
+            ))}
+          </div>
+          <div className="demo-controls">
+            <button
+              disabled={playback.stepIndex <= 0}
+              onClick={() =>
+                setPlayback((current) =>
+                  gotoDemoStep(
+                    current,
+                    tour,
+                    current.stepIndex - 1,
+                    performance.now(),
+                  ),
+                )
+              }
+              type="button"
+            >
+              Back
+            </button>
+            <button
+              className="primary"
+              onClick={() =>
+                setPlayback((current) =>
+                  toggleDemoPlay(current, tour, performance.now()),
+                )
+              }
+              type="button"
+            >
+              {playLabel}
+            </button>
+            <button
+              disabled={playback.stepIndex >= lastStep}
+              onClick={() =>
+                setPlayback((current) =>
+                  gotoDemoStep(
+                    current,
+                    tour,
+                    current.stepIndex + 1,
+                    performance.now(),
+                  ),
+                )
+              }
+              type="button"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+      <aside className="demo-panel" aria-label="Demos">
+        <div className="demo-kicker">Demos</div>
+        <div className="demo-tabs">
+          {demoTours.map((candidate) => (
+            <button
+              className={candidate.id === tour.id ? "active" : undefined}
+              key={candidate.id}
+              onClick={() =>
+                setPlayback(startDemo(candidate.id, performance.now()))
+              }
+              type="button"
+            >
+              {candidate.tab}
+            </button>
+          ))}
+        </div>
+        <div className="demo-kicker">{step.panel}</div>
+        <div className="demo-rows">
+          {step.rows.map((row, index) => {
+            const on = demoPanelRowOn(step, playback.progress, index);
+            return (
+              <div className={on ? "on" : undefined} key={row[0]}>
+                <i />
+                <span>{row[1]}</span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="demo-panel-note">
+          This panel mirrors the real right-hand inspector — whatever is
+          selected on the field is what you style.
+        </p>
+        <button
+          className="primary demo-open"
+          onClick={() => onOpenInEditor(tour)}
+          type="button"
+        >
+          Open this play in the editor
+        </button>
+      </aside>
+    </div>
+  );
+}
+
 function PresentMode({
   onLeave,
   playName,
@@ -5160,6 +5529,7 @@ function Header({
   actions,
   activeView,
   commitPlayName,
+  demoPlayName,
   focused,
   onCloseMenu,
   onCreateVersion,
@@ -5180,6 +5550,7 @@ function Header({
   actions: ActionMap;
   activeView: View;
   commitPlayName: () => void;
+  demoPlayName: string;
   focused: boolean;
   onCloseMenu: () => void;
   onCreateVersion: (label: string) => void;
@@ -5214,92 +5585,106 @@ function Header({
           </button>
         ))}
       </nav>
-      <span className="slash">/</span>
-      <input
-        aria-label="Play name"
-        className="play-name"
-        onBlur={commitPlayName}
-        onChange={(event) => setPlayName(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur();
-          if (event.key === "Escape") {
-            resetPlayName();
-            event.currentTarget.blur();
-          }
-        }}
-        spellCheck={false}
-        value={playName}
-      />
-      <label className="play-type">
-        <i />
-        <select aria-label="Play type" defaultValue="Pass">
-          <option>Pass</option>
-          <option>Run</option>
-          <option>RPO</option>
-          <option>Screen</option>
-          <option>Defense</option>
-          <option>Special</option>
-        </select>
-      </label>
-      <span className="top-spacer" />
-      <button
-        className="quiet"
-        disabled={!undo.canUndo}
-        onClick={onUndo}
-        title={undo.undoLabel ? `Undo ${undo.undoLabel}` : "Nothing to undo"}
-      >
-        Undo
-      </button>
-      <button
-        className="quiet"
-        disabled={!undo.canRedo}
-        onClick={onRedo}
-        title={undo.redoLabel ? `Redo ${undo.redoLabel}` : "Nothing to redo"}
-      >
-        Redo
-      </button>
-      <span className="divider" />
-      <MoreMenu
-        actions={actions}
-        focused={focused}
-        onDismiss={onCloseMenu}
-        onToggle={() => onMenu("more")}
-        open={openMenu === "more"}
-        zonesHidden={zonesHidden}
-      >
-        <BackupPanel runtime={runtime} />
-      </MoreMenu>
-      <ExportMenu
-        actions={actions}
-        onDismiss={onCloseMenu}
-        onToggle={() => onMenu("export")}
-        open={openMenu === "export"}
-        playName={playName}
-      />
-      <SaveMenu
-        actions={actions}
-        onDismiss={onCloseMenu}
-        onSnapshot={onCreateVersion}
-        onToggle={() => onMenu("save")}
-        open={openMenu === "save"}
-        saveLabel="Save"
-      >
-        {versions.length > 0 ? (
-          <ul className="snapshot-list">
-            {versions.map((version) => (
-              <li key={version.id}>
-                <span>{version.label ?? "Unnamed version"}</span>
-                <button
-                  onClick={() => onRestoreVersion(version.id)}
-                  type="button"
-                >
-                  Restore
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </SaveMenu>
+      {activeView === "Demo" ? (
+        <>
+          <span className="slash">/</span>
+          <span className="demo-title">{DEMO_HEADER_TITLE}</span>
+          <span className="demo-play-name">{demoPlayName}</span>
+        </>
+      ) : (
+        <>
+          <span className="slash">/</span>
+          <input
+            aria-label="Play name"
+            className="play-name"
+            onBlur={commitPlayName}
+            onChange={(event) => setPlayName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+              if (event.key === "Escape") {
+                resetPlayName();
+                event.currentTarget.blur();
+              }
+            }}
+            spellCheck={false}
+            value={playName}
+          />
+          <label className="play-type">
+            <i />
+            <select aria-label="Play type" defaultValue="Pass">
+              <option>Pass</option>
+              <option>Run</option>
+              <option>RPO</option>
+              <option>Screen</option>
+              <option>Defense</option>
+              <option>Special</option>
+            </select>
+          </label>
+          <span className="top-spacer" />
+          <button
+            className="quiet"
+            disabled={!undo.canUndo}
+            onClick={onUndo}
+            title={
+              undo.undoLabel ? `Undo ${undo.undoLabel}` : "Nothing to undo"
+            }
+          >
+            Undo
+          </button>
+          <button
+            className="quiet"
+            disabled={!undo.canRedo}
+            onClick={onRedo}
+            title={
+              undo.redoLabel ? `Redo ${undo.redoLabel}` : "Nothing to redo"
+            }
+          >
+            Redo
+          </button>
+          <span className="divider" />
+          <MoreMenu
+            actions={actions}
+            focused={focused}
+            onDismiss={onCloseMenu}
+            onToggle={() => onMenu("more")}
+            open={openMenu === "more"}
+            zonesHidden={zonesHidden}
+          >
+            <BackupPanel runtime={runtime} />
+          </MoreMenu>
+          <ExportMenu
+            actions={actions}
+            onDismiss={onCloseMenu}
+            onToggle={() => onMenu("export")}
+            open={openMenu === "export"}
+            playName={playName}
+          />
+          <SaveMenu
+            actions={actions}
+            onDismiss={onCloseMenu}
+            onSnapshot={onCreateVersion}
+            onToggle={() => onMenu("save")}
+            open={openMenu === "save"}
+            saveLabel="Save"
+          >
+            {versions.length > 0 ? (
+              <ul className="snapshot-list">
+                {versions.map((version) => (
+                  <li key={version.id}>
+                    <span>{version.label ?? "Unnamed version"}</span>
+                    <button
+                      onClick={() => onRestoreVersion(version.id)}
+                      type="button"
+                    >
+                      Restore
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </SaveMenu>
+        </>
+      )}
     </header>
   );
 }

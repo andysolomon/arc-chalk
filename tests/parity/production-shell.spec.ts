@@ -54,6 +54,11 @@ const parityGap: Readonly<Record<string, number>> = {
   // geometry the Editor already disagrees about, on a letter-landscape sheet
   // whose chrome matches. First measurement 0.84% (11,638 px).
   print: 0.0085,
+  // Demo is the original's guided Tool tour, captured paused on the first
+  // Player-tool step. First measurement 2.12% (29,338 px). What remains is
+  // the field viewBox aspect the Editor already disagrees about, and the
+  // original's cursor having already walked the first clicks before Pause.
+  demo: 0.0213,
   // The five chrome overlays. Each sits at or just under the Editor's own gap
   // because the panel covers part of the field it disagrees about — what is
   // left is the shell behind them, not the overlay. Their item lists, ordering
@@ -158,6 +163,23 @@ test.describe("production shell against the canonical original", () => {
       caret: "hide",
       fullPage: true,
       maxDiffPixelRatio: allowedGap("print"),
+    });
+  });
+
+  test("Demo matches the original desktop golden", async ({ page }) => {
+    await loadProductionShell(page);
+    await page
+      .getByRole("navigation", { name: "Workspace views" })
+      .getByRole("button", { name: "Demo", exact: true })
+      .click();
+    await expect(page.getByRole("region", { name: "Demo" })).toBeVisible();
+    await page.getByRole("button", { name: "Pause", exact: true }).click();
+
+    await expect(page).toHaveScreenshot("original-demo-desktop-1440x960.png", {
+      animations: "disabled",
+      caret: "hide",
+      fullPage: true,
+      maxDiffPixelRatio: allowedGap("demo"),
     });
   });
 });
