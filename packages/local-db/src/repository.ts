@@ -9,11 +9,15 @@ import {
   playRevisionSchema,
   playbookEnvelopeSchema,
   playbookSchema,
+  searchPlays,
   undoHistorySchema,
   type BackupPayload,
+  type Concept,
   type Formation,
   type PlayDocument,
   type PlayRevision,
+  type PlaySearchQuery,
+  type Playbook,
   type PlaybookEnvelope,
 } from "@chalk/domain";
 
@@ -32,8 +36,10 @@ import type {
   LocalRepositoryOptions,
   JsonValue,
   LocalStoreCounts,
+  PlayListPage,
   PlaySearchProjection,
   PlayVersionSummary,
+  PlaybookSummary,
   SessionRecovery,
   StorageHealth,
   StorageManagerLike,
@@ -91,6 +97,7 @@ function projectionFor(
     ),
     notes: play.notes,
     documentHash,
+    fieldProfileRevision: play.fieldProfile.revision,
     updatedAtMs,
   };
 }
@@ -224,6 +231,36 @@ class DexieLocalRepository implements ChalkLocalRepository {
     });
   }
 
+  async listPlaybooks(): Promise<readonly PlaybookSummary[]> {
+    const records = await this.#database.playbooks.toArray();
+    const summaries = await Promise.all(
+      records.map(async (record) => {
+        const playbook = playbookSchema.parse(record);
+        const stored = await this.#database.plays
+          .where("playbookId")
+          .equals(playbook.id)
+          .toArray();
+        return {
+          id: playbook.id,
+          name: playbook.name,
+          playCount: stored.filter(({ deletedAtMs }) => deletedAtMs === undefined)
+            .length,
+          updatedAtMs: playbook.updatedAtMs,
+          defaultFieldProfileId: playbook.defaultFieldProfileId,
+        };
+      }),
+    );
+    return summaries.sort(
+      (left, right) =>
+        right.updatedAtMs - left.updatedAtMs ||
+        left.name.localeCompare(right.name),
+    );
+  }
+
+  async savePlaybookRecord(playbook: Playbook): Promise<void> {
+    await this.#database.playbooks.put(playbookSchema.parse(playbook));
+  }
+
   async getPlay(playId: string): Promise<StoredPlay | undefined> {
     const record = await this.#database.plays.get(playId);
     return record ? this.#validatedPlay(record) : undefined;
@@ -231,16 +268,57 @@ class DexieLocalRepository implements ChalkLocalRepository {
 
   async listPlaySummaries(
     playbookId: string,
+    page?: { readonly offset: number; readonly limit: number },
   ): Promise<readonly PlaySearchProjection[]> {
-    const values = await this.#database.searchProjections
-      .where("playbookId")
-      .equals(playbookId)
-      .toArray();
-    return values.sort(
-      (left, right) =>
-        left.name.localeCompare(right.name) ||
-        left.playId.localeCompare(right.playId),
+    const values = await this.#listedProjections(playbookId);
+    if (!page) return values;
+    return values.slice(page.offset, page.offset + page.limit);
+  }
+
+  async listPlaySummaryPage(
+    playbookId: string,
+    page: { readonly offset: number; readonly limit: number },
+  ): Promise<PlayListPage> {
+    const values = await this.#listedProjections(playbookId);
+    return {
+      offset: page.offset,
+      limit: page.limit,
+      total: values.length,
+      items: values.slice(page.offset, page.offset + page.limit),
+    };
+  }
+
+  async searchPlays(
+    query: PlaySearchQuery,
+  ): Promise<readonly PlaySearchProjection[]> {
+    const playbookId = query.filters?.playbookId;
+    const values = playbookId
+      ? await this.#listedProjections(playbookId)
+      : await this.#allLiveProjections();
+    const hits = searchPlays(values, query);
+    const byId = new Map(values.map((value) => [value.playId, value]));
+    return hits.flatMap((hit) => {
+      const projection = byId.get(hit.playId);
+      return projection ? [projection] : [];
+    });
+  }
+
+  async rebuildSearchProjections(): Promise<number> {
+    const stored = await this.#database.plays.toArray();
+    const live = stored.filter(({ deletedAtMs }) => deletedAtMs === undefined);
+    const projections = await Promise.all(
+      live.map(async (record) => {
+        const play = await this.#validatedPlay(record);
+        return projectionFor(
+          play.document,
+          play.documentHash,
+          play.updatedAtMs,
+        );
+      }),
     );
+    await this.#database.searchProjections.clear();
+    await this.#database.searchProjections.bulkPut(projections);
+    return projections.length;
   }
 
   async commitPlay(input: CommitPlayInput): Promise<CommitPlayResult> {
@@ -954,6 +1032,26 @@ class DexieLocalRepository implements ChalkLocalRepository {
     await this.#database.formations.delete(formationId);
   }
 
+  async saveConcept(concept: Concept): Promise<void> {
+    await this.#database.concepts.put(
+      conceptSchema.parse(structuredClone(concept)),
+    );
+  }
+
+  async listConcepts(playbookId: string): Promise<readonly Concept[]> {
+    const records = await this.#database.concepts
+      .where("playbookId")
+      .equals(playbookId)
+      .toArray();
+    return records
+      .map((value) => conceptSchema.parse(value))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  async deleteConcept(conceptId: string): Promise<void> {
+    await this.#database.concepts.delete(conceptId);
+  }
+
   async setPreference(preference: LocalPreference): Promise<void> {
     await this.#database.preferences.put(structuredClone(preference));
   }
@@ -997,6 +1095,16 @@ class DexieLocalRepository implements ChalkLocalRepository {
 
   async getThumbnail(key: string): Promise<ThumbnailDerivative | undefined> {
     return this.#database.thumbnails.get(key);
+  }
+
+  async listThumbnailsForPlay(
+    playId: string,
+  ): Promise<readonly ThumbnailDerivative[]> {
+    return this.#database.thumbnails.where("playId").equals(playId).toArray();
+  }
+
+  async deleteThumbnailsForPlay(playId: string): Promise<void> {
+    await this.#database.thumbnails.where("playId").equals(playId).delete();
   }
 
   async clearDerivedData(): Promise<void> {
@@ -1086,6 +1194,55 @@ class DexieLocalRepository implements ChalkLocalRepository {
       document: current.data,
       documentHash,
     };
+  }
+
+  async #listedProjections(
+    playbookId: string,
+  ): Promise<readonly PlaySearchProjection[]> {
+    let values = await this.#database.searchProjections
+      .where("playbookId")
+      .equals(playbookId)
+      .toArray();
+    if (values.length === 0) {
+      const stored = await this.#database.plays
+        .where("playbookId")
+        .equals(playbookId)
+        .toArray();
+      if (stored.some(({ deletedAtMs }) => deletedAtMs === undefined)) {
+        await this.rebuildSearchProjections();
+        values = await this.#database.searchProjections
+          .where("playbookId")
+          .equals(playbookId)
+          .toArray();
+      }
+    }
+    return values.sort(
+      (left, right) =>
+        left.name.localeCompare(right.name) ||
+        left.playId.localeCompare(right.playId),
+    );
+  }
+
+  async #allLiveProjections(): Promise<readonly PlaySearchProjection[]> {
+    const values = await this.#database.searchProjections.toArray();
+    if (values.length === 0) {
+      const live = (await this.#database.plays.toArray()).some(
+        ({ deletedAtMs }) => deletedAtMs === undefined,
+      );
+      if (live) {
+        await this.rebuildSearchProjections();
+        return (await this.#database.searchProjections.toArray()).sort(
+          (left, right) =>
+            left.name.localeCompare(right.name) ||
+            left.playId.localeCompare(right.playId),
+        );
+      }
+    }
+    return values.sort(
+      (left, right) =>
+        left.name.localeCompare(right.name) ||
+        left.playId.localeCompare(right.playId),
+    );
   }
 }
 

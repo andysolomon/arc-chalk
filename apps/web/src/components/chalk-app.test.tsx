@@ -21,7 +21,7 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { ChalkRuntime } from "../app/editor-runtime";
+import { createMemoryLibrary, type ChalkRuntime } from "../app/editor-runtime";
 import { ChalkApp, FieldDiagram } from "./chalk-app";
 
 function createTestRuntime(
@@ -31,6 +31,7 @@ function createTestRuntime(
     editorStore: createTestEditorStore(),
     recovery: { interrupted: false },
     storage: { persisted: true, pressure: "healthy" },
+    library: createMemoryLibrary(),
     coachSets: {
       formations: [],
       favoriteFormationIds: [],
@@ -106,6 +107,26 @@ describe("Chalk application shell", () => {
       128,
     );
     expect(container.querySelectorAll("[data-field-number]")).toHaveLength(8);
+  });
+
+  it("keeps the original library panel and opens an additive Playbook browser", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    const inspector = screen.getByRole("complementary", {
+      name: "Play inspector",
+    });
+    expect(within(inspector).getByText("Library")).toBeVisible();
+    expect(within(inspector).getByText("This play")).toBeVisible();
+    expect(
+      within(inspector).getByRole("button", { name: "Browse Playbook" }),
+    ).toBeVisible();
+
+    await user.click(
+      within(inspector).getByRole("button", { name: "Browse Playbook" }),
+    );
+    expect(screen.getByRole("dialog", { name: "Playbook" })).toBeVisible();
+    expect(screen.getByLabelText("Search plays")).toBeVisible();
   });
 
   it("uses the prototype rail glyphs and makes angle snapping a real toggle", async () => {

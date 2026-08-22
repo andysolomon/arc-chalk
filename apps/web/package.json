@@ -15,6 +15,7 @@
     "@chalk/render": "workspace:*",
     "@tanstack/react-query": "*",
     "@tanstack/react-router": "*",
+    "@tanstack/react-virtual": "*",
     "react": "*",
     "react-dom": "*",
     "zustand": "*"

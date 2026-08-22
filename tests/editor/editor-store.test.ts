@@ -670,4 +670,47 @@ describe("EditorStore named versions", () => {
     expect(records.get(stickThunderPlay.id)?.name).toBe("Stick — Thunder");
     expect(records.get("play_from_demo")?.name).toBe("Cover 3 — Fire Zone");
   });
+
+  it("opens a stored Play without rewriting the one that was in front", async () => {
+    const initialHash = await hashPlayDocument(stickThunderPlay);
+    const other: PlayDocument = {
+      ...stickThunderPlay,
+      id: "play_other",
+      name: "Four Verticals",
+    };
+    const otherHash = await hashPlayDocument(other);
+    const records = new Map<string, PlayDocument>([
+      [stickThunderPlay.id, stickThunderPlay],
+    ]);
+    const store = createEditorStore({
+      initialDocument: stickThunderPlay,
+      initialDocumentHash: initialHash,
+      persistence: {
+        async commitPlay(input) {
+          records.set(input.play.id, input.play);
+          return {
+            playId: input.play.id,
+            documentHash: await hashPlayDocument(input.play),
+            committedAtMs: 100,
+            mutationId: input.mutation.id,
+          };
+        },
+      },
+      createMutationId: () => "mutation_open",
+      monotonicNow: () => 0,
+      wallClockNow: () => WORKED_ON_MS,
+    });
+
+    store.setPlayNameDraft("Should not land");
+    await store.openStoredPlay({
+      document: other,
+      documentHash: otherHash,
+    });
+
+    expect(store.getSnapshot().document.id).toBe("play_other");
+    expect(store.getSnapshot().document.name).toBe("Four Verticals");
+    expect(store.getSnapshot().draftPlayName).toBe("Four Verticals");
+    expect(records.get(stickThunderPlay.id)).toBe(stickThunderPlay);
+    expect(records.get(stickThunderPlay.id)?.name).toBe("Stick — Thunder");
+  });
 });

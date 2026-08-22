@@ -9,6 +9,7 @@ import type {
   PlaybookEnvelope,
   UndoHistory,
 } from "@chalk/domain";
+import type { PlaySearchQuery } from "@chalk/domain";
 
 export type { UndoEntry, UndoHistory } from "@chalk/domain";
 
@@ -135,7 +136,23 @@ export interface PlaySearchProjection {
   readonly assignmentText: readonly string[];
   readonly notes: string;
   readonly documentHash: string;
+  readonly fieldProfileRevision?: number;
   readonly updatedAtMs: number;
+}
+
+export interface PlaybookSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly playCount: number;
+  readonly updatedAtMs: number;
+  readonly defaultFieldProfileId: string;
+}
+
+export interface PlayListPage {
+  readonly offset: number;
+  readonly limit: number;
+  readonly total: number;
+  readonly items: readonly PlaySearchProjection[];
 }
 
 export interface ThumbnailDerivative {
@@ -231,10 +248,21 @@ export interface ChalkLocalRepository {
 
   savePlaybook(envelope: PlaybookEnvelope): Promise<void>;
   loadPlaybook(playbookId: string): Promise<PlaybookEnvelope | undefined>;
+  listPlaybooks(): Promise<readonly PlaybookSummary[]>;
+  savePlaybookRecord(playbook: Playbook): Promise<void>;
   getPlay(playId: string): Promise<StoredPlay | undefined>;
   listPlaySummaries(
     playbookId: string,
+    page?: { readonly offset: number; readonly limit: number },
   ): Promise<readonly PlaySearchProjection[]>;
+  listPlaySummaryPage(
+    playbookId: string,
+    page: { readonly offset: number; readonly limit: number },
+  ): Promise<PlayListPage>;
+  searchPlays(
+    query: PlaySearchQuery,
+  ): Promise<readonly PlaySearchProjection[]>;
+  rebuildSearchProjections(): Promise<number>;
   commitPlay(input: CommitPlayInput): Promise<CommitPlayResult>;
   getRevision(revisionId: string): Promise<PlayRevision | undefined>;
   createNamedVersion(input: CreateNamedVersionInput): Promise<PlayRevision>;
@@ -266,6 +294,10 @@ export interface ChalkLocalRepository {
   listFormations(playbookId: string): Promise<readonly Formation[]>;
   deleteFormation(formationId: string): Promise<void>;
 
+  saveConcept(concept: Concept): Promise<void>;
+  listConcepts(playbookId: string): Promise<readonly Concept[]>;
+  deleteConcept(conceptId: string): Promise<void>;
+
   setPreference(preference: LocalPreference): Promise<void>;
   getPreference(key: string): Promise<LocalPreference | undefined>;
   putImage(image: LocalImageBlob): Promise<void>;
@@ -275,6 +307,10 @@ export interface ChalkLocalRepository {
 
   putThumbnail(thumbnail: ThumbnailDerivative): Promise<void>;
   getThumbnail(key: string): Promise<ThumbnailDerivative | undefined>;
+  listThumbnailsForPlay(
+    playId: string,
+  ): Promise<readonly ThumbnailDerivative[]>;
+  deleteThumbnailsForPlay(playId: string): Promise<void>;
   clearDerivedData(): Promise<void>;
   counts(): Promise<LocalStoreCounts>;
 }

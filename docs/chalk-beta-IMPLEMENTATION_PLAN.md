@@ -398,7 +398,7 @@ Acceptance criteria:
 ## 6. Immediate next steps
 
 1. Continue the item-level parity inventory and golden captures from the restored original; do not use the rejected alternate design as a target.
-2. Phase 4 is closed; remaining Editor gap is Finding #3's Player shift against goldens captured from the uncorrected original.
+2. Phase 6 is closed: the original inspector library is back, with an additive virtualized Playbook browser, worker search, revision-keyed thumbnails, and explicit Field Profile / Formation reapply.
 3. Start Phase 5 — deterministic animation and playback on the same yard-based document the editor and renderer already use.
 4. Record only explicit product-owner-approved parity exceptions; implementation convenience is not an exception.
 5. Close each parity group end-to-end with Coach-visible tests and original-versus-production evidence, keeping `docs/chalk-beta-progress.txt` synchronized as each executable slice lands.
