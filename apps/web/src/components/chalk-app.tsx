@@ -2718,21 +2718,16 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       cameraRef.current = resolved;
       const live = livePreviewRef.current;
       if (live) {
-        // A committed camera is React's viewBox. Keep a live override only
-        // while a pan or pinch is still in the Coach's hand; otherwise the
-        // last overlay stamp would write the previous frame back over a
-        // wheel or keyboard zoom (FieldDiagram reapplies live paint after
-        // every commit).
-        livePreviewRef.current =
-          panRef.current !== undefined || pinchRef.current !== undefined
-            ? { ...live, camera: resolved }
-            : {
-                ...(live.move === undefined ? {} : { move: live.move }),
-                ...(live.pathStrokes === undefined
-                  ? {}
-                  : { pathStrokes: live.pathStrokes }),
-                ...(live.metrics === undefined ? {} : { metrics: live.metrics }),
-              };
+        // A committed camera is React's viewBox. Drop any live camera stamp
+        // so FieldDiagram cannot write the previous frame back over a wheel
+        // or keyboard zoom after it reapplies live paint.
+        livePreviewRef.current = {
+          ...(live.move === undefined ? {} : { move: live.move }),
+          ...(live.pathStrokes === undefined
+            ? {}
+            : { pathStrokes: live.pathStrokes }),
+          ...(live.metrics === undefined ? {} : { metrics: live.metrics }),
+        };
       }
       return resolved;
     });
@@ -3188,7 +3183,6 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     if (fieldSvgRef.current) applyLiveFieldPaint(fieldSvgRef.current, paint);
     liveStore.notify(model);
   };
-  publishLiveVisualsRef.current = publishLiveVisuals;
   const flushLivePaint = (): void => {
     const pending = pendingPointerRef.current;
     pendingPointerRef.current = undefined;
@@ -3215,6 +3209,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     dispatchFieldRef.current = dispatchField;
     drawingRef.current = interaction.drawing;
     selectToolRef.current = selectTool;
+    publishLiveVisualsRef.current = publishLiveVisuals;
   });
   useEffect(() => () => paintLoop.cancel(), [paintLoop]);
 

@@ -138,6 +138,9 @@ describe("livePaintCanHold", () => {
       },
     };
     expect(livePaintCanHold(drawing, nextBreak)).toBe(false);
+    expect(livePaintCanHold(drawing, drawing)).toBe(true);
+  });
+
   it("lets go when the Coach finishes or abandons a drawing", () => {
     const drawing: FieldInteractionModel = {
       ...idle,
@@ -152,6 +155,7 @@ describe("livePaintCanHold", () => {
     };
     expect(livePaintCanHold(drawing, idle)).toBe(false);
   });
+});
 
 describe("liveHandlePath", () => {
   it("reads the path a handle drag would commit", () => {
