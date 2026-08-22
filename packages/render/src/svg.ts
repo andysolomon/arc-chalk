@@ -154,6 +154,20 @@ export function projectCoordinate(
   };
 }
 
+/**
+ * A yard-space translation as a frame offset. Depth grows up the field, so
+ * a positive depth shift moves up the SVG (negative y).
+ */
+export function projectTranslation(
+  translation: Coordinate,
+  projection: SvgProjection,
+): SvgPoint {
+  return {
+    x: translation.lateralYards * projection.lateralPixelsPerYard,
+    y: -translation.depthYards * projection.depthPixelsPerYard,
+  };
+}
+
 /** Recovers field yards from a point in the drawn frame. */
 export function unprojectPoint(
   point: SvgPoint,
@@ -381,7 +395,7 @@ function hasSegmentOverrides(points: readonly PathPoint[]): boolean {
   );
 }
 
-function buildPathStrokes(
+export function buildPathStrokes(
   id: string,
   points: readonly PathPoint[],
   style: PathStyle,
