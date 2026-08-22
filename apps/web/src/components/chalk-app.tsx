@@ -2382,7 +2382,6 @@ function Inspector({
         </div>
         <p>{formationHint}</p>
       </InspectorSection>
-      {fieldProfile}
       <InspectorSection
         badge={conceptScope ? "CONCEPT" : undefined}
         title="Line call"
@@ -2465,6 +2464,7 @@ function Inspector({
         </p>
       </InspectorSection>
       {library}
+      {fieldProfile}
       <HistorySection onRestore={onRestoreVersion} versions={versions} />
       <InspectorSection title="Page">
         <div className="page-kinds">
