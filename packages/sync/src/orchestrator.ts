@@ -124,18 +124,35 @@ export async function createSyncOrchestrator(
   let drainTail: Promise<void> = Promise.resolve();
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
   const listeners = new Set<() => void>();
+  let cachedSnapshot: SyncSnapshot = {
+    status,
+    pendingCount,
+    conflictCount,
+  };
 
   const emit = () => {
     for (const listener of listeners) listener();
   };
 
-  const snapshot = (): SyncSnapshot => ({
-    status,
-    pendingCount,
-    conflictCount,
-    ...(lastError === undefined ? {} : { lastError }),
-    ...(headCursor === undefined ? {} : { headCursor }),
-  });
+  const snapshot = (): SyncSnapshot => {
+    if (
+      cachedSnapshot.status === status &&
+      cachedSnapshot.pendingCount === pendingCount &&
+      cachedSnapshot.conflictCount === conflictCount &&
+      cachedSnapshot.lastError === lastError &&
+      cachedSnapshot.headCursor === headCursor
+    ) {
+      return cachedSnapshot;
+    }
+    cachedSnapshot = {
+      status,
+      pendingCount,
+      conflictCount,
+      ...(lastError === undefined ? {} : { lastError }),
+      ...(headCursor === undefined ? {} : { headCursor }),
+    };
+    return cachedSnapshot;
+  };
 
   const refreshCounts = async () => {
     const [counts, conflicts] = await Promise.all([
@@ -322,7 +339,10 @@ export async function createSyncOrchestrator(
           mutation.entityKind === "play" &&
           mutation.entityId === change.entityId,
       );
-      if (hasLocal || openId === change.entityId) {
+      if (hasLocal) {
+        return;
+      }
+      if (openId === change.entityId) {
         if (change.revisionId) {
           const local = await repository.getPlay(change.entityId);
           await recordConflict(change.entityId, {

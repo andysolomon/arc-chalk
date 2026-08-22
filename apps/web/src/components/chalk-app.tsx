@@ -2700,6 +2700,11 @@ function InspectorSection({
 }
 
 const unsignedIdentity = new UnavailableIdentity();
+const localSyncSnapshot: SyncSnapshot = {
+  status: "local",
+  pendingCount: 0,
+  conflictCount: 0,
+};
 
 export function ChalkApp({
   runtime,
@@ -2721,12 +2726,7 @@ export function ChalkApp({
         void listener;
         return () => undefined;
       }),
-    sync?.getSnapshot ??
-      (() => ({
-        status: "local" as const,
-        pendingCount: 0,
-        conflictCount: 0,
-      })),
+    sync?.getSnapshot ?? (() => localSyncSnapshot),
   );
   const [activeView, setActiveView] = useState<View>("Editor");
   const [presentation, setPresentation] =

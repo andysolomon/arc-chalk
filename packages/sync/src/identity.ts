@@ -9,9 +9,10 @@ import type { IdentityPort } from "./ports";
  */
 export class UnavailableIdentity implements IdentityPort {
   readonly configured = false;
+  readonly #session: AuthSession = { status: "unavailable" };
 
   getSession(): AuthSession {
-    return { status: "unavailable" };
+    return this.#session;
   }
 
   subscribe(): () => void {
