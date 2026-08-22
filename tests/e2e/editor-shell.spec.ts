@@ -75,7 +75,10 @@ test("opens the original field-first editor shell and its modes", async ({
   await page.getByRole("button", { name: "Present" }).click();
   const present = page.getByRole("region", { name: "Present" });
   await expect(present).toBeVisible();
-  await expect(present.getByText("Stick — Thunder")).toBeVisible();
+  await expect(
+    present.getByText("Stick — Thunder", { exact: true }),
+  ).toBeVisible();
+  await expect(present.locator(".present-pos")).toContainText("1 / 5");
   await expect(present.getByText("← → variations")).toBeVisible();
   await expect(page.getByRole("button", { name: "esc" })).toBeVisible();
 
@@ -537,7 +540,7 @@ test("names a version and restores it after a reload", async ({ page }) => {
   await expect(page.getByText("Install week")).toBeVisible();
 
   const inspector = page.getByRole("complementary", { name: "Play inspector" });
-  await inspector.getByRole("button", { name: "Show" }).click();
+  await inspector.getByRole("button", { name: "Show", exact: true }).click();
   await expect(inspector.getByText("Install week")).toBeVisible();
   await expect(inspector.getByText("just now")).toBeVisible();
   await inspector.getByRole("button", { name: "Hide" }).click();
@@ -573,4 +576,32 @@ test("names a version and restores it after a reload", async ({ page }) => {
   await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
     "Thursday rewrite",
   );
+});
+
+test("opens a library variation, searches the Playbook, and restores browser scroll", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText(/^Library/)).toBeVisible();
+  await expect(page.getByText("Gun Doubles Left")).toBeVisible();
+
+  await page.getByText("Gun Doubles Left").click();
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Stick — Thunder — Gun Doubles Left",
+  );
+
+  await page.getByRole("button", { name: "Browse Playbook" }).click();
+  const book = page.getByRole("dialog", { name: "Playbook" });
+  await expect(book).toBeVisible();
+  await book.getByLabel("Search plays").fill("red zone");
+  await expect(book.getByText("Stick — Thunder — Red zone")).toBeVisible();
+  await book.getByText("Stick — Thunder — Red zone").click();
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Stick — Thunder — Red zone",
+  );
+
+  await page.getByRole("button", { name: "Present" }).click();
+  await expect(page.locator(".present-pos")).toContainText("/ 5");
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.getByRole("region", { name: "Present" })).toBeVisible();
 });

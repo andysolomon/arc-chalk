@@ -165,6 +165,19 @@ export interface EditorStore {
    * (parity-matrix B1).
    */
   adoptPlay(this: void, document: PlayDocument): Promise<EditorCommitOutcome>;
+  /**
+   * Switches to a Play already stored on this device. History and versions
+   * come with it; the open Play is not rewritten.
+   */
+  openStoredPlay(
+    this: void,
+    input: {
+      readonly document: PlayDocument;
+      readonly documentHash: string;
+      readonly undoHistory?: unknown;
+      readonly versions?: readonly EditorVersionSummary[];
+    },
+  ): Promise<void>;
   retryLocalSave(this: void): Promise<EditorCommitOutcome | undefined>;
   undo(this: void): Promise<EditorUndoOutcome>;
   redo(this: void): Promise<EditorUndoOutcome>;
@@ -472,6 +485,27 @@ export function createEditorStore({
     });
   };
 
+  const openStoredPlay = (input: {
+    readonly document: PlayDocument;
+    readonly documentHash: string;
+    readonly undoHistory?: unknown;
+    readonly versions?: readonly EditorVersionSummary[];
+  }): Promise<void> =>
+    enqueue(() => {
+      const opened = playDocumentSchema.parse(input.document);
+      history = restoreUndoHistory(
+        opened.id,
+        input.undoHistory,
+        wallClockNow(),
+      );
+      documentHash = input.documentHash;
+      persistedDocumentHash = input.documentHash;
+      showDocument(opened);
+      publishUndo();
+      publishVersions(input.versions ?? []);
+      return Promise.resolve();
+    });
+
   const stepHistory = (
     direction: "undo" | "redo",
   ): Promise<EditorUndoOutcome> => {
@@ -537,6 +571,7 @@ export function createEditorStore({
     applyEdit,
     commitDocument,
     adoptPlay,
+    openStoredPlay,
     retryLocalSave() {
       if (state.getState().localSave.phase !== "error") {
         return Promise.resolve(undefined);

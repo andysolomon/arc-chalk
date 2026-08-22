@@ -2,6 +2,7 @@ import {
   fieldProfileSchema,
   legacyFieldProfileSchema,
   type FieldProfile,
+  type PlayDocument,
 } from "./schema";
 
 const FEET_PER_YARD = 3;
@@ -234,4 +235,36 @@ export function buildFieldLandmarks(
       },
     ]),
   };
+}
+
+/**
+ * Applying a Field Profile never rewrites yard coordinates, paths, or
+ * Assignments (ADR 0032). The Play copies the profile, including its
+ * revision, so an app update cannot silently restyle an existing diagram.
+ */
+export function applyFieldProfileToPlay(
+  play: PlayDocument,
+  profile: FieldProfile,
+): PlayDocument {
+  return {
+    ...play,
+    fieldProfile: structuredClone(profile),
+  };
+}
+
+export function fieldProfileNeedsReapply(
+  play: PlayDocument,
+  profile: FieldProfile,
+): boolean {
+  return (
+    play.fieldProfile.id === profile.id &&
+    play.fieldProfile.revision < profile.revision
+  );
+}
+
+export function bumpFieldProfileRevision(profile: FieldProfile): FieldProfile {
+  return fieldProfileSchema.parse({
+    ...profile,
+    revision: profile.revision + 1,
+  });
 }

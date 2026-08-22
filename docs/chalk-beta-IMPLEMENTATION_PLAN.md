@@ -399,7 +399,7 @@ Acceptance criteria:
 ## 6. Immediate next steps
 
 1. Continue the item-level parity inventory and golden captures from the restored original; do not use the rejected alternate design as a target.
-2. Phase 4 is closed; remaining Editor gap is Finding #3's Player shift against goldens captured from the uncorrected original. Present's remaining gap is the variation line (`1 / 5 · STICK — THUNDER`), which waits on the library.
-3. Record only explicit product-owner-approved parity exceptions; implementation convenience is not an exception.
-4. Close each parity group end-to-end with Coach-visible tests and original-versus-production evidence, keeping `docs/chalk-beta-progress.txt` synchronized as each executable slice lands.
-5. Phase 5 animation and playback is in; next production slice is Phase 6 library / organization, or remaining Phase 0 parity inventory.
+2. Phases 4, 5, and 6 are closed: the original inspector library is back with an additive virtualized Playbook browser, worker search, revision-keyed thumbnails, and explicit Field Profile / Formation reapply; Present now has both the variation line (`1 / 5 · STICK — THUNDER`) and deterministic animation/playback. Remaining Editor gap is Finding #3's Player shift against goldens captured from the uncorrected original.
+3. Next production slice is Phase 7 (auth/sync) or remaining Phase 0 inventory.
+4. Record only explicit product-owner-approved parity exceptions; implementation convenience is not an exception.
+5. Close each parity group end-to-end with Coach-visible tests and original-versus-production evidence, keeping `docs/chalk-beta-progress.txt` synchronized as each executable slice lands.

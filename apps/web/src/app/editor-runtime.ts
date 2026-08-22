@@ -1,13 +1,16 @@
 import {
-  builtInPlayTypeDefinitions,
   createStableId,
   decryptBackup,
   encryptBackup,
   parseEncryptedBackup,
   serializeEncryptedBackup,
+  searchPlays,
+  starterPlaybookEnvelope,
   stickThunderPlay,
+  type Concept,
   type Formation,
-  type PlaybookEnvelope,
+  type PlaySearchQuery,
+  type Playbook,
 } from "@chalk/domain";
 import {
   createEditorStore,
@@ -18,12 +21,18 @@ import {
   createDexieLocalRepository,
   type BackupImportResult,
   type ChalkLocalRepository,
+  type PlayListPage,
+  type PlaySearchProjection,
+  type PlaybookSummary,
   type SessionRecovery,
   type StorageHealth,
+  type StoredPlay,
+  type ThumbnailDerivative,
 } from "@chalk/local-db";
 
 const DATABASE_NAME = "chalk-production-beta";
-const SEED_TIME = 1_786_000_000_000;
+export const LIBRARY_OPEN_KEY = "libraryOpen.v1";
+export const LIBRARY_BROWSER_KEY = "library.browser.v1";
 
 /**
  * Which sets and calls the Coach starred. The original kept these beside the
@@ -41,32 +50,55 @@ export interface CoachSets {
   readonly favoriteCallIds: readonly string[];
 }
 
+export interface LibrarySnapshot {
+  readonly playbook: Playbook;
+  readonly concepts: readonly Concept[];
+  readonly members: readonly PlaySearchProjection[];
+}
+
+export interface LibraryBrowserState {
+  readonly scrollTop: number;
+  readonly focusedPlayId?: string;
+  readonly query: string;
+}
+
 const readIds = (value: unknown): readonly string[] =>
   Array.isArray(value) ? value.filter((id) => typeof id === "string") : [];
 
-const starterPlaybook: PlaybookEnvelope = {
-  schemaVersion: 1,
-  kind: "chalk-playbook",
-  exportedAtMs: SEED_TIME,
-  playbook: {
-    schemaVersion: 1,
-    id: stickThunderPlay.playbookId,
-    name: "Chalk Starter Playbook",
-    defaultFieldProfileId: stickThunderPlay.fieldProfile.id,
-    fieldProfiles: [stickThunderPlay.fieldProfile],
-    playTypes: [...builtInPlayTypeDefinitions],
-    createdAtMs: SEED_TIME,
-    updatedAtMs: SEED_TIME,
-  },
-  concepts: [],
-  formations: [],
-  plays: [stickThunderPlay],
-};
+export interface ChalkLibrary {
+  readonly playbookId: string;
+  loadSnapshot(): Promise<LibrarySnapshot | undefined>;
+  listPlaybooks(): Promise<readonly PlaybookSummary[]>;
+  getPlay(playId: string): Promise<StoredPlay | undefined>;
+  getPlaybook(): Promise<Playbook | undefined>;
+  savePlaybook(playbook: Playbook): Promise<void>;
+  saveConcept(concept: Concept): Promise<void>;
+  deleteConcept(conceptId: string): Promise<void>;
+  trashPlay(playId: string): Promise<void>;
+  search(query: PlaySearchQuery): Promise<readonly PlaySearchProjection[]>;
+  listPlaySummaryPage(page: {
+    readonly offset: number;
+    readonly limit: number;
+  }): Promise<PlayListPage>;
+  loadDisclosure(): Promise<Readonly<Record<string, boolean>>>;
+  saveDisclosure(open: Readonly<Record<string, boolean>>): Promise<void>;
+  loadBrowserState(): Promise<LibraryBrowserState>;
+  saveBrowserState(state: LibraryBrowserState): Promise<void>;
+  getThumbnail(key: string): Promise<ThumbnailDerivative | undefined>;
+  putThumbnail(thumbnail: ThumbnailDerivative): Promise<void>;
+  getUndoHistory(
+    playId: string,
+  ): ReturnType<ChalkLocalRepository["getUndoHistory"]>;
+  listPlayVersions(
+    playId: string,
+  ): ReturnType<ChalkLocalRepository["listPlayVersions"]>;
+}
 
 export interface ChalkRuntime {
   readonly editorStore: EditorStore;
   readonly recovery: SessionRecovery;
   readonly storage: StorageHealth;
+  readonly library: ChalkLibrary;
   /** What the Coach had saved and starred when this session opened. */
   readonly coachSets: CoachSets;
   /** Keeps a set the Coach named, so it is there the next time he opens Chalk. */
@@ -88,6 +120,124 @@ export interface ChalkRuntime {
   ): Promise<BackupImportResult>;
 }
 
+export function emptyLibrarySnapshot(
+  playbookId = stickThunderPlay.playbookId,
+): LibrarySnapshot {
+  return {
+    playbook: {
+      schemaVersion: 1,
+      id: playbookId,
+      name: "Playbook",
+      defaultFieldProfileId: stickThunderPlay.fieldProfile.id,
+      fieldProfiles: [stickThunderPlay.fieldProfile],
+      playTypes: [],
+      createdAtMs: 0,
+      updatedAtMs: 0,
+    },
+    concepts: [],
+    members: [],
+  };
+}
+
+export function createMemoryLibrary(
+  snapshot: LibrarySnapshot = emptyLibrarySnapshot(),
+  plays: readonly StoredPlay[] = [],
+): ChalkLibrary {
+  let current = snapshot;
+  const stored = new Map(plays.map((play) => [play.id, play]));
+  let disclosure: Record<string, boolean> = {};
+  let browser: LibraryBrowserState = { scrollTop: 0, query: "" };
+  return {
+    playbookId: current.playbook.id,
+    loadSnapshot() {
+      return Promise.resolve(current);
+    },
+    listPlaybooks() {
+      return Promise.resolve([
+        {
+          id: current.playbook.id,
+          name: current.playbook.name,
+          playCount: current.members.length,
+          updatedAtMs: current.playbook.updatedAtMs,
+          defaultFieldProfileId: current.playbook.defaultFieldProfileId,
+        },
+      ]);
+    },
+    getPlay(playId) {
+      return Promise.resolve(stored.get(playId));
+    },
+    getPlaybook() {
+      return Promise.resolve(current.playbook);
+    },
+    savePlaybook(playbook) {
+      current = { ...current, playbook };
+      return Promise.resolve();
+    },
+    saveConcept(concept) {
+      const rest = current.concepts.filter(({ id }) => id !== concept.id);
+      current = { ...current, concepts: [...rest, concept] };
+      return Promise.resolve();
+    },
+    deleteConcept(conceptId) {
+      current = {
+        ...current,
+        concepts: current.concepts.filter(({ id }) => id !== conceptId),
+      };
+      return Promise.resolve();
+    },
+    trashPlay(playId) {
+      stored.delete(playId);
+      current = {
+        ...current,
+        members: current.members.filter((member) => member.playId !== playId),
+      };
+      return Promise.resolve();
+    },
+    search(query) {
+      const hits = new Set(
+        searchPlays(current.members, query).map(({ playId }) => playId),
+      );
+      return Promise.resolve(
+        current.members.filter((member) => hits.has(member.playId)),
+      );
+    },
+    listPlaySummaryPage(page) {
+      return Promise.resolve({
+        offset: page.offset,
+        limit: page.limit,
+        total: current.members.length,
+        items: current.members.slice(page.offset, page.offset + page.limit),
+      });
+    },
+    loadDisclosure() {
+      return Promise.resolve(disclosure);
+    },
+    saveDisclosure(open) {
+      disclosure = { ...open };
+      return Promise.resolve();
+    },
+    loadBrowserState() {
+      return Promise.resolve(browser);
+    },
+    saveBrowserState(state) {
+      browser = state;
+      return Promise.resolve();
+    },
+    getThumbnail() {
+      return Promise.resolve(undefined);
+    },
+    putThumbnail() {
+      return Promise.resolve();
+    },
+    getUndoHistory() {
+      return Promise.resolve(undefined);
+    },
+    listPlayVersions() {
+      return Promise.resolve([]);
+    },
+  };
+}
+
 export async function createBrowserRuntime(): Promise<ChalkRuntime> {
   const repository: ChalkLocalRepository = createDexieLocalRepository({
     databaseName: DATABASE_NAME,
@@ -107,12 +257,14 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
 
   let storedPlay = await repository.getPlay(stickThunderPlay.id);
   if (!storedPlay) {
-    await repository.savePlaybook(starterPlaybook);
+    await repository.savePlaybook(starterPlaybookEnvelope());
     storedPlay = await repository.getPlay(stickThunderPlay.id);
   }
   if (!storedPlay) {
     throw new Error("Chalk could not initialize the starter Play.");
   }
+
+  const playbookId = storedPlay.document.playbookId;
 
   const persistence: EditorPersistence = {
     commitPlay: (input) => repository.commitPlay(input),
@@ -132,7 +284,7 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
 
   const [coachFormations, favoriteFormations, favoriteCalls] =
     await Promise.all([
-      repository.listFormations(stickThunderPlay.playbookId),
+      repository.listFormations(playbookId),
       repository.getPreference(FAVORITE_FORMATIONS_KEY),
       repository.getPreference(FAVORITE_CALLS_KEY),
     ]);
@@ -145,10 +297,81 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     });
   };
 
+  const rememberJson = async (key: string, value: unknown) => {
+    await repository.setPreference({
+      key,
+      value: value as never,
+      updatedAtMs: Date.now(),
+    });
+  };
+
+  const library: ChalkLibrary = {
+    playbookId,
+    async loadSnapshot() {
+      const envelope = await repository.loadPlaybook(playbookId);
+      if (!envelope) return undefined;
+      return {
+        playbook: envelope.playbook,
+        concepts: envelope.concepts,
+        members: await repository.listPlaySummaries(playbookId),
+      };
+    },
+    listPlaybooks: () => repository.listPlaybooks(),
+    getPlay: (playId) => repository.getPlay(playId),
+    async getPlaybook() {
+      return (await repository.loadPlaybook(playbookId))?.playbook;
+    },
+    savePlaybook: (playbook) => repository.savePlaybookRecord(playbook),
+    saveConcept: (concept) => repository.saveConcept(concept),
+    deleteConcept: (conceptId) => repository.deleteConcept(conceptId),
+    trashPlay: (playId) => repository.movePlayToTrash(playId),
+    search: (query) =>
+      repository.searchPlays({
+        ...query,
+        filters: { playbookId, ...query.filters },
+      }),
+    listPlaySummaryPage: (page) =>
+      repository.listPlaySummaryPage(playbookId, page),
+    async loadDisclosure() {
+      const stored = await repository.getPreference(LIBRARY_OPEN_KEY);
+      return stored?.value &&
+        typeof stored.value === "object" &&
+        !Array.isArray(stored.value)
+        ? (stored.value as Record<string, boolean>)
+        : {};
+    },
+    async saveDisclosure(open) {
+      await rememberJson(LIBRARY_OPEN_KEY, open);
+    },
+    async loadBrowserState() {
+      const stored = await repository.getPreference(LIBRARY_BROWSER_KEY);
+      const value = stored?.value;
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return { scrollTop: 0, query: "" };
+      }
+      const record = value as Record<string, unknown>;
+      return {
+        scrollTop: typeof record.scrollTop === "number" ? record.scrollTop : 0,
+        query: typeof record.query === "string" ? record.query : "",
+        ...(typeof record.focusedPlayId === "string"
+          ? { focusedPlayId: record.focusedPlayId }
+          : {}),
+      };
+    },
+    async saveBrowserState(state) {
+      await rememberJson(LIBRARY_BROWSER_KEY, state);
+    },
+    getThumbnail: (key) => repository.getThumbnail(key),
+    putThumbnail: (thumbnail) => repository.putThumbnail(thumbnail),
+    getUndoHistory: (playId) => repository.getUndoHistory(playId),
+    listPlayVersions: (playId) => repository.listPlayVersions(playId),
+  };
+
   return {
     editorStore,
     recovery,
     storage: await repository.storageHealth(),
+    library,
     coachSets: {
       formations: coachFormations,
       favoriteFormationIds: readIds(favoriteFormations?.value),
@@ -168,6 +391,7 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     },
     async releaseDerivedStorage() {
       await repository.clearDerivedData();
+      await repository.rebuildSearchProjections();
       return repository.storageHealth();
     },
     async exportEncryptedBackup(passphrase) {
