@@ -863,7 +863,7 @@ describe("Chalk device durability surfaces", () => {
     });
     expect(within(inspector).getByText("History 1")).toBeVisible();
     await user.click(
-      within(inspector).getByRole("button", { name: "Show", exact: true }),
+      within(inspector).getByRole("button", { name: /^Show$/ }),
     );
     expect(within(inspector).getByText("just now")).toBeVisible();
     expect(within(inspector).getByText("Install week")).toBeVisible();
@@ -889,7 +889,7 @@ describe("Chalk device durability surfaces", () => {
       within(inspector).getByText("History", { exact: true }),
     ).toBeVisible();
     await user.click(
-      within(inspector).getByRole("button", { name: "Show", exact: true }),
+      within(inspector).getByRole("button", { name: /^Show$/ }),
     );
     expect(
       within(inspector).getByText(
