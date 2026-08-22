@@ -126,10 +126,7 @@ describe("Share shell", () => {
   });
 
   it("declares a strict CSP and no-referrer policy in the share shell", () => {
-    const html = readFileSync(
-      new URL("../../share.html", import.meta.url),
-      "utf8",
-    );
+    const html = readFileSync("apps/web/share.html", "utf8");
     expect(html).toContain('http-equiv="Content-Security-Policy"');
     expect(html).toContain("default-src 'self'");
     expect(html).toContain("script-src 'self'");
