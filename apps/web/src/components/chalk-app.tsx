@@ -197,12 +197,7 @@ import { RailIcon } from "./rail-icons";
 type View = "Editor" | "Demo" | "Present" | "Print";
 type Menu = "more" | "export" | "save" | "clear" | null;
 type Overlay =
-  | "palette"
-  | "shortcuts"
-  | "formations"
-  | "defenses"
-  | "playbook"
-  | null;
+  "palette" | "shortcuts" | "formations" | "defenses" | "playbook" | null;
 type Tool =
   "select" | "player" | "route" | "motion" | "block" | "zone" | "text";
 
@@ -2808,16 +2803,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     editorStore.getSnapshot,
     editorStore.getSnapshot,
   );
-  const cancelLibraryDrawing = useCallback(() => {
-    if (interactionRef.current.drawing) {
-      dispatchFieldRef.current({ type: "escape" });
-    }
-  }, []);
-  const playbook = usePlaybookLibrary(
-    runtime,
-    editorStore,
-    cancelLibraryDrawing,
-  );
+  const playbook = usePlaybookLibrary(runtime, editorStore);
 
   /**
    * The sets the Coach saved himself and what he starred in either book. Held
@@ -3077,9 +3063,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     if (!command) return;
     markInsertsPending(command);
     focusInteraction(next);
-    void editorStore.applyCommand(command).then(() => {
-      playbook.maybeBroadcast(command);
-    }).catch(() => undefined);
+    void editorStore
+      .applyCommand(command)
+      .then(() => {
+        playbook.maybeBroadcast(command);
+      })
+      .catch(() => undefined);
   };
   /**
    * The original offers the draw-a-route dot on the selected or hovered
@@ -3128,9 +3117,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     if (result.command) {
       pendingCommitPaintRef.current = true;
       markInsertsPending(result.command);
-      void editorStore.applyCommand(result.command).then(() => {
-        playbook.maybeBroadcast(result.command!);
-      }).catch(() => undefined);
+      void editorStore
+        .applyCommand(result.command)
+        .then(() => {
+          playbook.maybeBroadcast(result.command!);
+        })
+        .catch(() => undefined);
     }
     // Finishing a route hands the Coach back the select tool, as the
     // original does, so the route he just drew is his to adjust.
@@ -4185,6 +4177,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       setOpenMenu(null);
     },
     newPlay: () => {
+      if (interactionRef.current.drawing) {
+        dispatchFieldRef.current({ type: "escape" });
+      }
       playbook.newPlay();
       setOpenMenu(null);
     },
@@ -4250,6 +4245,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       playbook.snapshot.members.map((member) => [
         `open:${member.playId}`,
         () => {
+          if (interactionRef.current.drawing) {
+            dispatchFieldRef.current({ type: "escape" });
+          }
           void playbook.loadPlay(member.playId);
           setOverlay(null);
           setOpenMenu(null);
@@ -4535,6 +4533,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     goToView,
     openMenu,
     overlay,
+    playbook,
     reading,
     showSelectionOnKey,
   ]);
@@ -5146,6 +5145,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                 onDelete={playbook.removePlay}
                 onDetach={playbook.detach}
                 onLoad={(playId) => {
+                  if (interactionRef.current.drawing) {
+                    dispatchFieldRef.current({ type: "escape" });
+                  }
                   void playbook.loadPlay(playId);
                 }}
                 onNoteCommit={playbook.noteCommit}
@@ -5357,6 +5359,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           onClose={() => setOverlay(null)}
           onOpen={(playId) => {
             setOverlay(null);
+            if (interactionRef.current.drawing) {
+              dispatchFieldRef.current({ type: "escape" });
+            }
             void playbook.loadPlay(playId);
           }}
           onRemember={playbook.rememberBrowser}

@@ -222,9 +222,7 @@ export function LibraryPanel({
           ))}
         </div>
       ) : (
-        <p>
-          No saved plays yet. Name the play in the header and press Save.
-        </p>
+        <p>No saved plays yet. Name the play in the header and press Save.</p>
       )}
       <button className="library-browse" onClick={onBrowse} type="button">
         Browse Playbook

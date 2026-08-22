@@ -41,7 +41,6 @@ import {
 export function usePlaybookLibrary(
   runtime: ChalkRuntime,
   editorStore: EditorStore,
-  cancelDrawing: () => void,
 ) {
   const { library } = runtime;
   const playId = useSyncExternalStore(
@@ -52,9 +51,9 @@ export function usePlaybookLibrary(
   const [snapshot, setSnapshot] = useState<LibrarySnapshot>(() =>
     emptyLibrarySnapshot(),
   );
-  const [storedOpen, setStoredOpen] = useState<Readonly<Record<string, boolean>>>(
-    {},
-  );
+  const [storedOpen, setStoredOpen] = useState<
+    Readonly<Record<string, boolean>>
+  >({});
   const [browserState, setBrowserState] = useState<LibraryBrowserState>({
     scrollTop: 0,
     query: "",
@@ -68,9 +67,12 @@ export function usePlaybookLibrary(
   const snapshotRef = useRef(snapshot);
   const scopeRef = useRef(scope);
   const pickRef = useRef(pickIds);
-  snapshotRef.current = snapshot;
-  scopeRef.current = scope;
-  pickRef.current = pickIds;
+
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+    scopeRef.current = scope;
+    pickRef.current = pickIds;
+  });
 
   const refresh = useCallback(async () => {
     const next = await library.loadSnapshot();
@@ -78,22 +80,31 @@ export function usePlaybookLibrary(
   }, [library]);
 
   useEffect(() => {
-    void refresh();
-    void library.loadDisclosure().then(setStoredOpen);
-    void library.loadBrowserState().then(setBrowserState);
-  }, [library, refresh]);
+    let cancelled = false;
+    void library.loadSnapshot().then((next) => {
+      if (!cancelled && next) setSnapshot(next);
+    });
+    void library.loadDisclosure().then((open) => {
+      if (!cancelled) setStoredOpen(open);
+    });
+    void library.loadBrowserState().then((state) => {
+      if (!cancelled) setBrowserState(state);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [library]);
 
   const loadPlay = useCallback(
     async (playId: string): Promise<boolean> => {
       if (!canSwitchPlay(editorStore.getSnapshot().localSave.phase)) {
         return false;
       }
-      cancelDrawing();
       const opened = await openLibraryPlay(library, editorStore, playId);
       if (opened) await refresh();
       return opened;
     },
-    [cancelDrawing, editorStore, library, refresh],
+    [editorStore, library, refresh],
   );
 
   const savePlay = useCallback(() => {
@@ -130,9 +141,8 @@ export function usePlaybookLibrary(
   }, [editorStore, library, refresh, variationDraft]);
 
   const newPlay = useCallback(() => {
-    cancelDrawing();
     void createUntitledPlay(library, editorStore).then(() => refresh());
-  }, [cancelDrawing, editorStore, library, refresh]);
+  }, [editorStore, library, refresh]);
 
   const detach = useCallback(
     (playId: string) => {
@@ -253,7 +263,9 @@ export function usePlaybookLibrary(
           ...(member.playTypeName === undefined
             ? {}
             : { playTypeName: member.playTypeName }),
-          ...(member.conceptId === undefined ? {} : { conceptId: member.conceptId }),
+          ...(member.conceptId === undefined
+            ? {}
+            : { conceptId: member.conceptId }),
         })),
         snapshot.concepts,
       ),
@@ -269,7 +281,9 @@ export function usePlaybookLibrary(
           unit: member.unit,
           tags: member.tags,
           updatedAtMs: member.updatedAtMs,
-          ...(member.conceptId === undefined ? {} : { conceptId: member.conceptId }),
+          ...(member.conceptId === undefined
+            ? {}
+            : { conceptId: member.conceptId }),
         })),
       ),
     [playId, snapshot.members],
@@ -306,6 +320,7 @@ export function usePlaybookLibrary(
     maybeBroadcast,
     stepFamily,
     setScope,
-    togglePick: (playId: string) => setPickIds((ids) => togglePickId(ids, playId)),
+    togglePick: (playId: string) =>
+      setPickIds((ids) => togglePickId(ids, playId)),
   };
 }

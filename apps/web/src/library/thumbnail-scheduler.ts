@@ -3,7 +3,10 @@ import {
   playThumbnailKey,
   type PlayThumbnailTheme,
 } from "@chalk/domain";
-import type { PlaySearchProjection, ThumbnailDerivative } from "@chalk/local-db";
+import type {
+  PlaySearchProjection,
+  ThumbnailDerivative,
+} from "@chalk/local-db";
 
 import type { ChalkLibrary } from "../app/editor-runtime";
 import { playThumbnailBlob } from "./play-thumbnail";
@@ -20,7 +23,10 @@ export interface ThumbnailRequest {
  * and never holds a Play's geometry in the library list.
  */
 export function createThumbnailScheduler(library: ChalkLibrary): {
-  urlFor(request: ThumbnailRequest, signal?: AbortSignal): Promise<string | undefined>;
+  urlFor(
+    request: ThumbnailRequest,
+    signal?: AbortSignal,
+  ): Promise<string | undefined>;
   dispose(): void;
 } {
   const inflight = new Map<string, Promise<string | undefined>>();
@@ -68,11 +74,9 @@ export function createThumbnailScheduler(library: ChalkLibrary): {
         signal?.removeEventListener("abort", onAbort);
         finish();
       }, 16);
-      signal?.addEventListener(
-        "abort",
-        () => globalThis.clearTimeout(timer),
-        { once: true },
-      );
+      signal?.addEventListener("abort", () => globalThis.clearTimeout(timer), {
+        once: true,
+      });
     });
 
   const generate = async (

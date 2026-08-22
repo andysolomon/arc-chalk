@@ -257,8 +257,9 @@ export async function pushFamilyAlignment(input: {
     (member) =>
       member.conceptId === input.conceptId &&
       member.name ===
-        input.snapshot.concepts.find((concept) => concept.id === input.conceptId)
-          ?.name,
+        input.snapshot.concepts.find(
+          (concept) => concept.id === input.conceptId,
+        )?.name,
   );
   const sourceId = head?.playId ?? input.editorStore.getSnapshot().document.id;
   const sourceStored = await input.library.getPlay(sourceId);
@@ -300,9 +301,7 @@ export async function pushFamilyAlignment(input: {
     : `Alignment pushed to ${n}${n === 1 ? " variation" : " variations"}`;
 }
 
-export function membersToRows(
-  members: readonly PlaySearchProjection[],
-): {
+export function membersToRows(members: readonly PlaySearchProjection[]): {
   readonly playId: string;
   readonly name: string;
   readonly unit: PlaySearchProjection["unit"];

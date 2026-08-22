@@ -8,14 +8,11 @@ import {
   createVariationPlay,
   detachPlayFromConcept,
   emptyPlayDocument,
-  familyOf,
   fieldProfileNeedsReapply,
   formatBroadcastReport,
   formationNeedsReapply,
   highSchoolFieldProfile,
   libraryDisclosureDefault,
-  libraryScopeHint,
-  libraryScopeTargets,
   playThumbnailKey,
   presentVariationLine,
   promoteVariationsOnConceptDelete,
@@ -107,7 +104,11 @@ describe("Playbook library families", () => {
 
   it("opens the family of the play being worked on by default", () => {
     expect(
-      libraryDisclosureDefault("concept_stick_thunder", "concept_stick_thunder", {}),
+      libraryDisclosureDefault(
+        "concept_stick_thunder",
+        "concept_stick_thunder",
+        {},
+      ),
     ).toBe(true);
     expect(
       libraryDisclosureDefault("concept_other", "concept_stick_thunder", {}),
@@ -121,11 +122,9 @@ describe("Playbook library families", () => {
 
   it("names Present's variation line the way the original does", () => {
     const family = stickThunderFamily();
-    const line = presentVariationLine(
-      family[2]!.id,
-      membersOf(family),
-      [stickThunderConcept],
-    );
+    const line = presentVariationLine(family[2]!.id, membersOf(family), [
+      stickThunderConcept,
+    ]);
     expect(line).toBe("3 / 5  ·  GUN DOUBLES LEFT");
     expect(
       presentVariationLine(family[0]!.id, membersOf([family[0]!]), [
@@ -307,13 +306,12 @@ describe("Derived thumbnail keys and Field Profile reapply", () => {
   });
 
   it("keeps a copied Play's Concept pointer unless asked to drop it", () => {
-    const attached = attachPlayToConcept(
-      stickThunderPlay,
-      stickThunderConcept,
-    );
+    const attached = attachPlayToConcept(stickThunderPlay, stickThunderConcept);
     const copied = copyPlayDocument(attached, { id: "play_copy" });
     expect(copied.conceptSource).toEqual(attached.conceptSource);
-    expect(copyPlayDocument(attached, { id: "play_free", conceptSource: null })
-      .conceptSource).toBeUndefined();
+    expect(
+      copyPlayDocument(attached, { id: "play_free", conceptSource: null })
+        .conceptSource,
+    ).toBeUndefined();
   });
 });

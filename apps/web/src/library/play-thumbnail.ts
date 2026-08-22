@@ -41,7 +41,10 @@ export function playThumbnailSvg(
     ...paths.flatMap((path) => path.map(({ y }) => y)),
   ];
   const middle = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : 500;
-  const spanX = Math.max(360, (xs.length ? Math.max(...xs) - Math.min(...xs) : 0) + 80);
+  const spanX = Math.max(
+    360,
+    (xs.length ? Math.max(...xs) - Math.min(...xs) : 0) + 80,
+  );
   const scaleX = 132 / spanX;
   const top = (ys.length ? Math.min(...ys) : 400) - 16;
   const spanY = Math.max(150, (ys.length ? Math.max(...ys) - top : 0) + 16);
@@ -57,7 +60,9 @@ export function playThumbnailSvg(
       const drawn = path.map((point) => project(point.x, point.y));
       if (drawn.length < 2) return "";
       const d = drawn
-        .map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`)
+        .map(
+          (point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`,
+        )
         .join(" ");
       return `<path d="${d}" fill="none" stroke="${ink}" stroke-width="1.2"/>`;
     })

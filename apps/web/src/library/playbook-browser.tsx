@@ -17,13 +17,15 @@ import {
 const GRID_COLUMNS = 4;
 const CARD_ROW_HEIGHT = 118;
 
-const UNITS: readonly { readonly id: "all" | PlayUnit; readonly name: string }[] =
-  [
-    { id: "all", name: "All" },
-    { id: "offense", name: "Offense" },
-    { id: "defense", name: "Defense" },
-    { id: "special-teams", name: "Special" },
-  ];
+const UNITS: readonly {
+  readonly id: "all" | PlayUnit;
+  readonly name: string;
+}[] = [
+  { id: "all", name: "All" },
+  { id: "offense", name: "Offense" },
+  { id: "defense", name: "Defense" },
+  { id: "special-teams", name: "Special" },
+];
 
 export function PlaybookBrowser({
   currentPlayId,
@@ -50,7 +52,10 @@ export function PlaybookBrowser({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const restoredRef = useRef(false);
   const search = useMemo(() => createPlaySearchClient(), []);
-  const thumbnails = useMemo(() => createThumbnailScheduler(library), [library]);
+  const thumbnails = useMemo(
+    () => createThumbnailScheduler(library),
+    [library],
+  );
 
   useEffect(() => () => search.dispose(), [search]);
   useEffect(() => () => thumbnails.dispose(), [thumbnails]);
@@ -93,6 +98,8 @@ export function PlaybookBrowser({
     return grouped;
   }, [hits]);
 
+  // TanStack Virtual returns functions the compiler cannot memoize.
+  // eslint-disable-next-line react-hooks/incompatible-library -- virtualizer API
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollerRef.current,
@@ -119,16 +126,14 @@ export function PlaybookBrowser({
     onRemember({
       scrollTop: scrollerRef.current?.scrollTop ?? 0,
       query,
-      ...(playId ?? focusedPlayId
+      ...((playId ?? focusedPlayId)
         ? { focusedPlayId: playId ?? focusedPlayId }
         : {}),
     });
   };
 
-  const urlFor = (
-    request: ThumbnailRequest,
-    signal?: AbortSignal,
-  ) => thumbnails.urlFor(request, signal);
+  const urlFor = (request: ThumbnailRequest, signal?: AbortSignal) =>
+    thumbnails.urlFor(request, signal);
 
   return (
     <div
@@ -273,17 +278,19 @@ function PlayCard({
   member: PlaySearchProjection;
   onFocus: () => void;
   onOpen: () => void;
-  urlFor: (request: ThumbnailRequest, signal?: AbortSignal) => Promise<string | undefined>;
+  urlFor: (
+    request: ThumbnailRequest,
+    signal?: AbortSignal,
+  ) => Promise<string | undefined>;
 }) {
   const [src, setSrc] = useState<string>();
-  const request = thumbnailRequestFrom(member);
   useEffect(() => {
     const abort = new AbortController();
-    void urlFor(request, abort.signal).then((url) => {
+    void urlFor(thumbnailRequestFrom(member), abort.signal).then((url) => {
       if (!abort.signal.aborted && url) setSrc(url);
     });
     return () => abort.abort();
-  }, [request.documentHash, request.playId, urlFor]);
+  }, [member, urlFor]);
 
   return (
     <button

@@ -33,7 +33,10 @@ export function createPlaySearchClient(): PlaySearchClient {
       }
     >();
     worker.addEventListener("message", (event: MessageEvent) => {
-      const data = event.data as { id?: number; hits?: readonly PlaySearchHit[] };
+      const data = event.data as {
+        id?: number;
+        hits?: readonly PlaySearchHit[];
+      };
       if (typeof data.id !== "number" || !data.hits) return;
       pending.get(data.id)?.resolve(data.hits);
       pending.delete(data.id);
@@ -63,8 +66,8 @@ export function createPlaySearchClient(): PlaySearchClient {
 
 export function createMainThreadSearchClient(): PlaySearchClient {
   return {
-    async search(plays, query) {
-      return searchPlays(plays, query);
+    search(plays, query) {
+      return Promise.resolve(searchPlays(plays, query));
     },
     dispose() {
       return undefined;

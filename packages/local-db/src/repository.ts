@@ -243,8 +243,9 @@ class DexieLocalRepository implements ChalkLocalRepository {
         return {
           id: playbook.id,
           name: playbook.name,
-          playCount: stored.filter(({ deletedAtMs }) => deletedAtMs === undefined)
-            .length,
+          playCount: stored.filter(
+            ({ deletedAtMs }) => deletedAtMs === undefined,
+          ).length,
           updatedAtMs: playbook.updatedAtMs,
           defaultFieldProfileId: playbook.defaultFieldProfileId,
         };

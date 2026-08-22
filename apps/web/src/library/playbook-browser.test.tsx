@@ -72,7 +72,7 @@ describe("the Playbook browser", () => {
         disconnect() {
           return undefined;
         }
-      } as unknown as typeof ResizeObserver;
+      };
     }
 
     const members = Array.from({ length: 2_000 }, (_, index) =>

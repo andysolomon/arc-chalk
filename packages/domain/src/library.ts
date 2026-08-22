@@ -50,14 +50,9 @@ export function composedPlayName(
   return `${conceptName}${VARIATION_NAME_SEPARATOR}${variantName}`;
 }
 
-export function variantNameFrom(
-  conceptName: string,
-  playName: string,
-): string {
+export function variantNameFrom(conceptName: string, playName: string): string {
   const prefix = composedPlayName(conceptName, "");
-  return playName.startsWith(prefix)
-    ? playName.slice(prefix.length)
-    : playName;
+  return playName.startsWith(prefix) ? playName.slice(prefix.length) : playName;
 }
 
 export function isConceptHeadName(
@@ -110,7 +105,8 @@ export function copyPlayDocument(
     return playDocumentSchema.parse(next);
   }
   if (patch.conceptSource === null) {
-    const { conceptSource: _dropped, ...rest } = next;
+    const rest = { ...next };
+    delete rest.conceptSource;
     return playDocumentSchema.parse(rest);
   }
   return playDocumentSchema.parse({
@@ -124,7 +120,8 @@ export function copyPlayDocument(
  * and drops the Concept pointer so siblings are unaffected.
  */
 export function detachPlayFromConcept(play: PlayDocument): PlayDocument {
-  const { conceptSource: _dropped, ...rest } = play;
+  const rest = { ...play };
+  delete rest.conceptSource;
   return playDocumentSchema.parse(rest);
 }
 
@@ -297,9 +294,7 @@ export function buildLibraryTree(
           ? {}
           : { playTypeName: headMember.playTypeName }),
         head: toRow(headMember, concept.name, true),
-        variations: variations.map((play) =>
-          toRow(play, concept.name, false),
-        ),
+        variations: variations.map((play) => toRow(play, concept.name, false)),
       },
     });
   }

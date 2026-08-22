@@ -1,12 +1,9 @@
-import {
-  stickThunderConcept,
-  stickThunderFamily,
-} from "@chalk/domain";
+import { stickThunderConcept, stickThunderFamily } from "@chalk/domain";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { LibrarySnapshot } from "../../app/editor-runtime";
+import type { LibrarySnapshot } from "../app/editor-runtime";
 import { LibraryPanel } from "./library-panel";
 
 function stickSnapshot(): LibrarySnapshot {
@@ -124,7 +121,9 @@ describe("the inspector library panel", () => {
     const row = screen.getByText("Stick — Thunder").closest("[role='button']");
     expect(row).toBeTruthy();
     await userEvent.hover(row!);
-    await userEvent.click(within(row as HTMLElement).getByTitle("Delete this concept"));
+    await userEvent.click(
+      within(row as HTMLElement).getByTitle("Delete this concept"),
+    );
     expect(onDelete).toHaveBeenCalledWith(family[0]!.id, false);
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(onDelete).toHaveBeenCalledWith(family[0]!.id, true);
@@ -180,7 +179,9 @@ describe("concept notes", () => {
     const note = screen.getByRole("textbox", { name: "Concept note" });
     await userEvent.clear(note);
     await userEvent.type(note, "Take the flat");
-    await userEvent.click(screen.getByRole("textbox", { name: "Concept tags" }));
+    await userEvent.click(
+      screen.getByRole("textbox", { name: "Concept tags" }),
+    );
     expect(onNoteCommit).toHaveBeenCalledWith(
       stickThunderConcept.id,
       "Take the flat",

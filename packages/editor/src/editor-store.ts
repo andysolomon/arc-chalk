@@ -491,7 +491,7 @@ export function createEditorStore({
     readonly undoHistory?: unknown;
     readonly versions?: readonly EditorVersionSummary[];
   }): Promise<void> =>
-    enqueue(async () => {
+    enqueue(() => {
       const opened = playDocumentSchema.parse(input.document);
       history = restoreUndoHistory(
         opened.id,
@@ -503,6 +503,7 @@ export function createEditorStore({
       showDocument(opened);
       publishUndo();
       publishVersions(input.versions ?? []);
+      return Promise.resolve();
     });
 
   const stepHistory = (

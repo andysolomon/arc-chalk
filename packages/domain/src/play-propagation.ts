@@ -1,12 +1,10 @@
-import { applyPlayCommand } from "./commands";
+import {
+  applyPlayCommand,
+  type PlayCommand,
+  type PrimitivePlayCommand,
+} from "./commands";
 import { assignRoles, offensivePlayers } from "./formations";
-import type {
-  MovementPath,
-  PlayCommand,
-  PlayDocument,
-  Player,
-  PrimitivePlayCommand,
-} from "./schema";
+import type { MovementPath, PlayDocument, Player } from "./schema";
 
 const ROLE_WORD: Readonly<Record<string, string>> = Object.freeze({
   QB: "Q",
@@ -50,9 +48,7 @@ export function playRoleMap(
   offense.forEach((player, index) => {
     map[player.id] = `o:${roles[index] ?? `x${index}`}`;
   });
-  for (const player of play.players.filter(
-    ({ unit }) => unit === "defense",
-  )) {
+  for (const player of play.players.filter(({ unit }) => unit === "defense")) {
     const side =
       player.position.lateralYards < -1
         ? "L"
@@ -86,7 +82,10 @@ export function routeSignature(
   );
   return {
     roleKey,
-    pathIndex: Math.max(0, siblings.findIndex(({ id }) => id === path.id)),
+    pathIndex: Math.max(
+      0,
+      siblings.findIndex(({ id }) => id === path.id),
+    ),
   };
 }
 
@@ -148,7 +147,8 @@ export function propagateCommand(
     for (const { item } of command.assignments) {
       const path = source.paths.find((candidate) =>
         item.actions.some(
-          (action) => action.kind === "movement" && action.pathId === candidate.id,
+          (action) =>
+            action.kind === "movement" && action.pathId === candidate.id,
         ),
       );
       if (!path) continue;
@@ -230,17 +230,13 @@ function propagatePath(
         ? {}
         : { coverageArea: next.coverageArea }),
       ...(next.readOrder === undefined ? {} : { readOrder: next.readOrder }),
-      ...(next.conversion === undefined
-        ? {}
-        : { conversion: next.conversion }),
+      ...(next.conversion === undefined ? {} : { conversion: next.conversion }),
       ...(next.coachingNote === undefined
         ? {}
         : { coachingNote: next.coachingNote }),
       ...(next.preset === undefined ? {} : { preset: next.preset }),
       ...(next.concept === undefined ? {} : { concept: next.concept }),
-      ...(reshape
-        ? { points: next.points, branches: next.branches }
-        : {}),
+      ...(reshape ? { points: next.points, branches: next.branches } : {}),
     },
   } satisfies PrimitivePlayCommand);
   return { ok: true, play };

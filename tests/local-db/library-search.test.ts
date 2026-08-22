@@ -1,7 +1,4 @@
-import {
-  starterPlaybookEnvelope,
-  type PlayDocument,
-} from "@chalk/domain";
+import { starterPlaybookEnvelope, type PlayDocument } from "@chalk/domain";
 import { IDBKeyRange, indexedDB } from "fake-indexeddb";
 
 import {
@@ -49,9 +46,7 @@ describe("Playbook library local retrieval", () => {
     ]);
     await expect(
       repository.listConcepts(envelope.playbook.id),
-    ).resolves.toEqual([
-      expect.objectContaining({ name: "Stick — Thunder" }),
-    ]);
+    ).resolves.toEqual([expect.objectContaining({ name: "Stick — Thunder" })]);
     const page = await repository.listPlaySummaryPage(envelope.playbook.id, {
       offset: 0,
       limit: 3,
@@ -87,9 +82,7 @@ describe("Playbook library local retrieval", () => {
     );
     const rebuilt = await repository.rebuildSearchProjections();
     expect(rebuilt).toBe(envelope.plays.length);
-    await expect(
-      repository.searchPlays({ text: "stick" }),
-    ).resolves.toEqual(
+    await expect(repository.searchPlays({ text: "stick" })).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: "Stick — Thunder" }),
       ]),
@@ -120,10 +113,10 @@ describe("Playbook library local retrieval", () => {
     for (let index = 0; index < 10; index += 1) {
       const playbookId = `playbook_scale_${index}`;
       const source = structuredClone(base.plays[0]!);
-      const { conceptSource: _concept, formationSource: _formation, ...rest } =
-        source;
+      delete source.conceptSource;
+      delete source.formationSource;
       const play = {
-        ...rest,
+        ...source,
         id: `play_scale_${index}`,
         playbookId,
       };

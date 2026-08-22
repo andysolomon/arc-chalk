@@ -1,4 +1,8 @@
-import { searchPlays, type PlaySearchQuery, type SearchablePlay } from "@chalk/domain";
+import {
+  searchPlays,
+  type PlaySearchQuery,
+  type SearchablePlay,
+} from "@chalk/domain";
 
 export interface PlaySearchWorkerRequest {
   readonly id: number;
@@ -11,11 +15,14 @@ export interface PlaySearchWorkerResponse {
   readonly hits: ReturnType<typeof searchPlays>;
 }
 
-self.addEventListener("message", (event: MessageEvent<PlaySearchWorkerRequest>) => {
-  const { id, plays, query } = event.data;
-  const response: PlaySearchWorkerResponse = {
-    id,
-    hits: searchPlays(plays, query),
-  };
-  self.postMessage(response);
-});
+self.addEventListener(
+  "message",
+  (event: MessageEvent<PlaySearchWorkerRequest>) => {
+    const { id, plays, query } = event.data;
+    const response: PlaySearchWorkerResponse = {
+      id,
+      hits: searchPlays(plays, query),
+    };
+    self.postMessage(response);
+  },
+);

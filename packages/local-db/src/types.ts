@@ -259,9 +259,7 @@ export interface ChalkLocalRepository {
     playbookId: string,
     page: { readonly offset: number; readonly limit: number },
   ): Promise<PlayListPage>;
-  searchPlays(
-    query: PlaySearchQuery,
-  ): Promise<readonly PlaySearchProjection[]>;
+  searchPlays(query: PlaySearchQuery): Promise<readonly PlaySearchProjection[]>;
   rebuildSearchProjections(): Promise<number>;
   commitPlay(input: CommitPlayInput): Promise<CommitPlayResult>;
   getRevision(revisionId: string): Promise<PlayRevision | undefined>;

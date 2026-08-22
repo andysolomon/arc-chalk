@@ -5,9 +5,7 @@ import { playThumbnailSvg, thumbnailKeyForPlay } from "./play-thumbnail";
 
 describe("Play thumbnails", () => {
   it("keys a derivative by Play, revision, renderer, Field Profile, and theme", () => {
-    expect(
-      thumbnailKeyForPlay(stickThunderPlay, "abc123"),
-    ).toBe(
+    expect(thumbnailKeyForPlay(stickThunderPlay, "abc123")).toBe(
       playThumbnailKey({
         playId: stickThunderPlay.id,
         revisionHash: "abc123",

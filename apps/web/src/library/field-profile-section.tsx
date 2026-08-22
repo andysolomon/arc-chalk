@@ -63,8 +63,8 @@ export function FieldProfileSection({
         })}
       </div>
       <p>
-        High school, college and NFL hashes. Changing the profile never moves
-        a man or a route.
+        High school, college and NFL hashes. Changing the profile never moves a
+        man or a route.
       </p>
       {staleProfile ? (
         <div className="help-row">
@@ -88,10 +88,7 @@ export function FieldProfileSection({
           </button>
         </div>
       ) : null}
-      <NewProfileForm
-        current={play.fieldProfile}
-        onCreate={onCreateProfile}
-      />
+      <NewProfileForm current={play.fieldProfile} onCreate={onCreateProfile} />
     </section>
   );
 }
@@ -109,7 +106,8 @@ function NewProfileForm({
       onSubmit={(event) => {
         event.preventDefault();
         const form = event.currentTarget;
-        const name = String(new FormData(form).get("name") ?? "").trim();
+        const rawName = new FormData(form).get("name");
+        const name = typeof rawName === "string" ? rawName.trim() : "";
         if (!name) return;
         const asDefault = Boolean(new FormData(form).get("default"));
         onCreate(

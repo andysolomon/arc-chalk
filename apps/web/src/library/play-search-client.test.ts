@@ -29,8 +29,8 @@ describe("Play search client", () => {
 
   it("maps ranked hits back onto metadata records without loading Plays", () => {
     const hits = searchPlays(plays, { text: "thunder" });
-    expect(projectionsForHits(plays, hits).map(({ playId }) => playId)).toEqual([
-      "play_7",
-    ]);
+    expect(projectionsForHits(plays, hits).map(({ playId }) => playId)).toEqual(
+      ["play_7"],
+    );
   });
 });

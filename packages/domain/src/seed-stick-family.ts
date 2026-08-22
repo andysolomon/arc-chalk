@@ -48,7 +48,8 @@ function realign(
     nextId += 1;
     return `${prefix}_${playId}_${nextId}`;
   }).play;
-  const { formationSource: _stock, ...withoutSource } = aligned;
+  const withoutSource = { ...aligned };
+  delete withoutSource.formationSource;
   return createVariationPlay({
     source: withoutSource,
     concept: stickThunderConcept,
@@ -118,16 +119,8 @@ export function starterExamplePlays(): readonly PlayDocument[] {
   return [
     ...stickThunderFamily(),
     exampleFromTour("quick", "play_four_verticals", "Four Verticals"),
-    exampleFromTour(
-      "block",
-      "play_outside_zone_pull",
-      "Outside Zone — Pull",
-    ),
-    exampleFromTour(
-      "defense",
-      "play_cover_3_fire_zone",
-      "Cover 3 — Fire Zone",
-    ),
+    exampleFromTour("block", "play_outside_zone_pull", "Outside Zone — Pull"),
+    exampleFromTour("defense", "play_cover_3_fire_zone", "Cover 3 — Fire Zone"),
   ];
 }
 
@@ -149,6 +142,6 @@ export function starterPlaybookEnvelope(): PlaybookEnvelope {
     },
     concepts: [stickThunderConcept],
     formations: [],
-    plays,
+    plays: [...plays],
   };
 }

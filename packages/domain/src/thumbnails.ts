@@ -30,13 +30,8 @@ export function playThumbnailKey(parts: PlayThumbnailKeyParts): string {
 export function parsePlayThumbnailKey(
   key: string,
 ): PlayThumbnailKeyParts | undefined {
-  const [
-    playId,
-    revisionHash,
-    rendererVersion,
-    fieldProfileRevision,
-    theme,
-  ] = key.split(":");
+  const [playId, revisionHash, rendererVersion, fieldProfileRevision, theme] =
+    key.split(":");
   if (
     !playId ||
     !revisionHash ||

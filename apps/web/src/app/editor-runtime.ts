@@ -149,11 +149,11 @@ export function createMemoryLibrary(
   let browser: LibraryBrowserState = { scrollTop: 0, query: "" };
   return {
     playbookId: current.playbook.id,
-    async loadSnapshot() {
-      return current;
+    loadSnapshot() {
+      return Promise.resolve(current);
     },
-    async listPlaybooks() {
-      return [
+    listPlaybooks() {
+      return Promise.resolve([
         {
           id: current.playbook.id,
           name: current.playbook.name,
@@ -161,71 +161,79 @@ export function createMemoryLibrary(
           updatedAtMs: current.playbook.updatedAtMs,
           defaultFieldProfileId: current.playbook.defaultFieldProfileId,
         },
-      ];
+      ]);
     },
-    async getPlay(playId) {
-      return stored.get(playId);
+    getPlay(playId) {
+      return Promise.resolve(stored.get(playId));
     },
-    async getPlaybook() {
-      return current.playbook;
+    getPlaybook() {
+      return Promise.resolve(current.playbook);
     },
-    async savePlaybook(playbook) {
+    savePlaybook(playbook) {
       current = { ...current, playbook };
+      return Promise.resolve();
     },
-    async saveConcept(concept) {
+    saveConcept(concept) {
       const rest = current.concepts.filter(({ id }) => id !== concept.id);
       current = { ...current, concepts: [...rest, concept] };
+      return Promise.resolve();
     },
-    async deleteConcept(conceptId) {
+    deleteConcept(conceptId) {
       current = {
         ...current,
         concepts: current.concepts.filter(({ id }) => id !== conceptId),
       };
+      return Promise.resolve();
     },
-    async trashPlay(playId) {
+    trashPlay(playId) {
       stored.delete(playId);
       current = {
         ...current,
         members: current.members.filter((member) => member.playId !== playId),
       };
+      return Promise.resolve();
     },
-    async search(query) {
+    search(query) {
       const hits = new Set(
         searchPlays(current.members, query).map(({ playId }) => playId),
       );
-      return current.members.filter((member) => hits.has(member.playId));
+      return Promise.resolve(
+        current.members.filter((member) => hits.has(member.playId)),
+      );
     },
-    async listPlaySummaryPage(page) {
-      return {
+    listPlaySummaryPage(page) {
+      return Promise.resolve({
         offset: page.offset,
         limit: page.limit,
         total: current.members.length,
         items: current.members.slice(page.offset, page.offset + page.limit),
-      };
+      });
     },
-    async loadDisclosure() {
-      return disclosure;
+    loadDisclosure() {
+      return Promise.resolve(disclosure);
     },
-    async saveDisclosure(open) {
+    saveDisclosure(open) {
       disclosure = { ...open };
+      return Promise.resolve();
     },
-    async loadBrowserState() {
-      return browser;
+    loadBrowserState() {
+      return Promise.resolve(browser);
     },
-    async saveBrowserState(state) {
+    saveBrowserState(state) {
       browser = state;
+      return Promise.resolve();
     },
-    async getThumbnail() {
-      return undefined;
+    getThumbnail() {
+      return Promise.resolve(undefined);
     },
-    async putThumbnail() {
-      return undefined;
+    putThumbnail() {
+      return Promise.resolve();
     },
-    async getUndoHistory() {
-      return undefined;
+    getUndoHistory() {
+      return Promise.resolve(undefined);
     },
-    async listPlayVersions() {
-      return [];
+    listPlayVersions() {
+      return Promise.resolve([]);
     },
   };
 }

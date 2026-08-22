@@ -52,14 +52,16 @@ export function levenshtein(left: string, right: string): number {
   if (left === right) return 0;
   if (left.length === 0) return right.length;
   if (right.length === 0) return left.length;
-  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  const previous = Array.from(
+    { length: right.length + 1 },
+    (_, index) => index,
+  );
   for (let i = 0; i < left.length; i += 1) {
     const current = [i + 1];
     for (let j = 0; j < right.length; j += 1) {
       const insert = (current[j] ?? 0) + 1;
       const remove = (previous[j + 1] ?? 0) + 1;
-      const replace =
-        (previous[j] ?? 0) + (left[i] === right[j] ? 0 : 1);
+      const replace = (previous[j] ?? 0) + (left[i] === right[j] ? 0 : 1);
       current.push(Math.min(insert, remove, replace));
     }
     previous.splice(0, previous.length, ...current);
@@ -125,7 +127,10 @@ function matchesFilters(
   return true;
 }
 
-function scorePlay(play: SearchablePlay, queryTokens: readonly string[]): number {
+function scorePlay(
+  play: SearchablePlay,
+  queryTokens: readonly string[],
+): number {
   if (queryTokens.length === 0) return 1;
   const nameTokens = tokenizeSearchText(play.name);
   const allTokens = tokensOf(play);
