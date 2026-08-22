@@ -177,6 +177,8 @@ import {
   type Presentation,
   type TypePresetId,
 } from "@chalk/render";
+import type { IdentityPort, SyncOrchestrator, SyncSnapshot } from "@chalk/sync";
+import { UnavailableIdentity } from "@chalk/sync";
 import {
   createElement,
   useCallback,
@@ -191,7 +193,10 @@ import {
 } from "react";
 
 import type { ChalkRuntime } from "../app/editor-runtime";
+import { AccountPanel } from "./account-panel";
+import { syncStatusLabel } from "./sync-status";
 import { agoStamp } from "./ago-stamp";
+import { ConflictInboxHost } from "./conflict-inbox";
 import { paletteCommands, type ActionMap } from "./editor-command-surface";
 import {
   ClearMenu,
@@ -219,7 +224,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 type View = "Editor" | "Demo" | "Present" | "Print";
 type Menu = "more" | "export" | "save" | "clear" | null;
-type Overlay = "palette" | "shortcuts" | "formations" | "defenses" | null;
+type Overlay =
+  "palette" | "shortcuts" | "formations" | "defenses" | "conflicts" | null;
 type Tool =
   "select" | "player" | "route" | "motion" | "block" | "zone" | "text";
 
@@ -2693,8 +2699,35 @@ function InspectorSection({
   );
 }
 
-export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
+const unsignedIdentity = new UnavailableIdentity();
+
+export function ChalkApp({
+  runtime,
+  identity = unsignedIdentity,
+  sync,
+}: {
+  runtime: ChalkRuntime;
+  identity?: IdentityPort;
+  sync?: SyncOrchestrator;
+}) {
   const { editorStore } = runtime;
+  const identitySession = useSyncExternalStore(
+    (listener) => identity.subscribe(listener),
+    () => identity.getSession(),
+  );
+  const syncSnapshot: SyncSnapshot = useSyncExternalStore(
+    sync?.subscribe ??
+      ((listener: () => void) => {
+        void listener;
+        return () => undefined;
+      }),
+    sync?.getSnapshot ??
+      (() => ({
+        status: "local" as const,
+        pendingCount: 0,
+        conflictCount: 0,
+      })),
+  );
   const [activeView, setActiveView] = useState<View>("Editor");
   const [presentation, setPresentation] =
     useState<Presentation>(defaultPresentation);
@@ -4833,6 +4866,10 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       playName={editor.draftPlayName}
       resetPlayName={editorStore.resetPlayNameDraft}
       runtime={runtime}
+      identity={identity}
+      sync={sync}
+      syncSnapshot={syncSnapshot}
+      onOpenConflicts={() => setOverlay("conflicts")}
       setPlayName={editorStore.setPlayNameDraft}
       undo={editor.undo}
       versions={editor.versions}
@@ -5504,6 +5541,19 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           >
             {localSaveStatus(editor.localSave)}
           </button>
+          <button
+            aria-label={syncStatusLabel(syncSnapshot)}
+            className={`sync-state ${syncSnapshot.status}`}
+            data-auth-status={identitySession.status}
+            data-sync-status={syncSnapshot.status}
+            onClick={() => {
+              if (syncSnapshot.conflictCount > 0) setOverlay("conflicts");
+              else void sync?.syncNow();
+            }}
+            type="button"
+          >
+            {syncStatusLabel(syncSnapshot)}
+          </button>
         </div>
       </div>
       {overlay === "palette" ? (
@@ -5561,6 +5611,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           onSave={saveCoachFormation}
           onToggleFavorite={toggleFavoriteFormation}
         />
+      ) : null}
+      {overlay === "conflicts" && sync ? (
+        <ConflictInboxHost onClose={() => setOverlay(null)} sync={sync} />
       ) : null}
       <ContextMenu
         actions={actions}
@@ -6117,6 +6170,10 @@ function Header({
   playName,
   resetPlayName,
   runtime,
+  identity,
+  sync,
+  syncSnapshot,
+  onOpenConflicts,
   setPlayName,
   undo,
   versions,
@@ -6138,6 +6195,10 @@ function Header({
   playName: string;
   resetPlayName: () => void;
   runtime: ChalkRuntime;
+  identity: IdentityPort;
+  sync?: SyncOrchestrator;
+  syncSnapshot: SyncSnapshot;
+  onOpenConflicts: () => void;
   setPlayName: (name: string) => void;
   undo: EditorUndoState;
   versions: readonly EditorVersionSummary[];
@@ -6226,6 +6287,19 @@ function Header({
             zonesHidden={zonesHidden}
           >
             <BackupPanel runtime={runtime} />
+            <AccountPanel
+              identity={identity}
+              onKeepLocalData={async () => {
+                await identity.signOut();
+              }}
+              onOpenConflicts={onOpenConflicts}
+              onRemoveLocalData={async () => {
+                await identity.signOut();
+                await runtime.destroyLocalData();
+              }}
+              snapshot={syncSnapshot}
+              sync={sync}
+            />
           </MoreMenu>
           <ExportMenu
             actions={actions}

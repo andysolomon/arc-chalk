@@ -1,5 +1,6 @@
 import {
   builtInPlayTypeDefinitions,
+  canonicalSha256,
   createStableId,
   decryptBackup,
   encryptBackup,
@@ -65,10 +66,13 @@ const starterPlaybook: PlaybookEnvelope = {
 
 export interface ChalkRuntime {
   readonly editorStore: EditorStore;
+  readonly repository: ChalkLocalRepository;
   readonly recovery: SessionRecovery;
   readonly storage: StorageHealth;
   /** What the Coach had saved and starred when this session opened. */
   readonly coachSets: CoachSets;
+  /** Fires after a local commit so background sync can drain. */
+  subscribeLocalEdit(listener: () => void): () => void;
   /** Keeps a set the Coach named, so it is there the next time he opens Chalk. */
   saveCoachFormation(formation: Formation): Promise<void>;
   removeCoachFormation(formationId: string): Promise<void>;
@@ -86,6 +90,8 @@ export interface ChalkRuntime {
     contents: string,
     passphrase: string,
   ): Promise<BackupImportResult>;
+  /** Sign-out path that discards this device's IndexedDB. */
+  destroyLocalData(): Promise<void>;
 }
 
 export async function createBrowserRuntime(): Promise<ChalkRuntime> {
@@ -114,8 +120,14 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     throw new Error("Chalk could not initialize the starter Play.");
   }
 
+  const localEditListeners = new Set<() => void>();
+
   const persistence: EditorPersistence = {
-    commitPlay: (input) => repository.commitPlay(input),
+    commitPlay: async (input) => {
+      const receipt = await repository.commitPlay(input);
+      for (const listener of localEditListeners) listener();
+      return receipt;
+    },
     createNamedVersion: (input) => repository.createNamedVersion(input),
     listPlayVersions: (playId) => repository.listPlayVersions(playId),
     loadVersionDocument: async (revisionId) =>
@@ -147,6 +159,7 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
 
   return {
     editorStore,
+    repository,
     recovery,
     storage: await repository.storageHealth(),
     coachSets: {
@@ -156,6 +169,19 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     },
     async saveCoachFormation(formation) {
       await repository.saveFormation(formation);
+      await repository.enqueueSyncMutation({
+        id: createStableId("mutation"),
+        entityKind: "formation",
+        entityId: formation.id,
+        operation: "put",
+        payloadHash: await canonicalSha256(formation),
+        payload: formation,
+        status: "pending",
+        attempts: 0,
+        createdAtMs: Date.now(),
+        nextAttemptAtMs: Date.now(),
+      });
+      for (const listener of localEditListeners) listener();
     },
     async removeCoachFormation(formationId) {
       await repository.deleteFormation(formationId);
@@ -180,6 +206,13 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
         passphrase,
       );
       return repository.importBackup(payload, { mode: "merge" });
+    },
+    subscribeLocalEdit(listener) {
+      localEditListeners.add(listener);
+      return () => localEditListeners.delete(listener);
+    },
+    async destroyLocalData() {
+      await repository.destroy();
     },
   };
 }
