@@ -23,6 +23,7 @@ import {
   type ActionMap,
   type MenuEntry,
 } from "./editor-command-surface";
+import { formationThumbnail } from "./formation-thumbnail";
 import { RailIcon } from "./rail-icons";
 
 function MenuItem({
@@ -477,14 +478,16 @@ function SavePanel({
 
 export function CommandPalette({
   actions,
+  commands = paletteCommands(),
   onClose,
 }: {
   actions: ActionMap;
+  commands?: readonly MenuEntry[];
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
   const search = query.trim().toLowerCase();
-  const hits = paletteCommands.filter(
+  const hits = commands.filter(
     (command) => !search || command.label.toLowerCase().includes(search),
   );
   const shown = hits.slice(0, 10);
@@ -530,7 +533,7 @@ export function CommandPalette({
             <button
               className={`palette-item${search && index === 0 ? " first" : ""}`}
               disabled={!actions[command.id]}
-              key={command.label}
+              key={command.id}
               onClick={() => run(command)}
               type="button"
             >
@@ -643,51 +646,6 @@ export function ContextMenu({
       </div>
     </div>
   );
-}
-
-/**
- * A card carries the shape of a set, not only its name — a Coach reads the
- * picture first. Each one is scaled into its own thumbnail on its own bounds,
- * in the frame the original measured them in, so the arithmetic here is its
- * own rather than a second reading of it.
- */
-function formationThumbnail(formation: Formation): {
-  readonly dots: readonly {
-    readonly x: number;
-    readonly y: number;
-    readonly filled: boolean;
-  }[];
-  readonly lineOfScrimmage: number;
-} {
-  const drawn = formation.slots.map((slot) => ({
-    ...yardsToLegacyCanvas(slot.position),
-    filled: slot.symbol === "square" || slot.symbol === "triangle",
-  }));
-  const xs = drawn.map(({ x }) => x);
-  const ys = drawn.map(({ y }) => y);
-  const middle = (Math.min(...xs) + Math.max(...xs)) / 2;
-  const spanX = Math.max(360, Math.max(...xs) - Math.min(...xs) + 80);
-  const scaleX = 132 / spanX;
-  const top = Math.min(...ys) - 16;
-  const spanY = Math.max(150, Math.max(...ys) - top + 16);
-  const scaleY = Math.min(scaleX, 66 / spanY);
-
-  // The line is wherever most of them are standing, which is the five up
-  // front in every set worth drawing.
-  const crowd = new Map<number, number>();
-  for (const y of ys) crowd.set(y, (crowd.get(y) ?? 0) + 1);
-  const busiest = [...crowd.entries()].sort(
-    (left, right) => right[1] - left[1] || left[0] - right[0],
-  )[0]![0];
-
-  return {
-    dots: drawn.map(({ x, y, filled }) => ({
-      x: 70 + (x - middle) * scaleX,
-      y: 6 + (y - top) * scaleY,
-      filled,
-    })),
-    lineOfScrimmage: 6 + (busiest - top) * scaleY,
-  };
 }
 
 function Chips({
@@ -985,62 +943,69 @@ export function FormationBrowser({
                     <div
                       className={`browser-card${onField ? " on-field" : ""}`}
                       key={card.formation.id}
+                      onClick={() => onPick(card.formation.id)}
+                      onPointerEnter={() => onPreview(card.formation.id)}
+                      onPointerLeave={() => onPreview(undefined)}
                     >
-                      <button
-                        className="browser-pick"
-                        onBlur={() => onPreview(undefined)}
-                        onClick={() => onPick(card.formation.id)}
-                        onFocus={() => onPreview(card.formation.id)}
-                        onPointerEnter={() => onPreview(card.formation.id)}
-                        onPointerLeave={() => onPreview(undefined)}
-                        type="button"
-                      >
-                        <div className="browser-shape">
-                          <svg role="presentation" viewBox="0 0 140 74">
-                            <line
-                              stroke="#E5E5E5"
+                      <div className="browser-shape">
+                        <svg role="presentation" viewBox="0 0 140 74">
+                          <line
+                            stroke="#E5E5E5"
+                            strokeWidth={1}
+                            x1={4}
+                            x2={136}
+                            y1={shape.lineOfScrimmage}
+                            y2={shape.lineOfScrimmage}
+                          />
+                          {shape.dots.map((dot, index) => (
+                            <circle
+                              cx={dot.x}
+                              cy={dot.y}
+                              fill={dot.filled ? "#171717" : "#FFFFFF"}
+                              key={index}
+                              r={3.4}
+                              stroke="#171717"
                               strokeWidth={1}
-                              x1={4}
-                              x2={136}
-                              y1={shape.lineOfScrimmage}
-                              y2={shape.lineOfScrimmage}
                             />
-                            {shape.dots.map((dot, index) => (
-                              <circle
-                                cx={dot.x}
-                                cy={dot.y}
-                                fill={dot.filled ? "#171717" : "#FFFFFF"}
-                                key={index}
-                                r={3.4}
-                                stroke="#171717"
-                                strokeWidth={1}
-                              />
-                            ))}
-                          </svg>
-                        </div>
-                        <span className="browser-name">
-                          {card.formation.name}
-                        </span>
-                        <span className="browser-chip">
-                          {card.personnelLabel} · {card.strength.toUpperCase()}
-                          {onField ? <em>ON FIELD</em> : null}
-                        </span>
-                      </button>
-                      <FavoriteStar
-                        favorite={card.favorite}
-                        onToggle={() => onToggleFavorite(card.formation.id)}
-                      />
-                      {card.formation.family === "custom" ? (
+                          ))}
+                        </svg>
+                      </div>
+                      <div className="browser-name-row">
                         <button
-                          aria-label={`Remove ${card.formation.name}`}
-                          className="browser-remove"
-                          onClick={() => onRemove(card.formation.id)}
-                          title="Remove this formation"
+                          className="browser-name"
+                          onBlur={() => onPreview(undefined)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onPick(card.formation.id);
+                          }}
+                          onFocus={() => onPreview(card.formation.id)}
                           type="button"
                         >
-                          ×
+                          {card.formation.name}
                         </button>
-                      ) : null}
+                        <FavoriteStar
+                          favorite={card.favorite}
+                          onToggle={() => onToggleFavorite(card.formation.id)}
+                        />
+                        {card.formation.family === "custom" ? (
+                          <button
+                            aria-label={`Remove ${card.formation.name}`}
+                            className="browser-remove"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onRemove(card.formation.id);
+                            }}
+                            title="Remove this formation"
+                            type="button"
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </div>
+                      <span className="browser-chip">
+                        {card.personnelLabel} · {card.strength.toUpperCase()}
+                        {onField ? <em>ON FIELD</em> : null}
+                      </span>
                     </div>
                   );
                 })}
@@ -1352,93 +1317,97 @@ export function DefenseBrowser({
                     <div
                       className={`browser-card${onField ? " on-field" : ""}`}
                       key={call.formation.id}
+                      onClick={() => onPick(call.formation.id)}
+                      onPointerEnter={() => onPreview(call.formation.id)}
+                      onPointerLeave={() => onPreview(undefined)}
                     >
-                      <button
-                        className="browser-pick"
-                        onBlur={() => onPreview(undefined)}
-                        onClick={() => onPick(call.formation.id)}
-                        onFocus={() => onPreview(call.formation.id)}
-                        onPointerEnter={() => onPreview(call.formation.id)}
-                        onPointerLeave={() => onPreview(undefined)}
-                        type="button"
-                      >
-                        <div className="browser-shape">
-                          <svg role="presentation" viewBox="0 0 180 96">
-                            <line
-                              stroke="#E5E5E5"
+                      <div className="browser-shape">
+                        <svg role="presentation" viewBox="0 0 180 96">
+                          <line
+                            stroke="#E5E5E5"
+                            strokeWidth={1}
+                            x1={4}
+                            x2={176}
+                            y1={shape.lineOfScrimmage}
+                            y2={shape.lineOfScrimmage}
+                          />
+                          {shape.line.map((dot, index) => (
+                            <circle
+                              cx={dot.x}
+                              cy={dot.y}
+                              fill="#FFFFFF"
+                              key={index}
+                              r={3}
+                              stroke="#D4D4D4"
                               strokeWidth={1}
-                              x1={4}
-                              x2={176}
-                              y1={shape.lineOfScrimmage}
-                              y2={shape.lineOfScrimmage}
                             />
-                            {shape.line.map((dot, index) => (
-                              <circle
-                                cx={dot.x}
-                                cy={dot.y}
-                                fill="#FFFFFF"
-                                key={index}
-                                r={3}
-                                stroke="#D4D4D4"
-                                strokeWidth={1}
+                          ))}
+                          {shape.art.map((stroke, index) => (
+                            <polyline
+                              fill="none"
+                              key={index}
+                              points={stroke.points}
+                              stroke={stroke.stroke}
+                              strokeDasharray={stroke.dash}
+                              strokeWidth={1.2}
+                            />
+                          ))}
+                          {shape.areas.map((area, index) => (
+                            <g key={index}>
+                              <ellipse
+                                cx={area.x}
+                                cy={area.y}
+                                fill={area.fill}
+                                opacity={0.26}
+                                rx={area.radiusX}
+                                ry={area.radiusY}
                               />
-                            ))}
-                            {shape.art.map((stroke, index) => (
-                              <polyline
+                              <ellipse
+                                cx={area.x}
+                                cy={area.y}
                                 fill="none"
-                                key={index}
-                                points={stroke.points}
-                                stroke={stroke.stroke}
-                                strokeDasharray={stroke.dash}
+                                rx={area.radiusX}
+                                ry={area.radiusY}
+                                stroke={area.fill}
+                                strokeDasharray="2.5 2"
                                 strokeWidth={1.2}
                               />
-                            ))}
-                            {shape.areas.map((area, index) => (
-                              <g key={index}>
-                                <ellipse
-                                  cx={area.x}
-                                  cy={area.y}
-                                  fill={area.fill}
-                                  opacity={0.26}
-                                  rx={area.radiusX}
-                                  ry={area.radiusY}
-                                />
-                                <ellipse
-                                  cx={area.x}
-                                  cy={area.y}
-                                  fill="none"
-                                  rx={area.radiusX}
-                                  ry={area.radiusY}
-                                  stroke={area.fill}
-                                  strokeDasharray="2.5 2"
-                                  strokeWidth={1.2}
-                                />
-                              </g>
-                            ))}
-                            {shape.defenders.map((dot, index) => (
-                              <circle
-                                cx={dot.x}
-                                cy={dot.y}
-                                fill="#171717"
-                                key={index}
-                                r={4.6}
-                              />
-                            ))}
-                          </svg>
-                        </div>
-                        <span className="browser-name">
+                            </g>
+                          ))}
+                          {shape.defenders.map((dot, index) => (
+                            <circle
+                              cx={dot.x}
+                              cy={dot.y}
+                              fill="#171717"
+                              key={index}
+                              r={4.6}
+                            />
+                          ))}
+                        </svg>
+                      </div>
+                      <div className="browser-name-row">
+                        <button
+                          className="browser-name"
+                          onBlur={() => onPreview(undefined)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onPick(call.formation.id);
+                          }}
+                          onFocus={() => onPreview(call.formation.id)}
+                          type="button"
+                        >
                           {call.formation.name}
-                        </span>
-                        <span className="browser-chip">
-                          {call.formation.slots.length} men ·{" "}
-                          {call.formation.description}
-                          {onField ? <em>ON FIELD</em> : null}
-                        </span>
-                      </button>
-                      <FavoriteStar
-                        favorite={starred.has(call.formation.id)}
-                        onToggle={() => onToggleFavorite(call.formation.id)}
-                      />
+                        </button>
+                        <FavoriteStar
+                          favorite={starred.has(call.formation.id)}
+                          onToggle={() => onToggleFavorite(call.formation.id)}
+                        />
+                      </div>
+                      <span className="browser-chip">
+                        {call.formation.slots.length} men ·{" "}
+                        {call.formation.description}
+                        {onField ? <em>ON FIELD</em> : null}
+                      </span>
                     </div>
                   );
                 })}

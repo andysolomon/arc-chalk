@@ -398,6 +398,6 @@ Acceptance criteria:
 ## 6. Immediate next steps
 
 1. Continue the item-level parity inventory and golden captures from the restored original; do not use the rejected alternate design as a target.
-2. Close remaining 4.1 shell gaps: status-bar spacing, Formation-card row drift, and dynamic `paletteCommands`.
+2. Continue the item-level parity inventory; remaining Editor gap is Finding #3's Player shift against goldens captured from the uncorrected original.
 3. Record only explicit product-owner-approved parity exceptions; implementation convenience is not an exception.
 4. Close each parity group end-to-end with Coach-visible tests and original-versus-production evidence, keeping `docs/chalk-beta-progress.txt` synchronized as each executable slice lands.

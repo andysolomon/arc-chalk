@@ -863,6 +863,29 @@ select:focus-visible {
   overflow: hidden;
   background: var(--canvas);
 }
+.minimap {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  pointer-events: none;
+}
+.minimap svg {
+  display: block;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 4px 10px -4px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  pointer-events: none;
+  cursor: crosshair;
+  touch-action: none;
+  transition: opacity 120ms linear;
+}
+.minimap[data-shown="true"] svg {
+  opacity: 1;
+  pointer-events: auto;
+}
 .field-diagram {
   width: 100%;
   aspect-ratio: 1000 / 620;
@@ -1001,23 +1024,22 @@ select:focus-visible {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 14px;
   padding: 0 16px;
-  overflow: hidden;
   z-index: 2;
   box-shadow: 0 -1px 0 0 rgba(0, 0, 0, 0.06);
   background: var(--canvas);
   color: var(--muted);
   font-family: "Geist Mono", monospace;
   font-size: 11px;
-  white-space: nowrap;
+  line-height: normal;
 }
 .statusbar > span:first-child {
   min-width: 0;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .status-controls,
 .status-zoom {
@@ -2275,48 +2297,45 @@ select:focus-visible {
  * and the pick is the button inside it.
  */
 .browser-card {
-  position: relative;
-  border-radius: 8px;
-  background: var(--paper);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
-}
-.browser-pick {
   display: flex;
-  width: 100%;
   flex-direction: column;
   gap: 6px;
   padding: 8px 9px 9px;
-  border: 0;
   border-radius: 8px;
-  background: transparent;
-  color: inherit;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
   cursor: pointer;
-  text-align: left;
 }
 .browser-card:hover {
   background: #fafafa;
 }
+.browser-name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .browser-star,
 .browser-remove {
-  position: absolute;
-  top: 6px;
   display: flex;
   width: 20px;
   height: 20px;
+  flex: none;
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 10px;
+  border-radius: 4px;
   background: transparent;
   cursor: pointer;
   line-height: 1;
 }
 .browser-star {
-  right: 6px;
   color: #e5e5e5;
 }
 .browser-star.on {
   color: #f5b300;
+}
+.browser-star:hover {
+  background: #f2f2f2;
 }
 .browser-star svg {
   width: 13px;
@@ -2324,12 +2343,11 @@ select:focus-visible {
   fill: currentColor;
 }
 .browser-remove {
-  right: 28px;
   color: #c9c9c9;
-  font-size: 13px;
+  font-size: 14px;
 }
 .browser-remove:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: #fef2f2;
   color: #e5484d;
 }
 .browser-card.on-field {
@@ -2347,9 +2365,16 @@ select:focus-visible {
   height: auto;
 }
 .browser-name {
+  min-width: 0;
+  flex: 1;
   overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: inherit;
+  cursor: pointer;
   font-size: 12px;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
