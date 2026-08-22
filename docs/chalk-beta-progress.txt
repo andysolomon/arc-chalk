@@ -1,6 +1,6 @@
 chalk-beta - Chalk Production Beta - Progress
 Generated: 2026-08-04 16:50:45 EDT
-Updated: 2026-08-22 10:15:00 EDT
+Updated: 2026-08-22 14:45:00 EDT
 On completion, move this file and the plan to docs/archive/.
 
 [ ] 0.0 - Phase 0 - Canonical prototype inventory and parity lock
@@ -76,12 +76,17 @@ On completion, move this file and the plan to docs/archive/.
     [ ] 6.4 - Build Worker-based local search projections, filtering, and disposable indexes
     [ ] 6.5 - Build lazy cancelable revision-keyed thumbnails
     [ ] 6.6 - Verify the 10-Playbook and 2,000-Plays-per-Playbook performance fixture
-[ ] 7.0 - Phase 7 - Authentication, Convex replica, and conflict-safe sync
-    [ ] 7.1 - Implement invite-only Clerk email-code authentication and optional passkeys
-    [ ] 7.2 - Implement strict Convex schemas, authorization, validators, revisions, tombstones, and payload limits
-    [ ] 7.3 - Implement durable idempotent push, cursor pull, acknowledgement, retry, and sync-head signaling
-    [ ] 7.4 - Implement the non-blocking Conflict Inbox and all resolution paths
-    [ ] 7.5 - Verify offline, intermittent, replayed, out-of-order, revoked-session, and two-device convergence cases
+[x] 7.0 - Phase 7 - Authentication, Convex replica, and conflict-safe sync
+    [x] 7.1 - Implement invite-only Clerk email-code authentication and optional passkeys
+        Evidence: invitation-only email-code sign-in and optional passkeys sit behind IdentityPort, so Clerk never enters domain or sync. ClerkProvider and ConvexProviderWithClerk mount only when both VITE_CLERK_PUBLISHABLE_KEY and VITE_CONVEX_URL are set; otherwise Account says cloud is not configured and editing on this device still works. clerk-session uses Clerk Core 3 emailCode send/verify plus user.createPasskey, then storeCoach. Account panel tests send an email code through the identity port, offer passkey enrollment after sign-in, and explain the unconfigured path. Chromium and WebKit/iPad prove the editor opens signed out, commits Saved on this device, and shows that unconfigured copy. Live Clerk credentials were not in this environment; the configured path is covered by the identity-port tests rather than a hosted Clerk tenant.
+    [x] 7.2 - Implement strict Convex schemas, authorization, validators, revisions, tombstones, and payload limits
+        Evidence: Convex schema uses native v validators with no v.any — coaches, playbooks, concepts, formations, plays, playRevisions, mutationReceipts, changes, conflicts, and syncHeads. Entity IDs are client-generated; Plays keep immutable revisions and tombstones; public functions require a Coach and isolate one Coach from another. Push is capped at 32 mutations and a revision payload at 512 KiB, well under Convex's 1 MiB document limit. The shared protocol engine in packages/sync is the single push/pull/conflict implementation Convex and the unit tests run. Protocol tests apply a Play put, replay the same idempotency key, preserve both branches when base revisions diverge, reject an oversized payload and an oversized batch, resume pull from a cursor, resolve by keeping local, and keep coaches isolated.
+    [x] 7.3 - Implement durable idempotent push, cursor pull, acknowledgement, retry, and sync-head signaling
+        Evidence: Dexie remains the durable mutation queue; the Convex client queue is never the offline store. A local commit records cloudRevisionId as the next push base. The orchestrator drains while offline and on reconnect, replays a batch the replica already applied, resumes later pulls from the stored cursor, retries a failed push without dropping the Play, and steps through the published backoff table. Pull skips applying a remote Play while that Play still has queued local mutations, so a replay is an ack rather than a false Conflict Inbox entry, and it never silently replaces the Play that is currently open. Sync-head is a compact wake-up only. EditorStore.revealPersistedPlay shows a remote Play without another commitPlay. packages/sync cannot import react, dexie, convex, or clerk. Local-db tests cover cloud-head as push base, applyRemotePlay/forkPlay, and the retry window.
+    [x] 7.4 - Implement the non-blocking Conflict Inbox and all resolution paths
+        Evidence: Conflict Inbox is a non-blocking overlay: compare this device against the other, use this version, use the other version, keep both as separate Plays, and combine manually. Unrelated Plays keep syncing. keep-both forks the local branch as a new Play and applies the remote revision onto the original ID. Combine copies chosen notes from the donor without dropping the base, assigning a new id when a copied route would collide. The currently open Play is recorded as a conflict rather than overwritten on automatic pull. Component tests drive every resolution; the two-device orchestrator test preserves both branches.
+    [x] 7.5 - Verify offline, intermittent, replayed, out-of-order, revoked-session, and two-device convergence cases
+        Evidence: orchestrator tests keep mutations queued while offline and drain them on reconnect, replay a batch the replica already applied, mark a revoked session without deleting local work, converge two devices and keep both branches on divergence, leave the open Play alone, resume from the stored cursor, and retry an intermittent failed push. Protocol tests ignore an earlier pull page once the cursor has moved and reject genuine divergence for Coach resolution rather than last-write-wins. Full Vitest is 48 files / 596 passed; Chromium plus WebKit/iPad sync-local e2e pass; the Chromium editor-shell regression still opens the field-first editor. Live two-device against hosted Convex was not run because environment Secrets were empty; two-device keep-both is proven against MemoryReplicaStore.
 [ ] 8.0 - Phase 8 - Private assets and immutable Share Links
     [ ] 8.1 - Implement image validation, EXIF stripping, resizing, thumbnailing, hashing, and local-first storage
     [ ] 8.2 - Implement private content-addressed R2 synchronization with short-lived signed access
