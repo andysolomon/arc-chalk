@@ -197,7 +197,10 @@ test("draws a route with the route tool and commits it once", async ({
   // so visibility would say "hidden" about a preview that is drawing fine.
   await page.mouse.click(start.x, start.y);
   const preview = page.locator("[data-drawing-preview]");
-  await expect(preview).toHaveAttribute("d", "M 500 478 L 500 478");
+  // The stem starts on the Quarterback. The live overlay may round the
+  // cursor by a fraction of a pixel, so this is the start, not the exact
+  // string of both ends.
+  await expect(preview).toHaveAttribute("d", /^M 500 478 L 500 /);
 
   await page.mouse.move(start.x, start.y - 60);
   // Snap constrains the break to a 45 degree family member — here straight

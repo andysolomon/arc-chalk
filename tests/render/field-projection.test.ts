@@ -11,6 +11,7 @@ import {
   createSvgProjection,
   editorSvgViewport,
   projectCoordinate,
+  projectTranslation,
   unprojectPoint,
 } from "@chalk/render";
 import { describe, expect, it } from "vitest";
@@ -218,5 +219,15 @@ describe("zone coverage", () => {
     expect(
       scene.paths.filter(({ coverageArea }) => coverageArea !== undefined),
     ).toHaveLength(0);
+  });
+
+  it("translates a yard-space delta onto the anisotropic frame", () => {
+    const projection = createSvgProjection(stickThunderPlay.fieldProfile);
+    const delta = projectTranslation(
+      { lateralYards: 1, depthYards: 1 },
+      projection,
+    );
+    expect(delta.x).toBeCloseTo(projection.lateralPixelsPerYard, 6);
+    expect(delta.y).toBeCloseTo(-projection.depthPixelsPerYard, 6);
   });
 });

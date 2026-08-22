@@ -43,7 +43,7 @@ Add a column as each new review lands. Findings flagged independently by more th
 | 10 | Blocked popups fail silently in all print paths | Low-Med | static | untriaged |
 | 11 | `isLineman` hardcodes line depth | Low-Med | static | untriaged |
 | 12 | `printPlaybook` page numbers drift past ~30 plays | Low | static | untriaged |
-| 13 | Full-document clone per `pointermove` | Low (perf) | static | untriaged |
+| 13 | Full-document clone per `pointermove` | Low (perf) | static | corrected — Phase 4.6 |
 
 **Status values:** `untriaged` · `required — Phase N` (a corrected expectation that phase must satisfy) · `corrected — Phase N` (already delivered) · `prevented by design` (the production architecture makes it unreachable) · `wontfix` (say why) · `disputed` (reviewers disagree)
 

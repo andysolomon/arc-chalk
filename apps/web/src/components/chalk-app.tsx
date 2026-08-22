@@ -1,5 +1,4 @@
 import {
-  applyPlayCommand,
   assignmentForPath,
   ballPosition,
   ballSpotNames,
@@ -94,8 +93,12 @@ import {
   removeRouteChoiceCommand,
   setPlayerCommand,
   insertedEntityIds,
-  gesturePreviewCommand,
+  affectedLiveEntities,
+  createLiveSnapshotStore,
+  createPaintLoop,
   idleFieldInteraction,
+  liveHandlePath,
+  livePaintCanHold,
   setLabelAppearanceCommand,
   ROUTE_COACHING_LIMITS,
   setLabelTextCommand,
@@ -127,13 +130,16 @@ import {
   type FieldInteractionEvent,
   type FieldInteractionModel,
   type FieldItemRef,
+  type PaintLoopSample,
   type LabelAppearance,
   type PlayerAppearance,
 } from "@chalk/editor";
 import {
+  buildPathStrokes,
   buildRenderScene,
   buildSvgRenderScene,
   createSvgProjection,
+  projectTranslation,
   editorSvgViewport,
   projectCoordinate,
   unprojectPoint,
@@ -157,6 +163,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -179,6 +186,7 @@ import {
 } from "./editor-overlays";
 import { editorStatusHint } from "./editor-status-hint";
 import { FieldMinimap } from "./field-minimap";
+import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { openPrintField, svgMarkupForPrint } from "./print-field";
 import { RailIcon } from "./rail-icons";
 
@@ -445,6 +453,7 @@ export function FieldDiagram({
   scene = stickThunderScene,
   selection,
   overlay,
+  livePreviewRef,
   routeDotPlayerId,
   onHoverPlayer,
   onStartRoute,
@@ -462,6 +471,11 @@ export function FieldDiagram({
   /** Keys like "player:q" — absent means a non-interactive rendering. */
   selection?: ReadonlySet<string>;
   overlay?: React.ReactNode;
+  /**
+   * Live pointer preview applied after React commits, so a save
+   * acknowledgement cannot wipe a drag that is still in the Coach's hand.
+   */
+  livePreviewRef?: React.RefObject<LiveFieldPaint | undefined>;
   /** The Player currently offering the blue draw-a-route dot, if any. */
   routeDotPlayerId?: string;
   onHoverPlayer?: (playerId: string | undefined) => void;
@@ -477,10 +491,24 @@ export function FieldDiagram({
 }) {
   const selected = (kind: "player" | "path" | "label", id: string): boolean =>
     selection?.has(selectionKey(kind, id)) === true;
+  const viewBox = camera
+    ? `${camera.x} ${camera.y} ${camera.width} ${camera.height}`
+    : `0 0 ${scene.viewport.width} ${scene.viewport.height}`;
+  useLayoutEffect(() => {
+    const node = svgRef && typeof svgRef !== "function" ? svgRef.current : null;
+    if (!node) return;
+    node.setAttribute(
+      "data-react-commits",
+      String(Number(node.getAttribute("data-react-commits") ?? "0") + 1),
+    );
+    if (livePreviewRef) applyLiveFieldPaint(node, livePreviewRef.current);
+  });
   return (
     <svg
       className="field-diagram"
+      data-base-viewbox={viewBox}
       data-field-style={scene.field.style}
+      data-react-commits="0"
       data-type-preset={scene.typePreset}
       role="img"
       aria-label={`${scene.playName} football play`}
@@ -489,11 +517,7 @@ export function FieldDiagram({
       // straight back out of a note the Coach was put into typing.
       onMouseDown={(event) => event.preventDefault()}
       ref={svgRef}
-      viewBox={
-        camera
-          ? `${camera.x} ${camera.y} ${camera.width} ${camera.height}`
-          : `0 0 ${scene.viewport.width} ${scene.viewport.height}`
-      }
+      viewBox={viewBox}
       {...pointerHandlers}
     >
       <defs>
@@ -683,7 +707,12 @@ export function FieldDiagram({
           const tickOpacity =
             shown <= 0.5 ? 0 : Math.min(1, (shown - 0.5) / 0.3);
           return (
-            <g aria-label={path.ariaLabel} key={path.id} role="img">
+            <g
+              aria-label={path.ariaLabel}
+              data-scene-path-group={path.id}
+              key={path.id}
+              role="img"
+            >
               <title>{path.ariaLabel}</title>
               {selected("path", path.id)
                 ? [
@@ -886,6 +915,8 @@ export function FieldDiagram({
             <g
               aria-label={player.ariaLabel}
               className={selected("player", player.id) ? "selected" : undefined}
+              data-base-x={player.position.x}
+              data-base-y={player.position.y}
               data-scene-player={player.id}
               key={player.id}
               onPointerEnter={
@@ -1433,6 +1464,113 @@ function FieldInteractionOverlay({
     );
   }
   return null;
+}
+
+/**
+ * Overlay that re-renders from the live interaction snapshot, not from the
+ * shell. A drag can therefore update guides, the marquee, and handles on
+ * animation frames without rebuilding the committed FieldDiagram.
+ */
+function FieldLiveOverlay({
+  document,
+  formations,
+  getZoom,
+  onHandleDown,
+  precise,
+  previewFormationId,
+  projection,
+  store,
+}: {
+  document: PlayDocument;
+  formations: readonly Formation[];
+  getZoom: () => number;
+  onHandleDown: (handle: FieldHandleRef, event: React.PointerEvent) => void;
+  precise: boolean;
+  previewFormationId?: string;
+  projection: SvgProjection;
+  store: {
+    readonly subscribe: (listener: () => void) => () => void;
+    readonly getSnapshot: () => FieldInteractionModel;
+  };
+}) {
+  const model = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getSnapshot,
+  );
+  const zoom = getZoom();
+  const selectedPathId =
+    model.selection.length === 1 && model.selection[0]?.kind === "path"
+      ? model.selection[0].id
+      : undefined;
+  const selectedPath =
+    liveHandlePath(model.gesture) ??
+    (selectedPathId
+      ? document.paths.find(({ id }) => id === selectedPathId)
+      : undefined);
+  const selectedLabel =
+    model.selection.length === 1 && model.selection[0]?.kind === "label"
+      ? document.labels.find(({ id }) => id === model.selection[0]!.id)
+      : undefined;
+  const leader = selectedLabel?.leader
+    ? projectCoordinate(selectedLabel.leader.endpoint, projection)
+    : undefined;
+  const handleShift = ((): string | undefined => {
+    if (model.gesture.kind !== "moving" || !selectedPath) return undefined;
+    if (
+      !affectedLiveEntities(document, model.gesture.items).pathIds.includes(
+        selectedPath.id,
+      )
+    ) {
+      return undefined;
+    }
+    const delta = projectTranslation(model.gesture.translation, projection);
+    return `translate(${delta.x} ${delta.y})`;
+  })();
+
+  return (
+    <>
+      <FieldInteractionOverlay
+        drawing={model.drawing}
+        gesture={model.gesture}
+        projection={projection}
+      />
+      {selectedPath ? (
+        <g transform={handleShift}>
+          <RouteHandles
+            branchIndex={model.selectedBranchIndex}
+            onHandleDown={onHandleDown}
+            path={selectedPath}
+            precise={precise}
+            projection={projection}
+            selectedNodeIndex={model.selectedNodeIndex}
+            selectedSegmentIndex={model.selectedSegmentIndex}
+            zoom={zoom}
+          />
+        </g>
+      ) : null}
+      <FormationGhost
+        formationId={previewFormationId}
+        formations={formations}
+        projection={projection}
+      />
+      {leader && selectedLabel ? (
+        <circle
+          className="handle-target"
+          cx={leader.x}
+          cy={leader.y}
+          data-leader-handle={selectedLabel.id}
+          fill="transparent"
+          onPointerDown={(event) =>
+            onHandleDown({ kind: "leader", labelId: selectedLabel.id }, event)
+          }
+          r={22}
+        >
+          <title>Drag to point the leader line</title>
+        </circle>
+      ) : null}
+    </>
+  );
 }
 
 const labelBoxChoices: ReadonlyArray<{ box: TextLabel["box"]; name: string }> =
@@ -2506,6 +2644,31 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   // authoritative model so no event ever reduces against a stale one.
   const interactionRef = useRef<FieldInteractionModel>(interaction);
   const fieldSvgRef = useRef<SVGSVGElement | null>(null);
+  const livePreviewRef = useRef<LiveFieldPaint | undefined>(undefined);
+  const heldLiveRef = useRef<LiveFieldPaint | undefined>(undefined);
+  /**
+   * A completed drag writes the Play asynchronously. Until that document
+   * lands, the last live translation stays on the SVG so the man does not
+   * snap back to where he started. Escape, and any idle with no command,
+   * must not hold — there is no save coming to clear it.
+   */
+  const pendingCommitPaintRef = useRef(false);
+  const publishLiveVisualsRef = useRef<
+    (model: FieldInteractionModel, metrics?: PaintLoopSample) => void
+  >(() => undefined);
+  const pendingPointerRef = useRef<FieldInteractionEvent | undefined>(
+    undefined,
+  );
+  const [paintLoop] = useState(() =>
+    createPaintLoop({
+      now: () => performance.now(),
+      requestAnimationFrame: (callback) => requestAnimationFrame(callback),
+      cancelAnimationFrame: (handle) => cancelAnimationFrame(handle),
+    }),
+  );
+  const [liveStore] = useState(() =>
+    createLiveSnapshotStore<FieldInteractionModel>(idleFieldInteraction),
+  );
   const printSvgRef = useRef<SVGSVGElement | null>(null);
   const labelTextInputRef = useRef<HTMLInputElement | null>(null);
   // A label the Coach has just placed is waiting to be typed into. A ref,
@@ -2547,19 +2710,36 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
    * an edit and none of it is undoable — so it lives beside the interaction
    * model rather than in the document.
    */
-  const [camera, setCamera] = useState<Camera>(() => fitCamera(EDITOR_FRAME));
+  const [camera, setCameraState] = useState<Camera>(() =>
+    fitCamera(EDITOR_FRAME),
+  );
+  const cameraRef = useRef(camera);
+  const setCamera = (next: Camera | ((current: Camera) => Camera)) => {
+    setCameraState((current) => {
+      // React 18 Strict Mode invokes this updater twice in development with
+      // the same previous state. Zoom and pan must be functions of that
+      // state — reading a mutated cameraRef would apply the step twice and
+      // lie about the status-bar percentage.
+      const resolved = typeof next === "function" ? next(current) : next;
+      cameraRef.current = resolved;
+      const live = livePreviewRef.current;
+      if (live) {
+        // A committed camera is React's viewBox. Drop any live camera stamp
+        // so FieldDiagram cannot write the previous frame back over a wheel
+        // or keyboard zoom after it reapplies live paint.
+        livePreviewRef.current = {
+          ...(live.move === undefined ? {} : { move: live.move }),
+          ...(live.pathStrokes === undefined
+            ? {}
+            : { pathStrokes: live.pathStrokes }),
+          ...(live.metrics === undefined ? {} : { metrics: live.metrics }),
+        };
+      }
+      return resolved;
+    });
+  };
   /** How wide the field is really drawn, watched so a resize is felt. */
   const [fieldWidthPx, setFieldWidthPx] = useState(EDITOR_FRAME.width);
-  /**
-   * How many CSS pixels one frame unit is actually drawn at. Every rule the
-   * original wrote in pixels — how far a press may travel before it is a
-   * drag, how near a line has to be pressed, how big a handle is — is a rule
-   * about the Coach's finger and his screen, not about the frame. Measuring
-   * it here is what makes those rules mean the same thing on a phone as on a
-   * desk, and what stops a smaller screen quietly handing a coarse pointer a
-   * smaller target.
-   */
-  const cssPerFrameUnit = fieldWidthPx / camera.width;
   /** The set or call under the Coach's pointer in a browser, drawn on the field. */
   const [previewFormationId, setPreviewFormationId] = useState<string>();
   /**
@@ -2688,25 +2868,34 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     );
     void runtime.removeCoachFormation(formationId);
   };
-  // Mid-drag the Coach sees the committed document with the gesture's own
-  // command previewed on top — the exact document a release would commit.
-  const previewCommand = gesturePreviewCommand(interaction, editor.document);
-  const previewDocument = useMemo(
-    () =>
-      previewCommand
-        ? applyPlayCommand(editor.document, previewCommand)
-        : editor.document,
-    [editor.document, previewCommand],
-  );
+  // The committed Play is what React draws. Mid-drag the live paint loop
+  // patches only the SVG that moved, so a pointermove never clones the
+  // document or rebuilds the field (ADR 0002).
+  useLayoutEffect(() => {
+    pendingCommitPaintRef.current = false;
+    heldLiveRef.current = undefined;
+    const live = livePreviewRef.current;
+    livePreviewRef.current = live
+      ? {
+          ...(live.metrics === undefined ? {} : { metrics: live.metrics }),
+          ...(panRef.current !== undefined || pinchRef.current !== undefined
+            ? { camera: cameraRef.current }
+            : {}),
+        }
+      : undefined;
+    if (fieldSvgRef.current) {
+      applyLiveFieldPaint(fieldSvgRef.current, livePreviewRef.current);
+    }
+  }, [editor.document]);
   const scene = useMemo(() => {
     const forView: Presentation =
       activeView === "Present"
         ? { ...presentation, present: true }
         : presentation;
     return buildSvgRenderScene(
-      buildRenderScene(previewDocument, { presentation: forView }),
+      buildRenderScene(editor.document, { presentation: forView }),
     );
-  }, [activeView, previewDocument, presentation]);
+  }, [activeView, editor.document, presentation]);
   const selectionKeys = useMemo(
     () =>
       new Set(
@@ -2722,15 +2911,6 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           ({ id }) => id === interaction.selection[0]!.id,
         )
       : undefined;
-  // A selected label with a leader offers a handle at the end it points to.
-  const leaderHandleAt = (() => {
-    const leader = previewDocument.labels.find(
-      ({ id }) => id === selectedLabel?.id,
-    )?.leader;
-    return leader
-      ? projectCoordinate(leader.endpoint, scene.viewport)
-      : undefined;
-  })();
   const runLabelCommand = (
     command: PlayCommand | undefined,
     options?: { coalesce?: boolean },
@@ -2796,7 +2976,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     !interaction.drawing &&
     interaction.selection.length === 1 &&
     interaction.selection[0]?.kind === "path"
-      ? previewDocument.paths.find(
+      ? editor.document.paths.find(
           ({ id }) => id === interaction.selection[0]!.id,
         )
       : undefined;
@@ -2849,6 +3029,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     const model = { ...interactionRef.current, ...next };
     interactionRef.current = model;
     setInteraction(model);
+    publishLiveVisualsRef.current(model);
   };
   /**
    * A panel action that also moves what the Coach is working on: giving a man
@@ -2890,9 +3071,11 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
 
   const dispatchField = (event: FieldInteractionEvent): void => {
     const document = editorStore.getSnapshot().document;
+    const previous = interactionRef.current;
     // The scene is only consulted for hit tests, so build it on demand.
     let renderScene: RenderScene | undefined;
-    const result = fieldInteraction(interactionRef.current, event, {
+    const zoom = fieldWidthPx / cameraRef.current.width;
+    const result = fieldInteraction(previous, event, {
       document,
       get scene() {
         renderScene ??= buildRenderScene(document, { presentation });
@@ -2903,9 +3086,8 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       // tolerance the original wrote in pixels stays that many pixels under
       // the Coach's finger wherever he is working.
       screenScale: {
-        lateralPixelsPerYard:
-          scene.viewport.lateralPixelsPerYard * cssPerFrameUnit,
-        depthPixelsPerYard: scene.viewport.depthPixelsPerYard * cssPerFrameUnit,
+        lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard * zoom,
+        depthPixelsPerYard: scene.viewport.depthPixelsPerYard * zoom,
       },
       snap: { enabled: snapEnabled, grid: "off" },
       tool: interactionTool(activeTool),
@@ -2913,8 +3095,14 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       createId: createStableId,
     });
     interactionRef.current = result.model;
-    setInteraction(result.model);
+    const hold =
+      !result.command &&
+      !result.requestedTool &&
+      !result.editingLabelId &&
+      livePaintCanHold(previous, result.model);
+    if (!hold) setInteraction(result.model);
     if (result.command) {
+      pendingCommitPaintRef.current = true;
       markInsertsPending(result.command);
       void editorStore.applyCommand(result.command).catch(() => undefined);
     }
@@ -2923,6 +3111,94 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     if (result.requestedTool) setActiveTool(result.requestedTool);
     if (result.editingLabelId)
       labelAwaitingTextRef.current = result.editingLabelId;
+    publishLiveVisualsRef.current(result.model);
+  };
+  const livePaintFromModel = (
+    model: FieldInteractionModel,
+    metrics?: PaintLoopSample,
+  ): LiveFieldPaint => {
+    const document = editorStore.getSnapshot().document;
+    const liveCamera =
+      panRef.current !== undefined || pinchRef.current !== undefined;
+    const paint: LiveFieldPaint = {
+      ...(liveCamera ? { camera: cameraRef.current } : {}),
+      ...(metrics === undefined ? {} : { metrics }),
+    };
+    if (model.gesture.kind === "moving") {
+      const delta = projectTranslation(
+        model.gesture.translation,
+        scene.viewport,
+      );
+      const affected = affectedLiveEntities(document, model.gesture.items);
+      return {
+        ...paint,
+        move: { dx: delta.x, dy: delta.y, ...affected },
+      };
+    }
+    if (model.gesture.kind === "pressing" || model.gesture.kind === "marquee") {
+      heldLiveRef.current = undefined;
+    }
+    const handlePath = liveHandlePath(model.gesture);
+    if (handlePath) {
+      const strokes = [
+        ...buildPathStrokes(
+          handlePath.id,
+          handlePath.points,
+          handlePath.style,
+          scene.viewport,
+        ),
+        ...handlePath.branches.flatMap((branch, index) => {
+          const start = handlePath.points[branch.fromIndex];
+          if (!start) return [];
+          return [
+            ...buildPathStrokes(
+              `${handlePath.id}-branch-${index}`,
+              [start, ...branch.points],
+              branch.style,
+              scene.viewport,
+            ),
+          ];
+        }),
+      ];
+      return { ...paint, pathStrokes: strokes };
+    }
+    if (
+      model.gesture.kind === "idle" &&
+      pendingCommitPaintRef.current &&
+      heldLiveRef.current
+    ) {
+      return { ...heldLiveRef.current, ...paint };
+    }
+    return paint;
+  };
+  const publishLiveVisuals = (
+    model: FieldInteractionModel,
+    metrics?: PaintLoopSample,
+  ): void => {
+    if (model.gesture.kind === "idle" && !pendingCommitPaintRef.current) {
+      heldLiveRef.current = undefined;
+    }
+    const paint = livePaintFromModel(model, metrics);
+    if (
+      (paint.move || paint.pathStrokes) &&
+      (model.gesture.kind !== "idle" || pendingCommitPaintRef.current)
+    ) {
+      heldLiveRef.current = paint;
+    }
+    livePreviewRef.current = paint;
+    if (fieldSvgRef.current) applyLiveFieldPaint(fieldSvgRef.current, paint);
+    liveStore.notify(model);
+  };
+  const flushLivePaint = (): void => {
+    const pending = pendingPointerRef.current;
+    pendingPointerRef.current = undefined;
+    if (pending) dispatchFieldRef.current(pending);
+    const model = interactionRef.current;
+    const metrics = paintLoop.sample();
+    publishLiveVisuals(model, metrics.frames > 0 ? metrics : undefined);
+  };
+  const scheduleLivePaint = (inputAtMs: number): void => {
+    paintLoop.schedule(inputAtMs, flushLivePaint);
   };
   // The keyboard listener registers once per menu state; these refs keep it
   // dispatching against the current closure and reading the live drawing.
@@ -2939,7 +3215,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     dispatchFieldRef.current = dispatchField;
     drawingRef.current = interaction.drawing;
     selectToolRef.current = selectTool;
+    publishLiveVisualsRef.current = publishLiveVisuals;
   });
+  useEffect(() => () => paintLoop.cancel(), [paintLoop]);
 
   /**
    * A label the Coach just placed says "5 Yds" until he types over it, so
@@ -2983,11 +3261,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   const framePointFromClient = (clientX: number, clientY: number) => {
     const bounds = fieldSvgRef.current?.getBoundingClientRect();
     if (!bounds) return { x: 0, y: 0 };
+    const live = cameraRef.current;
     // Through the camera, not the whole frame: what a client pixel is worth
     // depends on how much of the frame is on screen.
     return {
-      x: camera.x + ((clientX - bounds.left) / bounds.width) * camera.width,
-      y: camera.y + ((clientY - bounds.top) / bounds.height) * camera.height,
+      x: live.x + ((clientX - bounds.left) / bounds.width) * live.width,
+      y: live.y + ((clientY - bounds.top) / bounds.height) * live.height,
     };
   };
   const fieldPointFromClient = (clientX: number, clientY: number) =>
@@ -3065,6 +3344,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     if (penInterrupts(stylusRef.current, event.pointerType))
       abandonTouchGesture();
     noteStylus(stylusDown(stylusRef.current, event.pointerType));
+    paintLoop.reset();
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -3108,6 +3388,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       return;
     }
     dispatchField({ type: "pointer-down", input: fieldPointerInput(event) });
+    flushLivePaint();
     cancelLongPress();
     // A mouse has a button for this; every other pointer holds still instead.
     if (event.pointerType === "mouse" || event.button !== 0) return;
@@ -3132,36 +3413,35 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       const now = pinchOf();
       if (!now) return;
       const element = fieldSvgRef.current;
-      const perPixel = camera.width / (element?.clientWidth ?? 1);
+      const perPixel = cameraRef.current.width / (element?.clientWidth ?? 1);
       const anchor = framePointFromClient(now.midX, now.midY);
-      setCamera((current) =>
-        panCamera(
-          zoomCamera(
-            current,
-            pinch.distance / now.distance,
-            EDITOR_FRAME,
-            anchor,
-          ),
-          -(now.midX - pinch.midX) * perPixel,
-          -(now.midY - pinch.midY) * perPixel,
+      cameraRef.current = panCamera(
+        zoomCamera(
+          cameraRef.current,
+          pinch.distance / now.distance,
           EDITOR_FRAME,
+          anchor,
         ),
+        -(now.midX - pinch.midX) * perPixel,
+        -(now.midY - pinch.midY) * perPixel,
+        EDITOR_FRAME,
       );
       pinchRef.current = now;
+      scheduleLivePaint(event.timeStamp);
       return;
     }
     const from = panRef.current;
     if (from) {
-      const perPixel = camera.width / (fieldSvgRef.current?.clientWidth ?? 1);
+      const perPixel =
+        cameraRef.current.width / (fieldSvgRef.current?.clientWidth ?? 1);
       panRef.current = { x: event.clientX, y: event.clientY };
-      setCamera((current) =>
-        panCamera(
-          current,
-          -(event.clientX - from.x) * perPixel,
-          -(event.clientY - from.y) * perPixel,
-          EDITOR_FRAME,
-        ),
+      cameraRef.current = panCamera(
+        cameraRef.current,
+        -(event.clientX - from.x) * perPixel,
+        -(event.clientY - from.y) * perPixel,
+        EDITOR_FRAME,
       );
+      scheduleLivePaint(event.timeStamp);
       return;
     }
     // The hand that was resting while the Pencil drew is still resting when it
@@ -3169,15 +3449,23 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     // gesture of its own to end — but a route left part-drawn would follow it
     // anyway, which is the one thing a rejected palm can still reach.
     if (touchNavigates(stylusRef.current, event.pointerType)) return;
-    dispatchField({ type: "pointer-move", input: fieldPointerInput(event) });
+    pendingPointerRef.current = {
+      type: "pointer-move",
+      input: fieldPointerInput(event),
+    };
+    scheduleLivePaint(event.timeStamp);
     // Asked after the move, not before it: this very event is what turns a
     // still press into a drag, and reading the gesture first would always find
-    // the press it is about to stop being.
+    // the press it is about to stop being. The pending move is the authority;
+    // flush it before reading whether the press survived.
     //
     // The original allowed six pixels of tremor before giving up on the menu.
     // Production asks the machine instead, which lets go at two — one press
     // cannot both be dragging a man and offering a menu about him, and the
     // machine is what already decides which of those is happening.
+    if (interactionRef.current.gesture.kind === "pressing") {
+      paintLoop.flush();
+    }
     if (interactionRef.current.gesture.kind !== "pressing") cancelLongPress();
   };
   const onFieldPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -3196,11 +3484,14 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       panRef.current = { ...remaining };
       return;
     }
-    if (panRef.current) {
+    if (panRef.current || pinching) {
       panRef.current = undefined;
+      setCamera(cameraRef.current);
       return;
     }
+    paintLoop.flush();
     dispatchField({ type: "pointer-up", input: fieldPointerInput(event) });
+    flushLivePaint();
   };
   const onFieldContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
     // The field's own menu replaces the browser's over a Player or a route,
@@ -3233,6 +3524,8 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       handle,
       input: fieldPointerInput(event),
     });
+    paintLoop.reset();
+    flushLivePaint();
   };
   const onFieldDoubleClick = (event: React.MouseEvent<SVGSVGElement>) => {
     if (interactionRef.current.drawing) {
@@ -3259,6 +3552,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     if (touchesRef.current.size < 2) pinchRef.current = undefined;
     panRef.current = undefined;
     dispatchField({ type: "pointer-cancel" });
+    flushLivePaint();
   };
   const commitPlayName = () => {
     void editorStore.commitPlayName().catch(() => undefined);
@@ -3388,7 +3682,8 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     const acrossFirst =
       event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
     if (acrossFirst) {
-      const perPixel = camera.width / (fieldSvgRef.current?.clientWidth ?? 1);
+      const perPixel =
+        cameraRef.current.width / (fieldSvgRef.current?.clientWidth ?? 1);
       const across =
         event.shiftKey && event.deltaX === 0 ? event.deltaY : event.deltaX;
       const down = event.shiftKey && event.deltaX === 0 ? 0 : event.deltaY;
@@ -4252,6 +4547,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           <div className="field-wrap">
             <FieldDiagram
               camera={camera}
+              livePreviewRef={livePreviewRef}
               onPointerCancel={onFieldPointerCancel}
               onPointerDown={onFieldPointerDown}
               onPointerMove={onFieldPointerMove}
@@ -4403,6 +4699,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           >
             <FieldDiagram
               camera={camera}
+              livePreviewRef={livePreviewRef}
               onWheel={onFieldWheel}
               onContextMenu={onFieldContextMenu}
               onPointerCancel={onFieldPointerCancel}
@@ -4411,52 +4708,21 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               onPointerUp={onFieldPointerUp}
               onDoubleClick={onFieldDoubleClick}
               onHoverPlayer={setHoveredPlayerId}
-              onStartRoute={(playerId) =>
-                dispatchField({ type: "start-route", playerId })
-              }
+              onStartRoute={(playerId) => {
+                dispatchField({ type: "start-route", playerId });
+                flushLivePaint();
+              }}
               overlay={
-                <>
-                  <FieldInteractionOverlay
-                    drawing={interaction.drawing}
-                    gesture={interaction.gesture}
-                    projection={scene.viewport}
-                  />
-                  {selectedPath ? (
-                    <RouteHandles
-                      branchIndex={interaction.selectedBranchIndex}
-                      onHandleDown={onHandleDown}
-                      path={selectedPath}
-                      precise={precisePointer}
-                      projection={scene.viewport}
-                      selectedNodeIndex={interaction.selectedNodeIndex}
-                      selectedSegmentIndex={interaction.selectedSegmentIndex}
-                      zoom={cssPerFrameUnit}
-                    />
-                  ) : null}
-                  <FormationGhost
-                    formationId={previewFormationId}
-                    formations={allFormations}
-                    projection={scene.viewport}
-                  />
-                  {leaderHandleAt ? (
-                    <circle
-                      className="handle-target"
-                      cx={leaderHandleAt.x}
-                      cy={leaderHandleAt.y}
-                      data-leader-handle={selectedLabel!.id}
-                      fill="transparent"
-                      onPointerDown={(event) =>
-                        onHandleDown(
-                          { kind: "leader", labelId: selectedLabel!.id },
-                          event,
-                        )
-                      }
-                      r={22}
-                    >
-                      <title>Drag to point the leader line</title>
-                    </circle>
-                  ) : null}
-                </>
+                <FieldLiveOverlay
+                  document={editor.document}
+                  formations={allFormations}
+                  getZoom={() => fieldWidthPx / cameraRef.current.width}
+                  onHandleDown={onHandleDown}
+                  precise={precisePointer}
+                  previewFormationId={previewFormationId}
+                  projection={scene.viewport}
+                  store={liveStore}
+                />
               }
               routeDotPlayerId={routeDotPlayerId}
               scene={scene}
@@ -4493,7 +4759,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               camera={camera}
               frame={EDITOR_FRAME}
               onCamera={setCamera}
-              players={previewDocument.players}
+              players={editor.document.players}
             />
             {toast ? (
               <div className="toast" role="status">
