@@ -970,6 +970,18 @@ class DexieLocalRepository implements ChalkLocalRepository {
     return this.#database.imageBlobs.get(hash);
   }
 
+  async listImages(): Promise<readonly LocalImageBlob[]> {
+    return this.#database.imageBlobs.toArray();
+  }
+
+  async markImageUploaded(hash: string, uploadedAtMs: number): Promise<void> {
+    const image = await this.#database.imageBlobs.get(hash);
+    if (!image) {
+      throw new Error(`Cannot mark missing image uploaded: ${hash}`);
+    }
+    await this.#database.imageBlobs.put({ ...image, uploadedAtMs });
+  }
+
   async putUndoHistory(history: UndoHistory): Promise<void> {
     await this.#database.undoHistories.put(
       structuredClone(undoHistorySchema.parse(history)),

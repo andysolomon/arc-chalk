@@ -16,6 +16,7 @@
     "@chalk/render": "workspace:*",
     "@tanstack/react-query": "*",
     "@tanstack/react-router": "*",
+    "convex": "*",
     "react": "*",
     "react-dom": "*",
     "zustand": "*"

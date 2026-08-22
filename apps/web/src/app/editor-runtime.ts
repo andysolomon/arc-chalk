@@ -18,9 +18,12 @@ import {
   createDexieLocalRepository,
   type BackupImportResult,
   type ChalkLocalRepository,
+  type LocalImageBlob,
   type SessionRecovery,
   type StorageHealth,
 } from "@chalk/local-db";
+
+import { createShareCloud, type ShareCloudPort } from "../share/convex-share";
 
 const DATABASE_NAME = "chalk-production-beta";
 const SEED_TIME = 1_786_000_000_000;
@@ -86,6 +89,12 @@ export interface ChalkRuntime {
     contents: string,
     passphrase: string,
   ): Promise<BackupImportResult>;
+  putImage(image: LocalImageBlob): Promise<void>;
+  getImage(hash: string): Promise<LocalImageBlob | undefined>;
+  listImages(): Promise<readonly LocalImageBlob[]>;
+  markImageUploaded(hash: string, uploadedAtMs: number): Promise<void>;
+  /** Present when a Convex deployment URL is configured. */
+  readonly shareCloud?: ShareCloudPort;
 }
 
 export async function createBrowserRuntime(): Promise<ChalkRuntime> {
@@ -181,5 +190,13 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
       );
       return repository.importBackup(payload, { mode: "merge" });
     },
+    putImage: (image) => repository.putImage(image),
+    getImage: (hash) => repository.getImage(hash),
+    listImages: () => repository.listImages(),
+    markImageUploaded: (hash, uploadedAtMs) =>
+      repository.markImageUploaded(hash, uploadedAtMs),
+    ...(import.meta.env.VITE_CONVEX_URL
+      ? { shareCloud: createShareCloud(import.meta.env.VITE_CONVEX_URL) }
+      : {}),
   };
 }

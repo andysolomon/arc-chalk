@@ -54,6 +54,10 @@ function createTestRuntime(
         skippedPlays: [],
         skippedRevisions: [],
       }),
+    putImage: () => Promise.resolve(),
+    getImage: () => Promise.resolve(undefined),
+    listImages: () => Promise.resolve([]),
+    markImageUploaded: () => Promise.resolve(),
     ...overrides,
   };
 }
@@ -1334,5 +1338,45 @@ describe("Chalk editor overlays", () => {
     expect(within(bar).getByRole("button", { name: "Pause" })).toBeVisible();
     await user.click(within(bar).getByRole("button", { name: "Pause" }));
     expect(within(bar).getByRole("button", { name: "Play" })).toBeVisible();
+  });
+
+  it("keeps Share, Attach image, and Film Reference in the More menu", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(screen.getByRole("button", { name: "Share & assets" }));
+
+    expect(screen.getByRole("heading", { name: "Attach image" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Film Reference" }),
+    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Share Link" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Create Share Link" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("complementary", { name: "Play inspector" }),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Create Share Link" }));
+    expect(screen.getByText(/Sharing needs an account/i)).toBeVisible();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Film Reference address" }),
+      "https://www.hudl.com/video/3/clip",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Add Film Reference" }),
+    );
+    expect(
+      await screen.findByRole("link", {
+        name: "https://www.hudl.com/video/3/clip",
+      }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: /hudl.com/ })).toHaveAttribute(
+      "rel",
+      "noopener noreferrer nofollow",
+    );
   });
 });

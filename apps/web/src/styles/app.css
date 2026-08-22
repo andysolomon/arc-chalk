@@ -1782,6 +1782,87 @@ select:focus-visible {
   color: #fff;
 }
 
+.share-shell {
+  min-height: 100%;
+  background: #171717;
+  color: #fff;
+}
+.share-shell[role="alert"],
+.share-shell[aria-busy="true"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  font-size: 15px;
+}
+.share-warning {
+  flex: none;
+  color: #8f8f8f;
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+}
+.share-film {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.share-film a {
+  color: #fff;
+  font-size: 12px;
+}
+.share-attachment {
+  margin: 0;
+  color: #8f8f8f;
+  font-size: 11px;
+}
+.share-attachment img {
+  display: block;
+  max-height: 48px;
+  max-width: 80px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.share-assets-panel {
+  width: 280px;
+  max-height: 74vh;
+  overflow: auto;
+}
+.share-assets-block {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.share-assets-block:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.share-assets-block h3 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.share-asset-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.share-asset-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+}
+.share-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 .print-mode {
   flex: 1;
   min-width: 0;

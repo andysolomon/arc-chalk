@@ -808,4 +808,29 @@ describe("ChalkLocalRepository", () => {
     // this in-memory IndexedDB shim.
     expect(betaMs).toBeLessThan(smallMs * 5 + 100);
   }, 60_000);
+
+  it("lists local images and records a completed private upload", async () => {
+    const repository = track(createRepository("images"));
+    const blob = cloneableBlob("normalized", "image/jpeg");
+    const thumbnail = cloneableBlob("thumb", "image/jpeg");
+    const hash = "d".repeat(64);
+    await repository.putImage({
+      hash,
+      mimeType: "image/jpeg",
+      width: 64,
+      height: 48,
+      byteLength: blob.size,
+      blob,
+      thumbnail,
+      createdAtMs: FIXED_TIME,
+    });
+    const listed = await repository.listImages();
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.hash).toBe(hash);
+    expect(listed[0]?.uploadedAtMs).toBeUndefined();
+    await repository.markImageUploaded(hash, FIXED_TIME + 10);
+    expect((await repository.getImage(hash))?.uploadedAtMs).toBe(
+      FIXED_TIME + 10,
+    );
+  });
 });
