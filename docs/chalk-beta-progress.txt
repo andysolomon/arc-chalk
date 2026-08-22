@@ -1,6 +1,6 @@
 chalk-beta - Chalk Production Beta - Progress
 Generated: 2026-08-04 16:50:45 EDT
-Updated: 2026-08-22 10:30:00 EDT
+Updated: 2026-08-22 11:30:00 EDT
 On completion, move this file and the plan to docs/archive/.
 
 [ ] 0.0 - Phase 0 - Canonical prototype inventory and parity lock
@@ -65,11 +65,11 @@ On completion, move this file and the plan to docs/archive/.
     [ ] 5.2 - Implement deterministic play, pause, restart, speed, and scrub controls
     [ ] 5.3 - Share one playback evaluator between editor and read-only presentation
     [ ] 5.4 - Verify deterministic timestamps, offline responsiveness, keyboard control, and reduced motion
-[ ] 6.0 - Phase 6 - Playbook library, organization, and retrieval
+[x] 6.0 - Phase 6 - Playbook library, organization, and retrieval
     [x] 6.1 - Preserve original library, Concept tree, variation, scope, propagation, detach, save, rename, delete, and transition behavior
         Evidence: the original inspector library remains — Concept tree, Applies to (this play / whole concept / Pick…), + Variation, note/tags, push, detach, delete-with-confirm, Save flash, and Browse Playbook as an additive overlay. Switching Plays waits out the save queue and refuses a failed local save (parity-matrix B2). Scoped route work broadcasts with skip copy (`Applied to 4 of 5 — Red zone has no Z route`). Present steps the family (`1 / 5 · GUN DOUBLES LEFT`) with ← →. Stick — Thunder ships with its four variations plus the demo-tour examples.
     [x] 6.2 - Implement Formation and Field Profile management and explicit reapplication
-        Evidence: the inspector Field section lists playbook and built-in profiles; applying one is `set-field-profile` and never rewrites yards (ADR 0032). A Play whose copied profile or Formation source revision is behind offers Reapply. A Coach can keep the current markings as a named playbook profile, optionally as the default.
+        Evidence: the inspector Field section lists playbook and built-in profiles below the original Formation / Line call / Concept / Defense / Library stack; applying one is `set-field-profile` and never rewrites yards (ADR 0032). A Play whose copied profile or Formation source revision is behind offers Reapply. A Coach can keep the current markings as a named playbook profile, optionally as the default.
     [x] 6.3 - Build virtualized paged metadata lists/grids with focus and scroll restoration
         Evidence: the Playbook overlay virtualizes a 4-column card grid with TanStack Virtual, restores `library.browser.v1` scrollTop and focused Play, and filters by unit and Play Type without loading Play revisions.
     [x] 6.4 - Build Worker-based local search projections, filtering, and disposable indexes
