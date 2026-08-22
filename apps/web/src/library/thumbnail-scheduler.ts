@@ -105,7 +105,12 @@ export function createThumbnailScheduler(library: ChalkLibrary): {
       blob,
       createdAtMs: Date.now(),
     };
-    await library.putThumbnail(derivative);
+    try {
+      await library.putThumbnail(derivative);
+    } catch {
+      // Thumbnails are disposable. A device that cannot store the blob still
+      // gets the picture for this session from the object URL.
+    }
     if (signal?.aborted) return undefined;
     return remember(key, blob);
   };

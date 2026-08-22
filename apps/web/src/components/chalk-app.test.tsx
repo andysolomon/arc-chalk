@@ -862,7 +862,9 @@ describe("Chalk device durability surfaces", () => {
       name: "Play inspector",
     });
     expect(within(inspector).getByText("History 1")).toBeVisible();
-    await user.click(within(inspector).getByRole("button", { name: "Show" }));
+    await user.click(
+      within(inspector).getByRole("button", { name: "Show", exact: true }),
+    );
     expect(within(inspector).getByText("just now")).toBeVisible();
     expect(within(inspector).getByText("Install week")).toBeVisible();
     expect(
@@ -886,7 +888,9 @@ describe("Chalk device durability surfaces", () => {
     expect(
       within(inspector).getByText("History", { exact: true }),
     ).toBeVisible();
-    await user.click(within(inspector).getByRole("button", { name: "Show" }));
+    await user.click(
+      within(inspector).getByRole("button", { name: "Show", exact: true }),
+    );
     expect(
       within(inspector).getByText(
         "Nothing saved back yet. Name a Snapshot from Save when you want a state you can come back to.",
