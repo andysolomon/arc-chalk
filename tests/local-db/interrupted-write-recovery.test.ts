@@ -143,9 +143,9 @@ describe("recovering from an interrupted write", () => {
     await expect(reopened.loadPlaybook(play.playbookId)).resolves.toEqual(
       offensivePlaybookGolden,
     );
-    await expect(reopened.listPlaySummaries(play.playbookId)).resolves.toEqual(
-      [],
-    );
+    await expect(reopened.listPlaySummaries(play.playbookId)).resolves.toEqual([
+      expect.objectContaining({ playId: play.id, name: play.name }),
+    ]);
   });
 
   it("keeps a completed commit after an interruption that follows it", async () => {

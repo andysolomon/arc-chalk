@@ -80,12 +80,13 @@ describe("Playbook library local retrieval", () => {
     await expect(repository.counts()).resolves.toEqual(
       expect.objectContaining({ searchProjections: 0, thumbnails: 0 }),
     );
-    const rebuilt = await repository.rebuildSearchProjections();
-    expect(rebuilt).toBe(envelope.plays.length);
     await expect(repository.searchPlays({ text: "stick" })).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: "Stick — Thunder" }),
       ]),
+    );
+    expect(await repository.rebuildSearchProjections()).toBe(
+      envelope.plays.length,
     );
   });
 
