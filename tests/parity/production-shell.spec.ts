@@ -27,7 +27,7 @@ import { expect, test, type Page } from "@playwright/test";
  * The field is now drawn in the original's own 1000×620 frame, at the original's
  * own scales, with correct yards. Tool-rail glyphs below Text (Clear, Snap,
  * collapse) measure the original's own 18×18 at x 19 and 40×22 collapse.
- * What remains of the Editor gap is status-bar spacing and that 1.3% Player shift.
+ * What remains of the Editor gap is Finding #3's 1.3% Player shift.
  *
  * Formations and Defenses ticked up 317 px on 2026-08-21 when the field filled
  * the original's column instead of a 1068×525 card: more of the (still slightly
@@ -55,8 +55,8 @@ const parityGap: Readonly<Record<string, number>> = {
   commandPalette: 0.0167, // 1.6640% (23,004 px), from 1.7182%
   shortcuts: 0.0242, // 2.4176% (33,420 px), from 2.5044%
   // Raised 317 px with the field-aspect slice: more of the Play shows around
-  // the panel. Card row drift and thumbnail-dot arithmetic still hold it
-  // above the Editor's own gap.
+  // the panel. Card name-row and thumbnail-dot arithmetic now match the
+  // original; any remaining gap is the Play behind the panel.
   formations: 0.0201, // 2.0059% (27,730 px), from 1.9830% (27,413 px)
   defenses: 0.016, // 1.5938% (22,033 px), from 1.5709% (21,716 px)
 };

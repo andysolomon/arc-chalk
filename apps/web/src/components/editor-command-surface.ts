@@ -84,7 +84,8 @@ export type ActionId =
   | "positionLine"
   | "positionQb"
   | "positionDefense"
-  | `concept:${string}`;
+  | `concept:${string}`
+  | `open:${string}`;
 
 /** What the shell can actually run right now; anything absent is unavailable. */
 export type ActionMap = Partial<Record<ActionId, () => void>>;
@@ -265,77 +266,109 @@ export const saveItems: readonly MenuEntry[] = [
   },
 ];
 
+export interface PaletteCatalog {
+  readonly defenses?: readonly { readonly id: string; readonly name: string }[];
+  readonly formations?: readonly {
+    readonly id: string;
+    readonly name: string;
+  }[];
+  readonly savedPlays?: readonly {
+    readonly id: string;
+    readonly name: string;
+  }[];
+  readonly zonesHidden?: boolean;
+}
+
 /**
  * The original's palette lists every Formation, Defense and saved Play beside
  * its static commands. The catalogues arrive with the browsers that own them,
- * so the entries below are appended from the domain rather than written out.
+ * so this is a function of what the Coach has — a set he saved, a Play he
+ * named — rather than a module constant that can only see what Chalk ships.
  */
-export const paletteCommands: readonly MenuEntry[] = [
-  { id: "toolSelect", label: "Select tool", shortcut: "V" },
-  { id: "toolPlayer", label: "Player tool", shortcut: "P" },
-  { id: "toolRoute", label: "Route tool", shortcut: "R" },
-  { id: "toolMotion", label: "Motion tool", shortcut: "M" },
-  { id: "toolBlock", label: "Block tool", shortcut: "B" },
-  { id: "toolZone", label: "Zone drop tool", shortcut: "Z" },
-  { id: "toolText", label: "Text tool", shortcut: "T" },
-  { id: "focus", label: "Focus mode", shortcut: "F" },
-  { id: "toggleInspector", label: "Inspector on / off", shortcut: "⌥1" },
-  { id: "toggleRail", label: "Tools on / off", shortcut: "⌥2" },
-  { id: "present", label: "Present the play" },
-  { id: "print", label: "Print preview" },
-  { id: "fitToSelection", label: "Fit to selection", shortcut: "⌘2" },
-  { id: "toggleSnapping", label: "Toggle snapping", shortcut: "S" },
-  { id: "fitField", label: "Fit field", shortcut: "⌘0" },
-  { id: "zoomToSelection", label: "Zoom to selection" },
-  { id: "centerBall", label: "Center on the ball" },
-  { id: "ballLeft", label: "Ball on the left hash" },
-  { id: "ballMiddle", label: "Ball in the middle of the field" },
-  { id: "ballRight", label: "Ball on the right hash" },
-  { id: "mirror", label: "Mirror" },
-  { id: "flipStrength", label: "Flip strength" },
-  { id: "alignDepth", label: "Same depth — selected players" },
-  { id: "alignSplits", label: "Even splits — selected players" },
-  ...conceptNames.map((name): MenuEntry => ({
-    id: `concept:${name}`,
-    label: `Concept — ${name}`,
-  })),
-  { id: "toggleZones", label: "Hide zone areas" },
-  { id: "clearRoutesOffense", label: "Clear offensive routes" },
-  { id: "clearRoutesDefense", label: "Clear defensive assignments" },
-  { id: "clearAllLines", label: "Clear every line" },
-  { id: "clearOffense", label: "Clear offense" },
-  { id: "clearDefense", label: "Clear defense" },
-  { id: "clearText", label: "Clear text" },
-  { id: "clearField", label: "Clear the whole field" },
-  { id: "savePlay", label: "Save play" },
-  { id: "newVariation", label: "New variation" },
-  { id: "group", label: "Group", shortcut: "⌘G" },
-  { id: "ungroup", label: "Ungroup", shortcut: "⇧⌘G" },
-  { id: "bringForward", label: "Bring forward", shortcut: "⌘]" },
-  { id: "sendBackward", label: "Send backward", shortcut: "⌘[" },
-  { id: "reverseRoute", label: "Reverse route" },
-  { id: "addDepthLabel", label: "Add depth label to segment" },
-  { id: "newPlay", label: "New play" },
-  { id: "formations", label: "Formations", shortcut: "⇧⌘F" },
-  { id: "defenses", label: "Defenses", shortcut: "⇧⌘D" },
-  ...stockFormations.map((formation): MenuEntry => ({
-    id: `formation:${formation.id}`,
-    label: `Formation: ${formation.name}`,
-  })),
-  ...stockDefensiveCalls.map((call): MenuEntry => ({
-    id: `defense:${call.formation.id}`,
-    label: `Defense: ${call.formation.name}`,
-  })),
-  { id: "shortcuts", label: "Keyboard shortcuts", shortcut: "?" },
-  ...exportGroups.flatMap((group) =>
-    group.items
-      .filter((item) => !item.submenu)
-      .map((item): MenuEntry => ({
-        id: item.id,
-        label: `Export: ${item.label}`,
-      })),
-  ),
-];
+export function paletteCommands(
+  catalog: PaletteCatalog = {},
+): readonly MenuEntry[] {
+  const formations = catalog.formations ?? stockFormations;
+  const defenses =
+    catalog.defenses ??
+    stockDefensiveCalls.map((call) => ({
+      id: call.formation.id,
+      name: call.formation.name,
+    }));
+  return [
+    { id: "toolSelect", label: "Select tool", shortcut: "V" },
+    { id: "toolPlayer", label: "Player tool", shortcut: "P" },
+    { id: "toolRoute", label: "Route tool", shortcut: "R" },
+    { id: "toolMotion", label: "Motion tool", shortcut: "M" },
+    { id: "toolBlock", label: "Block tool", shortcut: "B" },
+    { id: "toolZone", label: "Zone drop tool", shortcut: "Z" },
+    { id: "toolText", label: "Text tool", shortcut: "T" },
+    { id: "focus", label: "Focus mode", shortcut: "F" },
+    { id: "toggleInspector", label: "Inspector on / off", shortcut: "⌥1" },
+    { id: "toggleRail", label: "Tools on / off", shortcut: "⌥2" },
+    { id: "present", label: "Present the play" },
+    { id: "print", label: "Print preview" },
+    { id: "fitToSelection", label: "Fit to selection", shortcut: "⌘2" },
+    { id: "toggleSnapping", label: "Toggle snapping", shortcut: "S" },
+    { id: "fitField", label: "Fit field", shortcut: "⌘0" },
+    { id: "zoomToSelection", label: "Zoom to selection" },
+    { id: "centerBall", label: "Center on the ball" },
+    { id: "ballLeft", label: "Ball on the left hash" },
+    { id: "ballMiddle", label: "Ball in the middle of the field" },
+    { id: "ballRight", label: "Ball on the right hash" },
+    { id: "mirror", label: "Mirror" },
+    { id: "flipStrength", label: "Flip strength" },
+    { id: "alignDepth", label: "Same depth — selected players" },
+    { id: "alignSplits", label: "Even splits — selected players" },
+    ...conceptNames.map((name): MenuEntry => ({
+      id: `concept:${name}`,
+      label: `Concept — ${name}`,
+    })),
+    {
+      id: "toggleZones",
+      label: catalog.zonesHidden ? "Show zone areas" : "Hide zone areas",
+    },
+    { id: "clearRoutesOffense", label: "Clear offensive routes" },
+    { id: "clearRoutesDefense", label: "Clear defensive assignments" },
+    { id: "clearAllLines", label: "Clear every line" },
+    { id: "clearOffense", label: "Clear offense" },
+    { id: "clearDefense", label: "Clear defense" },
+    { id: "clearText", label: "Clear text" },
+    { id: "clearField", label: "Clear the whole field" },
+    { id: "savePlay", label: "Save play" },
+    { id: "newVariation", label: "New variation" },
+    { id: "group", label: "Group", shortcut: "⌘G" },
+    { id: "ungroup", label: "Ungroup", shortcut: "⇧⌘G" },
+    { id: "bringForward", label: "Bring forward", shortcut: "⌘]" },
+    { id: "sendBackward", label: "Send backward", shortcut: "⌘[" },
+    { id: "reverseRoute", label: "Reverse route" },
+    { id: "addDepthLabel", label: "Add depth label to segment" },
+    { id: "newPlay", label: "New play" },
+    { id: "formations", label: "Formations", shortcut: "⇧⌘F" },
+    { id: "defenses", label: "Defenses", shortcut: "⇧⌘D" },
+    ...formations.map((formation): MenuEntry => ({
+      id: `formation:${formation.id}`,
+      label: `Formation: ${formation.name}`,
+    })),
+    ...defenses.map((call): MenuEntry => ({
+      id: `defense:${call.id}`,
+      label: `Defense: ${call.name}`,
+    })),
+    { id: "shortcuts", label: "Keyboard shortcuts", shortcut: "?" },
+    ...exportGroups.flatMap((group) =>
+      group.items
+        .filter((item) => !item.submenu)
+        .map((item): MenuEntry => ({
+          id: item.id,
+          label: `Export: ${item.label}`,
+        })),
+    ),
+    ...(catalog.savedPlays ?? []).slice(0, 12).map((play): MenuEntry => ({
+      id: `open:${play.id}`,
+      label: `Open: ${play.name}`,
+    })),
+  ];
+}
 
 export const shortcutRows: readonly (readonly [string, string])[] = [
   ["Select", "V"],

@@ -124,8 +124,9 @@ original's 62 px.
 A command production cannot yet run stays listed and is shown unavailable
 rather than accepting a click and doing nothing. The palette carries the
 original's Formation and Defense entries for the sets and calls Chalk ships;
-a set the Coach saved himself reaches the palette when `paletteCommands` stops
-being a module constant, which is where the saved-Play entries arrive too.
+a set the Coach saved himself, and a Play he named, reach the palette because
+`paletteCommands` is a function of those catalogues rather than a module
+constant.
 
 Two things measured here that were not obvious from a screenshot:
 
@@ -139,8 +140,9 @@ Two things measured here that were not obvious from a screenshot:
 
 Known contributors to the remaining Editor gap:
 
-- Status bar spacing does not match.
 - Finding #3: production stores correct yards, so Players sit about 1.3% off goldens captured from the uncorrected original.
+
+Status-bar spacing now follows the original's own 30 px bar: `line-height: normal`, no `space-between`, the hint on the left, and the zoom cluster at `gap: 12px`. The hint itself is the original's — at-fit Select copy until the view moves, then the grass-drag line, plus drawing, multi-select, and tool lines. Formation cards put the star in the name row the original does, and thumbnail dots snap to the original's tenth of a pixel so a converted line of scrimmage stays one row. The navigator is the original's 132×82 map, shown once the camera is inside 0.985 of fit.
 
 Tool-rail glyphs below Text (Clear, Snap, Hide-the-tools) measure the original's own boxes: 18 × 18 SVGs at x 19, Clear/Snap 40 × 40 at y 808 / 852, collapse 40 × 22 at y 896. They are no longer a remaining gap.
 
