@@ -69,10 +69,10 @@ beats after the snap. Hold is how long he sits down at the end."
 
 ## Done when
 
-- [ ] Space plays the whole play; every player arrives at his endpoint.
-- [ ] A player moves at a constant pace through breaks and curves.
-- [ ] Scrubbing to any frame leaves the play selectable and editable.
-- [ ] Motion runs before the snap and the snap tick is visible on the scrubber.
-- [ ] Ghost trails make any frozen frame readable as a diagram.
-- [ ] The progression strip prints four frames with timestamps on one sheet.
-- [ ] Timing values survive save, mirror, duplicate, and realignment.
+- [x] Space plays the whole play; every player arrives at his endpoint.
+- [x] A player moves at a constant pace through breaks and curves.
+- [x] Scrubbing to any frame leaves the play selectable and editable.
+- [x] Motion runs before the snap and the snap tick is visible on the scrubber.
+- [x] Ghost trails make any frozen frame readable as a diagram.
+- [x] The progression strip prints four frames with timestamps on one sheet.
+- [x] Timing values survive save, mirror, duplicate, and realignment.

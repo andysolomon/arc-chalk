@@ -599,10 +599,7 @@ test("says what a route is for, and prints it at the end of the line", async ({
   // and what a person does. Setting three boxes with no gap between them is a
   // harness trick rather than a gesture, and it races the controlled input.
   const write = async (box: string, value: string) => {
-    const field =
-      box === "Read"
-        ? page.locator(".read-field input")
-        : page.getByRole("textbox", { name: box });
+    const field = page.getByRole("textbox", { name: box });
     await field.fill(value);
     await field.blur();
   };
@@ -641,7 +638,7 @@ test("says what a route is for, and prints it at the end of the line", async ({
   await expect(page.getByRole("textbox", { name: "Assignment" })).toHaveValue(
     "Stick",
   );
-  await expect(page.locator(".read-field input")).toHaveValue("2");
+  await expect(page.getByRole("textbox", { name: "Read" })).toHaveValue("2");
 });
 
 test("takes the wording off a route when the Coach empties it", async ({
