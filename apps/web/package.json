@@ -9,13 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@chalk/contracts": "workspace:*",
     "@chalk/domain": "workspace:*",
     "@chalk/editor": "workspace:*",
     "@chalk/exports": "workspace:*",
     "@chalk/local-db": "workspace:*",
     "@chalk/render": "workspace:*",
+    "@chalk/sync": "workspace:*",
+    "@clerk/react": "latest",
     "@tanstack/react-query": "*",
     "@tanstack/react-router": "*",
+    "convex": "*",
     "react": "*",
     "react-dom": "*",
     "zustand": "*"
