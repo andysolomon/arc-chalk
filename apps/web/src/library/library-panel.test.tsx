@@ -95,7 +95,9 @@ describe("the inspector library panel", () => {
     );
 
     await userEvent.click(
-      screen.getByRole("button", { name: /Gun Doubles Right/ }),
+      screen.getByRole("button", {
+        name: /Stick — Thunder — Gun Doubles Right/,
+      }),
     );
     expect(onTogglePick).toHaveBeenCalledWith(family[1]!.id);
   });
