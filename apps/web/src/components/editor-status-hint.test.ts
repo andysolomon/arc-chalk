@@ -58,6 +58,18 @@ describe("what the status bar says on the left", () => {
     ).toBe("click the field to drop a text label");
   });
 
+  it("says when the words have gone too small to read", () => {
+    expect(
+      editorStatusHint({
+        view: "editor",
+        tool: "select",
+        atFit: true,
+        selectionCount: 0,
+        labelsTooSmall: true,
+      }),
+    ).toMatch(/^labels hidden — zoom in {3}· {3}/);
+  });
+
   it("uses the original's Print and Demo copy", () => {
     expect(
       editorStatusHint({

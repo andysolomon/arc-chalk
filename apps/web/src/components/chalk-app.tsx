@@ -4900,10 +4900,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     drawing: interaction.drawing
       ? { depthBuffer: interaction.drawing.depthBuffer }
       : undefined,
-    labelsTooSmall:
-      (labelDensity * (fieldWidthPx / EDITOR_FRAME.width) * zoomPercentage) /
-        100 <
-      11,
+    labelsTooSmall: labelDensity * (fieldWidthPx / camera.width) < 11,
     animating: showAnimation,
   });
 
