@@ -126,7 +126,9 @@ rather than accepting a click and doing nothing. The palette carries the
 original's Formation and Defense entries for the sets and calls Chalk ships;
 a set the Coach saved himself, and a Play he named, reach the palette because
 `paletteCommands` is a function of those catalogues rather than a module
-constant.
+constant. The catalogue concatenates the original's own way: Keyboard
+shortcuts, then exports, then every Formation, then every Defense, then
+Open: plays. Opening the browsers is ⇧⌘F / ⇧⌘D, not a palette row.
 
 Two things measured here that were not obvious from a screenshot:
 

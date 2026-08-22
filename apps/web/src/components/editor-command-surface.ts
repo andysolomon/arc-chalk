@@ -59,7 +59,7 @@ export type ActionId =
   | "reverseRoute"
   | "addDepthLabel"
   | "shortcuts"
-  /** The browsers, and every set or call they list, reachable by name. */
+  /** Opened from ⇧⌘F / ⇧⌘D, not from a palette row — the original's own split. */
   | "formations"
   | "defenses"
   | `formation:${string}`
@@ -281,9 +281,11 @@ export interface PaletteCatalog {
 
 /**
  * The original's palette lists every Formation, Defense and saved Play beside
- * its static commands. The catalogues arrive with the browsers that own them,
- * so this is a function of what the Coach has — a set he saved, a Play he
- * named — rather than a module constant that can only see what Chalk ships.
+ * its static commands, concatenated in that order after Keyboard shortcuts
+ * and the Export entries. The catalogues arrive with the browsers that own
+ * them, so this is a function of what the Coach has — a set he saved, a Play
+ * he named — rather than a module constant that can only see what Chalk ships.
+ * Opening the Formations or Defenses browser is ⇧⌘F / ⇧⌘D, not a palette row.
  */
 export function paletteCommands(
   catalog: PaletteCatalog = {},
@@ -344,16 +346,6 @@ export function paletteCommands(
     { id: "reverseRoute", label: "Reverse route" },
     { id: "addDepthLabel", label: "Add depth label to segment" },
     { id: "newPlay", label: "New play" },
-    { id: "formations", label: "Formations", shortcut: "⇧⌘F" },
-    { id: "defenses", label: "Defenses", shortcut: "⇧⌘D" },
-    ...formations.map((formation): MenuEntry => ({
-      id: `formation:${formation.id}`,
-      label: `Formation: ${formation.name}`,
-    })),
-    ...defenses.map((call): MenuEntry => ({
-      id: `defense:${call.id}`,
-      label: `Defense: ${call.name}`,
-    })),
     { id: "shortcuts", label: "Keyboard shortcuts", shortcut: "?" },
     ...exportGroups.flatMap((group) =>
       group.items
@@ -363,6 +355,14 @@ export function paletteCommands(
           label: `Export: ${item.label}`,
         })),
     ),
+    ...formations.map((formation): MenuEntry => ({
+      id: `formation:${formation.id}`,
+      label: `Formation: ${formation.name}`,
+    })),
+    ...defenses.map((call): MenuEntry => ({
+      id: `defense:${call.id}`,
+      label: `Defense: ${call.name}`,
+    })),
     ...(catalog.savedPlays ?? []).slice(0, 12).map((play): MenuEntry => ({
       id: `open:${play.id}`,
       label: `Open: ${play.name}`,

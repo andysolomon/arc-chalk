@@ -33,4 +33,26 @@ describe("the command palette catalogue", () => {
       )?.label,
     ).toBe("Show zone areas");
   });
+
+  it("concatenates the catalogue the original's own way", () => {
+    const labels = paletteCommands({
+      formations: [{ id: "formation_mine", name: "Andy's Empty" }],
+      defenses: [{ id: "defense_mine", name: "Cover 3 — Fire Zone" }],
+      savedPlays: [{ id: "play_mine", name: "Stick — Thunder" }],
+    }).map(({ label }) => label);
+    const after = (label: string) => labels.indexOf(label);
+    const first = (prefix: string) =>
+      labels.findIndex((label) => label.startsWith(prefix));
+
+    // The original ends the static list at Keyboard shortcuts, then appends
+    // exports, then every Formation, then every Defense, then Open: plays.
+    // A browser opener named Formations is not in that list — ⇧⌘F is.
+    expect(labels).not.toContain("Formations");
+    expect(labels).not.toContain("Defenses");
+    expect(after("New play")).toBeLessThan(after("Keyboard shortcuts"));
+    expect(after("Keyboard shortcuts")).toBeLessThan(first("Export:"));
+    expect(first("Export:")).toBeLessThan(first("Formation:"));
+    expect(first("Formation:")).toBeLessThan(first("Defense:"));
+    expect(first("Defense:")).toBeLessThan(first("Open:"));
+  });
 });
