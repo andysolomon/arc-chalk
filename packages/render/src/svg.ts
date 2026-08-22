@@ -328,6 +328,8 @@ export interface SvgScenePath {
   readonly strokes: readonly SvgPathStroke[];
   readonly ticks: readonly (SvgTick & { readonly color: Color })[];
   readonly coverageArea?: SvgCoverageArea;
+  readonly opacity?: number;
+  readonly trail?: boolean;
   readonly branches: readonly {
     readonly id: string;
     readonly strokes: readonly SvgPathStroke[];
@@ -1011,7 +1013,9 @@ export function buildSvgRenderScene(
         kind: path.kind,
         ariaLabel: pathAriaLabel(path, scene),
         ...(path.variant === undefined ? {} : { variant: path.variant }),
-        ...(coaching === undefined ? {} : { coaching }),
+        ...(path.trail ? {} : coaching === undefined ? {} : { coaching }),
+        ...(path.opacity === undefined ? {} : { opacity: path.opacity }),
+        ...(path.trail === undefined ? {} : { trail: path.trail }),
         strokes,
         ticks: buildTicks(path.points, viewport).map((tick) => ({
           ...tick,

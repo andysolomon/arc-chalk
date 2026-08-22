@@ -49,6 +49,7 @@
       "dependencies": {
         "@chalk/domain": "workspace:*",
         "@chalk/editor": "workspace:*",
+        "@chalk/exports": "workspace:*",
         "@chalk/local-db": "workspace:*",
         "@chalk/render": "workspace:*",
         "@tanstack/react-query": "*",

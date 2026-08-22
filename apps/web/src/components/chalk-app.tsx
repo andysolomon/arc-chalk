@@ -26,8 +26,13 @@ import {
   type DemoTour,
   defensiveLineKinds,
   defensiveRouteKinds,
+  evaluatePlayAt,
+  formatPlaybackClock,
   isLineman,
   labelRolePresets,
+  planPlay,
+  playbackShowsAnimation,
+  resolvePathTiming,
   offensiveRouteKinds,
   labelSizeChoices,
   playErasureCommand,
@@ -104,9 +109,21 @@ import {
   setLabelTextCommand,
   setRouteAssignmentCommand,
   setRouteCoachingTextCommand,
+  clampPlaybackTime,
+  idlePlayback,
+  pausePlayback,
+  resetPlayback,
+  seekPlayback,
+  setPlaybackRate,
+  tickPlayback,
+  togglePlayback,
   setRouteKindCommand,
   setRouteReadCommand,
   setRouteStyleCommand,
+  setRouteTimingCommand,
+  type PlaybackClock,
+  type PlaybackRate,
+  type RouteTimingField,
   straightenRouteCommand,
   localSaveMessage,
   localSaveStatus,
@@ -161,6 +178,7 @@ import {
   type TypePresetId,
 } from "@chalk/render";
 import {
+  createElement,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -168,6 +186,8 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type ReactNode,
+  type Ref,
 } from "react";
 
 import type { ChalkRuntime } from "../app/editor-runtime";
@@ -187,8 +207,15 @@ import {
 import { editorStatusHint } from "./editor-status-hint";
 import { FieldMinimap } from "./field-minimap";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
+import { PlaybackBar } from "./playback-bar";
+import { readPlaybackNow } from "./playback-now";
 import { openPrintField, svgMarkupForPrint } from "./print-field";
+import {
+  downloadFrameSequence,
+  openProgressionStrip,
+} from "./print-progression";
 import { RailIcon } from "./rail-icons";
+import { renderToStaticMarkup } from "react-dom/server";
 
 type View = "Editor" | "Demo" | "Present" | "Print";
 type Menu = "more" | "export" | "save" | "clear" | null;
@@ -710,7 +737,9 @@ export function FieldDiagram({
             <g
               aria-label={path.ariaLabel}
               data-scene-path-group={path.id}
+              {...(path.trail ? { "data-scene-trail": path.id } : {})}
               key={path.id}
+              opacity={path.opacity}
               role="img"
             >
               <title>{path.ariaLabel}</title>
@@ -2037,8 +2066,11 @@ function RouteInspector({
   onRemoveChoice,
   onStraighten,
   onStyle,
+  onTiming,
+  onTimingCommitted,
   path,
   segmentIndex,
+  timing,
   unit,
 }: {
   branchIndex?: number;
@@ -2054,8 +2086,11 @@ function RouteInspector({
   onRemoveChoice: () => void;
   onStraighten: () => void;
   onStyle: (style: Partial<MovementPath["style"]>) => void;
+  onTiming: (field: RouteTimingField, value: string) => void;
+  onTimingCommitted: (field: RouteTimingField) => void;
   path: MovementPath;
   segmentIndex?: number;
+  timing: Readonly<Record<RouteTimingField, string>>;
   unit: "offense" | "defense" | "special-teams";
 }) {
   // With no break picked, a choice forks off the end, which is where the
@@ -2217,6 +2252,45 @@ function RouteInspector({
         Read number and assignment print on the field. Conversion and note ride
         along with the route — they follow it through mirror, duplicate and
         save.
+      </p>
+      <span className="section-heading">Timing</span>
+      <div className="timing-row">
+        <label className="read-field">
+          <span>Delay</span>
+          <input
+            aria-label="Delay"
+            inputMode="decimal"
+            onBlur={() => onTimingCommitted("delay")}
+            onChange={(event) => onTiming("delay", event.target.value)}
+            spellCheck={false}
+            value={timing.delay}
+          />
+        </label>
+        <label className="read-field">
+          <span>Speed</span>
+          <input
+            aria-label="Speed"
+            inputMode="decimal"
+            onBlur={() => onTimingCommitted("speed")}
+            onChange={(event) => onTiming("speed", event.target.value)}
+            spellCheck={false}
+            value={timing.speed}
+          />
+        </label>
+        <label className="read-field">
+          <span>Hold</span>
+          <input
+            aria-label="Hold"
+            inputMode="decimal"
+            onBlur={() => onTimingCommitted("hold")}
+            onChange={(event) => onTiming("hold", event.target.value)}
+            spellCheck={false}
+            value={timing.hold}
+          />
+        </label>
+      </div>
+      <p>
+        Delay is beats after the snap. Hold is how long he sits down at the end.
       </p>
       <span className="section-heading">Choice within this stem</span>
       <div className="help-row">
@@ -2694,6 +2768,11 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     readonly field: RouteCoachingField;
     readonly value: string;
   }>();
+  const [timingDraft, setTimingDraft] = useState<{
+    readonly pathId: string;
+    readonly field: RouteTimingField;
+    readonly value: string;
+  }>();
   /** The letter or tag the Coach is typing onto a man, held for the same reason. */
   const [playerDraft, setPlayerDraft] = useState<{
     readonly playerId: string;
@@ -2786,6 +2865,9 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   const [reading, setReading] = useState(false);
   /** Whether space is down, which turns any drag into a pan. */
   const spaceHeldRef = useRef(false);
+  /** A space-drag consumed the key, so keyup must not also play. */
+  const spacePannedRef = useRef(false);
+  const timelineRef = useRef<HTMLDivElement>(null);
   // Entities the Coach has just made whose commit has not landed. Selection
   // must not be pruned of something that is still on its way.
   const pendingInsertsRef = useRef<Set<string>>(new Set());
@@ -2796,6 +2878,18 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     editorStore.getSnapshot,
     editorStore.getSnapshot,
   );
+  const animationPlan = useMemo(
+    () => planPlay(editor.document),
+    [editor.document],
+  );
+  const [playback, setPlayback] = useState<PlaybackClock>(() =>
+    idlePlayback(animationPlan.startMs),
+  );
+  const playbackRef = useRef(playback);
+  const [sceneAnchorMs, setSceneAnchorMs] = useState<number | null>(null);
+  const reducedMotion =
+    typeof globalThis.matchMedia === "function" &&
+    globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /**
    * The sets the Coach saved himself and what he starred in either book. Held
@@ -2887,15 +2981,43 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       applyLiveFieldPaint(fieldSvgRef.current, livePreviewRef.current);
     }
   }, [editor.document]);
+  const playbackTimeMs = clampPlaybackTime(playback.timeMs, {
+    startMs: animationPlan.startMs,
+    endMs: animationPlan.endMs,
+  });
+  const visibleClock: PlaybackClock =
+    playbackTimeMs === playback.timeMs
+      ? playback
+      : { ...playback, timeMs: playbackTimeMs };
+  const showAnimation = playbackShowsAnimation(
+    visibleClock.timeMs,
+    animationPlan.startMs,
+    playback.playing,
+  );
+  const sceneTimeMs = playback.playing
+    ? (sceneAnchorMs ?? visibleClock.timeMs)
+    : visibleClock.timeMs;
   const scene = useMemo(() => {
     const forView: Presentation =
       activeView === "Present"
         ? { ...presentation, present: true }
         : presentation;
     return buildSvgRenderScene(
-      buildRenderScene(editor.document, { presentation: forView }),
+      buildRenderScene(editor.document, {
+        presentation: forView,
+        ...(showAnimation
+          ? { atMs: sceneTimeMs, playing: playback.playing }
+          : {}),
+      }),
     );
-  }, [activeView, editor.document, presentation]);
+  }, [
+    activeView,
+    editor.document,
+    playback.playing,
+    presentation,
+    sceneTimeMs,
+    showAnimation,
+  ]);
   const selectionKeys = useMemo(
     () =>
       new Set(
@@ -2966,6 +3088,121 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         { coalesce: true },
       )
       .catch(() => undefined);
+  };
+  const routeTiming = (
+    path: MovementPath,
+  ): Readonly<Record<RouteTimingField, string>> => {
+    const player = editor.document.players.find(
+      ({ id }) => id === path.playerId,
+    );
+    const resolved = resolvePathTiming(path, player);
+    const committed = {
+      delay: resolved.delayBeats.toFixed(1),
+      speed: `${resolved.speedMultiplier.toFixed(1)}×`,
+      hold: resolved.holdSeconds.toFixed(1),
+    };
+    return timingDraft?.pathId === path.id
+      ? { ...committed, [timingDraft.field]: timingDraft.value }
+      : committed;
+  };
+  const editRouteTiming = (
+    pathId: string,
+    field: RouteTimingField,
+    value: string,
+  ): void => {
+    setTimingDraft({ pathId, field, value });
+    const parsed = Number.parseFloat(value.replace("×", ""));
+    if (Number.isNaN(parsed)) return;
+    void editorStore
+      .applyEdit(
+        (current) => setRouteTimingCommand(current, pathId, field, parsed),
+        { coalesce: true },
+      )
+      .catch(() => undefined);
+  };
+  const bounds = {
+    startMs: animationPlan.startMs,
+    endMs: animationPlan.endMs,
+  };
+  const paintPlaybackFrame = (clock: PlaybackClock): void => {
+    const svg = fieldSvgRef.current;
+    const timeline = timelineRef.current;
+    const frame = evaluatePlayAt(
+      editorStore.getSnapshot().document,
+      clock.timeMs,
+      animationPlan,
+    );
+    const projection = createSvgProjection(
+      editorStore.getSnapshot().document.fieldProfile,
+    );
+    if (svg) {
+      applyLiveFieldPaint(svg, {
+        playback: {
+          players: editorStore.getSnapshot().document.players.map((player) => {
+            const position =
+              frame.playerPositions[player.id] ?? player.position;
+            const point = projectCoordinate(position, projection);
+            return { id: player.id, x: point.x, y: point.y };
+          }),
+          trails: frame.trails.map((trail) => ({
+            pathId: `${trail.pathId}-trail`,
+            d: trail.points
+              .map((point, index) => {
+                const projected = projectCoordinate(point, projection);
+                return `${index === 0 ? "M" : "L"} ${projected.x.toFixed(1)} ${projected.y.toFixed(1)}`;
+              })
+              .join(" "),
+          })),
+        },
+      });
+      svg.setAttribute("data-playback-time", String(clock.timeMs));
+    }
+    if (timeline) {
+      const span = Math.max(1, bounds.endMs - bounds.startMs);
+      const progress = Math.min(
+        1,
+        Math.max(0, (clock.timeMs - bounds.startMs) / span),
+      );
+      timeline.setAttribute("data-playback-time", String(clock.timeMs));
+      timeline.setAttribute(
+        "data-playback-playing",
+        clock.playing ? "true" : "false",
+      );
+      const clockNode = timeline.querySelector("code");
+      if (clockNode) {
+        clockNode.textContent = `${formatPlaybackClock(clock.timeMs)} / ${(bounds.endMs / 1000).toFixed(1)}s`;
+      }
+      const fill = timeline.querySelector<HTMLElement>(".scrubber-fill");
+      if (fill) fill.style.width = `${progress * 100}%`;
+      const thumb = timeline.querySelector<HTMLElement>(".scrubber i");
+      if (thumb) thumb.style.left = `calc(${progress * 100}% - 6px)`;
+    }
+  };
+  const runPlayback = (next: PlaybackClock): void => {
+    if (next.playing && !playbackRef.current.playing) {
+      setSceneAnchorMs(next.timeMs);
+    } else if (!next.playing) {
+      setSceneAnchorMs(null);
+    }
+    playbackRef.current = next;
+    setPlayback(next);
+  };
+  const togglePlay = (): void => {
+    runPlayback(
+      togglePlayback(playbackRef.current, readPlaybackNow(), bounds, {
+        reducedMotion,
+      }),
+    );
+  };
+  const togglePlayRef = useRef(togglePlay);
+  const changeRate = (rate: PlaybackRate): void => {
+    runPlayback(setPlaybackRate(playbackRef.current, rate, readPlaybackNow()));
+  };
+  const seekPlay = (timeMs: number): void => {
+    runPlayback(seekPlayback(playbackRef.current, timeMs, bounds));
+  };
+  const resetPlay = (): void => {
+    runPlayback(resetPlayback(playbackRef.current, bounds.startMs));
   };
   /**
    * Handles belong to exactly one selected route, as in the original: a
@@ -3383,9 +3620,13 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       event.altKey ||
       touchNavigates(stylusRef.current, event.pointerType)
     ) {
+      if (spaceHeldRef.current) spacePannedRef.current = true;
       panRef.current = { x: event.clientX, y: event.clientY };
       cancelLongPress();
       return;
+    }
+    if (playbackRef.current.playing) {
+      runPlayback(pausePlayback(playbackRef.current));
     }
     dispatchField({ type: "pointer-down", input: fieldPointerInput(event) });
     flushLivePaint();
@@ -4143,6 +4384,32 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     present: () => goToView("Present"),
     print: () => goToView("Print"),
     printField: printTheField,
+    printProgression: () => {
+      const play = editorStore.getSnapshot().document;
+      openProgressionStrip(play, (atMs) =>
+        renderToStaticMarkup(
+          createElement(FieldDiagram, {
+            scene: buildSvgRenderScene(
+              buildRenderScene(play, { atMs, playing: true }),
+            ),
+          }),
+        ),
+      );
+      setOpenMenu(null);
+    },
+    exportFrames: () => {
+      const play = editorStore.getSnapshot().document;
+      void downloadFrameSequence(play, (atMs) =>
+        renderToStaticMarkup(
+          createElement(FieldDiagram, {
+            scene: buildSvgRenderScene(
+              buildRenderScene(play, { atMs, playing: true }),
+            ),
+          }),
+        ),
+      );
+      setOpenMenu(null);
+    },
     shortcuts: () => setOverlay("shortcuts"),
     // Chalk saves continuously (ADR 0012); an explicit Save flushes whatever
     // the Coach is still typing rather than pretending durability is manual.
@@ -4245,6 +4512,37 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    playbackRef.current = playback;
+  }, [playback]);
+
+  useEffect(() => {
+    togglePlayRef.current = togglePlay;
+  });
+
+  useEffect(() => {
+    if (!playback.playing) return;
+    let frame = 0;
+    const loop = (now: number) => {
+      const next = tickPlayback(playbackRef.current, now, {
+        startMs: animationPlan.startMs,
+        endMs: animationPlan.endMs,
+      });
+      playbackRef.current = next;
+      paintPlaybackFrame(next);
+      if (!next.playing) {
+        setSceneAnchorMs(null);
+        setPlayback(next);
+        return;
+      }
+      frame = requestAnimationFrame(loop);
+    };
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
+    // paintPlaybackFrame reads live refs; the loop is owned by playing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playback.playing, animationPlan.startMs, animationPlan.endMs]);
+
   // Held by the keyboard listener, and stable, since everything it needs it
   // reads live rather than closing over.
   const showSelectionOnKey = useCallback(() => {
@@ -4293,14 +4591,15 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           return;
         }
         if (activeView === "Present") {
-          if (
-            event.key === "ArrowLeft" ||
-            event.key === "ArrowRight" ||
-            event.key === " "
-          ) {
-            // Variation stepping and playback wait on later phases; the keys
-            // still belong to Present so they do not leak into the editor.
+          if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            // Variation stepping waits on the library; the keys stay here
+            // so they do not leak into the editor.
             event.preventDefault();
+            return;
+          }
+          if (event.key === " " && !activating) {
+            event.preventDefault();
+            togglePlayRef.current();
             return;
           }
         }
@@ -4408,10 +4707,11 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       }
       if (typing || meta || event.altKey) return;
       if (event.key === " " && !activating) {
-        // Held space turns a drag into a pan. It is not a tool key and has no
-        // other job, so it is swallowed rather than scrolling the page.
+        // Held space turns a drag into a pan. A tap with no drag plays and
+        // pauses, matching the original.
         event.preventDefault();
         spaceHeldRef.current = true;
+        spacePannedRef.current = false;
         return;
       }
       if (event.key === "Enter" && (!activating || drawingRef.current)) {
@@ -4473,7 +4773,18 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     };
 
     const onKeyUp = (event: KeyboardEvent) => {
-      if (event.key === " ") spaceHeldRef.current = false;
+      if (event.key !== " ") return;
+      spaceHeldRef.current = false;
+      // Present plays on keydown — there is no space-to-pan there. Doing it
+      // again here would start and stop in the same tap.
+      if (
+        activeView === "Editor" &&
+        !spacePannedRef.current &&
+        animationPlan.items.length > 0
+      ) {
+        togglePlayRef.current();
+      }
+      spacePannedRef.current = false;
     };
     globalThis.addEventListener("keydown", onKeyDown);
     globalThis.addEventListener("keyup", onKeyUp);
@@ -4483,6 +4794,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     };
   }, [
     activeView,
+    animationPlan.items.length,
     contextMenu,
     editorStore,
     goToView,
@@ -4589,6 +4901,7 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
       ? { depthBuffer: interaction.drawing.depthBuffer }
       : undefined,
     labelsTooSmall: labelDensity * (fieldWidthPx / camera.width) < 11,
+    animating: showAnimation,
   });
 
   if (activeView === "Present") {
@@ -4599,6 +4912,21 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
           playName={editor.document.name}
           positionLine=""
           scene={scene}
+          svgRef={fieldSvgRef}
+          timeline={
+            animationPlan.items.length > 0 ? (
+              <div ref={timelineRef}>
+                <PlaybackBar
+                  clock={visibleClock}
+                  onPlay={togglePlay}
+                  onRate={changeRate}
+                  onReset={resetPlay}
+                  onSeek={seekPlay}
+                  plan={animationPlan}
+                />
+              </div>
+            ) : null
+          }
         />
       </div>
     );
@@ -4776,19 +5104,18 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
               </div>
             ) : null}
           </div>
-          <div className="timeline" aria-label="Playback controls">
-            <button aria-label="Play">▶</button>
-            <span className="scrubber">
-              <i />
-            </span>
-            <code>0.0s / 3.1s</code>
-            <span className="speed">
-              <button>0.5×</button>
-              <button className="active">1×</button>
-              <button>2×</button>
-            </span>
-            <button aria-label="Reset">⟲</button>
-          </div>
+          {animationPlan.items.length > 0 ? (
+            <div ref={timelineRef}>
+              <PlaybackBar
+                clock={visibleClock}
+                onPlay={togglePlay}
+                onRate={changeRate}
+                onReset={resetPlay}
+                onSeek={seekPlay}
+                plan={animationPlan}
+              />
+            </div>
+          ) : null}
         </main>
         {inspectorOpen ? (
           <Inspector
@@ -4876,8 +5203,18 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
                       ),
                     )
                   }
+                  onTiming={(field, value) =>
+                    editRouteTiming(selectedPath.id, field, value)
+                  }
+                  onTimingCommitted={(field) => {
+                    editorStore.endCoalescing();
+                    setTimingDraft((draft) =>
+                      draft?.field === field ? undefined : draft,
+                    );
+                  }}
                   path={selectedPath}
                   segmentIndex={interaction.selectedSegmentIndex}
+                  timing={routeTiming(selectedPath)}
                   unit={editor.document.unit}
                 />
               ) : selectedPlayer ? (
@@ -5689,17 +6026,22 @@ function PresentMode({
   playName,
   positionLine,
   scene,
+  svgRef,
+  timeline,
 }: {
   onLeave: () => void;
   playName: string;
   positionLine: string;
   scene: SvgRenderScene;
+  svgRef?: Ref<SVGSVGElement>;
+  timeline?: ReactNode;
 }) {
   return (
     <div aria-label="Present" className="present-mode" role="region">
       <div className="present-stage">
-        <FieldDiagram scene={scene} />
+        <FieldDiagram scene={scene} svgRef={svgRef} />
       </div>
+      {timeline}
       <div className="present-bar">
         <div className="present-name">{playName}</div>
         <div className="present-pos">{positionLine}</div>

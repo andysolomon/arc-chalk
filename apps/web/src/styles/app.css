@@ -960,7 +960,7 @@ select:focus-visible {
 }
 
 .timeline {
-  height: 36px;
+  height: 34px;
   flex: none;
   display: flex;
   align-items: center;
@@ -971,7 +971,7 @@ select:focus-visible {
   background: #fff;
 }
 .timeline button {
-  height: 24px;
+  height: 22px;
   padding: 0 6px;
   border: 0;
   border-radius: 5px;
@@ -982,23 +982,46 @@ select:focus-visible {
 }
 .timeline button:hover {
   background: #f2f2f2;
+  color: #171717;
 }
 .scrubber {
   position: relative;
   flex: 1;
-  height: 2px;
-  background: #e7e7e7;
+  height: 22px;
+  cursor: pointer;
+}
+.scrubber-track,
+.scrubber-fill {
+  position: absolute;
+  left: 0;
+  top: 9.5px;
+  height: 3px;
+  border-radius: 2px;
+}
+.scrubber-track {
+  right: 0;
+  background: #ebebeb;
+}
+.scrubber-fill {
+  background: #171717;
+}
+.scrubber-snap {
+  position: absolute;
+  top: 4px;
+  width: 1px;
+  height: 14px;
+  background: #171717;
 }
 .scrubber i {
   position: absolute;
-  left: 0;
-  top: 50%;
+  top: 5px;
   width: 12px;
   height: 12px;
-  transform: translate(-1px, -50%);
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 0 0 1px #c9c9c9;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.16),
+    0 1px 2px rgba(0, 0, 0, 0.12);
 }
 .timeline code {
   color: var(--muted);
@@ -2002,6 +2025,14 @@ select:focus-visible {
   box-shadow: none;
   font-family: "Geist Mono", monospace;
   text-align: right;
+}
+.timing-row {
+  display: flex;
+  gap: 6px;
+}
+.timing-row .read-field {
+  width: auto;
+  flex: 1;
 }
 .label-inspector p {
   font-size: 11px;

@@ -394,6 +394,7 @@ export const shortcutRows: readonly (readonly [string, string])[] = [
   ["Select all", "⌘A"],
   ["Fit field", "⌘0"],
   ["Zoom in / out", "⌘= / ⌘-"],
+  ["Play / pause", "space"],
   ["Pan the field", "space-drag, alt-drag or two fingers"],
   ["Zoom to cursor", "scroll or pinch"],
   ["Pan sideways", "shift-scroll"],

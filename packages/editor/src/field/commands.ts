@@ -19,6 +19,7 @@ import {
   recognizeFormation,
   RECOGNITION_THRESHOLD,
   labelRolePresets,
+  resolvePathTiming,
   routePresetPoints,
   spotBall,
   stockFormations,
@@ -639,6 +640,53 @@ export function setRouteCoachingTextCommand(
  * Where this line falls in the progression. The original takes digits only
  * and two of them, so a read that reaches nothing is no read at all.
  */
+export type RouteTimingField = "delay" | "speed" | "hold";
+
+const TIMING_LIMITS = Object.freeze({
+  delay: 8,
+  speed: 3,
+  hold: 8,
+});
+
+/**
+ * Delay is beats after the snap, speed is a multiplier on the default pace,
+ * hold is seconds he sits at the end. Unset values stay unset so a hitch
+ * still picks up its default sit-down after a realignment.
+ */
+export function setRouteTimingCommand(
+  document: PlayDocument,
+  pathId: string,
+  field: RouteTimingField,
+  value: number | undefined,
+): PlayCommand | undefined {
+  return setRouteField(document, pathId, (path) => {
+    const player = document.players.find(({ id }) => id === path.playerId);
+    const resolved = resolvePathTiming(path, player);
+    const nextTiming: NonNullable<MovementPath["timing"]> = {
+      delayMs: resolved.delayMs,
+      holdMs: resolved.holdMs,
+      ...(resolved.speedMultiplier === 1
+        ? {}
+        : { speedMultiplier: resolved.speedMultiplier }),
+    };
+    if (field === "delay") {
+      const beats = Math.max(0, Math.min(TIMING_LIMITS.delay, value ?? 0));
+      nextTiming.delayMs = Math.round(beats * 400);
+    } else if (field === "hold") {
+      const seconds = Math.max(0, Math.min(TIMING_LIMITS.hold, value ?? 0));
+      nextTiming.holdMs = Math.round(seconds * 1000);
+    } else if (value === undefined || value <= 0) {
+      delete nextTiming.speedMultiplier;
+    } else {
+      nextTiming.speedMultiplier = Math.max(
+        0.1,
+        Math.min(TIMING_LIMITS.speed, value),
+      );
+    }
+    return { ...path, timing: nextTiming };
+  });
+}
+
 export function setRouteReadCommand(
   document: PlayDocument,
   pathId: string,
