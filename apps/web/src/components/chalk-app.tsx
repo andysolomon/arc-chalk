@@ -4775,7 +4775,13 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key !== " ") return;
       spaceHeldRef.current = false;
-      if (!spacePannedRef.current && animationPlan.items.length > 0) {
+      // Present plays on keydown — there is no space-to-pan there. Doing it
+      // again here would start and stop in the same tap.
+      if (
+        activeView === "Editor" &&
+        !spacePannedRef.current &&
+        animationPlan.items.length > 0
+      ) {
         togglePlayRef.current();
       }
       spacePannedRef.current = false;

@@ -1323,16 +1323,16 @@ describe("Chalk editor overlays", () => {
 
     const bar = screen.getByLabelText("Playback controls");
     expect(bar).toBeVisible();
-    expect(screen.getByRole("button", { name: "Play" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Reset" })).toBeVisible();
+    expect(within(bar).getByRole("button", { name: "Play" })).toBeVisible();
+    expect(within(bar).getByRole("button", { name: "Reset" })).toBeVisible();
     expect(
-      screen.getByRole("slider", { name: "Scrub the play" }),
+      within(bar).getByRole("slider", { name: "Scrub the play" }),
     ).toBeVisible();
     expect(bar).toHaveAttribute("data-playback-playing", "false");
 
-    await user.click(screen.getByRole("button", { name: "Play" }));
-    expect(screen.getByRole("button", { name: "Pause" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Pause" }));
-    expect(screen.getByRole("button", { name: "Play" })).toBeVisible();
+    await user.click(within(bar).getByRole("button", { name: "Play" }));
+    expect(within(bar).getByRole("button", { name: "Pause" })).toBeVisible();
+    await user.click(within(bar).getByRole("button", { name: "Pause" }));
+    expect(within(bar).getByRole("button", { name: "Play" })).toBeVisible();
   });
 });
