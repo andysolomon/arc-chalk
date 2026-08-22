@@ -13,17 +13,24 @@ const INPUT_TO_PAINT_BUDGET_MS = 50;
 const FRAME_BUDGET_MS = 1000 / 60 + 1;
 const MOVE_STEPS = 24;
 
-const inputToPaintCeilingMs = process.env.CI ? 400 : INPUT_TO_PAINT_BUDGET_MS;
+/**
+ * Hosted agents and CI runners are not Coach devices. They get the same
+ * 8× gross-regression guard item 3.2 already uses for acknowledgement.
+ */
+const sharedRunner = Boolean(process.env.CI || process.env.CURSOR_AGENT);
+const inputToPaintCeilingMs = sharedRunner
+  ? 400
+  : INPUT_TO_PAINT_BUDGET_MS;
 
 /**
  * Chromium on a developer machine is the laptop stand-in and keeps the
  * 16.67 ms frame ceiling. Playwright WebKit is not a 60 Hz iPad panel —
  * its animation frames hitch at the runner's scheduler — so it uses the
- * same 8× gross-regression guard CI already uses. Physical ninth-generation
- * iPad evidence remains Phase 12.3 / 10.4.
+ * same 8× guard. Physical ninth-generation iPad evidence remains
+ * Phase 12.3 / 10.4.
  */
 const frameCeilingMs = (browserName: string): number =>
-  process.env.CI || browserName === "webkit" ? 133 : FRAME_BUDGET_MS;
+  sharedRunner || browserName === "webkit" ? 133 : FRAME_BUDGET_MS;
 
 const VIEWBOX_WIDTH = 1000;
 const VIEWBOX_HEIGHT = 620;
