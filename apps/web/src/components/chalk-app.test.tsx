@@ -1316,4 +1316,23 @@ describe("Chalk editor overlays", () => {
     expect(screen.getByText("DIAGRAM")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Mirror" })).toBeNull();
   });
+
+  it("offers playback on a play with routes", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    const bar = screen.getByLabelText("Playback controls");
+    expect(bar).toBeVisible();
+    expect(screen.getByRole("button", { name: "Play" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reset" })).toBeVisible();
+    expect(
+      screen.getByRole("slider", { name: "Scrub the play" }),
+    ).toBeVisible();
+    expect(bar).toHaveAttribute("data-playback-playing", "false");
+
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Pause" }));
+    expect(screen.getByRole("button", { name: "Play" })).toBeVisible();
+  });
 });

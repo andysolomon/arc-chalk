@@ -10,6 +10,7 @@ export interface EditorStatusHintInput {
   readonly selectionCount: number;
   readonly drawing?: { readonly depthBuffer: string };
   readonly labelsTooSmall?: boolean;
+  readonly animating?: boolean;
 }
 
 const toolHint: Record<StatusHintTool, (atFit: boolean) => string> = {
@@ -38,6 +39,9 @@ export function editorStatusHint(input: EditorStatusHintInput): string {
     return "letter landscape, half-inch margins — this is what export → print produces · esc returns to the editor";
   }
   if (input.view === "demo") return DEMO_STATUS_HINT;
+  if (input.animating) {
+    return "space: play / pause · drag the scrubber to any frame — the play stays selectable and editable · ⟲ back to the snap";
+  }
   if (input.drawing) {
     const depth = input.drawing.depthBuffer;
     return depth !== ""

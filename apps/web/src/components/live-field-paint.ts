@@ -10,11 +10,21 @@ export interface LiveMovePaint {
   readonly labelIds: readonly string[];
 }
 
+export interface LivePlaybackPaint {
+  readonly players: readonly {
+    readonly id: string;
+    readonly x: number;
+    readonly y: number;
+  }[];
+  readonly trails: readonly { readonly pathId: string; readonly d: string }[];
+}
+
 export interface LiveFieldPaint {
   readonly move?: LiveMovePaint;
   readonly pathStrokes?: readonly SvgPathStroke[];
   readonly camera?: Camera;
   readonly metrics?: PaintLoopSample;
+  readonly playback?: LivePlaybackPaint;
 }
 
 const PLAYER = "data-scene-player";
@@ -116,6 +126,20 @@ export function applyLiveFieldPaint(
     svg.setAttribute(LIVE_PAINT, svg.getAttribute(LIVE_PAINT) ?? "handle");
     for (const stroke of paint.pathStrokes) {
       query(svg, PATH_STROKE, stroke.id)?.setAttribute("d", stroke.d);
+    }
+  }
+
+  if (paint.playback) {
+    svg.setAttribute(LIVE_PAINT, svg.getAttribute(LIVE_PAINT) ?? "playback");
+    for (const player of paint.playback.players) {
+      const node = query(svg, PLAYER, player.id);
+      if (!node) continue;
+      node.setAttribute(BASE_X, String(player.x));
+      node.setAttribute(BASE_Y, String(player.y));
+      node.setAttribute("transform", `translate(${player.x} ${player.y})`);
+    }
+    for (const trail of paint.playback.trails) {
+      query(svg, PATH_STROKE, trail.pathId)?.setAttribute("d", trail.d);
     }
   }
 

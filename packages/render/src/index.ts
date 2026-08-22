@@ -8,7 +8,14 @@ import type {
   Player,
   TextLabel,
 } from "@chalk/domain";
-import { assignmentForPath, buildFieldLandmarks } from "@chalk/domain";
+import {
+  assignmentForPath,
+  buildFieldLandmarks,
+  evaluatePlayAt,
+  GHOST_TRAIL_OPACITY,
+  playbackShowsAnimation,
+  planPlay,
+} from "@chalk/domain";
 
 import {
   defaultPresentation,
@@ -56,6 +63,10 @@ export interface ScenePath extends Pick<
    * is drawn at the end of the line it is about.
    */
   readonly assignment?: string;
+  /** Ghosted routes sit behind the traveled trail. */
+  readonly opacity?: number;
+  /** The traveled portion of a line at the current frame. */
+  readonly trail?: boolean;
 }
 
 export type SceneLabel = Pick<
@@ -94,6 +105,13 @@ export interface RenderScene {
 export interface RenderSceneOptions {
   readonly fieldWindow?: FieldWindow;
   readonly presentation?: Presentation;
+  /**
+   * Absolute timeline time. Snap is 0. Absent, or at rest at the timeline
+   * start, keeps the static diagram — players at stance, routes at full
+   * weight.
+   */
+  readonly atMs?: number;
+  readonly playing?: boolean;
 }
 
 function resolveLabelPosition(
@@ -146,6 +164,19 @@ export function buildRenderScene(
   const presentation = options.presentation ?? defaultPresentation;
   const page = pageKindSpec(presentation.pageKind);
   const layers = effectiveLayers(presentation);
+  const plan = options.atMs === undefined ? undefined : planPlay(play);
+  const animated =
+    plan !== undefined &&
+    options.atMs !== undefined &&
+    playbackShowsAnimation(
+      options.atMs,
+      plan.startMs,
+      options.playing === true,
+    );
+  const frame =
+    animated && options.atMs !== undefined && plan !== undefined
+      ? evaluatePlayAt(play, options.atMs, plan)
+      : undefined;
   return {
     schemaVersion: 2,
     playId: play.id,
@@ -176,7 +207,7 @@ export function buildRenderScene(
       }) => ({
         id,
         unit,
-        position,
+        position: frame?.playerPositions[id] ?? position,
         symbol,
         label,
         sublabel,
@@ -186,39 +217,64 @@ export function buildRenderScene(
         ...(group === undefined ? {} : { group }),
       }),
     ),
-    paths: play.paths.map(
-      ({
-        id,
-        kind,
-        playerId,
-        points,
-        branches,
-        style,
-        variant,
-        coverageArea,
-        readOrder,
-        conversion,
-        coachingNote,
-      }) => {
-        const assignment = assignmentForPath(play, id)?.text.trim();
-        return {
+    paths: [
+      ...play.paths.map(
+        ({
           id,
           kind,
           playerId,
           points,
           branches,
           style,
-          ...(variant === undefined ? {} : { variant }),
-          ...(coverageArea === undefined ? {} : { coverageArea }),
-          ...(layers.reads && readOrder !== undefined ? { readOrder } : {}),
-          ...(layers.notes && conversion !== undefined ? { conversion } : {}),
-          ...(layers.notes && coachingNote !== undefined
-            ? { coachingNote }
-            : {}),
-          ...(layers.assigns && assignment ? { assignment } : {}),
-        };
-      },
-    ),
+          variant,
+          coverageArea,
+          readOrder,
+          conversion,
+          coachingNote,
+        }) => {
+          const assignment = assignmentForPath(play, id)?.text.trim();
+          return {
+            id,
+            kind,
+            playerId,
+            points,
+            branches,
+            style,
+            ...(variant === undefined ? {} : { variant }),
+            ...(coverageArea === undefined ? {} : { coverageArea }),
+            ...(layers.reads && readOrder !== undefined ? { readOrder } : {}),
+            ...(layers.notes && conversion !== undefined ? { conversion } : {}),
+            ...(layers.notes && coachingNote !== undefined
+              ? { coachingNote }
+              : {}),
+            ...(layers.assigns && assignment ? { assignment } : {}),
+            ...(frame === undefined ? {} : { opacity: GHOST_TRAIL_OPACITY }),
+          };
+        },
+      ),
+      ...(frame?.trails ?? []).flatMap((trail) => {
+        const source = play.paths.find(({ id }) => id === trail.pathId);
+        if (!source || trail.points.length < 2) return [];
+        return [
+          {
+            id: `${source.id}-trail`,
+            kind: source.kind,
+            playerId: source.playerId,
+            points: trail.points.map((point) => ({
+              lateralYards: point.lateralYards,
+              depthYards: point.depthYards,
+            })),
+            branches: [],
+            style: {
+              ...source.style,
+              line: "solid" as const,
+              ending: "none" as const,
+            },
+            trail: true,
+          },
+        ];
+      }),
+    ],
     labels: layers.text
       ? play.labels.map((label) => ({
           id: label.id,

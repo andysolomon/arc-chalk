@@ -6,6 +6,7 @@ export * from "./field";
 export * from "./live-preview";
 export * from "./minimap";
 export * from "./paint-loop";
+export * from "./playback";
 export * from "./screen";
 export * from "./smart-snapping";
 export * from "./stylus";
