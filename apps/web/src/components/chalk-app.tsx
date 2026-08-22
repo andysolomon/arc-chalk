@@ -2715,9 +2715,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
   );
   const cameraRef = useRef(camera);
   const setCamera = (next: Camera | ((current: Camera) => Camera)) => {
-    setCameraState(() => {
-      const resolved =
-        typeof next === "function" ? next(cameraRef.current) : next;
+    setCameraState((current) => {
+      // React 18 Strict Mode invokes this updater twice in development with
+      // the same previous state. Zoom and pan must be functions of that
+      // state — reading a mutated cameraRef would apply the step twice and
+      // lie about the status-bar percentage.
+      const resolved = typeof next === "function" ? next(current) : next;
       cameraRef.current = resolved;
       const live = livePreviewRef.current;
       if (live) {

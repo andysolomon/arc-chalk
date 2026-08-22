@@ -18,6 +18,7 @@ import {
 import { buildRenderScene, buildSvgRenderScene } from "@chalk/render";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ChalkRuntime } from "../app/editor-runtime";
@@ -192,7 +193,11 @@ describe("Chalk application shell", () => {
 
   it("drives the live camera controls and tells the truth about the idle formation", async () => {
     const user = userEvent.setup();
-    const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
+    const { container } = render(
+      <StrictMode>
+        <ChalkApp runtime={createTestRuntime()} />
+      </StrictMode>,
+    );
     const field = container.querySelector("svg.field-diagram");
 
     expect(screen.getByText("CUSTOM ALIGNMENT")).toBeVisible();
