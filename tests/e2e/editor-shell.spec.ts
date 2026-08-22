@@ -304,6 +304,10 @@ test("drives the snap rail toggle and live status-bar camera controls", async ({
   await expect(
     page.getByRole("button", { name: "Fit the field — 125% zoom" }),
   ).toBeVisible();
+  await expect(page.locator(".statusbar")).toContainText(
+    "drag the grass to move the view",
+  );
+  await expect(page.locator(".minimap")).toHaveAttribute("data-shown", "true");
   const zoomed = await cameraOf(page);
 
   const fieldItem = page
@@ -427,6 +431,42 @@ test("stars a set, keeps the offense as one of his own, and reopens both", async
   await expect(
     reopenedCalls.getByRole("button", { name: "Remove from favorites" }),
   ).toHaveCount(1);
+});
+
+test("reaches a saved set from the command palette and pans from the map", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  const book = page.getByRole("dialog", { name: "Formations" });
+  await book
+    .getByRole("textbox", { name: "Save the offense on the field as" })
+    .fill("Andy's Empty");
+  await book.getByRole("button", { name: "Save" }).click();
+  await expect(book.getByText("Andy's Empty")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.keyboard.press("Control+k");
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  await palette
+    .getByPlaceholder("Type a command — formation, defense, export, clear…")
+    .fill("andy");
+  await palette
+    .getByRole("button", { name: "Formation: Andy's Empty" })
+    .click();
+  await expect(page.locator("[data-formation-status]")).toHaveText(
+    /ANDY'S EMPTY/,
+  );
+
+  const before = await cameraOf(page);
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await expect(page.locator(".minimap")).toHaveAttribute("data-shown", "true");
+  const map = page.locator(".minimap svg");
+  const box = await map.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.click(box!.x + 8, box!.y + 8);
+  await expect.poll(async () => (await cameraOf(page)).x).not.toBe(before.x);
 });
 
 test("undoes and redoes a Play edit across a reload", async ({ page }) => {

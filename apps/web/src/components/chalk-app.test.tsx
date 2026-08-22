@@ -207,11 +207,21 @@ describe("Chalk application shell", () => {
     expect(
       screen.getByRole("button", { name: "Fit the field — 125% zoom" }),
     ).toBeVisible();
+    expect(screen.getByText(/drag the grass to move the view/)).toBeVisible();
+    expect(container.querySelector(".minimap")).toHaveAttribute(
+      "data-shown",
+      "true",
+    );
 
     await user.click(
       screen.getByRole("button", { name: "Fit the field — 125% zoom" }),
     );
     expect(field).toHaveAttribute("viewBox", "0 0 1000 620");
+    expect(screen.getByText(/drag the blue dot above a player/)).toBeVisible();
+    expect(container.querySelector(".minimap")).toHaveAttribute(
+      "data-shown",
+      "false",
+    );
 
     const outline = screen.getByRole("list", {
       name: "Everything on the field",
@@ -426,6 +436,10 @@ describe("Chalk application shell", () => {
     expect(
       within(book).getByRole("button", { name: "Remove from favorites" }),
     ).toBeVisible();
+    const star = within(book).getByRole("button", {
+      name: "Remove from favorites",
+    });
+    expect(star.parentElement).toHaveClass("browser-name-row");
 
     await user.click(
       within(book).getByRole("button", { name: "Remove Andy's Empty" }),
@@ -1076,6 +1090,43 @@ describe("Chalk editor overlays", () => {
     expect(within(rail).getByRole("button", { name: "Route — R" })).toHaveClass(
       "active",
     );
+  });
+
+  it("reaches a set the Coach saved from the palette", async () => {
+    const user = userEvent.setup();
+    const mine = formationFromOffense(stickThunderPlay, {
+      id: "formation_mine",
+      playbookId: stickThunderPlay.playbookId,
+      name: "Andy's Empty",
+      slotId: (index) => `slot_palette_${index}`,
+    })!;
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          coachSets: {
+            formations: [mine],
+            favoriteFormationIds: [mine.id],
+            favoriteCallIds: [],
+          },
+        })}
+      />,
+    );
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(
+      screen.getByRole("textbox", { name: "Command palette" }),
+      "andy",
+    );
+    expect(
+      screen.getByRole("button", { name: "Formation: Andy's Empty" }),
+    ).toBeEnabled();
+    await user.click(
+      screen.getByRole("button", { name: "Formation: Andy's Empty" }),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Command palette" }),
+    ).toBeNull();
+    expect(screen.getByText("ANDY'S EMPTY · 11")).toBeVisible();
   });
 
   it("shows a command the editor cannot run yet as unavailable", async () => {

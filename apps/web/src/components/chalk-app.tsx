@@ -10,7 +10,6 @@ import {
   deletePathsCommand,
   DEFAULT_ZONE_COVERAGE_RADII,
   DEMO_HEADER_TITLE,
-  DEMO_STATUS_HINT,
   demoCursor,
   demoHandoffPlay,
   demoItemOpacity,
@@ -66,6 +65,7 @@ import {
   type FrameBounds,
   centreCamera,
   fitCamera,
+  isAtFit,
   panCamera,
   zoomCamera,
   type Camera,
@@ -147,6 +147,7 @@ import {
   defaultPresentation,
   fieldLayerCatalog,
   pageKindCatalog,
+  resolveTypeDensity,
   typePresetCatalog,
   type FieldLayerId,
   type PageKindId,
@@ -164,7 +165,7 @@ import {
 
 import type { ChalkRuntime } from "../app/editor-runtime";
 import { agoStamp } from "./ago-stamp";
-import { type ActionMap } from "./editor-command-surface";
+import { paletteCommands, type ActionMap } from "./editor-command-surface";
 import {
   ClearMenu,
   CommandPalette,
@@ -176,6 +177,8 @@ import {
   SaveMenu,
   ShortcutReference,
 } from "./editor-overlays";
+import { editorStatusHint } from "./editor-status-hint";
+import { FieldMinimap } from "./field-minimap";
 import { openPrintField, svgMarkupForPrint } from "./print-field";
 import { RailIcon } from "./rail-icons";
 
@@ -3903,6 +3906,13 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         () => applyFormationPick(formation.id),
       ]),
     ),
+    ...Object.fromEntries(
+      coachFormations.map((formation) => [
+        `formation:${formation.id}`,
+        () => applyFormationPick(formation.id),
+      ]),
+    ),
+    [`open:${editor.document.id}`]: () => undefined,
   };
 
   useEffect(() => {
@@ -4268,12 +4278,25 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
     typePresetCatalog.find(({ id }) => id === presentation.typePreset)?.name ??
     "Coach";
   const playCategory = editor.document.playType?.name ?? "";
-  const statusHint =
-    activeView === "Print"
-      ? "letter landscape, half-inch margins — this is what export → print produces · esc returns to the editor"
-      : activeView === "Demo"
-        ? DEMO_STATUS_HINT
-        : "drag the blue dot above a player to draw his route — double-click a line to add a node · ⌫ delete";
+  const labelDensity = resolveTypeDensity(presentation).label;
+  const statusHint = editorStatusHint({
+    view:
+      activeView === "Print"
+        ? "print"
+        : activeView === "Demo"
+          ? "demo"
+          : "editor",
+    tool: activeTool,
+    atFit: isAtFit(camera, EDITOR_FRAME),
+    selectionCount: interaction.selection.length,
+    drawing: interaction.drawing
+      ? { depthBuffer: interaction.drawing.depthBuffer }
+      : undefined,
+    labelsTooSmall:
+      (labelDensity * (fieldWidthPx / EDITOR_FRAME.width) * zoomPercentage) /
+        100 <
+      11,
+  });
 
   if (activeView === "Present") {
     return (
@@ -4466,6 +4489,12 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
             <p aria-live="polite" className="visually-hidden">
               {activeItemName}
             </p>
+            <FieldMinimap
+              camera={camera}
+              frame={EDITOR_FRAME}
+              onCamera={setCamera}
+              players={previewDocument.players}
+            />
             {toast ? (
               <div className="toast" role="status">
                 <span>
@@ -4878,7 +4907,21 @@ export function ChalkApp({ runtime }: { runtime: ChalkRuntime }) {
         </div>
       </div>
       {overlay === "palette" ? (
-        <CommandPalette actions={actions} onClose={() => setOverlay(null)} />
+        <CommandPalette
+          actions={actions}
+          commands={paletteCommands({
+            defenses: stockDefensiveCalls.map((call) => ({
+              id: call.formation.id,
+              name: call.formation.name,
+            })),
+            formations: allFormations,
+            savedPlays: [
+              { id: editor.document.id, name: editor.document.name },
+            ],
+            zonesHidden,
+          })}
+          onClose={() => setOverlay(null)}
+        />
       ) : null}
       {overlay === "shortcuts" ? (
         <ShortcutReference onClose={() => setOverlay(null)} />
