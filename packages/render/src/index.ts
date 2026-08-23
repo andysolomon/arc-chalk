@@ -41,6 +41,11 @@ export interface ScenePlayer extends Pick<
   | "group"
 > {
   readonly position: Coordinate;
+  /**
+   * A man faded back rather than removed — the Position view keeps the
+   * other groups on the field at 22% so the sheet keeps its context.
+   */
+  readonly opacity?: number;
 }
 
 export interface ScenePath extends Pick<
@@ -97,6 +102,8 @@ export interface RenderScene {
   };
   readonly typePreset: TypePresetId;
   readonly type: TypeDensity;
+  /** Route stroke width in frame pixels; absent draws the editor's 2.5. */
+  readonly lineWeight?: number;
   readonly players: readonly ScenePlayer[];
   readonly paths: readonly ScenePath[];
   readonly labels: readonly SceneLabel[];
@@ -112,7 +119,20 @@ export interface RenderSceneOptions {
    */
   readonly atMs?: number;
   readonly playing?: boolean;
+  /**
+   * The men a sheet is about. Everyone else stays on the field faded to
+   * `fadedOpacity` (the original's 22%) with their coaching text taken off,
+   * so a position coach's handout still shows where his men fit.
+   */
+  readonly emphasis?: {
+    readonly playerIds: ReadonlySet<string>;
+    readonly fadedOpacity?: number;
+  };
+  /** Route stroke width override — wristband thumbnails draw at 1.5. */
+  readonly lineWeight?: number;
 }
+
+export const FADED_GROUP_OPACITY = 0.22;
 
 function resolveLabelPosition(
   play: PlayDocument,
@@ -177,10 +197,17 @@ export function buildRenderScene(
     animated && options.atMs !== undefined && plan !== undefined
       ? evaluatePlayAt(play, options.atMs, plan)
       : undefined;
+  const emphasis = options.emphasis;
+  const fadedOpacity = emphasis?.fadedOpacity ?? FADED_GROUP_OPACITY;
+  const faded = (playerId: string): boolean =>
+    emphasis !== undefined && !emphasis.playerIds.has(playerId);
   return {
     schemaVersion: 2,
     playId: play.id,
     playName: play.name,
+    ...(options.lineWeight === undefined
+      ? {}
+      : { lineWeight: options.lineWeight }),
     field: {
       profile: structuredClone(play.fieldProfile),
       landmarks: buildFieldLandmarks(
@@ -215,6 +242,7 @@ export function buildRenderScene(
         color,
         ...(role === undefined ? {} : { role }),
         ...(group === undefined ? {} : { group }),
+        ...(faded(id) ? { opacity: fadedOpacity } : {}),
       }),
     ),
     paths: [
@@ -233,6 +261,19 @@ export function buildRenderScene(
           coachingNote,
         }) => {
           const assignment = assignmentForPath(play, id)?.text.trim();
+          if (faded(playerId)) {
+            return {
+              id,
+              kind,
+              playerId,
+              points,
+              branches,
+              style,
+              ...(variant === undefined ? {} : { variant }),
+              ...(coverageArea === undefined ? {} : { coverageArea }),
+              opacity: fadedOpacity,
+            };
+          }
           return {
             id,
             kind,

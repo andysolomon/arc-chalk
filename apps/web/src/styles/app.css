@@ -383,6 +383,14 @@ select:focus-visible {
   font-family: "Geist Mono", monospace;
   font-size: 10px;
 }
+/* Eight of eight reads as done, in the original's saved green. */
+.menu-count.full {
+  color: #398e4a;
+}
+.wristband-row:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .menu-hint {
   margin: 0;
   padding: 6px 9px 4px;
@@ -777,6 +785,30 @@ select:focus-visible {
 }
 .notice[data-storage="critical"] {
   border-color: #c53b3f;
+}
+.lifecycle-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 0;
+}
+.lifecycle-notices .notice.offline {
+  background: #f1f1f1;
+}
+.lifecycle-notices .notice.update,
+.lifecycle-notices .notice.install {
+  background: #eef4ff;
+}
+.lifecycle-notices .notice.shell-fault {
+  border-color: #c53b3f;
+}
+.lifecycle-notices button[disabled] {
+  opacity: 0.6;
+}
+.lifecycle-error {
+  margin: 0;
+  color: #c53b3f;
+  font-size: 12px;
 }
 
 .workspace {

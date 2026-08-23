@@ -30,11 +30,14 @@ function RoutePath({
   draw = 1,
   id,
   style,
+  weight = 2.5,
 }: {
   d: string;
   draw?: number;
   id: string;
   style: SvgPathStroke["style"];
+  /** Stroke width in frame pixels; wristband thumbnails draw at 1.5. */
+  weight?: number;
 }) {
   if (draw <= 0) return null;
   const markerEnd =
@@ -57,7 +60,7 @@ function RoutePath({
       strokeDashoffset={tracing ? 1 - draw : undefined}
       strokeLinecap="round"
       strokeLinejoin="round"
-      strokeWidth="2.5"
+      strokeWidth={weight}
     />
   );
 }
@@ -434,7 +437,12 @@ export function FieldDiagram({
                 </g>
               ) : null}
               {path.strokes.map((stroke) => (
-                <RoutePath {...stroke} draw={shown} key={stroke.id} />
+                <RoutePath
+                  {...stroke}
+                  draw={shown}
+                  key={stroke.id}
+                  weight={scene.lineWeight}
+                />
               ))}
               {tickOpacity > 0
                 ? path.ticks.map(({ color, ...tick }, index) => (
@@ -493,7 +501,12 @@ export function FieldDiagram({
                     : Math.min(1, (branchShown - 0.5) / 0.3);
                 return [
                   ...branch.strokes.map((stroke) => (
-                    <RoutePath {...stroke} draw={branchShown} key={stroke.id} />
+                    <RoutePath
+                      {...stroke}
+                      draw={branchShown}
+                      key={stroke.id}
+                      weight={scene.lineWeight}
+                    />
                   )),
                   ...(branchTick > 0
                     ? branch.ticks.map(({ color, ...tick }, index) => (
@@ -602,7 +615,7 @@ export function FieldDiagram({
               onPointerLeave={
                 onHoverPlayer ? () => onHoverPlayer(undefined) : undefined
               }
-              opacity={shown}
+              opacity={shown * (player.opacity ?? 1)}
               role="img"
               transform={`translate(${player.position.x} ${player.position.y})`}
             >

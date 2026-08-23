@@ -202,18 +202,29 @@ export function ClearMenu({
   );
 }
 
+/**
+ * The wristband picker's half of the library: the Plays in library order,
+ * which of them are in the eight cells, and the toggle. The shell owns the
+ * picks so the print action can read them.
+ */
+export interface WristbandPicker {
+  readonly rows: readonly { readonly id: string; readonly name: string }[];
+  readonly picks: readonly string[];
+  readonly onToggle: (playId: string) => void;
+}
+
 export function ExportMenu({
   actions,
   onDismiss,
   onToggle,
   open,
-  playName,
+  wristband,
 }: {
   actions: ActionMap;
   onDismiss: () => void;
   onToggle: () => void;
   open: boolean;
-  playName: string;
+  wristband: WristbandPicker;
 }) {
   return (
     <div className="menu">
@@ -232,7 +243,7 @@ export function ExportMenu({
         <ExportPanel
           actions={actions}
           onDismiss={onDismiss}
-          playName={playName}
+          wristband={wristband}
         />
       ) : null}
     </div>
@@ -242,14 +253,15 @@ export function ExportMenu({
 function ExportPanel({
   actions,
   onDismiss,
-  playName,
+  wristband,
 }: {
   actions: ActionMap;
   onDismiss: () => void;
-  playName: string;
+  wristband: WristbandPicker;
 }) {
   const [submenu, setSubmenu] = useState<"position" | "wristband" | null>(null);
-  const [wristband, setWristband] = useState<readonly string[]>([]);
+  const picked = wristband.picks;
+  const full = picked.length >= 8;
 
   const back = (
     <button
@@ -311,37 +323,47 @@ function ExportPanel({
           <div className="menu-subhead">
             {back}
             <div className="menu-head">WRISTBAND</div>
-            <span className="menu-count">
-              {wristband.length} of 8 cells filled
+            <span
+              aria-live="polite"
+              className={`menu-count${full ? " full" : ""}`}
+            >
+              {picked.length} of 8 cells filled
             </span>
           </div>
-          <div className="wristband-rows">
-            <button
-              className="wristband-row"
-              onClick={() =>
-                setWristband((picked) =>
-                  picked.includes(playName)
-                    ? picked.filter((name) => name !== playName)
-                    : [...picked, playName],
-                )
-              }
-              type="button"
-            >
-              <span
-                aria-hidden="true"
-                className={`wristband-box${
-                  wristband.includes(playName) ? " on" : ""
-                }`}
-              >
-                {wristband.includes(playName) ? "✓" : ""}
-              </span>
-              <span>{playName}</span>
-            </button>
+          <div
+            aria-label="Plays for the wristband"
+            className="wristband-rows"
+            role="group"
+          >
+            {wristband.rows.map((row) => {
+              const on = picked.includes(row.id);
+              return (
+                <button
+                  aria-pressed={on}
+                  className="wristband-row"
+                  disabled={!on && full}
+                  key={row.id}
+                  onClick={() => wristband.onToggle(row.id)}
+                  type="button"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`wristband-box${on ? " on" : ""}`}
+                  >
+                    {on ? "✓" : ""}
+                  </span>
+                  <span>{row.name}</span>
+                </button>
+              );
+            })}
           </div>
           <button
             className="menu-primary"
-            disabled={!actions.printWristband || wristband.length === 0}
-            onClick={actions.printWristband}
+            disabled={!actions.printWristband || picked.length === 0}
+            onClick={() => {
+              onDismiss();
+              actions.printWristband?.();
+            }}
             type="button"
           >
             Print the wristband
