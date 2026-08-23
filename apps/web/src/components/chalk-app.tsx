@@ -49,6 +49,7 @@ import {
   formationFromOffense,
   stockDefensiveCalls,
   stockFormations,
+  type Concept,
   type LabelRole,
   type DefensiveCall,
   type Formation,
@@ -192,11 +193,32 @@ import {
   type Ref,
 } from "react";
 
+import type { AppLifecycle } from "../app/app-lifecycle";
 import type { ChalkRuntime } from "../app/editor-runtime";
 import { AccountPanel } from "./account-panel";
+import { LifecycleNotices } from "./lifecycle-notices";
 import { syncStatusLabel } from "./sync-status";
 import { agoStamp } from "./ago-stamp";
 import { ConflictInboxHost } from "./conflict-inbox";
+import {
+  callSheetHtml,
+  exportFileName,
+  installPageHtml,
+  libraryOrder,
+  playbookHtml,
+  positionGroup,
+  positionViewHtml,
+  practiceCardPlays,
+  practiceCardsHtml,
+  quizHtml,
+  scoutCardPlays,
+  scoutCardsHtml,
+  slideHtml,
+  standaloneSvg,
+  wristbandHtml,
+  type PositionGroupId,
+} from "@chalk/exports";
+
 import { paletteCommands, type ActionMap } from "./editor-command-surface";
 import {
   ClearMenu,
@@ -208,13 +230,17 @@ import {
   MoreMenu,
   SaveMenu,
   ShortcutReference,
+  type WristbandPicker,
 } from "./editor-overlays";
 import { editorStatusHint } from "./editor-status-hint";
 import { FieldMinimap } from "./field-minimap";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { PlaybackBar } from "./playback-bar";
 import { readPlaybackNow } from "./playback-now";
+import { createDiagramRenderer } from "./export-diagram";
+import { downloadBlob, downloadText, pngFromSvg } from "./export-files";
 import { openPrintField, svgMarkupForPrint } from "./print-field";
+import { openPrintWindow } from "./print-window";
 import {
   downloadFrameSequence,
   openProgressionStrip,
@@ -271,11 +297,14 @@ function RoutePath({
   draw = 1,
   id,
   style,
+  weight = 2.5,
 }: {
   d: string;
   draw?: number;
   id: string;
   style: SvgPathStroke["style"];
+  /** Stroke width in frame pixels; wristband thumbnails draw at 1.5. */
+  weight?: number;
 }) {
   if (draw <= 0) return null;
   const markerEnd =
@@ -298,7 +327,7 @@ function RoutePath({
       strokeDashoffset={tracing ? 1 - draw : undefined}
       strokeLinecap="round"
       strokeLinejoin="round"
-      strokeWidth="2.5"
+      strokeWidth={weight}
     />
   );
 }
@@ -792,7 +821,12 @@ export function FieldDiagram({
                 </g>
               ) : null}
               {path.strokes.map((stroke) => (
-                <RoutePath {...stroke} draw={shown} key={stroke.id} />
+                <RoutePath
+                  {...stroke}
+                  draw={shown}
+                  key={stroke.id}
+                  weight={scene.lineWeight}
+                />
               ))}
               {tickOpacity > 0
                 ? path.ticks.map(({ color, ...tick }, index) => (
@@ -851,7 +885,12 @@ export function FieldDiagram({
                     : Math.min(1, (branchShown - 0.5) / 0.3);
                 return [
                   ...branch.strokes.map((stroke) => (
-                    <RoutePath {...stroke} draw={branchShown} key={stroke.id} />
+                    <RoutePath
+                      {...stroke}
+                      draw={branchShown}
+                      key={stroke.id}
+                      weight={scene.lineWeight}
+                    />
                   )),
                   ...(branchTick > 0
                     ? branch.ticks.map(({ color, ...tick }, index) => (
@@ -960,7 +999,7 @@ export function FieldDiagram({
               onPointerLeave={
                 onHoverPlayer ? () => onHoverPlayer(undefined) : undefined
               }
-              opacity={shown}
+              opacity={shown * (player.opacity ?? 1)}
               role="img"
               transform={`translate(${player.position.x} ${player.position.y})`}
             >
@@ -2709,10 +2748,13 @@ const localSyncSnapshot: SyncSnapshot = {
 export function ChalkApp({
   runtime,
   identity = unsignedIdentity,
+  lifecycle,
   sync,
 }: {
   runtime: ChalkRuntime;
   identity?: IdentityPort;
+  /** The installed shell's offline, update, and install states. */
+  lifecycle?: AppLifecycle;
   sync?: SyncOrchestrator;
 }) {
   const { editorStore } = runtime;
@@ -2736,6 +2778,20 @@ export function ChalkApp({
   );
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [openMenu, setOpenMenu] = useState<Menu>(null);
+  /**
+   * The library the paper outputs read — wristband, scout cards, practice
+   * cards, call sheet, playbook. Read from the repository when the Export
+   * menu opens, so the action itself stays inside the click that raises the
+   * print window; the open Play's current revision stands in for its stored
+   * copy. Until the read lands, or where there is no library, the open Play
+   * is the library.
+   */
+  const [library, setLibrary] = useState<{
+    readonly plays: readonly PlayDocument[];
+    readonly concepts: readonly Concept[];
+  }>();
+  /** Which library Plays the wristband prints, at most eight. */
+  const [wristbandPicks, setWristbandPicks] = useState<readonly string[]>();
   const [overlay, setOverlay] = useState<Overlay>(null);
   // The original gives each panel its own toggle and calls hiding both "Focus
   // mode"; it does not carry a third piece of state for focus.
@@ -4390,6 +4446,193 @@ export function ChalkApp({
     setOpenMenu(null);
   };
 
+  useEffect(() => {
+    if (openMenu !== "export") return;
+    let cancelled = false;
+    const open = editorStore.getSnapshot().document;
+    Promise.resolve()
+      .then(() => runtime.repository.loadPlaybook(open.playbookId))
+      .then((envelope) => {
+        if (cancelled || !envelope) return;
+        const plays = envelope.plays.map((play) =>
+          play.id === open.id ? open : play,
+        );
+        setLibrary({
+          plays: plays.some(({ id }) => id === open.id)
+            ? plays
+            : [open, ...plays],
+          concepts: envelope.concepts,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [editorStore, openMenu, runtime]);
+
+  const libraryPlays = useMemo(
+    () => library?.plays ?? [editor.document],
+    [editor.document, library],
+  );
+  const libraryConcepts = useMemo(() => library?.concepts ?? [], [library]);
+  const libraryRows = useMemo(
+    () =>
+      libraryOrder(libraryPlays, libraryConcepts).map(({ play }) => ({
+        id: play.id,
+        name: play.name,
+      })),
+    [libraryConcepts, libraryPlays],
+  );
+  // The original opens the picker with the first eight cells already filled.
+  const effectiveWristbandPicks =
+    wristbandPicks ?? libraryRows.slice(0, 8).map(({ id }) => id);
+  const toggleWristbandPick = (playId: string): void => {
+    setWristbandPicks((current) => {
+      const picks = current ?? effectiveWristbandPicks;
+      if (picks.includes(playId)) return picks.filter((id) => id !== playId);
+      return picks.length < 8 ? [...picks, playId] : picks;
+    });
+  };
+
+  /**
+   * The coaching outputs — every Export entry past the field sheet. Each
+   * renders the current revision through the editor's own renderer with the
+   * inspector's page, type and layers as its base, never mutates the Play,
+   * and reads only what is on this device, so it works offline.
+   */
+  const renderDiagram = createDiagramRenderer(presentation);
+  const openConcept = (): Concept | undefined => {
+    const conceptId =
+      editorStore.getSnapshot().document.conceptSource?.conceptId;
+    return conceptId === undefined
+      ? undefined
+      : libraryConcepts.find(({ id }) => id === conceptId);
+  };
+  const teaching = () => ({
+    render: renderDiagram,
+    formations: allFormations,
+    ...(openConcept() === undefined ? {} : { concept: openConcept() }),
+  });
+  const libraryOptions = {
+    render: renderDiagram,
+    concepts: libraryConcepts,
+    formations: allFormations,
+  };
+  const printOrSay = (html: string | undefined, name: string, text: string) => {
+    if (html) openPrintWindow(html);
+    else setToast({ name, text });
+    setOpenMenu(null);
+  };
+  const positionAction = (groupId: PositionGroupId) => () => {
+    const play = editorStore.getSnapshot().document;
+    printOrSay(
+      positionViewHtml(play, groupId, teaching()),
+      `No ${positionGroup(groupId).name.toLowerCase()} on the field`,
+      "",
+    );
+  };
+  const coachingOutputActions: ActionMap = {
+    // A scrubbed frame exports as what is on screen — the still is the Play
+    // at that moment, and the clock goes into the file name.
+    exportPng: () => {
+      const play = editorStore.getSnapshot().document;
+      const frozen = showAnimation && !playback.playing;
+      const svg = standaloneSvg(
+        renderDiagram(play, frozen ? { atMs: sceneTimeMs } : {}),
+      );
+      const name = exportFileName(
+        play.name,
+        "png",
+        frozen ? formatPlaybackClock(sceneTimeMs) : undefined,
+      );
+      void pngFromSvg(svg)
+        .then((blob) => downloadBlob(name, blob))
+        .catch(() => {
+          setToast({ name: "Could not write the PNG", text: "" });
+        });
+      setOpenMenu(null);
+    },
+    exportSvg: () => {
+      const play = editorStore.getSnapshot().document;
+      downloadText(
+        exportFileName(play.name, "svg"),
+        standaloneSvg(renderDiagram(play)),
+        "image/svg+xml",
+      );
+      setOpenMenu(null);
+    },
+    printInstall: () => {
+      const play = editorStore.getSnapshot().document;
+      printOrSay(installPageHtml(play, teaching()), "", "");
+    },
+    positionReceivers: positionAction("rec"),
+    positionBacks: positionAction("backs"),
+    positionLine: positionAction("line"),
+    positionQb: positionAction("qb"),
+    positionDefense: positionAction("def"),
+    printQuiz: () => {
+      const play = editorStore.getSnapshot().document;
+      printOrSay(
+        quizHtml(play, teaching()),
+        "Nothing to quiz",
+        "— draw some routes first",
+      );
+    },
+    printSlide: () => {
+      const play = editorStore.getSnapshot().document;
+      printOrSay(slideHtml(play, teaching()), "", "");
+    },
+    printWristband: () => {
+      const ordered = libraryOrder(libraryPlays, libraryConcepts).map(
+        ({ play }) => play,
+      );
+      const picked = ordered.filter(({ id }) =>
+        effectiveWristbandPicks.includes(id),
+      );
+      printOrSay(
+        wristbandHtml(picked, libraryOptions),
+        "Pick some plays first",
+        "",
+      );
+    },
+    printScout: () => {
+      const play = editorStore.getSnapshot().document;
+      printOrSay(
+        scoutCardsHtml(scoutCardPlays(libraryPlays, play), libraryOptions),
+        "",
+        "",
+      );
+    },
+    printCards: () => {
+      const play = editorStore.getSnapshot().document;
+      printOrSay(
+        practiceCardsHtml(
+          practiceCardPlays(libraryPlays, play),
+          libraryOptions,
+        ),
+        "",
+        "",
+      );
+    },
+    printCallSheet: () => {
+      printOrSay(
+        callSheetHtml(libraryPlays, { concepts: libraryConcepts }),
+        "",
+        "",
+      );
+    },
+    printPlaybook: () => {
+      printOrSay(
+        playbookHtml(libraryPlays, {
+          ...libraryOptions,
+          year: new Date().getFullYear(),
+        }),
+        "The library is empty",
+        "— save a play first",
+      );
+    },
+  };
+
   /**
    * What production can run today. A command the editor cannot yet perform is
    * deliberately absent so the menus show it as unavailable rather than
@@ -4508,6 +4751,7 @@ export function ChalkApp({
       ]),
     ),
     [`open:${editor.document.id}`]: () => undefined,
+    ...coachingOutputActions,
   };
 
   useEffect(() => {
@@ -4870,6 +5114,11 @@ export function ChalkApp({
       sync={sync}
       syncSnapshot={syncSnapshot}
       onOpenConflicts={() => setOverlay("conflicts")}
+      wristband={{
+        rows: libraryRows,
+        picks: effectiveWristbandPicks,
+        onToggle: toggleWristbandPick,
+      }}
       setPlayName={editorStore.setPlayNameDraft}
       undo={editor.undo}
       versions={editor.versions}
@@ -5048,6 +5297,12 @@ export function ChalkApp({
           </nav>
         ) : null}
         <main className="editor-stage">
+          {lifecycle ? (
+            <LifecycleNotices
+              lifecycle={lifecycle}
+              saving={editor.localSave.phase === "saving"}
+            />
+          ) : null}
           <DeviceNotices
             onDismissRecovery={() => setRecoveryDismissed(true)}
             onReleaseStorage={releaseStorage}
@@ -6177,9 +6432,11 @@ function Header({
   setPlayName,
   undo,
   versions,
+  wristband,
   zonesHidden,
 }: {
   actions: ActionMap;
+  wristband: WristbandPicker;
   activeView: View;
   commitPlayName: () => void;
   demoPlayName: string;
@@ -6306,7 +6563,7 @@ function Header({
             onDismiss={onCloseMenu}
             onToggle={() => onMenu("export")}
             open={openMenu === "export"}
-            playName={playName}
+            wristband={wristband}
           />
           <SaveMenu
             actions={actions}

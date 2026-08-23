@@ -1,4 +1,7 @@
 import { PRODUCT_NAME } from "@chalk/domain";
+import { FIELD_SVG_CSS } from "@chalk/exports";
+
+import { openPrintWindow } from "./print-window";
 
 /**
  * What Export → Print the field, and Print preview's "Print this", send to
@@ -21,21 +24,6 @@ const PAGE_CSS =
   ".hd h1{font-size:20px;margin:0;font-weight:600}" +
   ".hd span{font-size:12px;color:#8F8F8F;font-family:ui-monospace,Menlo,monospace}" +
   "svg{width:100%;height:auto;display:block}";
-
-/**
- * Field markings in the live editor are CSS classes. The print window is a
- * blank document, so the same strokes have to travel with the sheet — the
- * original bakes them into the SVG; this is the same colours, carried as a
- * stylesheet so the clone can stay a clone.
- */
-const FIELD_CSS =
-  ".field-paper{fill:#fff;stroke:#e5e5e5}" +
-  ".field-grid{stroke:#e7e7e7;stroke-width:1}" +
-  '.field-diagram[data-field-style="light"] .field-grid{stroke:#f2f2f2}' +
-  ".hash{stroke:#ececec;stroke-width:1}" +
-  ".line-of-scrimmage{stroke:#4d4d4d;stroke-width:2}" +
-  '.yard-numbers{fill:#e9e9e9;font-family:"Geist Mono",ui-monospace,Menlo,monospace;font-size:26px;font-weight:600}' +
-  ".yard-numbers text{text-anchor:middle}";
 
 const FOOT_CSS =
   ".__pf{position:fixed;bottom:0;left:0;right:0;text-align:right;" +
@@ -61,7 +49,7 @@ export function printFieldHtml(options: PrintFieldOptions): string {
     "<style>*{box-sizing:border-box}body{margin:0;font-family:Helvetica,Arial,sans-serif;" +
     "color:#171717;-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
     PAGE_CSS +
-    FIELD_CSS +
+    FIELD_SVG_CSS +
     FOOT_CSS +
     "</style></head><body>" +
     body +
@@ -94,16 +82,5 @@ export function openPrintField(
   options: PrintFieldOptions,
   open: typeof globalThis.open = (...args) => globalThis.open(...args),
 ): void {
-  const popup = open("", "_blank");
-  if (!popup) return;
-  popup.document.write(printFieldHtml(options));
-  popup.document.close();
-  globalThis.setTimeout(() => {
-    try {
-      popup.focus();
-      popup.print();
-    } catch {
-      // A blocked print dialog is a no-op, as the original's is.
-    }
-  }, 400);
+  openPrintWindow(printFieldHtml(options), open);
 }

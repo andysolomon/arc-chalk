@@ -1165,14 +1165,111 @@ describe("Chalk editor overlays", () => {
     await user.keyboard("{Control>}k{/Control}");
     await user.type(
       screen.getByRole("textbox", { name: "Command palette" }),
-      "call sheet",
+      "new variation",
     );
 
     // Listed, because the palette is the product's catalogue of commands — but
     // it cannot be run, so a click never silently does nothing.
     expect(
-      screen.getByRole("button", { name: "Export: Call sheet" }),
+      screen.getByRole("button", { name: "New variation" }),
     ).toBeDisabled();
+  });
+
+  it("prints an install page from Export with the assignment table", async () => {
+    const user = userEvent.setup();
+    const popup = {
+      document: { write: vi.fn(), close: vi.fn() },
+      focus: vi.fn(),
+      print: vi.fn(),
+    };
+    const open = vi
+      .spyOn(window, "open")
+      .mockReturnValue(popup as unknown as Window);
+
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: "Install page" }));
+
+    expect(open).toHaveBeenCalledWith("", "_blank");
+    const html = popup.document.write.mock.calls[0]?.[0] as string;
+    expect(html).toContain("<title>Stick — Thunder — install — Chalk</title>");
+    expect(html).toContain("@page{size:letter portrait;margin:0.5in}");
+    expect(html).toContain("<th>Assignment</th>");
+    expect(html).toContain('data-type-preset="print"');
+    expect(html).toContain('<div class="__pn">Stick — Thunder · Pass</div>');
+    expect(screen.queryByText("DIAGRAM")).toBeNull();
+    open.mockRestore();
+  });
+
+  it("runs the library outputs from the palette and the menu", async () => {
+    const user = userEvent.setup();
+    const popup = {
+      document: { write: vi.fn(), close: vi.fn() },
+      focus: vi.fn(),
+      print: vi.fn(),
+    };
+    const open = vi
+      .spyOn(window, "open")
+      .mockReturnValue(popup as unknown as Window);
+
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(
+      screen.getByRole("textbox", { name: "Command palette" }),
+      "call sheet",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Export: Call sheet" }),
+    );
+
+    const html = popup.document.write.mock.calls[0]?.[0] as string;
+    expect(html).toContain("<h1>Call sheet</h1>");
+    // The seed Play carries its own situation tags, so it is grouped by them.
+    expect(html).toContain("<h2>3rd down</h2>");
+    expect(html).toContain("<h2>red zone</h2>");
+    expect(html.match(/class="wl"/g)?.length).toBe(12);
+    open.mockRestore();
+  });
+
+  it("picks wristband cells from the library and prints them", async () => {
+    const user = userEvent.setup();
+    const popup = {
+      document: { write: vi.fn(), close: vi.fn() },
+      focus: vi.fn(),
+      print: vi.fn(),
+    };
+    const open = vi
+      .spyOn(window, "open")
+      .mockReturnValue(popup as unknown as Window);
+
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(
+      screen.getByRole("button", { name: "Wristband — 8 cells" }),
+    );
+
+    // The only Play on this device fills the first cell by default.
+    expect(screen.getByText("1 of 8 cells filled")).toBeVisible();
+    const row = screen.getByRole("button", { name: "Stick — Thunder" });
+    expect(row).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(row);
+    expect(screen.getByText("0 of 8 cells filled")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Print the wristband" }),
+    ).toBeDisabled();
+
+    await user.click(row);
+    await user.click(
+      screen.getByRole("button", { name: "Print the wristband" }),
+    );
+    const html = popup.document.write.mock.calls[0]?.[0] as string;
+    expect(html).toContain("grid-template-columns:2.1in 2.1in");
+    expect(html.match(/class="wc"/g)?.length).toBe(1);
+    open.mockRestore();
   });
 
   it("gives the field the whole window and offers the panels back", async () => {
