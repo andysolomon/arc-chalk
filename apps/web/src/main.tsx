@@ -3,6 +3,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { CloudProviders } from "./app/cloud-providers";
 import { router } from "./app/router";
 import "./styles/app.css";
 
@@ -13,8 +14,10 @@ if (!root) throw new Error("Chalk could not find its application root.");
 
 createRoot(root).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <CloudProviders>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </CloudProviders>
   </StrictMode>,
 );

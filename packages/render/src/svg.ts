@@ -455,6 +455,8 @@ export interface SvgRenderScene {
   readonly playId: string;
   readonly playName: string;
   readonly typePreset: TypePresetId;
+  /** Route stroke width in frame pixels; absent draws the editor's 2.5. */
+  readonly lineWeight?: number;
   readonly viewport: SvgProjection;
   readonly field: SvgFieldScene;
   readonly players: readonly (Omit<
@@ -614,6 +616,7 @@ function buildSvgPlayer(
     unit: player.unit,
     ...(player.role === undefined ? {} : { role: player.role }),
     ...(player.group === undefined ? {} : { group: player.group }),
+    ...(player.opacity === undefined ? {} : { opacity: player.opacity }),
     position: projectCoordinate(player.position, viewport),
     ariaLabel: `${description} ${player.unit} player`,
     shapes,
@@ -958,6 +961,7 @@ export function buildSvgRenderScene(
     playId: scene.playId,
     playName: scene.playName,
     typePreset: scene.typePreset,
+    ...(scene.lineWeight === undefined ? {} : { lineWeight: scene.lineWeight }),
     viewport,
     field: buildSvgField(scene, viewport),
     players: scene.players.map((player) =>

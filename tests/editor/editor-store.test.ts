@@ -713,4 +713,34 @@ describe("EditorStore named versions", () => {
     expect(records.get(stickThunderPlay.id)).toBe(stickThunderPlay);
     expect(records.get(stickThunderPlay.id)?.name).toBe("Stick — Thunder");
   });
+
+  it("reveals a Play already written by sync without committing again", async () => {
+    const initialHash = await hashPlayDocument(stickThunderPlay);
+    const commits: EditorPersistenceCommit[] = [];
+    const store = createEditorStore({
+      initialDocument: stickThunderPlay,
+      initialDocumentHash: initialHash,
+      persistence: {
+        async commitPlay(input) {
+          commits.push(input);
+          return {
+            playId: input.play.id,
+            documentHash: await hashPlayDocument(input.play),
+            committedAtMs: 100,
+            mutationId: input.mutation.id,
+          };
+        },
+      },
+      monotonicNow: () => 0,
+      wallClockNow: () => WORKED_ON_MS,
+    });
+    const remote = { ...stickThunderPlay, name: "From the other device" };
+    const remoteHash = await hashPlayDocument(remote);
+    store.revealPersistedPlay(remote, remoteHash);
+    expect(store.getSnapshot().document.name).toBe("From the other device");
+    expect(store.getSnapshot().localSave).toEqual(
+      expect.objectContaining({ phase: "saved", documentHash: remoteHash }),
+    );
+    expect(commits).toEqual([]);
+  });
 });

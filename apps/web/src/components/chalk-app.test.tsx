@@ -23,6 +23,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createMemoryLibrary, type ChalkRuntime } from "../app/editor-runtime";
 import { ChalkApp, FieldDiagram } from "./chalk-app";
+import { CommandPalette } from "./editor-overlays";
 
 function createTestRuntime(
   overrides: Partial<ChalkRuntime> = {},
@@ -55,6 +56,30 @@ function createTestRuntime(
         skippedPlays: [],
         skippedRevisions: [],
       }),
+    putImage: () => Promise.resolve(),
+    getImage: () => Promise.resolve(undefined),
+    listImages: () => Promise.resolve([]),
+    markImageUploaded: () => Promise.resolve(),
+    subscribeLocalEdit: () => () => undefined,
+    destroyLocalData: () => Promise.resolve(),
+    repository: {
+      counts: () =>
+        Promise.resolve({
+          playbooks: 0,
+          concepts: 0,
+          formations: 0,
+          plays: 0,
+          revisions: 0,
+          syncMutations: 0,
+          conflicts: 0,
+          preferences: 0,
+          imageBlobs: 0,
+          undoHistories: 0,
+          searchProjections: 0,
+          thumbnails: 0,
+        }),
+      listUnresolvedConflicts: () => Promise.resolve([]),
+    } as unknown as ChalkRuntime["repository"],
     ...overrides,
   };
 }
@@ -107,6 +132,10 @@ describe("Chalk application shell", () => {
       128,
     );
     expect(container.querySelectorAll("[data-field-number]")).toHaveLength(8);
+    expect(screen.getByRole("button", { name: "local" })).toHaveAttribute(
+      "data-sync-status",
+      "local",
+    );
   });
 
   it("keeps the original library panel and opens an additive Playbook browser", async () => {
@@ -1155,8 +1184,71 @@ describe("Chalk editor overlays", () => {
     expect(screen.getByText("ANDY'S EMPTY · 11")).toBeVisible();
   });
 
-  it("shows a command the editor cannot run yet as unavailable", async () => {
+  it("shows a command the shell has no action for as unavailable", () => {
+    // Every catalogued command is wired today (New variation arrived with the
+    // library, the call sheet with the coaching outputs), so the mechanism is
+    // proven on the palette itself: an entry without an action is listed — the
+    // palette is the product's catalogue — but cannot be run, so a click never
+    // silently does nothing.
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <CommandPalette
+        actions={{}}
+        commands={[{ id: "newPlay", label: "New play" }]}
+        onClose={onClose}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "New play" })).toBeDisabled();
+
+    const newPlay = vi.fn();
+    rerender(
+      <CommandPalette
+        actions={{ newPlay }}
+        commands={[{ id: "newPlay", label: "New play" }]}
+        onClose={onClose}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "New play" })).toBeEnabled();
+  });
+
+  it("prints an install page from Export with the assignment table", async () => {
     const user = userEvent.setup();
+    const popup = {
+      document: { write: vi.fn(), close: vi.fn() },
+      focus: vi.fn(),
+      print: vi.fn(),
+    };
+    const open = vi
+      .spyOn(window, "open")
+      .mockReturnValue(popup as unknown as Window);
+
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: "Install page" }));
+
+    expect(open).toHaveBeenCalledWith("", "_blank");
+    const html = popup.document.write.mock.calls[0]?.[0] as string;
+    expect(html).toContain("<title>Stick — Thunder — install — Chalk</title>");
+    expect(html).toContain("@page{size:letter portrait;margin:0.5in}");
+    expect(html).toContain("<th>Assignment</th>");
+    expect(html).toContain('data-type-preset="print"');
+    expect(html).toContain('<div class="__pn">Stick — Thunder · Pass</div>');
+    expect(screen.queryByText("DIAGRAM")).toBeNull();
+    open.mockRestore();
+  });
+
+  it("runs the library outputs from the palette and the menu", async () => {
+    const user = userEvent.setup();
+    const popup = {
+      document: { write: vi.fn(), close: vi.fn() },
+      focus: vi.fn(),
+      print: vi.fn(),
+    };
+    const open = vi
+      .spyOn(window, "open")
+      .mockReturnValue(popup as unknown as Window);
+
     render(<ChalkApp runtime={createTestRuntime()} />);
 
     await user.keyboard("{Control>}k{/Control}");
@@ -1164,12 +1256,56 @@ describe("Chalk editor overlays", () => {
       screen.getByRole("textbox", { name: "Command palette" }),
       "call sheet",
     );
-
-    // Listed, because the palette is the product's catalogue of commands — but
-    // it cannot be run, so a click never silently does nothing.
-    expect(
+    await user.click(
       screen.getByRole("button", { name: "Export: Call sheet" }),
+    );
+
+    const html = popup.document.write.mock.calls[0]?.[0] as string;
+    expect(html).toContain("<h1>Call sheet</h1>");
+    // The seed Play carries its own situation tags, so it is grouped by them.
+    expect(html).toContain("<h2>3rd down</h2>");
+    expect(html).toContain("<h2>red zone</h2>");
+    expect(html.match(/class="wl"/g)?.length).toBe(12);
+    open.mockRestore();
+  });
+
+  it("picks wristband cells from the library and prints them", async () => {
+    const user = userEvent.setup();
+    const popup = {
+      document: { write: vi.fn(), close: vi.fn() },
+      focus: vi.fn(),
+      print: vi.fn(),
+    };
+    const open = vi
+      .spyOn(window, "open")
+      .mockReturnValue(popup as unknown as Window);
+
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(
+      screen.getByRole("button", { name: "Wristband — 8 cells" }),
+    );
+
+    // The only Play on this device fills the first cell by default.
+    expect(screen.getByText("1 of 8 cells filled")).toBeVisible();
+    const row = screen.getByRole("button", { name: "Stick — Thunder" });
+    expect(row).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(row);
+    expect(screen.getByText("0 of 8 cells filled")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Print the wristband" }),
     ).toBeDisabled();
+
+    await user.click(row);
+    await user.click(
+      screen.getByRole("button", { name: "Print the wristband" }),
+    );
+    const html = popup.document.write.mock.calls[0]?.[0] as string;
+    expect(html).toContain("grid-template-columns:2.1in 2.1in");
+    expect(html.match(/class="wc"/g)?.length).toBe(1);
+    open.mockRestore();
   });
 
   it("gives the field the whole window and offers the panels back", async () => {
@@ -1355,5 +1491,45 @@ describe("Chalk editor overlays", () => {
     expect(within(bar).getByRole("button", { name: "Pause" })).toBeVisible();
     await user.click(within(bar).getByRole("button", { name: "Pause" }));
     expect(within(bar).getByRole("button", { name: "Play" })).toBeVisible();
+  });
+
+  it("keeps Share, Attach image, and Film Reference in the More menu", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(screen.getByRole("button", { name: "Share & assets" }));
+
+    expect(screen.getByRole("heading", { name: "Attach image" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Film Reference" }),
+    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Share Link" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Create Share Link" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("complementary", { name: "Play inspector" }),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Create Share Link" }));
+    expect(screen.getByText(/Sharing needs an account/i)).toBeVisible();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Film Reference address" }),
+      "https://www.hudl.com/video/3/clip",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Add Film Reference" }),
+    );
+    expect(
+      await screen.findByRole("link", {
+        name: "https://www.hudl.com/video/3/clip",
+      }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: /hudl.com/ })).toHaveAttribute(
+      "rel",
+      "noopener noreferrer nofollow",
+    );
   });
 });

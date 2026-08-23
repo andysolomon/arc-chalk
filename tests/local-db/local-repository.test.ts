@@ -817,4 +817,102 @@ describe("ChalkLocalRepository", () => {
     // this in-memory IndexedDB shim.
     expect(betaMs).toBeLessThan(smallMs * 5 + 100);
   }, 60_000);
+
+  it("lists local images and records a completed private upload", async () => {
+    const repository = track(createRepository("images"));
+    const blob = cloneableBlob("normalized", "image/jpeg");
+    const thumbnail = cloneableBlob("thumb", "image/jpeg");
+    const hash = "d".repeat(64);
+    await repository.putImage({
+      hash,
+      mimeType: "image/jpeg",
+      width: 64,
+      height: 48,
+      byteLength: blob.size,
+      blob,
+      thumbnail,
+      createdAtMs: FIXED_TIME,
+    });
+    const listed = await repository.listImages();
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.hash).toBe(hash);
+    expect(listed[0]?.uploadedAtMs).toBeUndefined();
+    await repository.markImageUploaded(hash, FIXED_TIME + 10);
+    expect((await repository.getImage(hash))?.uploadedAtMs).toBe(
+      FIXED_TIME + 10,
+    );
+  });
+
+  it("uses the stored cloud head as the next mutation's base revision", async () => {
+    const repository = track(createRepository("cloud-head"));
+    await repository.open();
+    await repository.savePlaybook(offensivePlaybookGolden);
+    const original = offensivePlaybookGolden.plays[0]!;
+    await repository.commitPlay({
+      play: original,
+      mutation: { id: "mutation_seed" },
+    });
+    await repository.setPlayCloudHead(original.id, "revision_cloud_1");
+    const renamed = {
+      ...structuredClone(original),
+      name: "Cloud-based edit",
+    };
+    await repository.commitPlay({
+      play: renamed,
+      mutation: { id: "mutation_from_cloud" },
+    });
+    const queued = await repository.readSyncMutationBatch(10);
+    expect(
+      queued.find((mutation) => mutation.id === "mutation_from_cloud"),
+    ).toEqual(
+      expect.objectContaining({
+        id: "mutation_from_cloud",
+        baseRevisionId: "revision_cloud_1",
+      }),
+    );
+  });
+
+  it("applies a remote Play and can fork a local branch beside it", async () => {
+    const repository = track(createRepository("remote-apply"));
+    await repository.open();
+    await repository.savePlaybook(offensivePlaybookGolden);
+    const original = offensivePlaybookGolden.plays[0]!;
+    const remote = {
+      ...structuredClone(original),
+      name: "Arrived from the other device",
+    };
+    await repository.applyRemotePlay({
+      play: remote,
+      cloudRevisionId: "revision_remote_head",
+    });
+    const applied = await repository.getPlay(original.id);
+    expect(applied?.document.name).toBe("Arrived from the other device");
+    expect(applied?.cloudRevisionId).toBe("revision_remote_head");
+    const forked = await repository.forkPlay(original, "play_local_branch");
+    expect(forked.id).toBe("play_local_branch");
+    expect(forked.document.name).toMatch(/branch/);
+    expect((await repository.getPlay("play_local_branch"))?.id).toBe(
+      "play_local_branch",
+    );
+    const queued = await repository.readSyncMutationBatch(10);
+    expect(
+      queued.some((mutation) => mutation.entityId === "play_local_branch"),
+    ).toBe(true);
+  });
+
+  it("holds a retry until nextAttemptAtMs", async () => {
+    const repository = track(createRepository("retry-window"));
+    await repository.open();
+    await repository.savePlaybook(offensivePlaybookGolden);
+    await repository.commitPlay({
+      play: offensivePlaybookGolden.plays[0]!,
+      mutation: { id: "mutation_retry" },
+    });
+    await repository.scheduleSyncMutationRetry("mutation_retry", {
+      attempts: 1,
+      nextAttemptAtMs: FIXED_TIME + 60_000,
+      status: "retry",
+    });
+    await expect(repository.readSyncMutationBatch(10)).resolves.toEqual([]);
+  });
 });

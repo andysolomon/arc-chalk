@@ -1,5 +1,11 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": { "composite": true, "noEmit": true },
-  "include": ["*.ts"]
+  "include": ["./**/*.ts"],
+  "exclude": ["./_generated"],
+  "references": [
+    { "path": "../packages/contracts" },
+    { "path": "../packages/domain" },
+    { "path": "../packages/sync" }
+  ]
 }

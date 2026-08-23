@@ -1,4 +1,5 @@
 import {
+  canonicalSha256,
   createStableId,
   decryptBackup,
   encryptBackup,
@@ -24,11 +25,14 @@ import {
   type PlayListPage,
   type PlaySearchProjection,
   type PlaybookSummary,
+  type LocalImageBlob,
   type SessionRecovery,
   type StorageHealth,
   type StoredPlay,
   type ThumbnailDerivative,
 } from "@chalk/local-db";
+
+import { createShareCloud, type ShareCloudPort } from "../share/convex-share";
 
 const DATABASE_NAME = "chalk-production-beta";
 export const LIBRARY_OPEN_KEY = "libraryOpen.v1";
@@ -94,13 +98,54 @@ export interface ChalkLibrary {
   ): ReturnType<ChalkLocalRepository["listPlayVersions"]>;
 }
 
+const CLEAN_EXIT_KEY = "chalk.session.cleanExit";
+
+function markCleanExit(sessionId: string): void {
+  try {
+    localStorage.setItem(CLEAN_EXIT_KEY, sessionId);
+  } catch {
+    // Without storage the IndexedDB marker alone decides.
+  }
+}
+
+/**
+ * An interrupted session whose id was written at pagehide ended cleanly; the
+ * IndexedDB marker simply did not get to commit before the page went away.
+ */
+export function reconcileCleanExit(
+  recovery: SessionRecovery,
+  storage: Pick<Storage, "getItem"> | undefined = safeLocalStorage(),
+): SessionRecovery {
+  if (!recovery.interrupted || recovery.previousSessionId === undefined) {
+    return recovery;
+  }
+  try {
+    return storage?.getItem(CLEAN_EXIT_KEY) === recovery.previousSessionId
+      ? { interrupted: false }
+      : recovery;
+  } catch {
+    return recovery;
+  }
+}
+
+function safeLocalStorage(): Storage | undefined {
+  try {
+    return globalThis.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface ChalkRuntime {
   readonly editorStore: EditorStore;
+  readonly repository: ChalkLocalRepository;
   readonly recovery: SessionRecovery;
   readonly storage: StorageHealth;
   readonly library: ChalkLibrary;
   /** What the Coach had saved and starred when this session opened. */
   readonly coachSets: CoachSets;
+  /** Fires after a local commit so background sync can drain. */
+  subscribeLocalEdit(listener: () => void): () => void;
   /** Keeps a set the Coach named, so it is there the next time he opens Chalk. */
   saveCoachFormation(formation: Formation): Promise<void>;
   removeCoachFormation(formationId: string): Promise<void>;
@@ -118,6 +163,14 @@ export interface ChalkRuntime {
     contents: string,
     passphrase: string,
   ): Promise<BackupImportResult>;
+  putImage(image: LocalImageBlob): Promise<void>;
+  getImage(hash: string): Promise<LocalImageBlob | undefined>;
+  listImages(): Promise<readonly LocalImageBlob[]>;
+  markImageUploaded(hash: string, uploadedAtMs: number): Promise<void>;
+  /** Present when a Convex deployment URL is configured. */
+  readonly shareCloud?: ShareCloudPort;
+  /** Sign-out path that discards this device's IndexedDB. */
+  destroyLocalData(): Promise<void>;
 }
 
 export function emptyLibrarySnapshot(
@@ -244,9 +297,14 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
   });
   await repository.open();
 
-  const recovery = await repository.beginSession(createStableId("session"));
-  // A session that ends cleanly leaves no recovery notice behind.
+  const sessionId = createStableId("session");
+  const recovery = reconcileCleanExit(await repository.beginSession(sessionId));
+  // A session that ends cleanly leaves no recovery notice behind. The
+  // IndexedDB delete may not land before a reload or an update takes the
+  // page, so the same fact is also written synchronously where unload can
+  // always reach it; startup reads both.
   globalThis.addEventListener?.("pagehide", () => {
+    markCleanExit(sessionId);
     void repository.endSession();
   });
 
@@ -265,9 +323,14 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
   }
 
   const playbookId = storedPlay.document.playbookId;
+  const localEditListeners = new Set<() => void>();
 
   const persistence: EditorPersistence = {
-    commitPlay: (input) => repository.commitPlay(input),
+    commitPlay: async (input) => {
+      const receipt = await repository.commitPlay(input);
+      for (const listener of localEditListeners) listener();
+      return receipt;
+    },
     createNamedVersion: (input) => repository.createNamedVersion(input),
     listPlayVersions: (playId) => repository.listPlayVersions(playId),
     loadVersionDocument: async (revisionId) =>
@@ -369,6 +432,7 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
 
   return {
     editorStore,
+    repository,
     recovery,
     storage: await repository.storageHealth(),
     library,
@@ -379,6 +443,19 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     },
     async saveCoachFormation(formation) {
       await repository.saveFormation(formation);
+      await repository.enqueueSyncMutation({
+        id: createStableId("mutation"),
+        entityKind: "formation",
+        entityId: formation.id,
+        operation: "put",
+        payloadHash: await canonicalSha256(formation),
+        payload: formation,
+        status: "pending",
+        attempts: 0,
+        createdAtMs: Date.now(),
+        nextAttemptAtMs: Date.now(),
+      });
+      for (const listener of localEditListeners) listener();
     },
     async removeCoachFormation(formationId) {
       await repository.deleteFormation(formationId);
@@ -404,6 +481,21 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
         passphrase,
       );
       return repository.importBackup(payload, { mode: "merge" });
+    },
+    putImage: (image) => repository.putImage(image),
+    getImage: (hash) => repository.getImage(hash),
+    listImages: () => repository.listImages(),
+    markImageUploaded: (hash, uploadedAtMs) =>
+      repository.markImageUploaded(hash, uploadedAtMs),
+    ...(import.meta.env.VITE_CONVEX_URL
+      ? { shareCloud: createShareCloud(import.meta.env.VITE_CONVEX_URL) }
+      : {}),
+    subscribeLocalEdit(listener) {
+      localEditListeners.add(listener);
+      return () => localEditListeners.delete(listener);
+    },
+    async destroyLocalData() {
+      await repository.destroy();
     },
   };
 }

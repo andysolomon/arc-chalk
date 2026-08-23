@@ -178,6 +178,15 @@ export interface EditorStore {
       readonly versions?: readonly EditorVersionSummary[];
     },
   ): Promise<void>;
+  /**
+   * Shows a Play that sync already wrote, without another local mutation.
+   * Used when the Coach takes the other device's branch of the open Play.
+   */
+  revealPersistedPlay(
+    this: void,
+    document: PlayDocument,
+    persistedHash: string,
+  ): void;
   retryLocalSave(this: void): Promise<EditorCommitOutcome | undefined>;
   undo(this: void): Promise<EditorUndoOutcome>;
   redo(this: void): Promise<EditorUndoOutcome>;
@@ -505,6 +514,28 @@ export function createEditorStore({
       publishVersions(input.versions ?? []);
       return Promise.resolve();
     });
+  const revealPersistedPlay = (
+    nextDocument: PlayDocument,
+    persistedHash: string,
+  ): void => {
+    const revealed = playDocumentSchema.parse(nextDocument);
+    if (revealed.id !== state.getState().document.id) {
+      history = createUndoHistory(revealed.id, wallClockNow());
+      state.setState((current) => ({ ...current, versions: [] }));
+    }
+    documentHash = persistedHash;
+    persistedDocumentHash = persistedHash;
+    showDocument(revealed);
+    publishUndo();
+    state.setState((current) => ({
+      ...current,
+      localSave: {
+        phase: "saved",
+        documentHash: persistedHash,
+        budgetMs: saveBudgetMs,
+      },
+    }));
+  };
 
   const stepHistory = (
     direction: "undo" | "redo",
@@ -572,6 +603,7 @@ export function createEditorStore({
     commitDocument,
     adoptPlay,
     openStoredPlay,
+    revealPersistedPlay,
     retryLocalSave() {
       if (state.getState().localSave.phase !== "error") {
         return Promise.resolve(undefined);

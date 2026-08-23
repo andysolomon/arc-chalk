@@ -8,6 +8,8 @@ import {
   type PlayKeyFrame,
 } from "@chalk/domain";
 
+import { FIELD_SVG_CSS } from "./diagram";
+
 const escapeHtml = (value: string): string =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -61,14 +63,6 @@ const PROGRESSION_CSS =
   ".cap b{font-size:12px;font-weight:600}" +
   ".cap span{font-size:11px;color:#8F8F8F;font-family:ui-monospace,Menlo,monospace}";
 
-const FIELD_CSS =
-  ".field-paper{fill:#fff;stroke:#e5e5e5}" +
-  ".field-grid{stroke:#e7e7e7;stroke-width:1}" +
-  ".hash{stroke:#ececec;stroke-width:1}" +
-  ".line-of-scrimmage{stroke:#4d4d4d;stroke-width:2}" +
-  '.yard-numbers{fill:#e9e9e9;font-family:"Geist Mono",ui-monospace,Menlo,monospace;font-size:26px;font-weight:600}' +
-  ".yard-numbers text{text-anchor:middle}";
-
 export interface ProgressionStripFrame {
   readonly name: string;
   readonly clock: string;
@@ -102,7 +96,7 @@ export function progressionStripHtml(options: {
     "<style>*{box-sizing:border-box}body{margin:0;padding:0.2in;font-family:Helvetica,Arial,sans-serif;" +
     "color:#171717;-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
     PROGRESSION_CSS +
-    FIELD_CSS +
+    FIELD_SVG_CSS +
     "</style></head><body>" +
     `<div class="hd"><h1>${escapeHtml(title)}</h1><span>${escapeHtml(product)}</span></div>` +
     `<div class="row">${cells}</div>` +
