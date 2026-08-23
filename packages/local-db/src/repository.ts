@@ -11,9 +11,11 @@ import {
   playbookSchema,
   undoHistorySchema,
   type BackupPayload,
+  type Concept,
   type Formation,
   type PlayDocument,
   type PlayRevision,
+  type Playbook,
   type PlaybookEnvelope,
 } from "@chalk/domain";
 
@@ -325,6 +327,8 @@ class DexieLocalRepository implements ChalkLocalRepository {
           });
         }
 
+        const baseRevisionId =
+          input.mutation?.baseRevisionId ?? existing?.cloudRevisionId;
         let mutation: SyncMutation | undefined;
         if (input.mutation) {
           mutation = {
@@ -332,9 +336,7 @@ class DexieLocalRepository implements ChalkLocalRepository {
             entityKind: "play",
             entityId: play.id,
             operation: "put",
-            ...(input.mutation.baseRevisionId === undefined
-              ? {}
-              : { baseRevisionId: input.mutation.baseRevisionId }),
+            ...(baseRevisionId === undefined ? {} : { baseRevisionId }),
             payloadHash: documentHash,
             payload: play,
             status: "pending",
@@ -354,6 +356,9 @@ class DexieLocalRepository implements ChalkLocalRepository {
             : existing?.currentRevisionId
               ? { currentRevisionId: existing.currentRevisionId }
               : {}),
+          ...(existing?.cloudRevisionId
+            ? { cloudRevisionId: existing.cloudRevisionId }
+            : {}),
           updatedAtMs: committedAtMs,
         };
         await this.#database.plays.put(stored);
@@ -917,6 +922,155 @@ class DexieLocalRepository implements ChalkLocalRepository {
 
   async acknowledgeSyncMutations(ids: readonly string[]): Promise<void> {
     await this.#database.syncMutations.bulkDelete([...ids]);
+  }
+
+  async scheduleSyncMutationRetry(
+    id: string,
+    update: {
+      readonly attempts: number;
+      readonly nextAttemptAtMs: number;
+      readonly status: "pending" | "retry";
+    },
+  ): Promise<void> {
+    const existing = await this.#database.syncMutations.get(id);
+    if (!existing) return;
+    await this.#database.syncMutations.put({
+      ...existing,
+      attempts: update.attempts,
+      nextAttemptAtMs: update.nextAttemptAtMs,
+      status: update.status,
+    });
+  }
+
+  async enqueueSyncMutation(mutation: SyncMutation): Promise<void> {
+    await this.#database.syncMutations.put(structuredClone(mutation));
+  }
+
+  async setPlayCloudHead(
+    playId: string,
+    cloudRevisionId: string,
+  ): Promise<void> {
+    const existing = await this.#database.plays.get(playId);
+    if (!existing) return;
+    await this.#database.plays.put({ ...existing, cloudRevisionId });
+  }
+
+  async applyRemotePlay(input: {
+    readonly play: PlayDocument;
+    readonly cloudRevisionId: string;
+    readonly revision?: {
+      readonly id: string;
+      readonly documentHash: string;
+      readonly createdAtMs: number;
+      readonly parentRevisionId?: string;
+    };
+  }): Promise<void> {
+    const play = playDocumentSchema.parse(input.play);
+    const documentHash = await canonicalSha256(play);
+    const committedAtMs = this.#now();
+    await this.#database.transaction(
+      "rw",
+      [
+        this.#database.plays,
+        this.#database.revisions,
+        this.#database.searchProjections,
+      ],
+      async () => {
+        const existing = await this.#database.plays.get(play.id);
+        const stored: StoredPlay = {
+          id: play.id,
+          playbookId: play.playbookId,
+          document: play,
+          documentHash,
+          cloudRevisionId: input.cloudRevisionId,
+          updatedAtMs: committedAtMs,
+          ...(existing?.currentRevisionId
+            ? { currentRevisionId: existing.currentRevisionId }
+            : {}),
+          ...(existing?.deletedAtMs === undefined
+            ? {}
+            : { deletedAtMs: existing.deletedAtMs }),
+        };
+        await this.#database.plays.put(stored);
+        if (input.revision) {
+          await this.#database.revisions.put(
+            playRevisionSchema.parse({
+              schemaVersion: 1,
+              id: input.revision.id,
+              playId: play.id,
+              createdAtMs: input.revision.createdAtMs,
+              documentHash: input.revision.documentHash,
+              document: play,
+              ...(input.revision.parentRevisionId === undefined
+                ? {}
+                : { parentRevisionId: input.revision.parentRevisionId }),
+            }),
+          );
+        }
+        await this.#database.searchProjections.put(
+          projectionFor(play, documentHash, committedAtMs),
+        );
+      },
+    );
+  }
+
+  async forkPlay(
+    document: PlayDocument,
+    newPlayId: string,
+  ): Promise<StoredPlay> {
+    const forked = playDocumentSchema.parse({
+      ...structuredClone(document),
+      id: newPlayId,
+      name: `${document.name} (branch)`,
+    });
+    const documentHash = await canonicalSha256(forked);
+    const committedAtMs = this.#now();
+    const stored: StoredPlay = {
+      id: forked.id,
+      playbookId: forked.playbookId,
+      document: forked,
+      documentHash,
+      updatedAtMs: committedAtMs,
+    };
+    await this.#database.transaction(
+      "rw",
+      [
+        this.#database.plays,
+        this.#database.syncMutations,
+        this.#database.searchProjections,
+      ],
+      async () => {
+        await this.#database.plays.put(stored);
+        await this.#database.searchProjections.put(
+          projectionFor(forked, documentHash, committedAtMs),
+        );
+        await this.#database.syncMutations.add({
+          id: `mutation_fork_${newPlayId}`,
+          entityKind: "play",
+          entityId: forked.id,
+          operation: "put",
+          payloadHash: documentHash,
+          payload: forked,
+          status: "pending",
+          attempts: 0,
+          createdAtMs: committedAtMs,
+          nextAttemptAtMs: committedAtMs,
+        });
+      },
+    );
+    return stored;
+  }
+
+  async savePlaybookFromRemote(playbook: Playbook): Promise<void> {
+    await this.#database.playbooks.put(
+      playbookSchema.parse(structuredClone(playbook)),
+    );
+  }
+
+  async saveConcept(concept: Concept): Promise<void> {
+    await this.#database.concepts.put(
+      conceptSchema.parse(structuredClone(concept)),
+    );
   }
 
   async putConflict(conflict: LocalConflict): Promise<void> {

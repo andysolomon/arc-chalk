@@ -26,6 +26,8 @@ export interface StoredPlay {
   readonly document: PlayDocument;
   readonly documentHash: string;
   readonly currentRevisionId?: string;
+  /** Last cloud revision this device knows is the Play's replica head. */
+  readonly cloudRevisionId?: string;
   readonly updatedAtMs: number;
   readonly deletedAtMs?: number;
 }
@@ -52,6 +54,14 @@ export interface LocalConflict {
   readonly status: "unresolved" | "resolved";
   readonly createdAtMs: number;
   readonly resolvedAtMs?: number;
+  readonly resolution?: "local" | "remote" | "keep-both" | "combine";
+  readonly playName?: string;
+  readonly localDocument?: PlayDocument;
+  readonly remoteDocument?: PlayDocument;
+  readonly localDeviceLabel?: string;
+  readonly remoteDeviceLabel?: string;
+  readonly localUpdatedAtMs?: number;
+  readonly remoteUpdatedAtMs?: number;
 }
 
 /** Metadata for one point in a Play's history, without its whole document. */
@@ -260,6 +270,29 @@ export interface ChalkLocalRepository {
 
   readSyncMutationBatch(limit: number): Promise<readonly SyncMutation[]>;
   acknowledgeSyncMutations(ids: readonly string[]): Promise<void>;
+  scheduleSyncMutationRetry(
+    id: string,
+    update: {
+      readonly attempts: number;
+      readonly nextAttemptAtMs: number;
+      readonly status: "pending" | "retry";
+    },
+  ): Promise<void>;
+  enqueueSyncMutation(mutation: SyncMutation): Promise<void>;
+  setPlayCloudHead(playId: string, cloudRevisionId: string): Promise<void>;
+  applyRemotePlay(input: {
+    readonly play: PlayDocument;
+    readonly cloudRevisionId: string;
+    readonly revision?: {
+      readonly id: string;
+      readonly documentHash: string;
+      readonly createdAtMs: number;
+      readonly parentRevisionId?: string;
+    };
+  }): Promise<void>;
+  forkPlay(document: PlayDocument, newPlayId: string): Promise<StoredPlay>;
+  savePlaybookFromRemote(playbook: Playbook): Promise<void>;
+  saveConcept(concept: Concept): Promise<void>;
   putConflict(conflict: LocalConflict): Promise<void>;
   listUnresolvedConflicts(): Promise<readonly LocalConflict[]>;
 

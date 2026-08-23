@@ -46,6 +46,16 @@ const forbiddenByBoundary: Record<string, readonly string[]> = {
     "@chalk/sync",
     "@chalk/exports",
   ],
+  "packages/sync": [
+    "react",
+    "dexie",
+    "convex",
+    "@tanstack/",
+    "@clerk",
+    "@chalk/editor",
+    "@chalk/render",
+    "@chalk/exports",
+  ],
 };
 
 async function sourceFiles(directory: string): Promise<string[]> {

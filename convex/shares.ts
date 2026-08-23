@@ -1,9 +1,3 @@
-import {
-  mutationGeneric as mutation,
-  queryGeneric as query,
-  type AnyDataModel,
-  type GenericMutationCtx,
-} from "convex/server";
 import { v } from "convex/values";
 
 import {
@@ -21,8 +15,10 @@ import {
   type SharePublication,
 } from "@chalk/domain";
 
-import { requireCoachId } from "./auth";
-import { queryTable } from "./indexed";
+import type { Doc } from "./_generated/dataModel";
+import { mutation, query } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { getCurrentCoach, getCurrentCoachOrNull } from "./lib/auth";
 
 const shareDenial = v.union(
   v.literal("not-found"),
@@ -39,39 +35,34 @@ function pepper(): string {
   return value;
 }
 
-function asLink(doc: Record<string, unknown>): ShareLinkState {
+function asLink(doc: Doc<"shareLinks">): ShareLinkState {
   return {
-    publicId: String(doc.publicId),
-    coachId: String(doc.coachId),
-    publicationId: String(doc.publicationId),
-    secretHash: String(doc.secretHash),
-    createdAtMs: Number(doc.createdAtMs),
-    ...(typeof doc.expiresAtMs === "number"
-      ? { expiresAtMs: doc.expiresAtMs }
-      : {}),
-    ...(typeof doc.revokedAtMs === "number"
-      ? { revokedAtMs: doc.revokedAtMs }
-      : {}),
+    publicId: doc.publicId,
+    coachId: doc.coachId,
+    publicationId: doc.publicationId,
+    secretHash: doc.secretHash,
+    createdAtMs: doc.createdAtMs,
+    ...(doc.expiresAtMs === undefined ? {} : { expiresAtMs: doc.expiresAtMs }),
+    ...(doc.revokedAtMs === undefined ? {} : { revokedAtMs: doc.revokedAtMs }),
   };
 }
 
-async function loadLink(
-  ctx: GenericMutationCtx<AnyDataModel>,
-  publicId: string,
-) {
-  return queryTable(ctx, "shareLinks")
+async function loadLink(ctx: QueryCtx | MutationCtx, publicId: string) {
+  return await ctx.db
+    .query("shareLinks")
     .withIndex("by_publicId", (q) => q.eq("publicId", publicId))
     .unique();
 }
 
 async function loadPublicationJson(
-  ctx: GenericMutationCtx<AnyDataModel>,
+  ctx: QueryCtx | MutationCtx,
   publicationId: string,
 ): Promise<string | null> {
-  const row = await queryTable(ctx, "sharePublications")
+  const row = await ctx.db
+    .query("sharePublications")
     .withIndex("by_publicationId", (q) => q.eq("publicationId", publicationId))
     .unique();
-  return row ? String(row.documentJson) : null;
+  return row ? row.documentJson : null;
 }
 
 const linkSummary = v.object({
@@ -92,7 +83,7 @@ export const create = mutation({
   },
   returns: v.object({ publicId: v.string() }),
   handler: async (ctx, args) => {
-    const coachId = await requireCoachId(ctx);
+    const coachId = (await getCurrentCoach(ctx)).coachId;
     const publication: SharePublication = sharePublicationSchema.parse(
       JSON.parse(args.publicationJson) as unknown,
     );
@@ -128,7 +119,7 @@ export const republish = mutation({
   },
   returns: v.object({ publicId: v.string() }),
   handler: async (ctx, args) => {
-    const coachId = await requireCoachId(ctx);
+    const coachId = (await getCurrentCoach(ctx)).coachId;
     const link = await loadLink(ctx, args.publicId);
     if (!link || link.coachId !== coachId) {
       throw new Error("Share Link not found");
@@ -145,7 +136,7 @@ export const republish = mutation({
       documentJson: canonicalStringify(publication),
       documentHash,
     });
-    await ctx.db.patch(link._id as never, { publicationId: publication.id });
+    await ctx.db.patch(link._id, { publicationId: publication.id });
     return { publicId: args.publicId };
   },
 });
@@ -154,12 +145,12 @@ export const revoke = mutation({
   args: { publicId: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const coachId = await requireCoachId(ctx);
+    const coachId = (await getCurrentCoach(ctx)).coachId;
     const link = await loadLink(ctx, args.publicId);
     if (!link || link.coachId !== coachId) {
       throw new Error("Share Link not found");
     }
-    await ctx.db.patch(link._id as never, { revokedAtMs: Date.now() });
+    await ctx.db.patch(link._id, { revokedAtMs: Date.now() });
     return null;
   },
 });
@@ -168,13 +159,13 @@ export const rotateSecret = mutation({
   args: { publicId: v.string(), secret: v.string() },
   returns: v.object({ publicId: v.string() }),
   handler: async (ctx, args) => {
-    const coachId = await requireCoachId(ctx);
+    const coachId = (await getCurrentCoach(ctx)).coachId;
     const link = await loadLink(ctx, args.publicId);
     if (!link || link.coachId !== coachId) {
       throw new Error("Share Link not found");
     }
     const secretHash = await hashShareSecret(args.secret, pepper());
-    await ctx.db.patch(link._id as never, { secretHash });
+    await ctx.db.patch(link._id, { secretHash });
     return { publicId: args.publicId };
   },
 });
@@ -186,12 +177,12 @@ export const setExpiry = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const coachId = await requireCoachId(ctx);
+    const coachId = (await getCurrentCoach(ctx)).coachId;
     const link = await loadLink(ctx, args.publicId);
     if (!link || link.coachId !== coachId) {
       throw new Error("Share Link not found");
     }
-    await ctx.db.patch(link._id as never, {
+    await ctx.db.patch(link._id, {
       expiresAtMs: args.expiresAtMs,
     });
     return null;
@@ -202,38 +193,32 @@ export const list = query({
   args: {},
   returns: v.array(linkSummary),
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-    const tokenIdentifier = identity.tokenIdentifier || identity.subject;
-    if (!tokenIdentifier) return [];
-    const coach = await queryTable(ctx, "coaches")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", tokenIdentifier),
-      )
-      .unique();
+    const coach = await getCurrentCoachOrNull(ctx);
     if (!coach) return [];
-    const links = await queryTable(ctx, "shareLinks")
+    const links = await ctx.db
+      .query("shareLinks")
       .withIndex("by_coachId", (q) => q.eq("coachId", coach.coachId))
-      .collect();
+      .take(200);
     const summaries = [];
     for (const link of links) {
-      const publication = await queryTable(ctx, "sharePublications")
+      const publication = await ctx.db
+        .query("sharePublications")
         .withIndex("by_publicationId", (q) =>
           q.eq("publicationId", link.publicationId),
         )
         .unique();
       summaries.push({
-        publicId: String(link.publicId),
-        publicationId: String(link.publicationId),
-        title: publication ? String(publication.title) : "Share Link",
-        createdAtMs: Number(link.createdAtMs),
+        publicId: link.publicId,
+        publicationId: link.publicationId,
+        title: publication ? publication.title : "Share Link",
+        createdAtMs: link.createdAtMs,
         publishedAtMs: publication
-          ? Number(publication.publishedAtMs)
-          : Number(link.createdAtMs),
-        ...(typeof link.expiresAtMs === "number"
-          ? { expiresAtMs: link.expiresAtMs }
-          : {}),
-        revoked: typeof link.revokedAtMs === "number",
+          ? publication.publishedAtMs
+          : link.createdAtMs,
+        ...(link.expiresAtMs === undefined
+          ? {}
+          : { expiresAtMs: link.expiresAtMs }),
+        revoked: link.revokedAtMs !== undefined,
       });
     }
     return summaries;

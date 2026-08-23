@@ -16,6 +16,8 @@ bun run dev
 
 The editor is then available at `http://127.0.0.1:4173` and does not require a network service to open.
 
+Clerk and Convex are optional. Leave `VITE_CLERK_PUBLISHABLE_KEY` and `VITE_CONVEX_URL` empty to edit entirely on this device. When both are set, Account in the More menu offers invitation-only email codes and optional passkeys; local save and undo keep working signed out or offline. Cloud coding agents should set `CONVEX_AGENT_MODE=anonymous` and use `npx convex dev` for an isolated development deployment. Never use `npx convex deploy` during development — that command is for production only.
+
 Useful checks:
 
 ```sh

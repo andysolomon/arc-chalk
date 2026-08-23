@@ -1,20 +1,15 @@
-import {
-  mutationGeneric as mutation,
-  type AnyDataModel,
-  type GenericMutationCtx,
-} from "convex/server";
 import { v } from "convex/values";
 
 import {
   confirmAssetUpload,
   coachOwnsAsset,
   type AssetMetadataStore,
-  type AssetRecord,
 } from "@chalk/contracts";
 import { contentHashSchema, storedImageMimeSchema } from "@chalk/domain";
 
-import { requireCoachId } from "./auth";
-import { queryTable } from "./indexed";
+import { mutation } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
+import { getCurrentCoach } from "./lib/auth";
 
 const mime = v.union(
   v.literal("image/jpeg"),
@@ -22,29 +17,31 @@ const mime = v.union(
   v.literal("image/webp"),
 );
 
-function assetStore(ctx: GenericMutationCtx<AnyDataModel>): AssetMetadataStore {
+function assetStore(ctx: MutationCtx): AssetMetadataStore {
   return {
     async getByHash(hash) {
-      const row = await queryTable(ctx, "assets")
+      const row = await ctx.db
+        .query("assets")
         .withIndex("by_hash", (q) => q.eq("hash", hash))
         .unique();
       if (!row) return undefined;
       return {
-        hash: String(row.hash),
-        mimeType: row.mimeType as AssetRecord["mimeType"],
-        width: Number(row.width),
-        height: Number(row.height),
-        byteLength: Number(row.byteLength),
-        createdAtMs: Number(row.createdAtMs),
-        ownerIds: row.ownerIds as string[],
+        hash: row.hash,
+        mimeType: row.mimeType,
+        width: row.width,
+        height: row.height,
+        byteLength: row.byteLength,
+        createdAtMs: row.createdAtMs,
+        ownerIds: row.ownerIds,
       };
     },
     async put(record) {
-      const existing = await queryTable(ctx, "assets")
+      const existing = await ctx.db
+        .query("assets")
         .withIndex("by_hash", (q) => q.eq("hash", record.hash))
         .unique();
       if (existing) {
-        await ctx.db.patch(existing._id as never, {
+        await ctx.db.patch(existing._id, {
           ownerIds: [...record.ownerIds],
         });
         return;
@@ -60,6 +57,10 @@ function assetStore(ctx: GenericMutationCtx<AnyDataModel>): AssetMetadataStore {
       });
     },
   };
+}
+
+async function requireCoachId(ctx: MutationCtx): Promise<string> {
+  return (await getCurrentCoach(ctx)).coachId;
 }
 
 export const prepareUpload = mutation({

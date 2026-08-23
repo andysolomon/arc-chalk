@@ -58,6 +58,26 @@ function createTestRuntime(
     getImage: () => Promise.resolve(undefined),
     listImages: () => Promise.resolve([]),
     markImageUploaded: () => Promise.resolve(),
+    subscribeLocalEdit: () => () => undefined,
+    destroyLocalData: () => Promise.resolve(),
+    repository: {
+      counts: () =>
+        Promise.resolve({
+          playbooks: 0,
+          concepts: 0,
+          formations: 0,
+          plays: 0,
+          revisions: 0,
+          syncMutations: 0,
+          conflicts: 0,
+          preferences: 0,
+          imageBlobs: 0,
+          undoHistories: 0,
+          searchProjections: 0,
+          thumbnails: 0,
+        }),
+      listUnresolvedConflicts: () => Promise.resolve([]),
+    } as unknown as ChalkRuntime["repository"],
     ...overrides,
   };
 }
@@ -110,6 +130,10 @@ describe("Chalk application shell", () => {
       128,
     );
     expect(container.querySelectorAll("[data-field-number]")).toHaveLength(8);
+    expect(screen.getByRole("button", { name: "local" })).toHaveAttribute(
+      "data-sync-status",
+      "local",
+    );
   });
 
   it("uses the prototype rail glyphs and makes angle snapping a real toggle", async () => {
