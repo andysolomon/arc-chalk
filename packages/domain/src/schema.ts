@@ -1,5 +1,7 @@
 import * as z from "zod/mini";
 
+import { filmReferenceSchema, playAttachmentSchema } from "./assets";
+
 export const entityIdSchema = z.string().check(z.minLength(1));
 export const nameSchema = z.string().check(z.minLength(1));
 export const playUnitSchema = z.enum(["offense", "defense", "special-teams"]);
@@ -356,6 +358,8 @@ const currentPlayDocumentSchema = z.object({
   assignments: z.array(assignmentSchema),
   paths: z.array(movementPathSchema),
   labels: z.array(textLabelSchema),
+  attachments: z.optional(z.array(playAttachmentSchema)),
+  filmReferences: z.optional(z.array(filmReferenceSchema)),
 });
 
 function addCustomIssue(
@@ -389,6 +393,8 @@ export const playDocumentSchema = currentPlayDocumentSchema.check(
       ["assignments", play.assignments],
       ["paths", play.paths],
       ["labels", play.labels],
+      ["attachments", play.attachments ?? []],
+      ["filmReferences", play.filmReferences ?? []],
     ] as const) {
       for (const id of duplicateIds(items)) {
         addCustomIssue(payload, [key], `Duplicate ${key} ID: ${id}`);
@@ -688,6 +694,8 @@ export const publishedPlaySchema = z.strictObject({
   players: z.array(playerSchema),
   paths: z.array(movementPathSchema),
   labels: z.array(textLabelSchema),
+  attachments: z.optional(z.array(playAttachmentSchema)),
+  filmReferences: z.optional(z.array(filmReferenceSchema)),
 });
 
 export const sharePublicationEntrySchema = z.strictObject({
