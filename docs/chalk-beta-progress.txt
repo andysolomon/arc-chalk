@@ -1,6 +1,6 @@
 chalk-beta - Chalk Production Beta - Progress
 Generated: 2026-08-04 16:50:45 EDT
-Updated: 2026-08-23 00:30:00 EDT
+Updated: 2026-08-23 12:00:00 EDT
 On completion, move this file and the plan to docs/archive/.
 
 [ ] 0.0 - Phase 0 - Canonical prototype inventory and parity lock
@@ -69,13 +69,19 @@ On completion, move this file and the plan to docs/archive/.
         Evidence: planPlay / evaluatePlayAt live in the domain; buildRenderScene({ atMs, playing }) is the only scene builder; Editor and Present mount the same PlaybackBar and patch the same SVG. Frame-sequence PNGs plus a snap-relative manifest, and a four-frame Snap / First break / Throw / Finish progression strip on letter landscape, consume that evaluator. GIF and MP4 stay out of scope. Share Links are not built yet (Phase 8) and will import the same functions.
     [x] 5.4 - Verify deterministic timestamps, offline responsiveness, keyboard control, and reduced motion
         Evidence: unit tests pin hitch/back/lineman defaults, pre-snap motion, constant-pace breaks, absolute-time ticks, seek ≡ uninterrupted playback at the same timestamp, reduced-motion jump-to-end, rate changes that keep the current time, stored timing through a double mirror, rest-vs-animated scenes, and the export manifest/strip. Component tests drive the bar on the seeded Play. Chromium at 1440×960 and WebKit/iPad play Stick — Thunder, prove a receiver leaves his stance, prove a frozen frame still opens Timing on X's route, prove Reset returns the stance, and prove space plays and pauses in Present. Lint and typecheck are clean. Offline is unchanged: the clock and evaluator are local and do not wait on a network.
-[ ] 6.0 - Phase 6 - Playbook library, organization, and retrieval
-    [ ] 6.1 - Preserve original library, Concept tree, variation, scope, propagation, detach, save, rename, delete, and transition behavior
-    [ ] 6.2 - Implement Formation and Field Profile management and explicit reapplication
-    [ ] 6.3 - Build virtualized paged metadata lists/grids with focus and scroll restoration
-    [ ] 6.4 - Build Worker-based local search projections, filtering, and disposable indexes
-    [ ] 6.5 - Build lazy cancelable revision-keyed thumbnails
-    [ ] 6.6 - Verify the 10-Playbook and 2,000-Plays-per-Playbook performance fixture
+[x] 6.0 - Phase 6 - Playbook library, organization, and retrieval
+    [x] 6.1 - Preserve original library, Concept tree, variation, scope, propagation, detach, save, rename, delete, and transition behavior
+        Evidence: the original inspector library remains — Concept tree, Applies to (this play / whole concept / Pick…), + Variation, note/tags, push, detach, delete-with-confirm, Save flash, and Browse Playbook as an additive overlay. Switching Plays waits out the save queue and refuses a failed local save (parity-matrix B2). Scoped route work broadcasts with skip copy (`Applied to 4 of 5 — Red zone has no Z route`). Present steps the family (`1 / 5 · GUN DOUBLES LEFT`) with ← →. Stick — Thunder ships with its four variations plus the demo-tour examples.
+    [x] 6.2 - Implement Formation and Field Profile management and explicit reapplication
+        Evidence: the inspector Field section lists playbook and built-in profiles below the original Formation / Line call / Concept / Defense / Library stack; applying one is `set-field-profile` and never rewrites yards (ADR 0032). A Play whose copied profile or Formation source revision is behind offers Reapply. A Coach can keep the current markings as a named playbook profile, optionally as the default.
+    [x] 6.3 - Build virtualized paged metadata lists/grids with focus and scroll restoration
+        Evidence: the Playbook overlay virtualizes a 4-column card grid with TanStack Virtual, restores `library.browser.v1` scrollTop and focused Play, and filters by unit and Play Type without loading Play revisions.
+    [x] 6.4 - Build Worker-based local search projections, filtering, and disposable indexes
+        Evidence: search projections stay metadata-only; `searchPlays` token/prefix/Levenshtein-1 matching answers a 2,000-Play query inside 50 ms; a module Worker runs that path with a main-thread fallback. Clearing derived data rebuilds projections automatically.
+    [x] 6.5 - Build lazy cancelable revision-keyed thumbnails
+        Evidence: a card's picture is `playId:revisionHash:rendererVersion:fieldProfileRevision:theme`, generated on idle as an SVG blob, stored in the thumbnails table, and aborted when the card leaves the window.
+    [x] 6.6 - Verify the 10-Playbook and 2,000-Plays-per-Playbook performance fixture
+        Evidence: ten Playbooks list by metadata only; domain search of 2,000 Plays stays under 50 ms; the browser mounts a 2,000-Play catalogue without creating 2,000 DOM cards; Phase 3 already proved a commit into a 2,000-Play Playbook does not grow with Playbook size.
 [x] 7.0 - Phase 7 - Authentication, Convex replica, and conflict-safe sync
     [x] 7.1 - Implement invite-only Clerk email-code authentication and optional passkeys
         Evidence: invitation-only email-code sign-in and optional passkeys sit behind IdentityPort, so Clerk never enters domain or sync. ClerkProvider and ConvexProviderWithClerk mount only when both VITE_CLERK_PUBLISHABLE_KEY and VITE_CONVEX_URL are set; otherwise Account says cloud is not configured and editing on this device still works. clerk-session uses Clerk Core 3 emailCode send/verify plus user.createPasskey, then storeCoach. Account panel tests send an email code through the identity port, offer passkey enrollment after sign-in, and explain the unconfigured path. Chromium and WebKit/iPad prove the editor opens signed out, commits Saved on this device, and shows that unconfigured copy. Live Clerk credentials were not in this environment; the configured path is covered by the identity-port tests rather than a hosted Clerk tenant.

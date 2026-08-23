@@ -30,6 +30,7 @@
   "dependencies": {
     "@tanstack/react-query": "latest",
     "@tanstack/react-router": "latest",
+    "@tanstack/react-virtual": "^3.14.10",
     "convex": "latest",
     "react": "latest",
     "react-dom": "latest",

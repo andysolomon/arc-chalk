@@ -451,6 +451,22 @@ export interface FormationMatch {
 }
 
 /**
+ * A Play remembers the Formation revision it was aligned from. Later edits
+ * to that Formation reach it only through an explicit reapplication.
+ */
+export function formationNeedsReapply(
+  play: PlayDocument,
+  formation: Formation,
+): boolean {
+  const source = play.formationSource;
+  return (
+    source !== undefined &&
+    source.formationId === formation.id &&
+    source.revision < formation.revision
+  );
+}
+
+/**
  * Which known set is on the field right now, matched role by role and
  * measured from the ball rather than from the middle, so a set moved to a
  * hash is still recognised as itself.

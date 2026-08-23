@@ -25,7 +25,7 @@ Add a column as each new review lands. Findings flagged independently by more th
 | ID | Finding | Sev | Flagged by | Status |
 |---|---|---|---|---|
 | B1 | Opening a demo can overwrite the active library play | **Critical** | behavioral | corrected — Phase 4.1 / adoptPlay |
-| B2 | Switching library plays replaces unsaved work without a guard | High | behavioral | required — Phase 6.1 |
+| B2 | Switching library plays replaces unsaved work without a guard | High | behavioral | corrected — Phase 6.1 |
 | 1 | Coverage zones missing from all export/print paths | High | static | prevented by design — Phase 2.3–2.4; golden owed by 9.4 |
 | 2 | Saves fail silently while UI shows "Saved" | High | static | corrected — Phase 3.2 |
 | 3 | Lateral yardage ~53% too large (two-scale field) | High | static | corrected — Phase 2.2 |
@@ -66,7 +66,7 @@ Independently, the production rebuild absorbed most of the same corrections as a
 - **B3** — Phase 3.4 recovers only unparseable storage and offers rather than forces it.
 - **#1** — Phases 2.3–2.4 give every renderer one `RenderScene`, so a zone cannot exist on screen and be missing from an export.
 
-**B2 is the one that remains, and it is the reason this triage still matters.** B1 was corrected in Phase 4.1 Demo/Tour: a demo handoff is a new Play via `EditorStore.adoptPlay`, so saving it cannot rewrite the Play that was open. B2 is a behavior an implementer would otherwise reproduce faithfully, because the matrix's standing rule is that the rebuild must be identical to the original. It is recorded as an approved correction in the parity matrix and assigned to Phase 6.1.
+**B1 and B2 are both corrected.** B1 was corrected in Phase 4.1 Demo/Tour: a demo handoff is a new Play via `EditorStore.adoptPlay`, so saving it cannot rewrite the Play that was open. B2 was corrected in Phase 6.1: switching Plays goes through `openStoredPlay`, waits out the save queue, and refuses the switch while local save is in error, so unsaved work is never discarded without the Coach choosing to.
 
 The `untriaged` rows still need a decision each before their owning phase closes.
 

@@ -305,13 +305,22 @@ describe("ChalkLocalRepository", () => {
     ).toBe("thumbnail");
 
     await repository.clearDerivedData();
-    await expect(
-      repository.listPlaySummaries(defensivePlaybookGolden.playbook.id),
-    ).resolves.toEqual([]);
+    await expect(repository.counts()).resolves.toEqual(
+      expect.objectContaining({ searchProjections: 0, thumbnails: 0 }),
+    );
     await expect(
       repository.getThumbnail(`${playId}:revision_hash:1:1:light`),
     ).resolves.toBeUndefined();
     await expect(repository.getPlay(playId)).resolves.toBeDefined();
+    await expect(
+      repository.listPlaySummaries(defensivePlaybookGolden.playbook.id),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        playId,
+        playbookId: defensivePlaybookGolden.playbook.id,
+        name: defensivePlaybookGolden.plays[0]!.name,
+      }),
+    ]);
   });
 
   it("reopens the same IndexedDB database without losing authoritative records", async () => {

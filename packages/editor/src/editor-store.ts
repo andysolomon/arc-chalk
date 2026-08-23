@@ -166,6 +166,19 @@ export interface EditorStore {
    */
   adoptPlay(this: void, document: PlayDocument): Promise<EditorCommitOutcome>;
   /**
+   * Switches to a Play already stored on this device. History and versions
+   * come with it; the open Play is not rewritten.
+   */
+  openStoredPlay(
+    this: void,
+    input: {
+      readonly document: PlayDocument;
+      readonly documentHash: string;
+      readonly undoHistory?: unknown;
+      readonly versions?: readonly EditorVersionSummary[];
+    },
+  ): Promise<void>;
+  /**
    * Shows a Play that sync already wrote, without another local mutation.
    * Used when the Coach takes the other device's branch of the open Play.
    */
@@ -481,6 +494,26 @@ export function createEditorStore({
     });
   };
 
+  const openStoredPlay = (input: {
+    readonly document: PlayDocument;
+    readonly documentHash: string;
+    readonly undoHistory?: unknown;
+    readonly versions?: readonly EditorVersionSummary[];
+  }): Promise<void> =>
+    enqueue(() => {
+      const opened = playDocumentSchema.parse(input.document);
+      history = restoreUndoHistory(
+        opened.id,
+        input.undoHistory,
+        wallClockNow(),
+      );
+      documentHash = input.documentHash;
+      persistedDocumentHash = input.documentHash;
+      showDocument(opened);
+      publishUndo();
+      publishVersions(input.versions ?? []);
+      return Promise.resolve();
+    });
   const revealPersistedPlay = (
     nextDocument: PlayDocument,
     persistedHash: string,
@@ -569,6 +602,7 @@ export function createEditorStore({
     applyEdit,
     commitDocument,
     adoptPlay,
+    openStoredPlay,
     revealPersistedPlay,
     retryLocalSave() {
       if (state.getState().localSave.phase !== "error") {

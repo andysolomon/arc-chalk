@@ -19,6 +19,7 @@
     "@clerk/react": "latest",
     "@tanstack/react-query": "*",
     "@tanstack/react-router": "*",
+    "@tanstack/react-virtual": "*",
     "convex": "*",
     "react": "*",
     "react-dom": "*",

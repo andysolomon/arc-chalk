@@ -191,6 +191,10 @@ import {
 
 import type { AppLifecycle } from "../app/app-lifecycle";
 import type { ChalkRuntime } from "../app/editor-runtime";
+import { FieldProfileSection } from "../library/field-profile-section";
+import { LibraryPanel } from "../library/library-panel";
+import { PlaybookBrowser } from "../library/playbook-browser";
+import { usePlaybookLibrary } from "../library/use-playbook-library";
 import { AccountPanel } from "./account-panel";
 import { LifecycleNotices } from "./lifecycle-notices";
 import { syncStatusLabel } from "./sync-status";
@@ -252,7 +256,13 @@ export { FieldDiagram };
 type View = "Editor" | "Demo" | "Present" | "Print";
 type Menu = "more" | "export" | "save" | "clear" | null;
 type Overlay =
-  "palette" | "shortcuts" | "formations" | "defenses" | "conflicts" | null;
+  | "palette"
+  | "shortcuts"
+  | "formations"
+  | "defenses"
+  | "playbook"
+  | "conflicts"
+  | null;
 type Tool =
   "select" | "player" | "route" | "motion" | "block" | "zone" | "text";
 
@@ -1220,6 +1230,7 @@ function lineName(
  * is — a lineman blocks and has no route to run, a defender is given a call.
  */
 function PlayerInspector({
+  conceptScope,
   lines,
   onAddAlternate,
   onApplyPreset,
@@ -1255,6 +1266,7 @@ function PlayerInspector({
   onTextCommitted: (field: "label" | "sublabel") => void;
   player: Player;
   text: Readonly<Record<"label" | "sublabel", string>>;
+  conceptScope: boolean;
 }) {
   const lineman = isLineman(player);
   const defense = player.unit === "defense";
@@ -1282,6 +1294,7 @@ function PlayerInspector({
           ←
         </button>
         <span>Player</span>
+        {conceptScope ? <span className="scope-tag">CONCEPT</span> : null}
       </div>
       <div className="symbol-row">
         {playerSymbolChoices.map((choice) => (
@@ -1430,6 +1443,7 @@ function PlayerInspector({
 function RouteInspector({
   branchIndex,
   coaching,
+  conceptScope,
   nodeIndex,
   onAddChoice,
   onCoaching,
@@ -1450,6 +1464,7 @@ function RouteInspector({
 }: {
   branchIndex?: number;
   coaching: Readonly<Record<RouteCoachingField, string>>;
+  conceptScope: boolean;
   nodeIndex?: number;
   onAddChoice: () => void;
   onCoaching: (field: RouteCoachingField, value: string) => void;
@@ -1516,6 +1531,7 @@ function RouteInspector({
           ←
         </button>
         <span>Route</span>
+        {conceptScope ? <span className="scope-tag">CONCEPT</span> : null}
         <span className="scope-tag">{scope}</span>
       </div>
       <div className="segments">
@@ -1707,9 +1723,12 @@ function RouteInspector({
 function Inspector({
   ballSpots,
   call,
+  conceptScope,
   concepts,
   defenderCount,
+  fieldProfile,
   layers,
+  library,
   lineCalls,
   linemanCount,
   onConcept,
@@ -1739,11 +1758,14 @@ function Inspector({
     readonly available: boolean;
   }[];
   call?: DefensiveCall;
+  conceptScope: boolean;
   concepts: Readonly<
     Record<string, { readonly on: boolean; readonly available: boolean }>
   >;
   defenderCount: number;
+  fieldProfile?: React.ReactNode;
   layers: Presentation["layers"];
+  library?: React.ReactNode;
   lineCalls: readonly {
     readonly key: string;
     readonly name: string;
@@ -1779,7 +1801,10 @@ function Inspector({
   }
   return (
     <aside className="inspector" aria-label="Play inspector">
-      <InspectorSection title="Formation">
+      <InspectorSection
+        badge={conceptScope ? "CONCEPT" : undefined}
+        title="Formation"
+      >
         <button
           className="wide-picker"
           data-current-formation={formation?.id}
@@ -1811,7 +1836,10 @@ function Inspector({
         </div>
         <p>{formationHint}</p>
       </InspectorSection>
-      <InspectorSection title="Line call">
+      <InspectorSection
+        badge={conceptScope ? "CONCEPT" : undefined}
+        title="Line call"
+      >
         <div className="button-grid">
           {lineCalls.map((call) => (
             <button
@@ -1836,7 +1864,10 @@ function Inspector({
           the others mirror about the ball.
         </p>
       </InspectorSection>
-      <InspectorSection title="Concept">
+      <InspectorSection
+        badge={conceptScope ? "CONCEPT" : undefined}
+        title="Concept"
+      >
         <div className="button-grid">
           {stockConcepts.map((concept) => (
             <button
@@ -1886,32 +1917,8 @@ function Inspector({
           own coverage on top. Press Z to add your own drop.
         </p>
       </InspectorSection>
-      <section className="inspector-section library-preview">
-        <div className="section-heading library-heading">
-          <span>Library · 10</span>
-          <span>
-            <button>Save</button>
-            <button className="link-button">+ Variation</button>
-          </span>
-        </div>
-        <span className="scope-label">Applies to</span>
-        <div className="segments scope">
-          <button className="active">This play</button>
-          <button>Whole concept</button>
-          <button>Pick…</button>
-        </div>
-        <p>Every change stays in the play you have open.</p>
-        <div className="library-row current">
-          <strong>Stick — Thunder</strong>
-          <span>3rd down</span>
-        </div>
-        <div className="library-row">
-          Jet Touch Pass <span>Pass</span>
-        </div>
-        <div className="library-row">
-          Four Verticals <span>Pass</span>
-        </div>
-      </section>
+      {library}
+      {fieldProfile}
       <HistorySection onRestore={onRestoreVersion} versions={versions} />
       <InspectorSection title="Page">
         <div className="page-kinds">
@@ -2054,15 +2061,20 @@ function HistorySection({
 }
 
 function InspectorSection({
+  badge,
   children,
   title,
 }: {
+  badge?: string;
   children: React.ReactNode;
   title: string;
 }) {
   return (
     <section className="inspector-section">
-      <div className="section-heading">{title}</div>
+      <div className="section-heading">
+        {title}
+        {badge ? <span className="scope-tag">{badge}</span> : null}
+      </div>
       {children}
     </section>
   );
@@ -2297,6 +2309,7 @@ export function ChalkApp({
     editorStore.getSnapshot,
     editorStore.getSnapshot,
   );
+  const playbook = usePlaybookLibrary(runtime, editorStore);
   const animationPlan = useMemo(
     () => planPlay(editor.document),
     [editor.document],
@@ -2711,7 +2724,12 @@ export function ChalkApp({
     if (!command) return;
     markInsertsPending(command);
     focusInteraction(next);
-    void editorStore.applyCommand(command).catch(() => undefined);
+    void editorStore
+      .applyCommand(command)
+      .then(() => {
+        playbook.maybeBroadcast(command);
+      })
+      .catch(() => undefined);
   };
   /**
    * The original offers the draw-a-route dot on the selected or hovered
@@ -2760,7 +2778,12 @@ export function ChalkApp({
     if (result.command) {
       pendingCommitPaintRef.current = true;
       markInsertsPending(result.command);
-      void editorStore.applyCommand(result.command).catch(() => undefined);
+      void editorStore
+        .applyCommand(result.command)
+        .then(() => {
+          playbook.maybeBroadcast(result.command!);
+        })
+        .catch(() => undefined);
     }
     // Finishing a route hands the Coach back the select tool, as the
     // original does, so the route he just drew is his to adjust.
@@ -4020,7 +4043,22 @@ export function ChalkApp({
     // Chalk saves continuously (ADR 0012); an explicit Save flushes whatever
     // the Coach is still typing rather than pretending durability is manual.
     savePlay: () => {
-      commitPlayName();
+      playbook.savePlay();
+      setOpenMenu(null);
+    },
+    saveAsVariant: () => {
+      playbook.startVariation();
+      setOpenMenu(null);
+    },
+    newVariation: () => {
+      playbook.startVariation();
+      setOpenMenu(null);
+    },
+    newPlay: () => {
+      if (interactionRef.current.drawing) {
+        dispatchFieldRef.current({ type: "escape" });
+      }
+      playbook.newPlay();
       setOpenMenu(null);
     },
     clearRoutesOffense: clearAction("offensive-lines"),
@@ -4081,6 +4119,19 @@ export function ChalkApp({
       ]),
     ),
     [`open:${editor.document.id}`]: () => undefined,
+    ...Object.fromEntries(
+      playbook.snapshot.members.map((member) => [
+        `open:${member.playId}`,
+        () => {
+          if (interactionRef.current.drawing) {
+            dispatchFieldRef.current({ type: "escape" });
+          }
+          void playbook.loadPlay(member.playId);
+          setOverlay(null);
+          setOpenMenu(null);
+        },
+      ]),
+    ),
     ...coachingOutputActions,
   };
 
@@ -4199,9 +4250,8 @@ export function ChalkApp({
         }
         if (activeView === "Present") {
           if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-            // Variation stepping waits on the library; the keys stay here
-            // so they do not leak into the editor.
             event.preventDefault();
+            playbook.stepFamily(event.key === "ArrowRight" ? 1 : -1);
             return;
           }
           if (event.key === " " && !activating) {
@@ -4407,6 +4457,7 @@ export function ChalkApp({
     goToView,
     openMenu,
     overlay,
+    playbook,
     reading,
     showSelectionOnKey,
   ]);
@@ -4526,7 +4577,7 @@ export function ChalkApp({
         <PresentMode
           onLeave={() => goToView("Editor")}
           playName={editor.document.name}
-          positionLine=""
+          positionLine={playbook.presentLine}
           scene={scene}
           svgRef={fieldSvgRef}
           timeline={
@@ -4746,6 +4797,7 @@ export function ChalkApp({
                 <RouteInspector
                   branchIndex={interaction.selectedBranchIndex}
                   coaching={routeCoaching(selectedPath)}
+                  conceptScope={playbook.conceptScope}
                   nodeIndex={interaction.selectedNodeIndex}
                   onAddChoice={() =>
                     runPanelCommand(
@@ -4841,6 +4893,7 @@ export function ChalkApp({
                 />
               ) : selectedPlayer ? (
                 <PlayerInspector
+                  conceptScope={playbook.conceptScope}
                   lines={playerLines(selectedPlayer)}
                   onApplyPreset={(pathId, presetKey) => {
                     const line = editor.document.paths.find(
@@ -5002,7 +5055,83 @@ export function ChalkApp({
             }
             ballSpots={ballSpotActions}
             call={onFieldCall}
+            conceptScope={playbook.conceptScope}
             concepts={conceptActions}
+            fieldProfile={
+              <FieldProfileSection
+                formations={allFormations}
+                onApplyProfile={(profile) => {
+                  void editorStore
+                    .applyCommand({
+                      kind: "set-field-profile",
+                      fieldProfile: profile,
+                    })
+                    .catch(() => undefined);
+                }}
+                onCreateProfile={(profile, asDefault) => {
+                  const playbookRecord = playbook.snapshot.playbook;
+                  const fieldProfiles = [
+                    ...playbookRecord.fieldProfiles.filter(
+                      ({ id }) => id !== profile.id,
+                    ),
+                    profile,
+                  ];
+                  void runtime.library
+                    .savePlaybook({
+                      ...playbookRecord,
+                      fieldProfiles,
+                      defaultFieldProfileId: asDefault
+                        ? profile.id
+                        : playbookRecord.defaultFieldProfileId,
+                      updatedAtMs: Date.now(),
+                    })
+                    .then(() => playbook.refresh());
+                  void editorStore
+                    .applyCommand({
+                      kind: "set-field-profile",
+                      fieldProfile: profile,
+                    })
+                    .catch(() => undefined);
+                }}
+                onReapplyFormation={(formation) =>
+                  applyFormationPick(formation.id)
+                }
+                play={editor.document}
+                playbook={playbook.snapshot.playbook}
+              />
+            }
+            library={
+              <LibraryPanel
+                currentPlayId={editor.document.id}
+                onBrowse={() => setOverlay("playbook")}
+                onCancelVariation={playbook.cancelVariation}
+                onCommitVariation={playbook.commitVariation}
+                onDelete={playbook.removePlay}
+                onDetach={playbook.detach}
+                onLoad={(playId) => {
+                  if (interactionRef.current.drawing) {
+                    dispatchFieldRef.current({ type: "escape" });
+                  }
+                  void playbook.loadPlay(playId);
+                }}
+                onNoteCommit={playbook.noteCommit}
+                onPush={playbook.push}
+                onSave={playbook.savePlay}
+                onScope={playbook.setScope}
+                onStartVariation={playbook.startVariation}
+                onToggleOpen={playbook.toggleOpen}
+                onTogglePick={playbook.togglePick}
+                onVariationDraft={playbook.setVariationDraft}
+                pickIds={playbook.pickIds}
+                report={playbook.report}
+                savedFlash={playbook.savedFlash}
+                scope={playbook.scope}
+                snapshot={playbook.snapshot}
+                storedOpen={playbook.storedOpen}
+                variationDraft={playbook.variationDraft}
+                variationOpen={playbook.variationOpen}
+              />
+            }
             lineCalls={lineCallActions}
             linemanCount={linemen.length}
             defenderCount={
@@ -5150,9 +5279,10 @@ export function ChalkApp({
               name: call.formation.name,
             })),
             formations: allFormations,
-            savedPlays: [
-              { id: editor.document.id, name: editor.document.name },
-            ],
+            savedPlays: playbook.snapshot.members.map((member) => ({
+              id: member.playId,
+              name: member.name,
+            })),
             zonesHidden,
           })}
           onClose={() => setOverlay(null)}
@@ -5195,6 +5325,23 @@ export function ChalkApp({
           onRemove={removeCoachFormation}
           onSave={saveCoachFormation}
           onToggleFavorite={toggleFavoriteFormation}
+        />
+      ) : null}
+      {overlay === "playbook" ? (
+        <PlaybookBrowser
+          currentPlayId={editor.document.id}
+          initial={playbook.browserState}
+          library={runtime.library}
+          members={playbook.snapshot.members}
+          onClose={() => setOverlay(null)}
+          onOpen={(playId) => {
+            setOverlay(null);
+            if (interactionRef.current.drawing) {
+              dispatchFieldRef.current({ type: "escape" });
+            }
+            void playbook.loadPlay(playId);
+          }}
+          onRemember={playbook.rememberBrowser}
         />
       ) : null}
       {overlay === "conflicts" && sync ? (
