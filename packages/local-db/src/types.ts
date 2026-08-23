@@ -128,6 +128,8 @@ export interface LocalImageBlob {
   readonly blob: Blob;
   readonly thumbnail: Blob;
   readonly createdAtMs: number;
+  /** Set once the content-addressed object is confirmed in private R2. */
+  readonly uploadedAtMs?: number;
 }
 
 export interface PlaySearchProjection {
@@ -303,6 +305,8 @@ export interface ChalkLocalRepository {
   getPreference(key: string): Promise<LocalPreference | undefined>;
   putImage(image: LocalImageBlob): Promise<void>;
   getImage(hash: string): Promise<LocalImageBlob | undefined>;
+  listImages(): Promise<readonly LocalImageBlob[]>;
+  markImageUploaded(hash: string, uploadedAtMs: number): Promise<void>;
   putUndoHistory(history: UndoHistory): Promise<void>;
   getUndoHistory(playId: string): Promise<UndoHistory | undefined>;
 

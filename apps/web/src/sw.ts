@@ -24,13 +24,18 @@ precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
 /**
- * Every in-app URL is the shell. Anything under /api, and anything with a
- * file extension that is not in the precache, is not a navigation Chalk
- * answers for: it falls through to the network.
+ * Every in-app URL is the shell. Anything under /api, every Share Link under
+ * /s/, and anything with a file extension that is not in the precache, is not
+ * a navigation Chalk answers for: it falls through to the network.
+ *
+ * /s/ matters most. A Share Link is served by the separate, strictly
+ * sandboxed share shell (share.html) that the host rewrites /s/:id onto, and
+ * its content is remote by definition. Handing those navigations the editor
+ * shell would break every published link for a Coach who has Chalk installed.
  */
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL("/index.html"), {
-    denylist: [/^\/api\//, /\/[^/?]+\.[^/]+$/],
+    denylist: [/^\/api\//, /^\/s\//, /\/[^/?]+\.[^/]+$/],
   }),
 );
 

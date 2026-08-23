@@ -2,6 +2,7 @@ import * as z from "zod/mini";
 
 import { canonicalStringify } from "./canonical";
 import { defensiveLineKinds } from "./classifications";
+import { filmReferenceSchema, playAttachmentSchema } from "./assets";
 import { mirrorPlayGeometry } from "./geometry";
 import {
   assignmentSchema,
@@ -109,6 +110,30 @@ const insertLabelsSchema = z.object({
   kind: z.literal("insert-labels"),
   labels: insertionSchema(textLabelSchema),
 });
+const insertAttachmentsSchema = z.object({
+  kind: z.literal("insert-attachments"),
+  attachments: insertionSchema(playAttachmentSchema),
+});
+const removeAttachmentsSchema = z.object({
+  kind: z.literal("remove-attachments"),
+  attachmentIds: z.array(entityIdSchema).check(z.minLength(1)),
+});
+const updateAttachmentSchema = z.object({
+  kind: z.literal("update-attachment"),
+  attachment: playAttachmentSchema,
+});
+const insertFilmReferencesSchema = z.object({
+  kind: z.literal("insert-film-references"),
+  filmReferences: insertionSchema(filmReferenceSchema),
+});
+const removeFilmReferencesSchema = z.object({
+  kind: z.literal("remove-film-references"),
+  filmReferenceIds: z.array(entityIdSchema).check(z.minLength(1)),
+});
+const updateFilmReferenceSchema = z.object({
+  kind: z.literal("update-film-reference"),
+  filmReference: filmReferenceSchema,
+});
 const removeLabelsSchema = z.object({
   kind: z.literal("remove-labels"),
   labelIds: z.array(entityIdSchema),
@@ -154,6 +179,12 @@ const primitivePlayCommandSchemas = [
   insertAssignmentsSchema,
   removeAssignmentsSchema,
   updateAssignmentSchema,
+  insertAttachmentsSchema,
+  removeAttachmentsSchema,
+  updateAttachmentSchema,
+  insertFilmReferencesSchema,
+  removeFilmReferencesSchema,
+  updateFilmReferenceSchema,
   mirrorPlaySchema,
 ] as const;
 
@@ -182,6 +213,7 @@ export type BatchPlayCommand = z.infer<typeof batchPlayCommandSchema>;
 export type PlayCommand = z.infer<typeof playCommandSchema>;
 
 export type PlayLayer = "players" | "paths" | "labels" | "assignments";
+type ItemLayer = PlayLayer | "attachments" | "filmReferences";
 
 interface Insertion<Item> {
   readonly index: number;
@@ -191,7 +223,7 @@ interface Insertion<Item> {
 function insertAll<Item>(
   items: readonly Item[],
   insertions: readonly Insertion<Item>[],
-  layer: PlayLayer,
+  layer: ItemLayer,
 ): Item[] {
   const next = [...items];
   for (const { index, item } of [...insertions].sort(
@@ -210,7 +242,7 @@ function insertAll<Item>(
 function requireAll<Item extends { readonly id: string }>(
   items: readonly Item[],
   ids: readonly string[],
-  layer: PlayLayer,
+  layer: ItemLayer,
 ): void {
   const present = new Set(items.map(({ id }) => id));
   for (const id of ids) {
@@ -233,7 +265,7 @@ function removalInsertions<Item extends { readonly id: string }>(
 function removeAll<Item extends { readonly id: string }>(
   items: readonly Item[],
   ids: readonly string[],
-  layer: PlayLayer,
+  layer: ItemLayer,
 ): Item[] {
   requireAll(items, ids, layer);
   const removing = new Set(ids);
@@ -243,7 +275,7 @@ function removeAll<Item extends { readonly id: string }>(
 function replaceOne<Item extends { readonly id: string }>(
   items: readonly Item[],
   replacement: Item,
-  layer: PlayLayer,
+  layer: ItemLayer,
 ): { readonly items: Item[]; readonly previous: Item } {
   const previous = items.find(({ id }) => id === replacement.id);
   if (!previous) {
@@ -270,6 +302,14 @@ function withOptional<Key extends string, Value>(
   return (value === undefined
     ? rest
     : { ...rest, [key]: value }) as unknown as PlayDocument;
+}
+
+function withList<Key extends "attachments" | "filmReferences", Item>(
+  play: PlayDocument,
+  key: Key,
+  items: readonly Item[],
+): PlayDocument {
+  return withOptional(play, key, items.length === 0 ? undefined : [...items]);
 }
 
 interface PrimitiveStep {
@@ -516,6 +556,94 @@ function applyPrimitive(
         inverse: { kind: "update-assignment", assignment: previous },
       };
     }
+    case "insert-attachments":
+      return {
+        document: withList(
+          play,
+          "attachments",
+          insertAll(play.attachments ?? [], command.attachments, "attachments"),
+        ),
+        inverse: {
+          kind: "remove-attachments",
+          attachmentIds: command.attachments.map(({ item }) => item.id),
+        },
+      };
+    case "remove-attachments":
+      return {
+        document: withList(
+          play,
+          "attachments",
+          removeAll(
+            play.attachments ?? [],
+            command.attachmentIds,
+            "attachments",
+          ),
+        ),
+        inverse: {
+          kind: "insert-attachments",
+          attachments: removalInsertions(
+            play.attachments ?? [],
+            command.attachmentIds,
+          ),
+        },
+      };
+    case "update-attachment": {
+      const { items, previous } = replaceOne(
+        play.attachments ?? [],
+        command.attachment,
+        "attachments",
+      );
+      return {
+        document: withList(play, "attachments", items),
+        inverse: { kind: "update-attachment", attachment: previous },
+      };
+    }
+    case "insert-film-references":
+      return {
+        document: withList(
+          play,
+          "filmReferences",
+          insertAll(
+            play.filmReferences ?? [],
+            command.filmReferences,
+            "filmReferences",
+          ),
+        ),
+        inverse: {
+          kind: "remove-film-references",
+          filmReferenceIds: command.filmReferences.map(({ item }) => item.id),
+        },
+      };
+    case "remove-film-references":
+      return {
+        document: withList(
+          play,
+          "filmReferences",
+          removeAll(
+            play.filmReferences ?? [],
+            command.filmReferenceIds,
+            "filmReferences",
+          ),
+        ),
+        inverse: {
+          kind: "insert-film-references",
+          filmReferences: removalInsertions(
+            play.filmReferences ?? [],
+            command.filmReferenceIds,
+          ),
+        },
+      };
+    case "update-film-reference": {
+      const { items, previous } = replaceOne(
+        play.filmReferences ?? [],
+        command.filmReference,
+        "filmReferences",
+      );
+      return {
+        document: withList(play, "filmReferences", items),
+        inverse: { kind: "update-film-reference", filmReference: previous },
+      };
+    }
     case "mirror-play":
       return {
         document: mirrorPlayGeometry(play),
@@ -640,6 +768,34 @@ export function describePlayCommand(command: PlayCommand): string {
       );
     case "update-assignment":
       return "Edit Assignment";
+    case "insert-attachments":
+      return plural(
+        command.attachments.length,
+        "Attach image",
+        "Attach images",
+      );
+    case "remove-attachments":
+      return plural(
+        command.attachmentIds.length,
+        "Remove image",
+        "Remove images",
+      );
+    case "update-attachment":
+      return "Edit image caption";
+    case "insert-film-references":
+      return plural(
+        command.filmReferences.length,
+        "Add Film Reference",
+        "Add Film References",
+      );
+    case "remove-film-references":
+      return plural(
+        command.filmReferenceIds.length,
+        "Remove Film Reference",
+        "Remove Film References",
+      );
+    case "update-film-reference":
+      return "Edit Film Reference";
     case "mirror-play":
       return "Mirror Play";
     case "batch":
@@ -670,6 +826,10 @@ export function playCommandCoalesceKey(
       return `label:${command.label.id}`;
     case "update-assignment":
       return `assignment:${command.assignment.id}`;
+    case "update-attachment":
+      return `attachment:${command.attachment.id}`;
+    case "update-film-reference":
+      return `film:${command.filmReference.id}`;
     default:
       return undefined;
   }
@@ -965,6 +1125,28 @@ export function diffPlayDocuments(
       remove: (playerIds) => ({ kind: "remove-players", playerIds }),
       insert: (players) => ({ kind: "insert-players", players }),
       update: (player) => ({ kind: "update-player", player }),
+    }),
+    ...diffLayer(from.attachments ?? [], to.attachments ?? [], {
+      remove: (attachmentIds) => ({
+        kind: "remove-attachments",
+        attachmentIds,
+      }),
+      insert: (attachments) => ({ kind: "insert-attachments", attachments }),
+      update: (attachment) => ({ kind: "update-attachment", attachment }),
+    }),
+    ...diffLayer(from.filmReferences ?? [], to.filmReferences ?? [], {
+      remove: (filmReferenceIds) => ({
+        kind: "remove-film-references",
+        filmReferenceIds,
+      }),
+      insert: (filmReferences) => ({
+        kind: "insert-film-references",
+        filmReferences,
+      }),
+      update: (filmReference) => ({
+        kind: "update-film-reference",
+        filmReference,
+      }),
     }),
   );
 

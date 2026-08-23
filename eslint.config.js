@@ -32,6 +32,17 @@ export default tseslint.config(
     },
   },
   {
+    files: ["convex/**/*.ts"],
+    rules: {
+      // mutationGeneric / actionGeneric without generated bindings type ctx as any.
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+    },
+  },
+  {
     files: ["scripts/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
     languageOptions: { globals: { ...globals.node, Bun: "readonly" } },
   },

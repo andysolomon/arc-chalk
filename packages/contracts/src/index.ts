@@ -31,3 +31,5 @@ export type {
   ResolveConflictRequest,
   ResolveConflictResult,
 } from "./sync";
+export * from "./assets";
+export * from "./share";

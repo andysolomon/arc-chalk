@@ -9,7 +9,7 @@ import type { DiagramOptions, DiagramRenderer } from "@chalk/exports";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { FieldDiagram } from "./chalk-app";
+import { FieldDiagram } from "./field-diagram";
 
 /**
  * The shell's half of the export contract: a Play, rendered through the same

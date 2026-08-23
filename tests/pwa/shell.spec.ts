@@ -31,13 +31,12 @@ test("precaches only the versioned shell, never Play data", async ({
   ).toBe(true);
   expect(cached.urls).toContain("/index.html");
   expect(cached.urls).toContain("/manifest.webmanifest");
-  expect(
-    cached.urls.every((url) =>
-      /^\/(index\.html|manifest\.webmanifest|favicon\.svg|icons\/.+\.png|assets\/.+\.(js|css))$/.test(
-        url,
-      ),
-    ),
-  ).toBe(true);
+  // share.html is the second, sandboxed shell Phase 8 serves Share Links from;
+  // it is static app shell like index.html, and carries no Play data either.
+  expect(cached.urls).toContain("/share.html");
+  const shellOnly =
+    /^\/(index\.html|share\.html|manifest\.webmanifest|favicon\.svg|icons\/.+\.png|assets\/.+\.(js|css))$/;
+  expect(cached.urls.filter((url) => !shellOnly.test(url))).toEqual([]);
 });
 
 test("opens the shell and the Coach's saved Play with the network off", async ({
@@ -127,4 +126,21 @@ test("a stale cached shell is refused and repaired without touching data", async
   );
   // The shell re-registers on the fresh load; the stale one is gone.
   expect(registrations).toBeLessThanOrEqual(1);
+});
+
+test("never hands a Share Link the editor shell", async ({ page }) => {
+  await shellReady(page);
+  // A Share Link is remote, sandboxed content that the host (and the preview
+  // server) rewrite onto share.html. With the worker installed, /s/ must not
+  // be answered from the precached editor shell.
+  const served = await page.evaluate(async () => {
+    const response = await fetch("/s/some-published-id", {
+      mode: "same-origin",
+      redirect: "follow",
+    });
+    return { status: response.status, body: await response.text() };
+  });
+  expect(served.status).toBe(200);
+  expect(served.body).toContain("Chalk Share");
+  expect(served.body).not.toContain("<title>Chalk</title>");
 });
