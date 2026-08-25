@@ -114,7 +114,11 @@ export function tickPlayback(
   const elapsedMs = (nowMs - clock.originWallMs) * clock.rate;
   const timeMs = Math.round(originTimeMs + elapsedMs);
   if (timeMs >= bounds.endMs) {
-    return { timeMs: bounds.endMs, playing: false, rate: clock.rate };
+    // A play that has run itself out leaves the field set for the next look at
+    // it, so the clock rewinds to the first frame rather than holding everyone
+    // frozen where the whistle caught them. Pressing play again runs it from
+    // the top without a reset in between.
+    return { timeMs: bounds.startMs, playing: false, rate: clock.rate };
   }
   if (timeMs === clock.timeMs) return clock;
   return { ...clock, timeMs };
