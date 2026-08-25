@@ -76,7 +76,7 @@ describe("the inspector library panel", () => {
     expect(screen.getByText("Red zone")).toBeVisible();
   });
 
-  it("toggles Pick… membership instead of only switching the scope", async () => {
+  it("lights a sibling's dot to send edits there, right in the tree", async () => {
     const onTogglePick = vi.fn();
     const family = stickThunderFamily();
     render(
@@ -94,12 +94,46 @@ describe("the inspector library panel", () => {
       />,
     );
 
-    await userEvent.click(
+    // No second list of the same four plays.
+    expect(
+      screen.queryByText("Stick — Thunder — Gun Doubles Right"),
+    ).toBeNull();
+    expect(
       screen.getByRole("button", {
-        name: /Stick — Thunder — Gun Doubles Right/,
+        name: "Stop sending edits to Gun Doubles Right",
       }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Send edits to Gun Doubles Left" }),
     );
-    expect(onTogglePick).toHaveBeenCalledWith(family[1]!.id);
+    expect(onTogglePick).toHaveBeenCalledWith(family[2]!.id);
+    expect(screen.getByText(/Landing on 2 of 5 versions/)).toBeVisible();
+  });
+
+  it("offers every version as one tap and says what travels", async () => {
+    const onScope = vi.fn();
+    const family = stickThunderFamily();
+    render(
+      <LibraryPanel
+        {...unused}
+        currentPlayId={family[0]!.id}
+        onScope={onScope}
+        pickIds={[]}
+        savedFlash={false}
+        scope="concept"
+        snapshot={stickSnapshot()}
+        storedOpen={{}}
+        variationDraft=""
+        variationOpen={false}
+      />,
+    );
+
+    expect(screen.queryByText("Whole concept")).toBeNull();
+    expect(
+      screen.getByText(/not formation, personnel or the name/),
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "This play" }));
+    expect(onScope).toHaveBeenCalledWith("play");
   });
 
   it("asks before deleting a concept", async () => {

@@ -78,6 +78,7 @@ import {
   applyDefensiveCallCommand,
   applyFormationCommand,
   applyLabelRoleCommand,
+  applyPlayerRoutePresetCommand,
   applyRoutePresetCommand,
   spotBallCommand,
   conceptIsOn,
@@ -193,6 +194,7 @@ import type { AppLifecycle } from "../app/app-lifecycle";
 import type { ChalkRuntime } from "../app/editor-runtime";
 import { FieldProfileSection } from "../library/field-profile-section";
 import { LibraryPanel } from "../library/library-panel";
+import { ScopeBar } from "../library/scope-bar";
 import { PlaybookBrowser } from "../library/playbook-browser";
 import { usePlaybookLibrary } from "../library/use-playbook-library";
 import { AccountPanel } from "./account-panel";
@@ -1225,18 +1227,84 @@ function lineName(
 }
 
 /**
+ * The catalogues the Player panel offers a man, reduced to what a button needs
+ * to say and named once at the module rather than rebuilt each render. The
+ * route tree already arrives in that shape, so it is used as it comes.
+ */
+const quickBlockCalls: readonly {
+  readonly key: string;
+  readonly name: string;
+}[] = blockPresets.map(({ key, name }) => ({ key, name }));
+const quickAssignmentCalls: readonly {
+  readonly key: string;
+  readonly name: string;
+}[] = defensivePresets.map(({ key, name }) => ({ key, name }));
+
+/**
+ * A catalogue as a grid of buttons, which is how the original offers one: the
+ * Coach has already picked the man out, so the calls he could be given are
+ * right there rather than behind a picker on a line he has not got yet.
+ */
+function QuickCallGrid({
+  calls,
+  heading,
+  hint,
+  kind,
+  onApply,
+  running,
+}: {
+  calls: readonly { readonly key: string; readonly name: string }[];
+  heading: string;
+  hint?: string;
+  /** A route reshapes his stem; everything else is a whole call he is given. */
+  kind: "route" | "line";
+  onApply: (presetKey: string, kind: "route" | "line") => void;
+  /** The calls he is already running. */
+  running: ReadonlySet<string>;
+}) {
+  return (
+    <>
+      <span className="section-heading">{heading}</span>
+      <div className="button-grid pairs">
+        {calls.map(({ key, name }) => (
+          <button
+            aria-pressed={running.has(key)}
+            className={running.has(key) ? "active" : undefined}
+            key={key}
+            onClick={() => onApply(key, kind)}
+            title={
+              kind === "route"
+                ? `Run ${name} — drawn from his own stance`
+                : running.has(key)
+                  ? `Click again to take ${name} off him`
+                  : `Give him ${name}`
+            }
+            type="button"
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+      {hint === undefined ? null : <p>{hint}</p>}
+    </>
+  );
+}
+
+/**
  * The original's Player panel: the man himself, then every line he has and the
  * button that gives him another one. Which of those it offers follows what he
  * is — a lineman blocks and has no route to run, a defender is given a call.
  */
 function PlayerInspector({
-  conceptScope,
+  activePresets,
+  scopeBadge,
   lines,
   onAddAlternate,
   onApplyPreset,
   onAppearance,
   onDeselect,
   onFlip,
+  onQuickCall,
   onRemoveLine,
   onSelectLine,
   onText,
@@ -1244,6 +1312,8 @@ function PlayerInspector({
   player,
   text,
 }: {
+  /** Every call he is already running, so a button can say so. */
+  activePresets: ReadonlySet<string>;
   lines: readonly {
     readonly id: string;
     readonly name: string;
@@ -1260,13 +1330,14 @@ function PlayerInspector({
   onAppearance: (appearance: PlayerAppearance) => void;
   onDeselect: () => void;
   onFlip: () => void;
+  onQuickCall: (presetKey: string, kind: "route" | "line") => void;
   onRemoveLine: (pathId: string) => void;
   onSelectLine: (pathId: string) => void;
   onText: (field: "label" | "sublabel", value: string) => void;
   onTextCommitted: (field: "label" | "sublabel") => void;
   player: Player;
   text: Readonly<Record<"label" | "sublabel", string>>;
-  conceptScope: boolean;
+  scopeBadge?: string;
 }) {
   const lineman = isLineman(player);
   const defense = player.unit === "defense";
@@ -1276,10 +1347,10 @@ function PlayerInspector({
       ? "Blocking"
       : "Routes & alternates";
   const nothingYet = defense
-    ? "No assignment yet. Press Z for a zone drop and B for a blitz path."
+    ? "No assignment yet. Pick one below, or press Z for a zone drop and B for a blitz path."
     : lineman
-      ? "No block yet. Press B and click him to draw one."
-      : "No route yet. Press R and click this player to draw one.";
+      ? "No block yet. Pick one below, or press B and click him to draw one."
+      : "No route yet. Pick one below, or press R and click this player to draw one.";
 
   return (
     <div className="label-inspector">
@@ -1294,7 +1365,7 @@ function PlayerInspector({
           ←
         </button>
         <span>Player</span>
-        {conceptScope ? <span className="scope-tag">CONCEPT</span> : null}
+        {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
       </div>
       <div className="symbol-row">
         {playerSymbolChoices.map((choice) => (
@@ -1411,6 +1482,39 @@ function PlayerInspector({
         </div>
       )}
       {!defense && !lineman && (
+        <QuickCallGrid
+          calls={routePresetNames}
+          heading="Quick routes"
+          kind="route"
+          onApply={onQuickCall}
+          running={activePresets}
+        />
+      )}
+      {!defense && (
+        <QuickCallGrid
+          calls={quickBlockCalls}
+          heading="Quick blocks"
+          hint={
+            lineman
+              ? "Bar endings for contact, dashed for a pull, a tick where he chips before releasing. Click the one he has to take it off."
+              : "Backs and tight ends block too — a block sits alongside his route rather than replacing it."
+          }
+          kind="line"
+          onApply={onQuickCall}
+          running={activePresets}
+        />
+      )}
+      {defense && (
+        <QuickCallGrid
+          calls={quickAssignmentCalls}
+          heading="Quick assignments"
+          hint="Coverage drops draw dashed to a zone bubble, man dotted, blitz solid red, stunt orange. Each one replaces what he was doing and names it under the line."
+          kind="line"
+          onApply={onQuickCall}
+          running={activePresets}
+        />
+      )}
+      {!defense && !lineman && (
         <>
           <div className="help-row">
             <button onClick={onAddAlternate} type="button">
@@ -1443,7 +1547,7 @@ function PlayerInspector({
 function RouteInspector({
   branchIndex,
   coaching,
-  conceptScope,
+  scopeBadge,
   nodeIndex,
   onAddChoice,
   onCoaching,
@@ -1464,7 +1568,7 @@ function RouteInspector({
 }: {
   branchIndex?: number;
   coaching: Readonly<Record<RouteCoachingField, string>>;
-  conceptScope: boolean;
+  scopeBadge?: string;
   nodeIndex?: number;
   onAddChoice: () => void;
   onCoaching: (field: RouteCoachingField, value: string) => void;
@@ -1531,7 +1635,7 @@ function RouteInspector({
           ←
         </button>
         <span>Route</span>
-        {conceptScope ? <span className="scope-tag">CONCEPT</span> : null}
+        {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
         <span className="scope-tag">{scope}</span>
       </div>
       <div className="segments">
@@ -1723,7 +1827,7 @@ function RouteInspector({
 function Inspector({
   ballSpots,
   call,
-  conceptScope,
+  scopeBadge,
   concepts,
   defenderCount,
   fieldProfile,
@@ -1758,7 +1862,7 @@ function Inspector({
     readonly available: boolean;
   }[];
   call?: DefensiveCall;
-  conceptScope: boolean;
+  scopeBadge?: string;
   concepts: Readonly<
     Record<string, { readonly on: boolean; readonly available: boolean }>
   >;
@@ -1801,10 +1905,7 @@ function Inspector({
   }
   return (
     <aside className="inspector" aria-label="Play inspector">
-      <InspectorSection
-        badge={conceptScope ? "CONCEPT" : undefined}
-        title="Formation"
-      >
+      <InspectorSection badge={scopeBadge} title="Formation">
         <button
           className="wide-picker"
           data-current-formation={formation?.id}
@@ -1836,10 +1937,7 @@ function Inspector({
         </div>
         <p>{formationHint}</p>
       </InspectorSection>
-      <InspectorSection
-        badge={conceptScope ? "CONCEPT" : undefined}
-        title="Line call"
-      >
+      <InspectorSection badge={scopeBadge} title="Line call">
         <div className="button-grid">
           {lineCalls.map((call) => (
             <button
@@ -1864,10 +1962,7 @@ function Inspector({
           the others mirror about the ball.
         </p>
       </InspectorSection>
-      <InspectorSection
-        badge={conceptScope ? "CONCEPT" : undefined}
-        title="Concept"
-      >
+      <InspectorSection badge={scopeBadge} title="Concept">
         <div className="button-grid">
           {stockConcepts.map((concept) => (
             <button
@@ -2685,6 +2780,13 @@ export function ChalkApp({
                 : [],
         ...(path.preset === undefined ? {} : { preset: path.preset }),
       }));
+  /** Every call off a catalogue he is already running, by its key. */
+  const playerPresets = (player: Player): ReadonlySet<string> =>
+    new Set(
+      editor.document.paths.flatMap(({ playerId, preset }) =>
+        playerId === player.id && preset !== undefined ? [preset] : [],
+      ),
+    );
   const playerText = (
     player: Player,
   ): Readonly<Record<"label" | "sublabel", string>> => {
@@ -2730,6 +2832,43 @@ export function ChalkApp({
         playbook.maybeBroadcast(command);
       })
       .catch(() => undefined);
+  };
+  /**
+   * A call off a catalogue put on the man the Coach has picked out. A route
+   * reshapes his base stem, or is drawn from his stance where he has none —
+   * without that second case a man with nothing on him has to be given an
+   * alternate first and then redrawn, which is not what was asked for. A
+   * block or a drop is a whole call rather than a shape, so it replaces what
+   * he was doing of that kind, and asking for the one he has takes it off.
+   *
+   * The selection is left on the man in both cases, for the reason a line
+   * call leaves it alone: picking the new line would swap in the Route panel
+   * and unmount the very buttons just pressed, and a Coach trying a slant and
+   * then a curl is doing exactly that.
+   */
+  const runQuickCall = (presetKey: string, kind: "route" | "line"): void => {
+    const document = editorStore.getSnapshot().document;
+    const playerId = interactionRef.current.selection.find(
+      (item) => item.kind === "player",
+    )?.id;
+    if (playerId === undefined) return;
+    runPanelCommand(
+      kind === "route"
+        ? applyPlayerRoutePresetCommand(document, playerId, presetKey, () =>
+            createStableId("path"),
+          )
+        : applyLinePresetCommand(
+            document,
+            [playerId],
+            presetKey,
+            createStableId,
+          ),
+      {
+        selectedNodeIndex: undefined,
+        selectedBranchIndex: undefined,
+        selectedSegmentIndex: undefined,
+      },
+    );
   };
   /**
    * The original offers the draw-a-route dot on the selected or hovered
@@ -4692,9 +4831,19 @@ export function ChalkApp({
           />
           <div
             className="field-wrap"
+            data-busy={playbook.busy ? "true" : undefined}
             data-drawing={interaction.drawing ? "true" : undefined}
             data-tool={activeTool}
           >
+            <ScopeBar
+              badge={playbook.scopeBadge}
+              busy={playbook.busy}
+              conceptName={playbook.conceptName}
+              offer={playbook.offer}
+              onAccept={playbook.acceptOffer}
+              onDismiss={playbook.dropOffer}
+              onJustThis={() => playbook.setScope("play")}
+            />
             <FieldDiagram
               camera={camera}
               livePreviewRef={livePreviewRef}
@@ -4797,7 +4946,7 @@ export function ChalkApp({
                 <RouteInspector
                   branchIndex={interaction.selectedBranchIndex}
                   coaching={routeCoaching(selectedPath)}
-                  conceptScope={playbook.conceptScope}
+                  scopeBadge={playbook.scopeBadge}
                   nodeIndex={interaction.selectedNodeIndex}
                   onAddChoice={() =>
                     runPanelCommand(
@@ -4893,7 +5042,8 @@ export function ChalkApp({
                 />
               ) : selectedPlayer ? (
                 <PlayerInspector
-                  conceptScope={playbook.conceptScope}
+                  activePresets={playerPresets(selectedPlayer)}
+                  scopeBadge={playbook.scopeBadge}
                   lines={playerLines(selectedPlayer)}
                   onApplyPreset={(pathId, presetKey) => {
                     const line = editor.document.paths.find(
@@ -4962,6 +5112,7 @@ export function ChalkApp({
                       ),
                     )
                   }
+                  onQuickCall={runQuickCall}
                   onRemoveLine={(pathId) =>
                     runLabelCommand(
                       deletePathsCommand(editor.document, [pathId]),
@@ -5055,7 +5206,7 @@ export function ChalkApp({
             }
             ballSpots={ballSpotActions}
             call={onFieldCall}
-            conceptScope={playbook.conceptScope}
+            scopeBadge={playbook.scopeBadge}
             concepts={conceptActions}
             fieldProfile={
               <FieldProfileSection

@@ -26,6 +26,9 @@ import {
   variantNameFrom,
   type LibraryPlayMember,
   type SearchablePlay,
+  libraryScopeAfterToggle,
+  libraryScopeBadge,
+  libraryScopeHint,
 } from "@chalk/domain";
 import { describe, expect, it } from "vitest";
 
@@ -215,6 +218,55 @@ describe("Concept-scope propagation", () => {
     expect(
       result.play.paths.filter((path) => path.playerId === pushedZ?.id).length,
     ).toBeGreaterThan(0);
+  });
+});
+
+describe("Applies-to scope from the tree's dots", () => {
+  const siblings = ["b", "c", "d", "e"];
+
+  it("walks none → some → all → none as dots are toggled", () => {
+    const some = libraryScopeAfterToggle("play", [], siblings, "b");
+    expect(some).toEqual({ scope: "pick", pickIds: ["b"] });
+    const more = libraryScopeAfterToggle(
+      "pick",
+      ["b", "c", "d"],
+      siblings,
+      "e",
+    );
+    expect(more).toEqual({ scope: "concept", pickIds: siblings });
+    const fewer = libraryScopeAfterToggle("concept", [], siblings, "c");
+    expect(fewer).toEqual({ scope: "pick", pickIds: ["b", "d", "e"] });
+    expect(libraryScopeAfterToggle("pick", ["b"], siblings, "b")).toEqual({
+      scope: "play",
+      pickIds: [],
+    });
+  });
+
+  it("ignores a play outside the family and a stale pick id", () => {
+    expect(libraryScopeAfterToggle("pick", ["zzz"], siblings, "q")).toEqual({
+      scope: "pick",
+      pickIds: ["zzz"],
+    });
+    expect(libraryScopeAfterToggle("pick", ["zzz"], siblings, "b")).toEqual({
+      scope: "pick",
+      pickIds: ["b"],
+    });
+  });
+
+  it("badges the headings by how many versions are lit", () => {
+    expect(libraryScopeBadge("play", 0, 5)).toBeUndefined();
+    expect(libraryScopeBadge("pick", 0, 5)).toBeUndefined();
+    expect(libraryScopeBadge("pick", 2, 5)).toBe("3 of 5");
+    expect(libraryScopeBadge("concept", 4, 5)).toBe("All 5");
+  });
+
+  it("says what travels, and does not claim notes do", () => {
+    const hint = libraryScopeHint("concept", 4, 5, true);
+    expect(hint).toMatch(/Routes and assignments travel/);
+    expect(hint).toMatch(/not formation, personnel or the name/);
+    expect(hint).not.toMatch(/notes/);
+    expect(libraryScopeHint("pick", 0, 5, true)).toMatch(/Tap a dot/);
+    expect(libraryScopeHint("concept", 0, 1, true)).toMatch(/add a variation/);
   });
 });
 

@@ -1162,6 +1162,61 @@ test("redraws one man's line as a call off the route tree", async ({
   );
 });
 
+test("puts a call off the tree on the man himself, drawn or redrawn", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const routes = await page.locator("[data-scene-path]").count();
+
+  // The quarterback has nothing drawn on him. Picking a man used to leave a
+  // Coach with no way to give him a route but to add an alternate first.
+  const q = await playerCenter(page, "q");
+  await page.mouse.click(q.x, q.y);
+  await expect(
+    page.locator(".label-heading").getByText("Player", { exact: true }),
+  ).toBeVisible();
+
+  const slant = page.getByRole("button", { name: "Slant", exact: true });
+  await expect(slant).toBeVisible();
+  await slant.click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+  // The grid stays up, so the next call is one click away rather than a
+  // trip back to the man.
+  await expect(slant).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.locator(".label-heading").getByText("Player", { exact: true }),
+  ).toBeVisible();
+
+  // Asking for another reshapes the stem he now has rather than piling a
+  // second line on top of it.
+  await page.getByRole("button", { name: "Corner", exact: true }).click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+  await expect(slant).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    page.getByRole("button", { name: "Corner", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+
+  // A block sits alongside his route rather than replacing it, and the same
+  // button takes it off again.
+  const drive = page.getByRole("button", { name: "Drive", exact: true });
+  await drive.click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 2);
+  await expect(drive).toHaveAttribute("aria-pressed", "true");
+  await drive.click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+
+  // A man who already has a stem is redrawn on it, and the count holds.
+  await page.keyboard.press("Escape");
+  const z = await playerCenter(page, "z");
+  await page.mouse.click(z.x, z.y);
+  const before = await page.locator('[data-scene-path="rz"]').getAttribute("d");
+  await page.getByRole("button", { name: "Wheel", exact: true }).click();
+  await expect
+    .poll(async () => page.locator('[data-scene-path="rz"]').getAttribute("d"))
+    .not.toBe(before);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+});
+
 test("gives the whole line a call at once, and takes it off again", async ({
   page,
 }) => {

@@ -343,15 +343,6 @@ export async function saveConceptMeta(
   return next;
 }
 
-export function togglePickId(
-  pickIds: readonly string[],
-  playId: string,
-): readonly string[] {
-  return pickIds.includes(playId)
-    ? pickIds.filter((id) => id !== playId)
-    : [...pickIds, playId];
-}
-
 export function stepFamilyPlayId(
   currentPlayId: string,
   snapshot: LibrarySnapshot,

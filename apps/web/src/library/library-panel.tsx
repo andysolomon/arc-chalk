@@ -85,6 +85,8 @@ export function LibraryPanel({
     current !== undefined,
   );
   const noteConcept = snapshot.concepts.find(({ id }) => id === noteConceptId);
+  const targetIds = new Set(targets.map((member) => member.playId));
+  const familyIds = new Set(family.map((member) => member.playId));
 
   useEffect(() => {
     if (!armedId) return undefined;
@@ -117,46 +119,29 @@ export function LibraryPanel({
           </button>
         </span>
       </div>
-      <span className="scope-label">Applies to</span>
-      <div className="segments scope">
-        {(
-          [
-            ["play", "This play"],
-            ["concept", "Whole concept"],
-            ["pick", "Pick…"],
-          ] as const
-        ).map(([value, name]) => (
+      <div className="scope-line">
+        <span className="scope-label">Applies to</span>
+        <div className="segments scope">
           <button
-            className={scope === value ? "active" : undefined}
-            key={value}
-            onClick={() => onScope(value)}
+            className={scope === "play" ? "active" : undefined}
+            onClick={() => onScope("play")}
             type="button"
           >
-            {name}
+            This play
           </button>
-        ))}
-      </div>
-      {scope === "pick" ? (
-        <div className="library-pick">
-          {family
-            .filter((member) => member.playId !== currentPlayId)
-            .map((member) => {
-              const on = pickIds.includes(member.playId);
-              return (
-                <button
-                  aria-pressed={on}
-                  className={on ? "on" : undefined}
-                  key={member.playId}
-                  onClick={() => onTogglePick(member.playId)}
-                  type="button"
-                >
-                  <span>{on ? "✓" : ""}</span>
-                  {member.name}
-                </button>
-              );
-            })}
+          <button
+            className={scope === "concept" ? "active" : undefined}
+            disabled={family.length < 2}
+            onClick={() => onScope("concept")}
+            title="Tap a dot in the list below to narrow it down"
+            type="button"
+          >
+            {family.length > 1
+              ? `All ${family.length} versions`
+              : "All versions"}
+          </button>
         </div>
-      ) : null}
+      </div>
       <p>{hint}</p>
       {report ? <p className="library-report">{report}</p> : null}
       {noteConcept ? (
@@ -208,6 +193,12 @@ export function LibraryPanel({
               onNote={(conceptId) => setNoteConceptId(conceptId)}
               onPush={onPush}
               onToggle={() => row.conceptId && onToggleOpen(row.conceptId)}
+              onToggleTarget={onTogglePick}
+              targetOf={(playId) =>
+                playId === currentPlayId || !familyIds.has(playId)
+                  ? undefined
+                  : targetIds.has(playId)
+              }
               open={
                 row.conceptId
                   ? libraryDisclosureDefault(
@@ -300,8 +291,10 @@ function ConceptBlock({
   onNote,
   onPush,
   onToggle,
+  onToggleTarget,
   open,
   row,
+  targetOf,
 }: {
   armedId?: string;
   currentPlayId: string;
@@ -314,8 +307,11 @@ function ConceptBlock({
   onNote: (conceptId: string | undefined) => void;
   onPush: (conceptId: string) => void;
   onToggle: () => void;
+  onToggleTarget: (playId: string) => void;
   open: boolean;
   row: LibraryConceptRow;
+  /** Whether edits land on this play too; undefined when it is not a sibling of the open play. */
+  targetOf: (playId: string) => boolean | undefined;
 }) {
   const current = currentPlayId === row.head.playId;
   const hovering = hoverId === row.head.playId;
@@ -349,9 +345,11 @@ function ConceptBlock({
         >
           {row.variations.length ? (open ? "▾" : "▸") : ""}
         </button>
-        <span
-          className="library-dot"
-          style={{ background: current ? "#0072F5" : "#8F8F8F" }}
+        <TargetDot
+          current={current}
+          label={row.name}
+          onToggle={() => onToggleTarget(row.head.playId)}
+          target={targetOf(row.head.playId)}
         />
         <strong title={row.notes ? `${row.name} — ${row.notes}` : row.name}>
           {row.name}
@@ -444,12 +442,12 @@ function ConceptBlock({
                 role="button"
                 tabIndex={0}
               >
-                <span
-                  className="library-dot small"
-                  style={{
-                    background: on ? "#0072F5" : "#C9C9C9",
-                    opacity: on ? 1 : 0,
-                  }}
+                <TargetDot
+                  current={on}
+                  label={variation.label}
+                  onToggle={() => onToggleTarget(variation.playId)}
+                  small
+                  target={targetOf(variation.playId)}
                 />
                 <span className="library-var-name">{variation.label}</span>
                 {varArmed ? (
@@ -492,6 +490,43 @@ function ConceptBlock({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The row's dot. Blue is the play that is open; for its siblings the dot is
+ * a switch — filled when edits land there too, hollow when they don't.
+ */
+function TargetDot({
+  current,
+  label,
+  onToggle,
+  small,
+  target,
+}: {
+  current: boolean;
+  label: string;
+  onToggle: () => void;
+  small?: boolean;
+  target: boolean | undefined;
+}) {
+  const size = small ? "library-dot small" : "library-dot";
+  if (current) return <span className={`${size} open`} />;
+  if (target === undefined) {
+    return <span className={size} style={{ opacity: small ? 0 : 1 }} />;
+  }
+  return (
+    <button
+      aria-label={`${target ? "Stop sending" : "Send"} edits to ${label}`}
+      aria-pressed={target}
+      className={`${size} target${target ? " on" : ""}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      title={target ? "Edits land here too" : "Edits stay off this version"}
+      type="button"
+    />
   );
 }
 

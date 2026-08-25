@@ -357,6 +357,14 @@ export function libraryScopeTargets(
   return siblings;
 }
 
+/**
+ * What a broadcast actually carries, in the Coach's words. Notes live on the
+ * concept and are shared regardless; formation, personnel and each
+ * version's name stay its own.
+ */
+export const LIBRARY_BROADCAST_CARRIES =
+  "Routes and assignments travel — not formation, personnel or the name.";
+
 export function libraryScopeHint(
   scope: LibraryEditScope,
   targetCount: number,
@@ -364,22 +372,56 @@ export function libraryScopeHint(
   hasOpenPlay: boolean,
 ): string {
   if (scope === "play") {
-    return "Every change stays in the play you have open.";
+    return familySize < 2
+      ? "Every change stays in the play you have open."
+      : "Every change stays in this play. After a route edit you can send it to the other versions.";
   }
   if (!hasOpenPlay) return "Open a play from the library first.";
   if (familySize < 2) {
     return "Nothing to broadcast to yet — add a variation first.";
   }
-  if (targetCount === 0 && scope === "pick") {
-    return "Pick the versions this change should land on.";
-  }
   if (targetCount === 0) {
-    return "Nothing to broadcast to yet — add a variation first.";
+    return "Tap a dot to pick which versions this lands on.";
   }
   return (
-    "Route work, coaching notes and quick calls land on all " +
-    `${targetCount + 1} versions of this concept.`
+    `Landing on ${targetCount + 1} of ${familySize} versions. ` +
+    LIBRARY_BROADCAST_CARRIES
   );
+}
+
+/** A short badge for the inspector headings: "All 5" or "3 of 5". */
+export function libraryScopeBadge(
+  scope: LibraryEditScope,
+  targetCount: number,
+  familySize: number,
+): string | undefined {
+  if (scope === "play" || targetCount === 0) return undefined;
+  return targetCount + 1 === familySize
+    ? `All ${familySize}`
+    : `${targetCount + 1} of ${familySize}`;
+}
+
+/**
+ * Toggling a sibling's dot in the tree. The three scopes are one set of
+ * targets seen from different angles: none, some, or every sibling.
+ */
+export function libraryScopeAfterToggle(
+  scope: LibraryEditScope,
+  pickIds: readonly string[],
+  siblingIds: readonly string[],
+  playId: string,
+): { readonly scope: LibraryEditScope; readonly pickIds: readonly string[] } {
+  if (!siblingIds.includes(playId)) return { scope, pickIds };
+  const lit = new Set(
+    scope === "concept" ? siblingIds : scope === "pick" ? pickIds : [],
+  );
+  if (lit.has(playId)) lit.delete(playId);
+  else lit.add(playId);
+  const next = siblingIds.filter((id) => lit.has(id));
+  if (next.length === 0) return { scope: "play", pickIds: [] };
+  if (next.length === siblingIds.length)
+    return { scope: "concept", pickIds: next };
+  return { scope: "pick", pickIds: next };
 }
 
 export function libraryDisclosureDefault(

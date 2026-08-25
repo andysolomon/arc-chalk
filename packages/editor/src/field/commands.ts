@@ -20,6 +20,7 @@ import {
   RECOGNITION_THRESHOLD,
   labelRolePresets,
   resolvePathTiming,
+  routePresetNames,
   routePresetPoints,
   spotBall,
   stockFormations,
@@ -1235,6 +1236,85 @@ export function applyRoutePresetCommand(
   return canonicalStringify(next) === canonicalStringify(path)
     ? undefined
     : { kind: "update-path", path: next };
+}
+
+/**
+ * The stem a call put on the man himself lands on: the first route he has, in
+ * the order he drew them, which is the one the Player panel names his base
+ * stem. The rest are alternates — other calls he could be asked to run — so a
+ * quick call reshapes what he is actually running rather than the last thing
+ * added to him.
+ */
+export function baseRouteOf(
+  document: PlayDocument,
+  playerId: string,
+): MovementPath | undefined {
+  return document.paths.find(
+    (path) => path.playerId === playerId && path.kind === "route",
+  );
+}
+
+/**
+ * A call off the tree put on the man rather than on a line he already has.
+ * He is what the Coach picked out when he asks for one, so asking gives him
+ * that route: his base stem is reshaped where he has one, and where he has
+ * none the shape is drawn from his stance. That second case is the whole
+ * point of it — without it a man with nothing yet has to be given an
+ * alternate first and then redrawn, which is not what the Coach asked for.
+ */
+export function applyPlayerRoutePresetCommand(
+  document: PlayDocument,
+  playerId: string,
+  presetKey: string,
+  createId: () => string,
+): PlayCommand | undefined {
+  const player = document.players.find(({ id }) => id === playerId);
+  if (!player) return undefined;
+
+  const base = baseRouteOf(document, playerId);
+  if (base) return applyRoutePresetCommand(document, base.id, presetKey);
+
+  const shape = routePresetPoints(
+    presetKey,
+    player.position,
+    handednessOf(player.position),
+  );
+  if (!shape) return undefined;
+  const name =
+    routePresetNames.find(({ key }) => key === presetKey)?.name ?? presetKey;
+
+  return {
+    kind: "batch",
+    label: `Applied ${name}`,
+    commands: [
+      {
+        kind: "insert-paths",
+        paths: [
+          {
+            index: document.paths.length,
+            item: {
+              id: createId(),
+              kind: "route",
+              playerId,
+              // The stance is left exactly as it is — a man already stands
+              // inside the paint — and the rest is held there.
+              points: [
+                player.position,
+                ...insidePoints(document, shape.slice(1)),
+              ],
+              branches: [],
+              style: routeKindStyle("route", {
+                line: "solid",
+                ending: "arrow",
+                color: "ink",
+              }),
+              preset: presetKey,
+            },
+          },
+        ],
+      },
+    ],
+  };
 }
 
 /**
