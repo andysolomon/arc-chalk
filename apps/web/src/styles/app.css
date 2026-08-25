@@ -1228,6 +1228,9 @@ select:focus-visible {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
 }
+.button-grid.pairs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .button-grid button {
   min-width: 0;
   height: 29px;
@@ -1264,14 +1267,111 @@ select:focus-visible {
 .library-heading .link-button {
   color: var(--blue);
 }
+.scope-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
 .scope-label {
-  display: block;
-  margin-bottom: 6px;
+  flex: none;
   color: var(--muted);
   font-size: 11px;
 }
 .segments.scope {
-  margin-bottom: 6px;
+  margin-bottom: 0;
+}
+.segments.scope button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+/* The tree's dots: blue is the open play; a sibling's dot is a switch. */
+.library-dot.open {
+  background: #0072f5;
+}
+.library-dot:not(.open):not(.target) {
+  background: #8f8f8f;
+}
+button.library-dot.target {
+  padding: 0;
+  border: 1.5px solid #8f8f8f;
+  background: transparent;
+  cursor: pointer;
+}
+button.library-dot.target:hover {
+  border-color: #0072f5;
+}
+button.library-dot.target.on {
+  border-color: #0072f5;
+  background: #0072f5;
+}
+button.library-dot.target.small {
+  width: 8px;
+  height: 8px;
+  border-width: 1px;
+}
+/* Across the top of the field, where a broadcast lands. */
+.scope-bar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  max-width: calc(100% - 28px);
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 4px 14px rgba(0, 0, 0, 0.1);
+  color: var(--ink);
+  font-size: 12px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.scope-bar.armed {
+  background: #eaf2ff;
+  box-shadow:
+    0 0 0 1px #0072f5,
+    0 4px 14px rgba(0, 114, 245, 0.18);
+}
+.scope-bar > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scope-bar-note {
+  color: var(--muted);
+}
+.scope-bar button {
+  flex: none;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.scope-bar button.primary {
+  background: #0072f5;
+  box-shadow: none;
+  color: #fff;
+}
+.scope-bar button[aria-label="Keep it here"] {
+  width: 24px;
+  padding: 0;
+  box-shadow: none;
+  color: var(--muted);
+}
+/* While a broadcast walks the siblings the store is not on this play. */
+.field-wrap[data-busy="true"] .field-diagram {
+  pointer-events: none;
+  opacity: 0.6;
 }
 .library-row {
   min-height: 34px;
@@ -1412,75 +1512,6 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 1px;
-}
-.library-pick {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-bottom: 6px;
-  padding: 5px 7px;
-  border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
-}
-.library-pick button {
-  display: flex;
-  height: 26px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 3px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: #4d4d4d;
-  cursor: pointer;
-  font-size: 12px;
-  text-align: left;
-}
-.library-pick button.on span:first-child,
-.library-pick button span:first-child {
-  display: flex;
-  width: 14px;
-  height: 14px;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  background: #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.16);
-  color: #fff;
-  font-size: 9px;
-}
-.library-pick button.on span:first-child {
-  background: var(--blue);
-  box-shadow: none;
-}
-.library-inline,
-.library-note input {
-  width: 100%;
-  height: 30px;
-  margin-bottom: 6px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
-  color: var(--ink);
-  font-size: 12px;
-  outline: 0;
-}
-.library-inline {
-  box-shadow: 0 0 0 1px #0072f5;
-}
-.library-note {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-.library-note input:last-child {
-  font-family: "Geist Mono", ui-monospace, Menlo, monospace;
-  font-size: 11px;
 }
 .library-report {
   color: var(--blue);

@@ -16,7 +16,9 @@ import {
 import {
   applyConceptCommand,
   applyLinePresetCommand,
+  applyPlayerRoutePresetCommand,
   applyRoutePresetCommand,
+  baseRouteOf,
   conceptIsOn,
   conceptTargets,
   linemenOf,
@@ -293,6 +295,112 @@ describe("putting a call off the tree on a line", () => {
   it("has nothing to say about a line or a call that is not there", () => {
     expect(applyRoutePresetCommand(withStem, "nope", "corner")).toBeUndefined();
     expect(applyRoutePresetCommand(withStem, "stem", "banana")).toBeUndefined();
+  });
+});
+
+describe("putting a call off the tree on the man himself", () => {
+  const bare = trips;
+  const x = idOfRole(bare, "X");
+  const stanceOf = (play: PlayDocument, playerId: string) =>
+    play.players.find(({ id }) => id === playerId)!.position;
+
+  it("draws the call from his stance when he has no line at all", () => {
+    // The case the Player panel had no answer for: a man with nothing on him
+    // had to be given an alternate first and then redrawn.
+    const play = run(
+      bare,
+      applyPlayerRoutePresetCommand(bare, x, "corner", () => "drawn"),
+    );
+    expect(play.paths).toHaveLength(1);
+    const path = play.paths[0]!;
+    expect(path.id).toBe("drawn");
+    expect(path.kind).toBe("route");
+    expect(path.playerId).toBe(x);
+    expect(path.preset).toBe("corner");
+    expect(path.style).toEqual({
+      line: "solid",
+      ending: "arrow",
+      color: "ink",
+    });
+    // Drawn from the man, and drawn as the call: a corner from the left
+    // breaks toward the left sideline.
+    expect(path.points[0]).toEqual(stanceOf(play, x));
+    expect(path.points.at(-1)!.lateralYards).toBeLessThan(
+      path.points[0]!.lateralYards,
+    );
+    expect(() => playDocumentSchema.parse(play)).not.toThrow();
+  });
+
+  it("reshapes the stem he has rather than giving him a second line", () => {
+    const withStem = run(
+      bare,
+      applyPlayerRoutePresetCommand(bare, x, "corner", () => "drawn"),
+    );
+    const play = run(
+      withStem,
+      applyPlayerRoutePresetCommand(withStem, x, "go", () => "second"),
+    );
+    expect(play.paths).toHaveLength(1);
+    expect(play.paths[0]!.id).toBe("drawn");
+    expect(play.paths[0]!.preset).toBe("go");
+  });
+
+  it("lands on his base stem and leaves his alternates alone", () => {
+    const one = run(
+      bare,
+      applyPlayerRoutePresetCommand(bare, x, "corner", () => "base"),
+    );
+    // A second line off the same man, drawn after the first, is an alternate:
+    // another call he could be asked to run rather than the one he is running.
+    const two: PlayDocument = {
+      ...one,
+      paths: [
+        ...one.paths,
+        { ...one.paths[0]!, id: "alternate", preset: "flat" },
+      ],
+    };
+    expect(baseRouteOf(two, x)!.id).toBe("base");
+    const play = run(
+      two,
+      applyPlayerRoutePresetCommand(two, x, "dig", () => "third"),
+    );
+    expect(play.paths.map(({ id }) => id)).toEqual(["base", "alternate"]);
+    expect(play.paths[0]!.preset).toBe("dig");
+    expect(play.paths[1]!.preset).toBe("flat");
+  });
+
+  it("reads past a block to the route underneath, since a block is not a stem", () => {
+    const blocking = run(
+      bare,
+      applyLinePresetCommand(bare, [x], "drive", makeId),
+    );
+    expect(baseRouteOf(blocking, x)).toBeUndefined();
+    const play = run(
+      blocking,
+      applyPlayerRoutePresetCommand(blocking, x, "flat", () => "route"),
+    );
+    // The block stays: it sits alongside his route rather than under it.
+    expect(play.paths.map(({ kind }) => kind)).toEqual(["block", "route"]);
+    expect(baseRouteOf(play, x)!.preset).toBe("flat");
+  });
+
+  it("is no command at all when he is already running that call", () => {
+    const cornered = run(
+      bare,
+      applyPlayerRoutePresetCommand(bare, x, "corner", () => "drawn"),
+    );
+    expect(
+      applyPlayerRoutePresetCommand(cornered, x, "corner", () => "again"),
+    ).toBeUndefined();
+  });
+
+  it("has nothing to say about a man or a call that is not there", () => {
+    expect(
+      applyPlayerRoutePresetCommand(bare, "nobody", "corner", () => "drawn"),
+    ).toBeUndefined();
+    expect(
+      applyPlayerRoutePresetCommand(bare, x, "banana", () => "drawn"),
+    ).toBeUndefined();
   });
 });
 
