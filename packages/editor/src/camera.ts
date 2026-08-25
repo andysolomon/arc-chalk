@@ -20,10 +20,20 @@ export interface CameraFrame {
 
 /**
  * How far in the Coach can go, as the original had it: a fifth of the frame
- * across. He cannot go out past the whole frame, because there is nothing
- * out there to see.
+ * across.
  */
 export const MIN_CAMERA_WIDTH_RATIO = 0.2;
+
+/**
+ * How far back he can stand: two and a half frames across, which is 40% on
+ * the status bar. The original stopped him at the whole frame, so a play
+ * drawn out to the sideline was worked on with its own edge under his hand
+ * and nowhere to put a route that ran off it. Past fit the field stops
+ * filling the screen and sits on the canvas with room around it, which is
+ * what the clamp below already assumed a camera wider than the frame would
+ * want — it centres one rather than pinning it to a corner.
+ */
+export const MAX_CAMERA_WIDTH_RATIO = 2.5;
 
 /**
  * How far past the edge of the frame the camera may be pushed, so a Player
@@ -37,21 +47,26 @@ export function fitCamera(frame: CameraFrame): Camera {
   return { x: 0, y: 0, width: frame.width, height: frame.height };
 }
 
-/** Whether the camera is showing the whole frame, near enough. */
+/**
+ * Whether the camera is showing the whole frame, near enough — which a camera
+ * standing back past fit is, with room to spare.
+ */
 export function isAtFit(camera: Camera, frame: CameraFrame): boolean {
   return camera.width >= frame.width * 0.995;
 }
 
 /**
- * Holds a camera to what there is to look at: never narrower than the limit,
- * never wider than the frame, and never further out than the overscroll
- * allows. The height follows the width, because the frame the camera looks at
- * is drawn at one proportion and the element showing it keeps that proportion.
+ * Holds a camera to what there is to look at: never narrower and never wider
+ * than the limits, and never further off than the overscroll allows — which
+ * for a camera wider than the frame is measured from the frame sitting in the
+ * middle of it. The height follows the width, because the frame the camera
+ * looks at is drawn at one proportion and the element showing it keeps that
+ * proportion.
  */
 export function clampCamera(camera: Camera, frame: CameraFrame): Camera {
   const width = Math.max(
     frame.width * MIN_CAMERA_WIDTH_RATIO,
-    Math.min(frame.width, camera.width),
+    Math.min(frame.width * MAX_CAMERA_WIDTH_RATIO, camera.width),
   );
   const height = (width / frame.width) * frame.height;
   const marginX =
@@ -81,7 +96,7 @@ export function zoomCamera(
 ): Camera {
   const width = Math.max(
     frame.width * MIN_CAMERA_WIDTH_RATIO,
-    Math.min(frame.width, camera.width * factor),
+    Math.min(frame.width * MAX_CAMERA_WIDTH_RATIO, camera.width * factor),
   );
   const height = (width / frame.width) * frame.height;
   const at = anchor ?? {
@@ -140,7 +155,9 @@ const PADDING = 70 / 1000;
  * A camera that shows what it was given, with room around it. Asked to show
  * something taller than it is wide, it widens to fit the height, because the
  * camera keeps the frame's proportion and the height is what would otherwise
- * be cut off.
+ * be cut off. It stops at the whole frame rather than going on out to the
+ * zoom-out limit: the Coach asked to be shown something on the field, and the
+ * field is as far back as he needs to stand to see it.
  */
 export function cameraForBounds(
   bounds: FrameBounds,

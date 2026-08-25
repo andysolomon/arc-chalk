@@ -300,6 +300,19 @@ test("drives the snap rail toggle and live status-bar camera controls", async ({
   await expect(snap).toHaveAttribute("aria-pressed", "false");
 
   const fit = await cameraOf(page);
+
+  // Fit is the middle of the range, not the back of it: he can stand off the
+  // field and then step straight back onto it.
+  await page.getByRole("button", { name: "Zoom out" }).click();
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeGreaterThan(fit.width!);
+  await expect(
+    page.getByRole("button", { name: "Fit the field — 80% zoom" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Fit the field — 80% zoom" }).click();
+  await expect.poll(async () => (await cameraOf(page)).width).toBe(fit.width!);
+
   await page.getByRole("button", { name: "Zoom in" }).click();
   await expect
     .poll(async () => (await cameraOf(page)).width)
