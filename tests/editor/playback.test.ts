@@ -33,6 +33,13 @@ describe("playback clock", () => {
     expect(sought.playing).toBe(false);
   });
 
+  it("rewinds to the first frame when the play runs itself out", () => {
+    const started = playPlayback(idlePlayback(-1000), 0, bounds);
+    const ended = tickPlayback(started, 5_000, bounds);
+    expect(ended.playing).toBe(false);
+    expect(ended.timeMs).toBe(-1000);
+  });
+
   it("restarts from the start when play is pressed at the end", () => {
     const ended = { timeMs: 3000, playing: false, rate: 1 as const };
     const playing = playPlayback(ended, 1, bounds);

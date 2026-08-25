@@ -55,3 +55,32 @@ test("space plays and pauses in Present", async ({ page }) => {
     bar.getByRole("button", { name: "Play", exact: true }),
   ).toBeVisible();
 });
+
+test("rewinds to the first frame once the play runs itself out", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("img", { name: "Stick — Thunder football play" }),
+  ).toBeVisible();
+
+  const bar = page.getByLabel("Playback controls");
+  await expect(bar).toBeVisible();
+  const x = page.locator('[data-scene-player="x"]');
+  const stance = await x.getAttribute("transform");
+  const firstFrameMs = await bar.getAttribute("data-playback-time");
+
+  await bar.getByRole("button", { name: "Play", exact: true }).click();
+  await expect
+    .poll(async () => x.getAttribute("transform"), { timeout: 4000 })
+    .not.toBe(stance);
+
+  // Nobody presses anything: the play runs out and puts itself back.
+  await expect(
+    bar.getByRole("button", { name: "Play", exact: true }),
+  ).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(bar).toHaveAttribute("data-playback-time", firstFrameMs!);
+  await expect(x).toHaveAttribute("transform", stance!);
+});
