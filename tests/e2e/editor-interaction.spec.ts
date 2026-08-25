@@ -1314,11 +1314,17 @@ test("pushes the field in and out with the wheel, holding the point under the po
   // And the point under the pointer stayed where it was.
   expect((800 - zoomed.x) / zoomed.width).toBeCloseTo(800 / fit.width, 2);
 
-  // Zooming back out returns to the whole frame and no further.
+  // Zooming back out goes on past the whole frame — the Coach can stand off
+  // the field — and stops at the far end of the range, which is the frame's
+  // own MAX_CAMERA_WIDTH_RATIO of 2.5.
   for (let step = 0; step < 10; step += 1) await page.mouse.wheel(0, 120);
   await expect
     .poll(async () => (await cameraOf(page)).width)
-    .toBeCloseTo(fit.width, 3);
+    .toBeCloseTo(fit.width * 2.5, 3);
+  const back = await cameraOf(page);
+  // The whole field is still in view out there, with room around it.
+  expect(back.x).toBeLessThan(0);
+  expect(back.x + back.width).toBeGreaterThan(fit.width);
 });
 
 test("shows the whole field, or just what the Coach picked, from the keyboard", async ({
