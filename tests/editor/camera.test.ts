@@ -5,6 +5,7 @@ import {
   clampCamera,
   fitCamera,
   isAtFit,
+  MAX_CAMERA_WIDTH_RATIO,
   MIN_CAMERA_WIDTH_RATIO,
   panCamera,
   zoomCamera,
@@ -50,7 +51,7 @@ describe("where the Coach is looking", () => {
     expect(isAtFit(zoomed, frame)).toBe(false);
   });
 
-  it("will not go closer than the limit, or further out than the whole frame", () => {
+  it("will not go closer than the limit, or further back than it", () => {
     let camera = fit;
     for (let step = 0; step < 20; step += 1)
       camera = zoomCamera(camera, 0.5, frame);
@@ -58,8 +59,33 @@ describe("where the Coach is looking", () => {
 
     let out = camera;
     for (let step = 0; step < 20; step += 1) out = zoomCamera(out, 2, frame);
-    expect(out.width).toBe(frame.width);
+    expect(out.width).toBeCloseTo(frame.width * MAX_CAMERA_WIDTH_RATIO, 9);
+    expect(cameraZoom(out, frame)).toBeCloseTo(1 / MAX_CAMERA_WIDTH_RATIO, 9);
     expect(isAtFit(out, frame)).toBe(true);
+  });
+
+  it("lets the Coach step back off the field, with it left in the middle", () => {
+    // One step out from fit, which the status bar reads as 80%.
+    const back = zoomCamera(fit, 1.25, frame);
+    expect(back.width).toBeCloseTo(frame.width * 1.25, 9);
+    expect(cameraZoom(back, frame)).toBeCloseTo(0.8, 9);
+    expect(back.x + back.width / 2).toBeCloseTo(frame.width / 2, 6);
+    expect(back.y + back.height / 2).toBeCloseTo(frame.height / 2, 6);
+    // Nothing of the field is cut off once he is standing back from it.
+    expect(back.x).toBeLessThanOrEqual(0);
+    expect(back.x + back.width).toBeGreaterThanOrEqual(frame.width);
+  });
+
+  it("gives him the same nudge either way of the middle when he is stood back", () => {
+    const back = zoomCamera(fit, 1.25, frame);
+    const middle = (frame.width - back.width) / 2;
+    const pushed = panCamera(back, -10_000, 0, frame);
+    const other = panCamera(back, 10_000, 0, frame);
+    expect(pushed.x).toBeCloseTo(middle - frame.width * (30 / 1000), 6);
+    expect(other.x).toBeCloseTo(middle + frame.width * (30 / 1000), 6);
+    // The field never leaves the view, however hard it is pushed.
+    expect(pushed.x + pushed.width).toBeGreaterThan(frame.width);
+    expect(other.x).toBeLessThan(0);
   });
 
   it("holds the point it is zoomed about under the pointer", () => {
@@ -141,9 +167,17 @@ describe("where the Coach is looking", () => {
       { x: -9_000, y: 9_000, width: 40_000, height: 3 },
       frame,
     );
-    expect(tooWide.width).toBe(frame.width);
-    expect(tooWide.height).toBeCloseTo(frame.height, 9);
-    expect(tooWide.x).toBeGreaterThanOrEqual(-frame.width * (30 / 1000) - 1e-6);
+    expect(tooWide.width).toBeCloseTo(frame.width * MAX_CAMERA_WIDTH_RATIO, 9);
+    expect(tooWide.height).toBeCloseTo(
+      frame.height * MAX_CAMERA_WIDTH_RATIO,
+      9,
+    );
+    // Pushed hard off to one side, it comes back to the overscroll of where
+    // the frame sits in the middle of a camera wider than it is.
+    expect(tooWide.x).toBeCloseTo(
+      (frame.width - tooWide.width) / 2 - frame.width * (30 / 1000),
+      6,
+    );
 
     // And a camera closer in than anything should ever ask for. Zooming has
     // its own limit, because it has to know the width before it can hold the

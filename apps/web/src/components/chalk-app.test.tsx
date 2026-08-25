@@ -297,6 +297,40 @@ describe("Chalk application shell", () => {
     expect(field?.getAttribute("viewBox")).not.toBe(selectionCamera);
   });
 
+  it("lets the Coach stand back off the field, and steps him back onto it", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
+    const field = container.querySelector("svg.field-diagram");
+
+    // Fit is no longer as far back as he can go: one step out leaves the
+    // whole field on screen with room around it.
+    await user.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(field).toHaveAttribute("viewBox", "-125 -77.5 1250 775");
+    expect(
+      screen.getByRole("button", { name: "Fit the field — 80% zoom" }),
+    ).toBeVisible();
+    // Nothing is off screen out there, so the navigator stays away.
+    expect(container.querySelector(".minimap")).toHaveAttribute(
+      "data-shown",
+      "false",
+    );
+
+    // And he stops at 40%, however many times he asks for more room.
+    for (let step = 0; step < 6; step += 1)
+      await user.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(Number(field?.getAttribute("viewBox")?.split(" ")[2])).toBeCloseTo(
+      2500,
+    );
+    expect(
+      screen.getByRole("button", { name: "Fit the field — 40% zoom" }),
+    ).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: "Fit the field — 40% zoom" }),
+    );
+    expect(field).toHaveAttribute("viewBox", "0 0 1000 620");
+  });
+
   it("names a stock formation in the status bar only when it is really active", () => {
     const emptyRight = stockFormations.find(
       ({ id }) => id === "formation_empty_right",
