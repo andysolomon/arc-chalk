@@ -2,10 +2,17 @@ import { Blob as RuntimeBlob } from "node:buffer";
 
 import {
   UNDO_HISTORY_LIMITS,
+  applyFormation,
+  applyPlayCommand,
+  emptyPlayDocument,
   hashPlayDocument,
+  stockFormations,
+  starterPlaybookEnvelope,
+  stockConcepts,
   type PlayDocument,
   type UndoHistory,
 } from "@chalk/domain";
+import { applyConceptCommand } from "@chalk/editor";
 import {
   defensivePlaybookGolden,
   offensivePlaybookGolden,
@@ -51,6 +58,79 @@ describe("ChalkLocalRepository", () => {
     repositories.push(repository);
     return repository;
   }
+
+  it.each(stockFormations)(
+    "saves and reloads the built-in $name without a stored catalogue",
+    async (formation) => {
+      const repository = track(createRepository(formation.id));
+      const starter = starterPlaybookEnvelope();
+      await repository.savePlaybook(starter);
+      const play = applyFormation(
+        starter.plays[0]!,
+        formation,
+        (prefix) => `${prefix}_${crypto.randomUUID()}`,
+      ).play;
+      await repository.commitPlay({ play });
+      repository.close();
+      await repository.open();
+      expect((await repository.getPlay(play.id))?.document).toEqual(play);
+      expect(
+        (await repository.loadPlaybook(play.playbookId))?.plays,
+      ).toContainEqual(play);
+    },
+  );
+
+  it("still rejects missing, future, and invalid-slot formation references", async () => {
+    const repository = track(createRepository("formation-integrity"));
+    const starter = starterPlaybookEnvelope();
+    await repository.savePlaybook(starter);
+    const play = applyFormation(
+      starter.plays[0]!,
+      stockFormations[0]!,
+      (prefix) => `${prefix}_${crypto.randomUUID()}`,
+    ).play;
+    for (const source of [
+      { ...play.formationSource!, formationId: "missing-formation" },
+      { ...play.formationSource!, revision: 999 },
+      {
+        ...play.formationSource!,
+        slotBindings: [
+          { slotId: "missing-slot", playerId: play.players[0]!.id },
+        ],
+      },
+    ]) {
+      await expect(
+        repository.commitPlay({ play: { ...play, formationSource: source } }),
+      ).rejects.toThrow();
+    }
+  });
+
+  it("retains a newly named play, Gun Doubles Right and Mesh after closing the database", async () => {
+    const repository = track(createRepository("new-play-mesh"));
+    const starter = starterPlaybookEnvelope();
+    await repository.savePlaybook(starter);
+    const empty = emptyPlayDocument({
+      playbookId: starter.playbook.id,
+      fieldProfile: starter.plays[0]!.fieldProfile,
+      name: "QA — formation and concept",
+    });
+    await repository.commitPlay({ play: empty });
+    const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
+    const formed = applyFormation(empty, stockFormations[0]!, id).play;
+    await repository.commitPlay({ play: formed });
+    const concept = applyConceptCommand(
+      formed,
+      stockConcepts.find(({ name }) => name === "Mesh")!,
+      id,
+    );
+    const drawn = applyPlayCommand(formed, concept.command!);
+    await repository.commitPlay({ play: drawn });
+    expect(drawn.players).toHaveLength(11);
+    expect(drawn.paths).toHaveLength(5);
+    repository.close();
+    await repository.open();
+    expect((await repository.getPlay(empty.id))?.document).toEqual(drawn);
+  });
 
   it.each([
     ["offensive", offensivePlaybookGolden],

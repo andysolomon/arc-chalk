@@ -1,6 +1,7 @@
 import * as z from "zod/mini";
 
 import { filmReferenceSchema, playAttachmentSchema } from "./assets";
+import { stockFormations } from "./formation-catalogue";
 
 export const entityIdSchema = z.string().check(z.minLength(1));
 export const nameSchema = z.string().check(z.minLength(1));
@@ -820,7 +821,14 @@ export const playbookEnvelopeSchema = playbookEnvelopeStructureSchema.check(
         }
       }
       if (play.formationSource) {
-        const formation = formationById.get(play.formationSource.formationId);
+        // Shipped sets are shared across Playbooks, not coach-owned records.
+        // Resolve only known catalogue IDs; all unit, revision and slot checks
+        // below still apply, including when reading an exported Playbook.
+        const formation =
+          formationById.get(play.formationSource.formationId) ??
+          stockFormations.find(
+            ({ id }) => id === play.formationSource!.formationId,
+          );
         if (!formation) {
           addCustomIssue(
             payload,

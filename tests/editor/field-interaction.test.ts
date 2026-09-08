@@ -984,6 +984,72 @@ describe("field interaction drawing", () => {
       pruneFieldSelection(started.model, stickThunderPlay).drawing,
     ).toBeDefined();
   });
+
+  it("retains the endpoint dragged from the blue dot and commits it once on Enter", () => {
+    const context = contextFor(stickThunderPlay, {
+      snap: { enabled: false, grid: "off" },
+    });
+    const origin = positionOf(stickThunderPlay, "q");
+    const end = {
+      lateralYards: origin.lateralYards + 4,
+      depthYards: origin.depthYards + 8,
+    };
+    const session = run(context, [
+      {
+        type: "start-route",
+        playerId: "q",
+        input: { pointerId: 1, point: origin },
+      },
+      move(end),
+      up(end),
+    ]);
+    expect(session.model.drawing?.points).toEqual([origin, end]);
+    expect(session.commands).toHaveLength(0);
+    const finished = run(context, [{ type: "finish-drawing" }], session.model);
+    expect(finished.commands).toHaveLength(1);
+    expect(
+      applyPlayCommand(stickThunderPlay, finished.commands[0]!).paths.at(-1)
+        ?.points,
+    ).toEqual([origin, end]);
+  });
+
+  it("keeps a blue-dot click in click-to-draw mode without adding a stub", () => {
+    const context = contextFor(stickThunderPlay);
+    const origin = positionOf(stickThunderPlay, "q");
+    const dot = { ...origin, depthYards: origin.depthYards + 2 };
+    const session = run(context, [
+      {
+        type: "start-route",
+        playerId: "q",
+        input: { pointerId: 1, point: dot },
+      },
+      up(dot),
+    ]);
+    expect(session.model.drawing?.points).toEqual([origin]);
+    expect(session.model.drawing?.initialDrag).toBeUndefined();
+  });
+
+  it("ignores another pointer and cancels a blue-dot drag without retaining its endpoint", () => {
+    const context = contextFor(stickThunderPlay);
+    const origin = positionOf(stickThunderPlay, "q");
+    const end = { ...origin, depthYards: origin.depthYards + 10 };
+    const session = run(context, [
+      {
+        type: "start-route",
+        playerId: "q",
+        input: { pointerId: 1, point: origin },
+      },
+      { type: "pointer-up", input: { pointerId: 2, point: end } },
+    ]);
+    expect(session.model.drawing?.points).toEqual([origin]);
+    expect(session.model.drawing?.initialDrag).toBeDefined();
+    const canceled = run(
+      context,
+      [{ type: "pointer-cancel" }, up(end), { type: "finish-drawing" }],
+      session.model,
+    );
+    expect(canceled.commands).toHaveLength(0);
+  });
 });
 
 describe("field interaction route handles", () => {

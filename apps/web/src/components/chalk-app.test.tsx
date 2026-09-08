@@ -1527,6 +1527,33 @@ describe("Chalk editor overlays", () => {
     expect(within(bar).getByRole("button", { name: "Play" })).toBeVisible();
   });
 
+  it("focuses and scrubs playback with the keyboard without invoking field shortcuts", async () => {
+    const user = userEvent.setup();
+    const runtime = createTestRuntime();
+    render(<ChalkApp runtime={runtime} />);
+    const slider = screen.getByRole("slider", { name: "Scrub the play" });
+    const before = runtime.editorStore.getSnapshot().document;
+    expect(slider).toHaveAttribute("tabindex", "0");
+    slider.focus();
+    expect(slider).toHaveFocus();
+    await user.keyboard("{Home}{ArrowRight}");
+    const start = Number(slider.getAttribute("aria-valuemin"));
+    const end = Number(slider.getAttribute("aria-valuemax"));
+    expect(Number(slider.getAttribute("aria-valuenow"))).toBe(start + 100);
+    expect(slider.getAttribute("aria-valuetext")).toContain("seconds");
+    await user.keyboard("{ArrowUp}{ArrowLeft}{ArrowDown}");
+    expect(Number(slider.getAttribute("aria-valuenow"))).toBe(start);
+    await user.keyboard("{ArrowLeft}{PageUp}");
+    expect(Number(slider.getAttribute("aria-valuenow"))).toBe(
+      Math.min(start + 1000, end),
+    );
+    await user.keyboard("{PageDown}{End}{ArrowRight}");
+    expect(Number(slider.getAttribute("aria-valuenow"))).toBe(end);
+    await user.keyboard("{Home}{PageDown}");
+    expect(Number(slider.getAttribute("aria-valuenow"))).toBe(start);
+    expect(runtime.editorStore.getSnapshot().document).toEqual(before);
+  });
+
   it("keeps Share, Attach image, and Film Reference in the More menu", async () => {
     const user = userEvent.setup();
     render(<ChalkApp runtime={createTestRuntime()} />);

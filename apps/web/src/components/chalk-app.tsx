@@ -4855,8 +4855,12 @@ export function ChalkApp({
               onPointerUp={onFieldPointerUp}
               onDoubleClick={onFieldDoubleClick}
               onHoverPlayer={setHoveredPlayerId}
-              onStartRoute={(playerId) => {
-                dispatchField({ type: "start-route", playerId });
+              onStartRoute={(playerId, event) => {
+                dispatchField({
+                  type: "start-route",
+                  playerId,
+                  input: fieldPointerInput(event),
+                });
                 flushLivePaint();
               }}
               overlay={

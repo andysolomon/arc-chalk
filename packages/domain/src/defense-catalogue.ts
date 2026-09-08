@@ -217,8 +217,31 @@ const legacyDefenses: readonly LegacyDefense[] = [
       at(860, 372, "C"),
       at(500, 190, "F"),
       at(700, 316, "$"),
+      // Append to preserve the existing slot IDs and assignment indices.
+      at(540, 310, "N"),
     ],
     blitzes: [
+      [
+        0,
+        [
+          [392, 404],
+          [414, 442],
+        ],
+      ],
+      [
+        1,
+        [
+          [452, 404],
+          [472, 442],
+        ],
+      ],
+      [
+        2,
+        [
+          [548, 404],
+          [514, 442],
+        ],
+      ],
       [
         5,
         [
@@ -263,6 +286,21 @@ const legacyDefenses: readonly LegacyDefense[] = [
         [
           [432, 350],
           [380, 306],
+        ],
+      ],
+      // Three deep, three underneath: the right end drops as M and $ rush.
+      [
+        3,
+        [
+          [608, 404],
+          [720, 306],
+        ],
+      ],
+      [
+        10,
+        [
+          [540, 310],
+          [540, 290],
         ],
       ],
     ],

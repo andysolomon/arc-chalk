@@ -267,6 +267,11 @@ function pointerMove(
 ): FieldInteractionResult {
   const drawing = model.drawing;
   if (drawing && model.gesture.kind === "idle") {
+    if (
+      drawing.initialDrag &&
+      drawing.initialDrag.pointerId !== input.pointerId
+    )
+      return { model };
     const last = drawing.points.at(-1)!;
     if (
       drawing.pointerDown &&
@@ -356,6 +361,30 @@ function pointerUp(
   input: FieldPointerInput,
   context: FieldInteractionContext,
 ): FieldInteractionResult {
+  const initialDrag = model.drawing?.initialDrag;
+  if (model.drawing && initialDrag) {
+    if (initialDrag.pointerId !== input.pointerId) return { model };
+    const released = {
+      ...model.drawing,
+      initialDrag: undefined,
+      pointerDown: false,
+    };
+    const next =
+      screenDistancePx(initialDrag.point, input.point, context.screenScale) >=
+      MOVE_THRESHOLD_PX
+        ? addDrawPoint(model, released, input, context)
+        : { ...model, drawing: released };
+    return {
+      model: {
+        ...next,
+        drawing: {
+          ...next.drawing!,
+          initialDrag: undefined,
+          pointerDown: false,
+        },
+      },
+    };
+  }
   if (model.drawing?.pointerDown) {
     // Releasing keeps the drawing alive; the next press places the next break.
     return {
@@ -480,7 +509,13 @@ export function fieldInteraction(
           ...withGesture(model, { kind: "idle" }),
           ...(model.drawing === undefined
             ? {}
-            : { drawing: { ...model.drawing, pointerDown: false } }),
+            : {
+                drawing: {
+                  ...model.drawing,
+                  initialDrag: undefined,
+                  pointerDown: false,
+                },
+              }),
         },
       };
     case "escape": {
@@ -556,8 +591,16 @@ export function fieldInteraction(
     }
     case "start-route": {
       if (model.drawing || model.gesture.kind !== "idle") return { model };
+      if (event.input?.button !== undefined && event.input.button !== 0)
+        return { model };
       const started = startDrawing("route", event.playerId, context);
-      return { model: started ?? model };
+      if (!started?.drawing || !event.input) return { model: started ?? model };
+      return {
+        model: {
+          ...started,
+          drawing: { ...started.drawing, initialDrag: event.input },
+        },
+      };
     }
     case "finish-drawing": {
       const drawing = model.drawing;
