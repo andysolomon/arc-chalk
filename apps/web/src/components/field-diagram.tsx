@@ -157,7 +157,10 @@ export function FieldDiagram({
   /** The Player currently offering the blue draw-a-route dot, if any. */
   routeDotPlayerId?: string;
   onHoverPlayer?: (playerId: string | undefined) => void;
-  onStartRoute?: (playerId: string) => void;
+  onStartRoute?: (
+    playerId: string,
+    event: React.PointerEvent<SVGCircleElement>,
+  ) => void;
   svgRef?: React.Ref<SVGSVGElement>;
   onPointerDown?: React.PointerEventHandler<SVGSVGElement>;
   onPointerMove?: React.PointerEventHandler<SVGSVGElement>;
@@ -648,8 +651,19 @@ export function FieldDiagram({
                   onPointerDown={(event) => {
                     // The dot owns this press: it starts a route rather than
                     // letting the field begin a move.
+                    if (event.button !== 0) return;
+                    event.preventDefault();
                     event.stopPropagation();
-                    onStartRoute?.(player.id);
+                    // Capture on the stable SVG: the dot disappears when
+                    // drawing begins, but release must still reach the field.
+                    try {
+                      event.currentTarget.ownerSVGElement?.setPointerCapture(
+                        event.pointerId,
+                      );
+                    } catch {
+                      // As with field drags, capture is best-effort.
+                    }
+                    onStartRoute?.(player.id, event);
                   }}
                   r={5}
                   stroke="#FFFFFF"

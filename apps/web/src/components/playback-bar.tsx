@@ -65,11 +65,31 @@ export function PlaybackBar({
         aria-valuemax={plan.endMs}
         aria-valuemin={plan.startMs}
         aria-valuenow={clock.timeMs}
+        aria-valuetext={`${(clock.timeMs / 1000).toFixed(1)} seconds${clock.timeMs < 0 ? " (before the snap)" : ""}`}
         className="scrubber"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          const targets: Record<string, number> = {
+            ArrowRight: clock.timeMs + 100,
+            ArrowUp: clock.timeMs + 100,
+            ArrowLeft: clock.timeMs - 100,
+            ArrowDown: clock.timeMs - 100,
+            PageUp: clock.timeMs + 1000,
+            PageDown: clock.timeMs - 1000,
+            Home: plan.startMs,
+            End: plan.endMs,
+          };
+          const target = targets[event.key];
+          if (target === undefined) return;
+          event.preventDefault();
+          event.stopPropagation();
+          onSeek(Math.min(plan.endMs, Math.max(plan.startMs, target)));
+        }}
         onPointerCancel={() => undefined}
         onPointerDown={(event) => {
           event.preventDefault();
           event.stopPropagation();
+          event.currentTarget.focus();
           event.currentTarget.setPointerCapture(event.pointerId);
           seekFromEvent(event);
         }}

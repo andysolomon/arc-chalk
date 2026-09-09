@@ -54,6 +54,7 @@ export type FieldInteractionEvent =
       /** The blue dot above a Player: start drawing his route right there. */
       readonly type: "start-route";
       readonly playerId: string;
+      readonly input?: FieldPointerInput;
     }
   | { readonly type: "finish-drawing" }
   | {
@@ -178,6 +179,8 @@ export interface FieldDrawingState {
   readonly depthBuffer: string;
   /** True while the pointer is held after placing a break — dragging bends it. */
   readonly pointerDown: boolean;
+  /** The initial blue-dot drag places a break on release, not on press. */
+  readonly initialDrag?: FieldPointerInput | undefined;
 }
 
 /**

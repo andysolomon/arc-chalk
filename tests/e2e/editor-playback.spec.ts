@@ -1,5 +1,28 @@
 import { expect, test } from "@playwright/test";
 
+test("scrubs with Tab, arrow keys and bounded Home/End keys", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const bar = page.getByLabel("Playback controls");
+  await bar.getByRole("button", { name: "Play", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  const slider = bar.getByRole("slider", { name: "Scrub the play" });
+  await expect(slider).toBeFocused();
+  const start = Number(await slider.getAttribute("aria-valuemin"));
+  const end = Number(await slider.getAttribute("aria-valuemax"));
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowRight");
+  await expect(slider).toHaveAttribute("aria-valuenow", String(start + 100));
+  await expect(slider).toHaveAttribute("aria-valuetext", /seconds/);
+  await page.keyboard.press("End");
+  await page.keyboard.press("ArrowRight");
+  await expect(slider).toHaveAttribute("aria-valuenow", String(end));
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowLeft");
+  await expect(slider).toHaveAttribute("aria-valuenow", String(start));
+});
+
 test("plays the seeded Play and leaves it editable at a frozen frame", async ({
   page,
 }) => {

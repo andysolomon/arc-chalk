@@ -89,6 +89,7 @@ describe("the calls the original ships with", () => {
     for (const call of stockDefensiveCalls) {
       expect(() => formationSchema.parse(call.formation)).not.toThrow();
       expect(call.formation.unit).toBe("defense");
+      expect(call.formation.slots).toHaveLength(11);
       expect(defensiveFronts).toContain(call.front);
     }
   });
@@ -98,6 +99,24 @@ describe("the calls the original ships with", () => {
       expect(slot.symbol).toBe("none");
       expect(slot.label).not.toBe("");
     }
+  });
+
+  it("gives all eleven Fire Zone defenders one assignment: five rush and six cover", () => {
+    const call = callNamed("Fire Zone Blitz");
+    expect(call.assignments).toHaveLength(11);
+    expect(new Set(call.assignments.map(({ slotId }) => slotId))).toEqual(
+      new Set(call.formation.slots.map(({ id }) => id)),
+    );
+    for (const assignment of call.assignments) {
+      expect(assignment.points[0]).toEqual(
+        call.formation.slots.find(({ id }) => id === assignment.slotId)!
+          .position,
+      );
+    }
+    const { play } = applyDefensiveCall(offenseOnly, call, makeId);
+    expect(play.players.filter(({ unit }) => unit === "defense")).toHaveLength(
+      11,
+    );
   });
 
   it("tells the two corners apart by the side each plays, not by the letter they share", () => {
@@ -117,9 +136,9 @@ describe("the calls the original ships with", () => {
       }
     }
     expect(countAssignments(callNamed("Fire Zone Blitz"))).toEqual({
-      drop: 4,
+      drop: 6,
       man: 0,
-      blitz: 2,
+      blitz: 5,
     });
     expect(countAssignments(callNamed("Nickel Cover 1"))).toEqual({
       drop: 1,
@@ -202,7 +221,7 @@ describe("putting a call on the field", () => {
       makeId,
     );
     const blitzes = play.paths.filter(({ kind }) => kind === "blitz");
-    expect(blitzes).toHaveLength(2);
+    expect(blitzes).toHaveLength(5);
     for (const path of blitzes) expect(path.style.color).toBe("red");
   });
 

@@ -250,6 +250,29 @@ test("draws from the blue dot and abandons a route on Escape", async ({
   await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
 });
 
+test("retains a blue-dot drag on release, finishes on Enter, and undoes once", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const start = await playerCenter(page, "q");
+  await page.mouse.click(start.x, start.y);
+  const dot = page.locator('[data-route-dot="q"]');
+  const box = (await dot.boundingBox())!;
+  await drag(
+    page,
+    { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+    { x: start.x + 80, y: start.y - 120 },
+  );
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(1);
+  await page.keyboard.press("Enter");
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(7);
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Draw route");
+  await undo.click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+});
+
 test("edits a route through its handles", async ({ page }) => {
   await openEditor(page);
 
@@ -1090,9 +1113,9 @@ test("swaps one call for another without leaving the last one underneath", async
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 7);
 
   await pick("Fire Zone Blitz");
-  // Ten men and six lines, and not one of the eleven or seven before them.
-  await expect(page.locator("[data-scene-player]")).toHaveCount(21);
-  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 6);
+  // Eleven men, five rush paths and six coverage drops, replacing the old call.
+  await expect(page.locator("[data-scene-player]")).toHaveCount(22);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 11);
   await expect(page.getByTitle("Browse defenses — ⇧⌘D")).toContainText(
     "Fire Zone Blitz",
   );
