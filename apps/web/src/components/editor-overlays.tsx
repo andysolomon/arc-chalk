@@ -881,7 +881,6 @@ export function FormationBrowser({
           <div className="browser-title">Formations</div>
           <input
             aria-label="Search formations"
-            autoFocus
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search — gun, trips, empty, 12…"
             spellCheck={false}
