@@ -1,0 +1,25 @@
+empty-defense-guidance - Empty defense guidance - Progress
+Generated: 2026-09-11 03:38:45 UTC
+On completion, move this file and the plan to docs/archive/.
+
+[ ] 1.0 - Milestone 1 - Decision lock & parity exception
+    [x] 1.1 - Product owner picks surface option A (field CTA), B (inspector), C (status bar), or hybrid → A
+    [x] 1.2 - Create tracked work item (Linear ARC-182 / W-000089) and link this plan
+    [ ] 1.3 - Record ADR 0039 parity-exception note for the approved additive chrome
+[ ] 2.0 - Milestone 2 - Empty-defense detection helper
+    [ ] 2.1 - Add emptyDefenseGuidance helper (show/hide rules for editor + defender count)
+    [ ] 2.2 - Unit tests for offense-only, both units, empty, overlays, Demo/Present/Print
+    [ ] 2.3 - Document special-teams / intentional no-defense edge cases
+[ ] 3.0 - Milestone 3 - Coach-facing surface (approved option only)
+    [ ] 3.1 - Implement approved surface wired to existing onOpenDefenses / ⇧⌘D
+    [ ] 3.2 - Ensure guidance clears after a defensive call or custom front is on the field
+    [ ] 3.3 - Component tests: visibility + activation; no pointer theft outside the control
+    [ ] 3.4 - Manual density check against current Editor chrome
+[ ] 4.0 - Milestone 4 - Demo / copy alignment (only if approved)
+    [ ] 4.1 - Lead Defense inspector hint with call-book; keep Z as secondary
+    [ ] 4.2 - Optional Demo defense caption tweak with explicit parity approval
+[ ] 5.0 - Milestone 5 - Verification & ship
+    [ ] 5.1 - E2E: offense-only → open Defenses → apply call → guidance gone
+    [ ] 5.2 - bun run check + targeted e2e green
+    [ ] 5.3 - Walkthrough artifact on PR
+    [ ] 5.4 - On merge: move docs/empty-defense-guidance-IMPLEMENTATION_PLAN.md + docs/empty-defense-guidance-progress.txt to docs/archive/
