@@ -829,34 +829,34 @@ select:focus-visible {
   background: var(--canvas);
   box-shadow: 1px 0 0 rgba(0, 0, 0, 0.06);
 }
-.tool-rail button {
+/* Only the rail's own tool buttons — not nested Clear/menu panel items,
+   which need full grid-cell width so labels like Coverage don't bleed. */
+.tool-rail > button,
+.tool-rail .menu > button {
   width: 40px;
   height: 40px;
   display: grid;
   place-items: center;
+  padding: 0;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: #4d4d4d;
   cursor: pointer;
 }
-.tool-rail button:hover {
+.tool-rail > button:hover,
+.tool-rail .menu > button:hover {
   background: var(--hover);
   color: var(--ink);
 }
-.tool-rail button.active {
+.tool-rail > button.active,
+.tool-rail .menu > button.active {
   background: var(--ink);
   color: #fff;
 }
 .tool-rail svg {
   width: 18px;
   height: 18px;
-}
-/* Header menus pad their trigger; the rail's Clear is a 40×40 tool button. */
-.tool-rail .menu > button {
-  width: 40px;
-  height: 40px;
-  padding: 0;
 }
 .tool-rail .snap-toggle[aria-pressed="true"] {
   background: #ebebeb;
