@@ -353,6 +353,18 @@ describe("Chalk application shell", () => {
     expect(screen.queryByText("CUSTOM ALIGNMENT")).toBeNull();
   });
 
+  it("opens Formations without focusing search, so tablets keep the keyboard down", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(screen.getByTitle("Browse formations — ⇧⌘F"));
+    const book = screen.getByRole("dialog", { name: "Formations" });
+    expect(book).toBeVisible();
+    expect(
+      within(book).getByRole("textbox", { name: "Search formations" }),
+    ).not.toHaveFocus();
+  });
+
   it("stars a set, keeps it under Favorites, and tells the device", async () => {
     const user = userEvent.setup();
     const setFavoriteFormations = vi.fn<ChalkRuntime["setFavoriteFormations"]>(

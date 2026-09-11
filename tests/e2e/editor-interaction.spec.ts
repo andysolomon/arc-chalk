@@ -582,9 +582,14 @@ test("greys a Clear that would take nothing", async ({ page }) => {
 
   // Stick — Thunder is an offensive Play: there is no call on the field to
   // wipe, so the button offering it cannot be pressed.
-  await expect(
-    page.getByRole("button", { name: "Coverage", exact: true }),
-  ).toBeDisabled();
+  const coverage = page
+    .locator(".clear-panel")
+    .getByRole("button", { name: "Coverage", exact: true });
+  await expect(coverage).toBeDisabled();
+  // Clear items fill the panel grid — not the rail's 40px tool size — so
+  // labels like Coverage stay inside the cell.
+  const coverageBox = await coverage.boundingBox();
+  expect(coverageBox?.width).toBeGreaterThan(60);
   await expect(
     page.getByRole("button", { name: "Defense", exact: true }),
   ).toBeDisabled();
