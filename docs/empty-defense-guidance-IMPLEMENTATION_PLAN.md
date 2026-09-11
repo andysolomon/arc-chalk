@@ -3,6 +3,7 @@
 **Mode:** Gap (empty-defense state exists; the next action is under-discoverable)
 **Branch:** `cursor/empty-defense-guidance-9a27`
 **Source:** Product discussion 2026-09-11 — blank defensive half vs coach-natural workflow
+**Decision:** Option **A — field CTA** (locked 2026-09-11). Tracked as [ARC-182](https://linear.app/arcnology/issue/ARC-182/w-000089-add-a-field-cta-on-empty-defensive-half-to-open-defenses) / W-000089 in Linear `arc-chalk`.
 **Parity:** Additive empty-state guidance only. Requires an explicit parity exception under ADR 0039 before any Coach-facing chrome ships.
 
 ## 1. Product goal and scope boundaries
@@ -69,19 +70,16 @@ Evidence from `main` @ `0e2bce6`:
 **Goals:** Confirm the lightest approved surface before coding chrome.
 
 **Deliverables:**
-- Short written options presented to product owner:
-  - **A (preferred):** Soft field CTA on empty defensive half → opens Defenses
-  - **B:** Stronger inspector-only treatment (no canvas chrome)
-  - **C:** Status-bar-only hint
-- ADR 0039 parity-exception note (new short ADR or amendment) once option chosen
-- Linear/GitHub work item created for implementation (destination TBD with owner)
+- ~~Owner picks surface~~ → **A locked** (field CTA on empty defensive half → opens Defenses)
+- Linear work item: [ARC-182](https://linear.app/arcnology/issue/ARC-182/w-000089-add-a-field-cta-on-empty-defensive-half-to-open-defenses) (W-000089)
+- ADR 0039 parity-exception note (new short ADR or amendment) still owed before chrome ships
 
-**Dependencies:** Product-owner approval
-**Risks:** Choosing a heavy overlay violates “smallest possible divergence”
+**Dependencies:** Parity ADR text before merge of Coach-facing UI
+**Risks:** Heavy overlay / dense chrome violates “smallest possible divergence”
 **Acceptance criteria:**
-- [ ] Owner picks A, B, or C (or an explicit hybrid)
+- [x] Owner picks A, B, or C (or an explicit hybrid) → **A**
 - [ ] Exception text names what is additive and what must not change
-- [ ] Tracked work item exists with this plan linked
+- [x] Tracked work item exists with this plan linked → ARC-182
 
 ### Milestone 2 — Empty-defense detection helper
 
@@ -187,11 +185,11 @@ Evidence from `main` @ `0e2bce6`:
 
 ## 6. Immediate next steps
 
-1. Get product-owner pick of surface option A / B / C (or hybrid).
-2. Create the tracked work item (Linear preferred for arc-chalk; confirm destination).
+1. ~~Get product-owner pick~~ → **A**
+2. ~~Create Linear work item~~ → **ARC-182**
 3. Record the ADR 0039 parity exception text.
-4. Implement Milestone 2 helper + tests (safe regardless of surface).
-5. Implement the approved surface; do not code canvas chrome before step 1.
+4. Implement Milestone 2 helper + tests.
+5. Implement Option A field CTA wired to existing Defenses overlay.
 
 ## Implementation task checklist (post-approval)
 

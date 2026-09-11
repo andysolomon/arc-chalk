@@ -9,13 +9,17 @@ Offense-only Plays leave a blank defensive half. Coaches know Cover 3 / Nickel /
 but not that **No defense yet** (or `⇧⌘D`) is the intended first move. Freehand Letter + `Z`
 is the expert path, not the natural first path.
 
+## Decision
+
+- **A — field CTA** locked (2026-09-11)
+- Linear: [ARC-182](https://linear.app/arcnology/issue/ARC-182/w-000089-add-a-field-cta-on-empty-defensive-half-to-open-defenses) / W-000089
+
 ## Do
 
-1. Wait for product-owner pick: field CTA (A), inspector emphasis (B), status-bar hint (C).
-2. Record an ADR 0039 parity exception before shipping chrome.
-3. Add a pure show/hide helper + tests.
-4. Wire the approved surface to the existing Defenses overlay — do not auto-apply a call.
-5. Keep offense, apply semantics, and shortcuts unchanged.
+1. Record an ADR 0039 parity exception before shipping chrome.
+2. Add a pure show/hide helper + tests.
+3. Wire Option A field CTA to the existing Defenses overlay — do not auto-apply a call.
+4. Keep offense, apply semantics, and shortcuts unchanged.
 
 ## Do not
 
