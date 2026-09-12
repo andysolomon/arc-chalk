@@ -11,6 +11,7 @@ import {
   serializeEncryptedBackup,
   searchPlays,
   starterPlaybookEnvelope,
+  stickThunderPlay,
   type Concept,
   type Formation,
   type PlayDocument,
@@ -227,7 +228,12 @@ async function mostRecentStoredPlay(
   for (const playbook of playbooks) {
     const members = await repository.listPlaySummaries(playbook.id);
     for (const member of members) {
-      if (!best || member.updatedAtMs > best.updatedAtMs) {
+      if (
+        !best ||
+        member.updatedAtMs > best.updatedAtMs ||
+        (member.updatedAtMs === best.updatedAtMs &&
+          member.playId === stickThunderPlay.id)
+      ) {
         best = { playId: member.playId, updatedAtMs: member.updatedAtMs };
       }
     }
@@ -257,6 +263,16 @@ async function resolveInitialEditorDocument(
   const playbooks = await repository.listPlaybooks();
   if (playbooks.length === 0 && seedStarter) {
     await repository.savePlaybook(starterPlaybookEnvelope());
+    const seeded = await repository.getPlay(stickThunderPlay.id);
+    if (!seeded) {
+      throw new Error("Chalk could not initialize the starter Play.");
+    }
+    return {
+      document: seeded.document,
+      documentHash: seeded.documentHash,
+      storedPlay: seeded,
+      playbookId: seeded.document.playbookId,
+    };
   }
 
   const storedPlay = await mostRecentStoredPlay(repository);
