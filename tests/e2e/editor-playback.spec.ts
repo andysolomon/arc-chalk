@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("scrubs with Tab, arrow keys and bounded Home/End keys", async ({
   page,

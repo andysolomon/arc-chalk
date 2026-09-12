@@ -76,9 +76,14 @@ const loadProductionShell = async (page: Page): Promise<void> => {
   await page.addInitScript(() => {
     window.localStorage.clear();
     indexedDB.deleteDatabase("chalk-production-beta");
+    try {
+      sessionStorage.setItem("chalk.seedStarter", "1");
+    } catch {
+      // Query string below still opts in.
+    }
   });
 
-  await page.goto("/");
+  await page.goto("/?seed=starter");
   await expect(page).toHaveTitle("Chalk");
   await expect(
     page.getByRole("img", { name: "Stick — Thunder football play" }),

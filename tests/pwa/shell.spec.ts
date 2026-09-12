@@ -3,7 +3,14 @@ import { expect, test, type Page } from "@playwright/test";
 const PLAY = "Stick — Thunder football play";
 
 async function shellReady(page: Page) {
-  await page.goto("/");
+  await page.addInitScript(() => {
+    try {
+      sessionStorage.setItem("chalk.seedStarter", "1");
+    } catch {
+      // Query string below still opts in.
+    }
+  });
+  await page.goto("/?seed=starter");
   await expect(page.getByRole("img", { name: PLAY })).toBeVisible();
   // The worker must control the page before the network is cut.
   await page.waitForFunction(async () => {

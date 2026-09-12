@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 /**
  * Plan item 4.6: editor interaction sustains 60 FPS and p95 input-to-paint

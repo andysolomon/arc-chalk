@@ -21,7 +21,11 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { createMemoryLibrary, type ChalkRuntime } from "../app/editor-runtime";
+import {
+  createMemoryLibrary,
+  emptyLibrarySnapshot,
+  type ChalkRuntime,
+} from "../app/editor-runtime";
 import { ChalkApp, FieldDiagram } from "./chalk-app";
 import { CommandPalette } from "./editor-overlays";
 
@@ -32,7 +36,9 @@ function createTestRuntime(
     editorStore: createTestEditorStore(),
     recovery: { interrupted: false },
     storage: { persisted: true, pressure: "healthy" },
-    library: createMemoryLibrary(),
+    library: createMemoryLibrary(
+      emptyLibrarySnapshot(stickThunderPlay.playbookId),
+    ),
     coachSets: {
       formations: [],
       favoriteFormationIds: [],

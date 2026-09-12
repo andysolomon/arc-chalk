@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { reconcileCleanExit } from "./editor-runtime";
+import { preferStarterSeed, reconcileCleanExit } from "./editor-runtime";
 
 const store = (value: string | null) => ({ getItem: () => value });
 
@@ -35,5 +35,20 @@ describe("reconcileCleanExit", () => {
         },
       }),
     ).toBe(recovery);
+  });
+});
+
+describe("preferStarterSeed", () => {
+  it("is off by default so a fresh device stays blank", () => {
+    expect(preferStarterSeed(store(null), "")).toBe(false);
+  });
+
+  it("honors the session opt-in used by automated shells", () => {
+    expect(preferStarterSeed(store("1"), "")).toBe(true);
+  });
+
+  it("honors ?seed=starter in the URL", () => {
+    expect(preferStarterSeed(store(null), "?seed=starter")).toBe(true);
+    expect(preferStarterSeed(store(null), "?seed=other")).toBe(false);
   });
 });

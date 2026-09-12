@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const LOCAL_SAVE_BUDGET_MS = 50;
 
@@ -103,9 +103,9 @@ test("opens the original field-first editor shell and its modes", async ({
     name: "Saved on this device",
   });
 
-  // The first save of a session also pays for module evaluation, opening
-  // IndexedDB, and seeding the starter Playbook. The budget describes ongoing
-  // editing, so warm up first and measure the save after that.
+  // The first save of a session also pays for module evaluation and opening
+  // IndexedDB. The budget describes ongoing editing, so warm up first and
+  // measure the save after that.
   await playName.fill("Warm-up save");
   await playName.press("Enter");
   await expect(localSave).toBeVisible();

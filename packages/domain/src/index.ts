@@ -9,6 +9,7 @@ export * from "./defense-catalogue";
 export * from "./defenses";
 export * from "./demo";
 export * from "./demo-catalogue";
+export * from "./default-playbook";
 export * from "./field-profile";
 export * from "./formation-catalogue";
 export * from "./formations";

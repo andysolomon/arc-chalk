@@ -1,6 +1,7 @@
 import {
   applyPlayCommand,
   attachPlayToConcept,
+  blankPlaybookEnvelope,
   buildLibraryTree,
   commandBroadcasts,
   composedPlayName,
@@ -150,6 +151,14 @@ describe("Playbook library families", () => {
       "Outside Zone — Pull",
       "Cover 3 — Fire Zone",
     ]);
+  });
+
+  it("offers a blank Playbook with no Plays for a fresh canvas", () => {
+    const envelope = blankPlaybookEnvelope();
+    expect(envelope.playbook.name).toBe("Playbook");
+    expect(envelope.plays).toEqual([]);
+    expect(envelope.concepts).toEqual([]);
+    expect(envelope.formations).toEqual([]);
   });
 
   it("starts a new Play empty without stealing the open Play's identity", () => {
