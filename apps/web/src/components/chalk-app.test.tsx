@@ -419,9 +419,7 @@ describe("Chalk application shell", () => {
     await user.click(cta);
     expect(screen.getByRole("dialog", { name: "Defenses" })).toBeVisible();
     // Field CTA yields to the open book.
-    expect(
-      screen.queryByRole("button", { name: "Add a defense" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a defense" })).toBeNull();
   });
 
   it("stars a call, and keeps the two books' favorites apart", async () => {

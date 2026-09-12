@@ -1057,16 +1057,16 @@ test("offers Add a defense on an offense-only field, then clears it after a call
 
   const browser = page.getByRole("dialog", { name: "Defenses" });
   await expect(browser).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Add a defense" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add a defense" })).toHaveCount(
+    0,
+  );
 
   await browser.getByText("Nickel Cover 2", { exact: true }).click();
   await expect(browser).toBeHidden();
   await expect(page.locator("[data-scene-player]")).toHaveCount(22);
-  await expect(
-    page.getByRole("button", { name: "Add a defense" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add a defense" })).toHaveCount(
+    0,
+  );
   await expect(page.getByTitle("Browse defenses — ⇧⌘D")).toContainText(
     "Nickel Cover 2",
   );

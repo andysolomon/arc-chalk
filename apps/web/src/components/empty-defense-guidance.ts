@@ -5,11 +5,7 @@
  * (open the Defenses book) obvious without auto-applying a call.
  */
 
-export type EmptyDefenseGuidanceView =
-  | "Editor"
-  | "Demo"
-  | "Present"
-  | "Print";
+export type EmptyDefenseGuidanceView = "Editor" | "Demo" | "Present" | "Print";
 
 export type EmptyDefenseGuidancePlayer = {
   readonly unit: "offense" | "defense" | "special-teams";

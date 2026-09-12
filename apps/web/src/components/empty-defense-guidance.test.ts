@@ -62,19 +62,16 @@ describe("emptyDefenseGuidance", () => {
     ).toBe(false);
   });
 
-  it.each(["Demo", "Present", "Print"] as const)(
-    "hides in %s view",
-    (view) => {
-      expect(
-        emptyDefenseGuidance({
-          view,
-          overlayOpen: false,
-          animating: false,
-          players: [offense],
-        }).show,
-      ).toBe(false);
-    },
-  );
+  it.each(["Demo", "Present", "Print"] as const)("hides in %s view", (view) => {
+    expect(
+      emptyDefenseGuidance({
+        view,
+        overlayOpen: false,
+        animating: false,
+        players: [offense],
+      }).show,
+    ).toBe(false);
+  });
 
   it("hides while an overlay is open", () => {
     expect(
