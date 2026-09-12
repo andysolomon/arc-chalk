@@ -410,6 +410,20 @@ describe("Chalk application shell", () => {
     expect(setFavoriteFormations).toHaveBeenLastCalledWith([]);
   });
 
+  it("offers Add a defense on an offense-only field and opens Defenses", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    const cta = screen.getByRole("button", { name: "Add a defense" });
+    expect(cta).toBeVisible();
+    await user.click(cta);
+    expect(screen.getByRole("dialog", { name: "Defenses" })).toBeVisible();
+    // Field CTA yields to the open book.
+    expect(
+      screen.queryByRole("button", { name: "Add a defense" }),
+    ).toBeNull();
+  });
+
   it("stars a call, and keeps the two books' favorites apart", async () => {
     const user = userEvent.setup();
     const setFavoriteCalls = vi.fn<ChalkRuntime["setFavoriteCalls"]>(() =>

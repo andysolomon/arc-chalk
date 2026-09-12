@@ -234,6 +234,7 @@ import {
   ShortcutReference,
   type WristbandPicker,
 } from "./editor-overlays";
+import { emptyDefenseGuidance } from "./empty-defense-guidance";
 import { editorStatusHint } from "./editor-status-hint";
 import { FieldMinimap } from "./field-minimap";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
@@ -2007,9 +2008,9 @@ function Inspector({
           </span>
         </button>
         <p>
-          Each call replaces the last one and leaves the offense untouched. Just
-          the front and secondary — letter symbols only, so you can draw your
-          own coverage on top. Press Z to add your own drop.
+          Start with a call — each one replaces the last and leaves the offense
+          untouched. Just the front and secondary — letter symbols only, so you
+          can draw your own coverage on top. Press Z to add your own drop.
         </p>
       </InspectorSection>
       {library}
@@ -3666,6 +3667,12 @@ export function ChalkApp({
     () => currentDefensiveCall(editor.document, stockDefensiveCalls),
     [editor.document],
   );
+  const defenseGuidance = emptyDefenseGuidance({
+    view: activeView,
+    overlayOpen: overlay !== null,
+    animating: showAnimation,
+    players: editor.document.players,
+  });
   /**
    * Putting a call on the field. Only one defense can be on at a time, so
    * this replaces rather than adds, and says what it cost him.
@@ -4912,6 +4919,18 @@ export function ChalkApp({
               onCamera={setCamera}
               players={editor.document.players}
             />
+            {defenseGuidance.show ? (
+              <button
+                aria-label="Add a defense"
+                className="empty-defense-cta"
+                onClick={() => setOverlay("defenses")}
+                title="Add a defense — ⇧⌘D"
+                type="button"
+              >
+                <span aria-hidden="true">Add a defense</span>
+                <kbd aria-hidden="true">⇧⌘D</kbd>
+              </button>
+            ) : null}
             {toast ? (
               <div className="toast" role="status">
                 <span>

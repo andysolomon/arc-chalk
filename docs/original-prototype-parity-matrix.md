@@ -105,6 +105,10 @@ The remaining reviewed findings (#5–#13, B4–B7) are not yet triaged into pha
 
 IndexedDB repositories and migrations, persistent hash-guarded undo, encrypted backups, Clerk access, Convex replication, Conflict Inbox, private R2 images, external Film References, immutable Share Publications, scale search/virtualization, PWA installation, observability, backups, and isolated environments extend the original rather than replace it.
 
+| Extension | What it adds | What it must not change | Decision |
+|---|---|---|---|
+| Empty-defense field CTA | On Editor offense-only Plays, a low-chroma **Add a defense** control on the empty defensive half opens the existing Defenses overlay (same path as **No defense yet** / `⇧⌘D`) | Defenses catalogue, apply semantics, freehand Letter/`Z` path, auto-apply of any default call, Demo/Present/Print chrome | ADR 0040 / ARC-182 |
+
 ## Evidence required before parity can be claimed
 
 - Screenshot baselines for every top-level mode, panel, menu, modal, selection state, and responsive state.
