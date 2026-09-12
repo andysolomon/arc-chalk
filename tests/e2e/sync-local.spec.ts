@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("persists a new play with Gun Doubles Right and Mesh after reload", async ({
   page,

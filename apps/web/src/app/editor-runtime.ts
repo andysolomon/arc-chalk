@@ -1,8 +1,12 @@
 import {
+  blankPlaybook,
   canonicalSha256,
   createStableId,
   decryptBackup,
+  DEFAULT_PLAYBOOK_ID,
+  emptyPlayDocument,
   encryptBackup,
+  highSchoolFieldProfile,
   parseEncryptedBackup,
   serializeEncryptedBackup,
   searchPlays,
@@ -10,6 +14,7 @@ import {
   stickThunderPlay,
   type Concept,
   type Formation,
+  type PlayDocument,
   type PlaySearchQuery,
   type Playbook,
 } from "@chalk/domain";
@@ -174,21 +179,124 @@ export interface ChalkRuntime {
 }
 
 export function emptyLibrarySnapshot(
-  playbookId = stickThunderPlay.playbookId,
+  playbookId = DEFAULT_PLAYBOOK_ID,
 ): LibrarySnapshot {
   return {
-    playbook: {
-      schemaVersion: 1,
-      id: playbookId,
-      name: "Playbook",
-      defaultFieldProfileId: stickThunderPlay.fieldProfile.id,
-      fieldProfiles: [stickThunderPlay.fieldProfile],
-      playTypes: [],
-      createdAtMs: 0,
-      updatedAtMs: 0,
-    },
+    playbook: blankPlaybook(playbookId),
     concepts: [],
     members: [],
+  };
+}
+
+/**
+ * Parity and interaction tests still need the Stick family on a fresh device.
+ * Product boot stays blank unless this opt-in is set before the runtime opens.
+ */
+export function preferStarterSeed(
+  storage: Pick<Storage, "getItem"> | undefined = safeSessionStorage(),
+  search = safeLocationSearch(),
+): boolean {
+  try {
+    if (storage?.getItem("chalk.seedStarter") === "1") return true;
+  } catch {
+    // Session storage may be blocked; fall through to the URL.
+  }
+  return new URLSearchParams(search).get("seed") === "starter";
+}
+
+function safeSessionStorage(): Storage | undefined {
+  try {
+    return globalThis.sessionStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+function safeLocationSearch(): string {
+  try {
+    return globalThis.location?.search ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function mostRecentStoredPlay(
+  repository: ChalkLocalRepository,
+): Promise<StoredPlay | undefined> {
+  const playbooks = await repository.listPlaybooks();
+  let best: { playId: string; updatedAtMs: number } | undefined;
+  for (const playbook of playbooks) {
+    const members = await repository.listPlaySummaries(playbook.id);
+    for (const member of members) {
+      if (
+        !best ||
+        member.updatedAtMs > best.updatedAtMs ||
+        (member.updatedAtMs === best.updatedAtMs &&
+          member.playId === stickThunderPlay.id)
+      ) {
+        best = { playId: member.playId, updatedAtMs: member.updatedAtMs };
+      }
+    }
+  }
+  return best ? repository.getPlay(best.playId) : undefined;
+}
+
+async function ensurePlaybookRecord(
+  repository: ChalkLocalRepository,
+  playbookId: string,
+): Promise<void> {
+  if (await repository.loadPlaybook(playbookId)) return;
+  await repository.savePlaybookRecord(blankPlaybook(playbookId, Date.now()));
+}
+
+interface InitialEditorDocument {
+  readonly document: PlayDocument;
+  readonly documentHash: string;
+  readonly storedPlay?: StoredPlay;
+  readonly playbookId: string;
+}
+
+async function resolveInitialEditorDocument(
+  repository: ChalkLocalRepository,
+  seedStarter: boolean,
+): Promise<InitialEditorDocument> {
+  const playbooks = await repository.listPlaybooks();
+  if (playbooks.length === 0 && seedStarter) {
+    await repository.savePlaybook(starterPlaybookEnvelope());
+    const seeded = await repository.getPlay(stickThunderPlay.id);
+    if (!seeded) {
+      throw new Error("Chalk could not initialize the starter Play.");
+    }
+    return {
+      document: seeded.document,
+      documentHash: seeded.documentHash,
+      storedPlay: seeded,
+      playbookId: seeded.document.playbookId,
+    };
+  }
+
+  const storedPlay = await mostRecentStoredPlay(repository);
+  if (storedPlay) {
+    return {
+      document: storedPlay.document,
+      documentHash: storedPlay.documentHash,
+      storedPlay,
+      playbookId: storedPlay.document.playbookId,
+    };
+  }
+
+  const playbookId = playbooks[0]?.id ?? DEFAULT_PLAYBOOK_ID;
+  const fieldProfile =
+    (await repository.loadPlaybook(playbookId))?.playbook.fieldProfiles[0] ??
+    highSchoolFieldProfile;
+  const document = emptyPlayDocument({
+    playbookId,
+    fieldProfile,
+  });
+  return {
+    document,
+    documentHash: await canonicalSha256(document),
+    playbookId,
   };
 }
 
@@ -313,20 +421,16 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
   await repository.upgradeStoredPlays();
   await repository.purgeExpiredTrash();
 
-  let storedPlay = await repository.getPlay(stickThunderPlay.id);
-  if (!storedPlay) {
-    await repository.savePlaybook(starterPlaybookEnvelope());
-    storedPlay = await repository.getPlay(stickThunderPlay.id);
-  }
-  if (!storedPlay) {
-    throw new Error("Chalk could not initialize the starter Play.");
-  }
-
-  const playbookId = storedPlay.document.playbookId;
+  const initial = await resolveInitialEditorDocument(
+    repository,
+    preferStarterSeed(),
+  );
+  const playbookId = initial.playbookId;
   const localEditListeners = new Set<() => void>();
 
   const persistence: EditorPersistence = {
     commitPlay: async (input) => {
+      await ensurePlaybookRecord(repository, input.play.playbookId);
       const receipt = await repository.commitPlay(input);
       for (const listener of localEditListeners) listener();
       return receipt;
@@ -338,10 +442,14 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
   };
 
   const editorStore = createEditorStore({
-    initialDocument: storedPlay.document,
-    initialDocumentHash: storedPlay.documentHash,
-    initialUndoHistory: await repository.getUndoHistory(storedPlay.id),
-    initialVersions: await repository.listPlayVersions(storedPlay.id),
+    initialDocument: initial.document,
+    initialDocumentHash: initial.documentHash,
+    initialUndoHistory: initial.storedPlay
+      ? await repository.getUndoHistory(initial.storedPlay.id)
+      : undefined,
+    initialVersions: initial.storedPlay
+      ? await repository.listPlayVersions(initial.storedPlay.id)
+      : [],
     persistence,
   });
 
