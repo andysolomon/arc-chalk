@@ -41,6 +41,8 @@ import {
   type ThumbnailDerivative,
 } from "@chalk/local-db";
 
+import { readOutputPresets, type OutputPreset } from "@chalk/exports";
+
 import {
   GAME_DAY_KEY,
   defaultGameDayState,
@@ -108,6 +110,7 @@ export interface ChromeState {
 }
 
 export const CHROME_KEY = "chrome.v1";
+export const OUTPUT_PRESETS_KEY = "output.presets.v1";
 
 export const defaultChromeState: ChromeState = Object.freeze({
   inspectorOpen: true,
@@ -174,6 +177,9 @@ export interface ChalkLibrary {
   /** Where the Game Day reader was and what the coordinator wrote there (issue #67). */
   loadGameDay(): Promise<GameDayState>;
   saveGameDay(state: GameDayState): Promise<void>;
+  /** The outputs the Coach ran lately, so one runs again in a click (issue #69). */
+  loadOutputPresets(): Promise<readonly OutputPreset[]>;
+  saveOutputPresets(presets: readonly OutputPreset[]): Promise<void>;
   getThumbnail(key: string): Promise<ThumbnailDerivative | undefined>;
   putThumbnail(thumbnail: ThumbnailDerivative): Promise<void>;
   getUndoHistory(
@@ -404,6 +410,7 @@ export function createMemoryLibrary(
   let browser: LibraryBrowserState = { scrollTop: 0, query: "" };
   let chrome: ChromeState = defaultChromeState;
   let gameDay: GameDayState = defaultGameDayState;
+  let outputPresets: readonly OutputPreset[] = [];
   const gamePlans = new Map<string, GamePlan>();
   const gamePlanRevisions = new Map<string, GamePlanRevision>();
   return {
@@ -494,6 +501,13 @@ export function createMemoryLibrary(
     },
     saveGameDay(state) {
       gameDay = state;
+      return Promise.resolve();
+    },
+    loadOutputPresets() {
+      return Promise.resolve(outputPresets);
+    },
+    saveOutputPresets(presets) {
+      outputPresets = presets;
       return Promise.resolve();
     },
     getThumbnail() {
@@ -695,6 +709,14 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     },
     async saveGameDay(state) {
       await rememberJson(GAME_DAY_KEY, state);
+    },
+    async loadOutputPresets() {
+      return readOutputPresets(
+        (await repository.getPreference(OUTPUT_PRESETS_KEY))?.value,
+      );
+    },
+    async saveOutputPresets(presets) {
+      await rememberJson(OUTPUT_PRESETS_KEY, presets);
     },
     getThumbnail: (key) => repository.getThumbnail(key),
     putThumbnail: (thumbnail) => repository.putThumbnail(thumbnail),

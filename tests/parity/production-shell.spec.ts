@@ -44,7 +44,9 @@ const parityGap: Readonly<Record<string, number>> = {
   // variation line, both waiting on later phases.
   present: 0.09,
   // 0.8042% (11,117 px), from 0.84% (11,638 px).
-  print: 0.0081,
+  // Raised 0.0081 → 0.0225 under ADR 0047 (GitHub #69): the Print view is the
+  // Print & export workspace beside the sheet, by product decision.
+  print: 0.0225,
   // 2.0484% (28,317 px), from 2.12% (29,338 px). The Demo card was already
   // 1000×620; what remains is the original's cursor having already walked
   // the first clicks before Pause, and the 1.3% Player shift.

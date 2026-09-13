@@ -4,4 +4,5 @@ export * from "./animation-export";
 export * from "./coaching-rows";
 export * from "./diagram";
 export * from "./game-plan-documents";
+export * from "./output-catalog";
 export * from "./print-documents";

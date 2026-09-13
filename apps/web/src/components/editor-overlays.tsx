@@ -316,12 +316,15 @@ export function ExportMenu({
   onDismiss,
   onToggle,
   open,
+  recent = [],
   wristband,
 }: {
   actions: ActionMap;
   onDismiss: () => void;
   onToggle: () => void;
   open: boolean;
+  /** Outputs run lately, each one click from running again (issue #69). */
+  recent?: readonly MenuEntry[];
   wristband: WristbandPicker;
 }) {
   return (
@@ -341,6 +344,7 @@ export function ExportMenu({
         <ExportPanel
           actions={actions}
           onDismiss={onDismiss}
+          recent={recent}
           wristband={wristband}
         />
       ) : null}
@@ -351,10 +355,12 @@ export function ExportMenu({
 function ExportPanel({
   actions,
   onDismiss,
+  recent,
   wristband,
 }: {
   actions: ActionMap;
   onDismiss: () => void;
+  recent: readonly MenuEntry[];
   wristband: WristbandPicker;
 }) {
   const [submenu, setSubmenu] = useState<"position" | "wristband" | null>(null);
@@ -376,15 +382,31 @@ function ExportPanel({
   return (
     <div className="menu-panel export-panel">
       {submenu === null ? (
-        <MenuItem
-          actions={actions}
-          entry={{
-            id: "print",
-            label: "Print preview",
-            title: "The letter-landscape sheet, before it prints",
-          }}
-          onDismiss={onDismiss}
-        />
+        <>
+          <MenuItem
+            actions={actions}
+            entry={{
+              id: "print",
+              label: "Print preview",
+              title:
+                "Choose what to print, from which plays, and see the sheet before it prints",
+            }}
+            onDismiss={onDismiss}
+          />
+          {recent.length > 0 ? (
+            <div className="menu-group">
+              <div className="menu-head">RECENT</div>
+              {recent.map((entry) => (
+                <MenuItem
+                  actions={actions}
+                  entry={entry}
+                  key={entry.id}
+                  onDismiss={onDismiss}
+                />
+              ))}
+            </div>
+          ) : null}
+        </>
       ) : null}
       {submenu === null
         ? exportGroups.map((group) => (

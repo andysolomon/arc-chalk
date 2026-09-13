@@ -519,6 +519,34 @@ export function callSheetHtml(
   });
 }
 
+/**
+ * A handout: install pages only, one per Play in the order given, with no
+ * cover or contents — a quick reference for a coach or a player rather than
+ * a book (issue #69). A game plan's handout carries its codes (see
+ * gamePlanHandoutHtml); this one is for a selection or the library.
+ */
+export function handoutHtml(
+  plays: readonly PlayDocument[],
+  options: LibraryOptions,
+): string | undefined {
+  if (plays.length === 0) return undefined;
+  const body = plays
+    .map((play, index) =>
+      installBody(play, options.render, {
+        ...(options.formations ? { formations: options.formations } : {}),
+        pageNo: index + 1,
+      }),
+    )
+    .join("");
+  return printDocumentHtml({
+    title:
+      plays.length === 1 ? plays[0]!.name : `Handout — ${plays.length} plays`,
+    css: "@page{size:letter portrait;margin:0.5in}" + installCss(),
+    body,
+    ...(options.productName ? { productName: options.productName } : {}),
+  });
+}
+
 export interface PlaybookOptions extends LibraryOptions {
   /** The cover's season line; the caller supplies the year. */
   readonly year: number;
