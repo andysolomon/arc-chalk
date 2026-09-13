@@ -5,6 +5,8 @@ import {
 import {
   formationFromOffense,
   hashPlayDocument,
+  starterExamplePlays,
+  starterPlaybookEnvelope,
   stickThunderPlay,
   stockFormations,
   type PlayDocument,
@@ -797,7 +799,7 @@ describe("Chalk application shell", () => {
     );
     const sheet = screen.getByRole("region", { name: "Print preview" });
     expect(within(sheet).getByText("Stick — Thunder")).toBeVisible();
-    expect(within(sheet).getByText("Pass")).toBeVisible();
+    expect(within(sheet).getByText("Offense · Pass")).toBeVisible();
     expect(
       within(sheet).getByText(
         "letter landscape · half-inch margins · coach type",
@@ -814,7 +816,7 @@ describe("Chalk application shell", () => {
       expect.stringContaining("<h1>Stick — Thunder</h1>"),
     );
     expect(popup.document.write).toHaveBeenCalledWith(
-      expect.stringContaining("<span>Pass</span>"),
+      expect.stringContaining("<span>Offense · Pass</span>"),
     );
     expect(popup.document.write).toHaveBeenCalledWith(
       expect.stringContaining("@page{size:letter landscape;margin:0.5in}"),
@@ -885,6 +887,299 @@ describe("Chalk application shell", () => {
     expect(sheet.querySelector("svg.field-diagram")).toHaveAttribute(
       "data-type-preset",
       "print",
+    );
+  });
+});
+
+describe("Play classification (issue #63)", () => {
+  const coverThree = starterExamplePlays().find(
+    ({ name }) => name === "Cover 3 — Fire Zone",
+  )!;
+  /**
+   * Undo is hash-guarded (ADR 0038), so a store that is asked to undo needs
+   * the real hash of the Play it opened with, and a save that reports one.
+   */
+  const createHashedEditorStore = async () =>
+    createEditorStore({
+      initialDocument: stickThunderPlay,
+      initialDocumentHash: await hashPlayDocument(stickThunderPlay),
+      persistence: {
+        commitPlay: async (input) => ({
+          playId: input.play.id,
+          documentHash: await hashPlayDocument(input.play),
+          committedAtMs: 100,
+          mutationId: input.mutation.id,
+        }),
+      },
+      createMutationId: () => "mutation_test",
+      monotonicNow: () => 0,
+    });
+  /** The virtualized browser measures rows; jsdom has no layout to offer. */
+  const giveBrowserALayout = () => {
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get() {
+        return 480;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value() {
+        return {
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          bottom: 480,
+          right: 800,
+          width: 800,
+          height: 480,
+          toJSON() {
+            return undefined;
+          },
+        };
+      },
+    });
+    if (typeof globalThis.ResizeObserver !== "function") {
+      globalThis.ResizeObserver = class {
+        observe() {
+          return undefined;
+        }
+        unobserve() {
+          return undefined;
+        }
+        disconnect() {
+          return undefined;
+        }
+      };
+    }
+  };
+  const projectionOf = (play: PlayDocument) => ({
+    playId: play.id,
+    playbookId: play.playbookId,
+    name: play.name,
+    unit: play.unit,
+    ...(play.playType === undefined
+      ? {}
+      : { playTypeId: play.playType.id, playTypeName: play.playType.name }),
+    tags: play.tags,
+    playerRoles: [],
+    assignmentText: [],
+    notes: play.notes,
+    documentHash: `hash_${play.id}`,
+    updatedAtMs: 1,
+  });
+  const pill = () => screen.getByRole("button", { name: "Play type" });
+
+  it("shows a defensive play's stored classification, not a Pass default", async () => {
+    giveBrowserALayout();
+    const user = userEvent.setup();
+    const envelope = starterPlaybookEnvelope();
+    const library = createMemoryLibrary(
+      {
+        playbook: envelope.playbook,
+        concepts: envelope.concepts,
+        members: [stickThunderPlay, coverThree].map(projectionOf),
+      },
+      [stickThunderPlay, coverThree].map((play) => ({
+        id: play.id,
+        playbookId: play.playbookId,
+        document: play,
+        documentHash: `hash_${play.id}`,
+        updatedAtMs: 1,
+      })),
+    );
+    const editorStore = createTestEditorStore();
+    render(<ChalkApp runtime={createTestRuntime({ editorStore, library })} />);
+
+    expect(pill()).toHaveTextContent("Offense · Pass");
+
+    const inspector = screen.getByRole("complementary", {
+      name: "Play inspector",
+    });
+    await user.click(
+      within(inspector).getByRole("button", { name: "Browse Playbook" }),
+    );
+    const book = screen.getByRole("dialog", { name: "Playbook" });
+    const card = await within(book).findByRole("button", {
+      name: /Cover 3 — Fire Zone/,
+    });
+    // The card says the same words the header will.
+    expect(card).toHaveTextContent("Defense");
+    expect(card).not.toHaveTextContent("Pass");
+    await user.click(card);
+
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "Play name" })).toHaveValue(
+        "Cover 3 — Fire Zone",
+      );
+    });
+    expect(pill()).toHaveTextContent("Defense");
+    expect(pill()).not.toHaveTextContent("Pass");
+    expect(editorStore.getSnapshot().document.unit).toBe("defense");
+    expect(editorStore.getSnapshot().document.playType).toBeUndefined();
+  });
+
+  it("filters Defense apart from Coverage in the browser", async () => {
+    giveBrowserALayout();
+    const user = userEvent.setup();
+    const coverage = {
+      ...coverThree,
+      id: "play_cover_two",
+      name: "Cover 2 — Trap",
+      playType: { id: "play_type_coverage", name: "Coverage" },
+    };
+    const library = createMemoryLibrary({
+      ...emptyLibrarySnapshot(stickThunderPlay.playbookId),
+      members: [stickThunderPlay, coverThree, coverage].map(projectionOf),
+    });
+    render(<ChalkApp runtime={createTestRuntime({ library })} />);
+    await user.click(screen.getByRole("button", { name: "Browse Playbook" }));
+    const book = screen.getByRole("dialog", { name: "Playbook" });
+
+    await user.click(within(book).getByRole("button", { name: "Defense" }));
+    await waitFor(() => {
+      expect(book.querySelectorAll("[data-play-id]")).toHaveLength(2);
+    });
+    // Defense offers only its own Types — no Pass, no Run — plus the plays
+    // the Coach left unclassified.
+    expect(within(book).queryByRole("button", { name: "Pass" })).toBeNull();
+    await user.click(within(book).getByRole("button", { name: "Coverage" }));
+    await waitFor(() => {
+      expect(book.querySelectorAll("[data-play-id]")).toHaveLength(1);
+    });
+    expect(within(book).getByText("Cover 2 — Trap")).toBeVisible();
+    await user.click(
+      within(book).getByRole("button", { name: "Unclassified" }),
+    );
+    await waitFor(() => {
+      expect(within(book).getByText("Cover 3 — Fire Zone")).toBeVisible();
+    });
+    expect(within(book).queryByText("Cover 2 — Trap")).toBeNull();
+  });
+
+  it("changes the Type through a command the Coach can undo", async () => {
+    const user = userEvent.setup();
+    const editorStore = await createHashedEditorStore();
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
+
+    await user.click(pill());
+    const panel = screen.getByRole("group", { name: "Play classification" });
+    expect(within(panel).getByRole("button", { name: "Pass" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // Offense offers offensive Types only.
+    expect(
+      within(panel).queryByRole("button", { name: "Coverage" }),
+    ).toBeNull();
+    await user.click(within(panel).getByRole("button", { name: "Run" }));
+
+    await waitFor(() => {
+      expect(editorStore.getSnapshot().document.playType).toEqual({
+        id: "play_type_run",
+        name: "Run",
+      });
+    });
+    expect(pill()).toHaveTextContent("Offense · Run");
+    expect(
+      screen.queryByRole("group", { name: "Play classification" }),
+    ).toBeNull();
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(undo).toHaveAttribute("title", "Undo Change Play Type");
+    await user.click(undo);
+    await waitFor(() => {
+      expect(pill()).toHaveTextContent("Offense · Pass");
+    });
+    expect(editorStore.getSnapshot().document.playType?.name).toBe("Pass");
+  });
+
+  it("lets a play go unclassified rather than claiming a type it has not", async () => {
+    const user = userEvent.setup();
+    const editorStore = createTestEditorStore();
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
+    await user.click(pill());
+    await user.click(screen.getByRole("button", { name: "Unclassified" }));
+    await waitFor(() => {
+      expect(editorStore.getSnapshot().document.playType).toBeUndefined();
+    });
+    expect(pill()).toHaveTextContent("Offense");
+    expect(pill()).not.toHaveTextContent("Pass");
+  });
+
+  it("names what a unit change drops, waits for the Coach, and keeps the diagram", async () => {
+    const user = userEvent.setup();
+    const editorStore = await createHashedEditorStore();
+    const { container } = render(
+      <ChalkApp runtime={createTestRuntime({ editorStore })} />,
+    );
+    const before = editorStore.getSnapshot().document;
+
+    await user.click(pill());
+    await user.click(screen.getByRole("button", { name: "Defense" }));
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Moving to Defense drops the Pass type. The diagram stays.",
+    );
+    // Nothing has moved yet.
+    expect(editorStore.getSnapshot().document.unit).toBe("offense");
+    await user.click(screen.getByRole("button", { name: "Keep Offense" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(editorStore.getSnapshot().document.unit).toBe("offense");
+
+    await user.click(screen.getByRole("button", { name: "Defense" }));
+    await user.click(screen.getByRole("button", { name: "Move to Defense" }));
+    await waitFor(() => {
+      expect(editorStore.getSnapshot().document.unit).toBe("defense");
+    });
+    const after = editorStore.getSnapshot().document;
+    expect(after.playType).toBeUndefined();
+    expect(after.players).toEqual(before.players);
+    expect(after.paths).toEqual(before.paths);
+    expect(after.labels).toEqual(before.labels);
+    expect(container.querySelectorAll("[data-scene-player]")).toHaveLength(11);
+    expect(pill()).toHaveTextContent("Defense");
+
+    // One undo puts the unit and the type back together.
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => {
+      expect(editorStore.getSnapshot().document.unit).toBe("offense");
+    });
+    expect(editorStore.getSnapshot().document.playType?.name).toBe("Pass");
+    expect(pill()).toHaveTextContent("Offense · Pass");
+  });
+
+  it("adds a Coach-defined type to the Playbook and files the play under it", async () => {
+    const user = userEvent.setup();
+    const editorStore = createTestEditorStore();
+    const library = createMemoryLibrary(
+      emptyLibrarySnapshot(stickThunderPlay.playbookId),
+    );
+    render(<ChalkApp runtime={createTestRuntime({ editorStore, library })} />);
+
+    await user.click(pill());
+    await user.type(screen.getByLabelText("New offense type"), "Trick");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() => {
+      expect(editorStore.getSnapshot().document.playType?.name).toBe("Trick");
+    });
+    expect(pill()).toHaveTextContent("Offense · Trick");
+    const playbook = await library.getPlaybook();
+    expect(
+      playbook?.playTypes.find(({ name }) => name === "Trick"),
+    ).toMatchObject({ unit: "offense", archived: false });
+
+    // The new Type is offered next time, and a duplicate is refused.
+    await user.click(pill());
+    expect(screen.getByRole("button", { name: "Trick" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await user.type(screen.getByLabelText("New offense type"), "trick");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Offense already has a Trick type.",
     );
   });
 });
@@ -1297,7 +1592,9 @@ describe("Chalk editor overlays", () => {
     expect(html).toContain("@page{size:letter portrait;margin:0.5in}");
     expect(html).toContain("<th>Assignment</th>");
     expect(html).toContain('data-type-preset="print"');
-    expect(html).toContain('<div class="__pn">Stick — Thunder · Pass</div>');
+    expect(html).toContain(
+      '<div class="__pn">Stick — Thunder · Offense · Pass</div>',
+    );
     expect(screen.queryByText("DIAGRAM")).toBeNull();
     open.mockRestore();
   });

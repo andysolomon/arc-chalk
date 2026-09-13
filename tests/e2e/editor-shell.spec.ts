@@ -618,3 +618,62 @@ test("opens a library variation, searches the Playbook, and restores browser scr
   await page.keyboard.press("ArrowLeft");
   await expect(page.getByRole("region", { name: "Present" })).toBeVisible();
 });
+
+/**
+ * Issue #63: the header said Pass whatever Play was open, because the
+ * original's category control was never bound to the document. The pill now
+ * reads the Play — Unit, and the Type inside it — and writes back through a
+ * command that survives a reload.
+ */
+test("shows a defensive play's real unit in the header and keeps a chosen type across reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText(/^Library/)).toBeVisible();
+  const pill = page.getByRole("button", { name: "Play type" });
+  await expect(pill).toHaveText("Offense · Pass");
+
+  await page.getByRole("button", { name: "Browse Playbook" }).click();
+  const book = page.getByRole("dialog", { name: "Playbook" });
+  await expect(book).toBeVisible();
+  // Defense is a unit, not a type: the chip finds every defensive play,
+  // classified or not, and offers only defensive types beside it.
+  await book.getByRole("button", { name: "Defense", exact: true }).click();
+  await expect(
+    book.getByRole("button", { name: "Pass", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    book.getByRole("button", { name: "Coverage", exact: true }),
+  ).toBeVisible();
+  await expect(book.locator("[data-play-id]")).toHaveCount(1);
+  const card = book.getByRole("button", { name: /Cover 3 — Fire Zone/ });
+  await expect(card).toContainText("Defense");
+  await card.click();
+
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Cover 3 — Fire Zone",
+  );
+  await expect(pill).toHaveText("Defense");
+
+  await pill.click();
+  const panel = page.getByRole("group", { name: "Play classification" });
+  await expect(panel.getByRole("button", { name: "Run" })).toHaveCount(0);
+  await panel.getByRole("button", { name: "Coverage" }).click();
+  await expect(pill).toHaveText("Defense · Coverage");
+  await expect(page.getByRole("button", { name: "Undo" })).toHaveAttribute(
+    "title",
+    "Undo Change Play Type",
+  );
+  await expect(
+    page.getByRole("button", { name: "Saved on this device" }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Cover 3 — Fire Zone",
+    { timeout: 30_000 },
+  );
+  await expect(page.getByRole("button", { name: "Play type" })).toHaveText(
+    "Defense · Coverage",
+  );
+});

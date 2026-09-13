@@ -152,7 +152,7 @@ describe("coaching rows", () => {
     expect(ordered[1]?.concept?.name).toBe("Stick");
   });
 
-  it("groups the call sheet by tag, borrowing the Concept's, then by category", () => {
+  it("groups the call sheet by tag, borrowing the Concept's, then by Unit · Type", () => {
     const untagged: PlayDocument = {
       ...readPlay,
       id: "u",
@@ -168,13 +168,13 @@ describe("coaching rows", () => {
     };
     const groups = callSheetGroups([loner, readPlay, untagged], [concept]);
     // The Play's own tags first, the borrowed Concept tags next, and the
-    // category fallback sorted to the end whatever order it arrived in.
+    // classification fallback sorted to the end whatever order it arrived in.
     expect(groups.map(({ name }) => name)).toEqual([
       "3rd down",
       "red zone",
       "third-down",
       "quick-game",
-      "Pass",
+      "Offense · Pass",
     ]);
     expect(groups[2]?.plays.map(({ name }) => name)).toEqual(["Untagged"]);
     expect(groups[4]?.plays.map(({ name }) => name)).toEqual(["Loner"]);
@@ -207,7 +207,9 @@ describe("teaching documents", () => {
     expect(html).toContain(
       "<span>strength balanced</span><span>middle hash</span>",
     );
-    expect(html).toContain('<div class="__pn">Stick — Thunder · Pass</div>');
+    expect(html).toContain(
+      '<div class="__pn">Stick — Thunder · Offense · Pass</div>',
+    );
     expect(html).toContain('<div class="__pf">Chalk</div>');
     expect(render.calls).toEqual([
       { playId: readPlay.id, options: { typePreset: "print" } },

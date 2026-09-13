@@ -1,4 +1,10 @@
-import type { PlayUnit } from "@chalk/domain";
+import {
+  UNCLASSIFIED_PLAY_TYPE_NAME,
+  formatClassification,
+  playUnits,
+  type PlayTypeDefinition,
+  type PlayUnit,
+} from "@chalk/domain";
 import type { PlaySearchProjection } from "@chalk/local-db";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -8,6 +14,7 @@ import {
   createPlaySearchClient,
   projectionsForHits,
 } from "./play-search-client";
+import { UNCLASSIFIED, typeChipsFor } from "./type-chips";
 import {
   createThumbnailScheduler,
   thumbnailRequestFrom,
@@ -20,12 +27,7 @@ const CARD_ROW_HEIGHT = 118;
 const UNITS: readonly {
   readonly id: "all" | PlayUnit;
   readonly name: string;
-}[] = [
-  { id: "all", name: "All" },
-  { id: "offense", name: "Offense" },
-  { id: "defense", name: "Defense" },
-  { id: "special-teams", name: "Special" },
-];
+}[] = [{ id: "all", name: "All" }, ...playUnits];
 
 export function PlaybookBrowser({
   currentPlayId,
@@ -35,6 +37,7 @@ export function PlaybookBrowser({
   onClose,
   onOpen,
   onRemember,
+  playTypes,
 }: {
   currentPlayId: string;
   initial: LibraryBrowserState;
@@ -43,6 +46,7 @@ export function PlaybookBrowser({
   onClose: () => void;
   onOpen: (playId: string) => void;
   onRemember: (state: LibraryBrowserState) => void;
+  playTypes: readonly PlayTypeDefinition[];
 }) {
   const [query, setQuery] = useState(initial.query);
   const [unit, setUnit] = useState<"all" | PlayUnit>("all");
@@ -60,24 +64,36 @@ export function PlaybookBrowser({
   useEffect(() => () => search.dispose(), [search]);
   useEffect(() => () => thumbnails.dispose(), [thumbnails]);
 
-  const playTypes = useMemo(() => {
-    const names = new Set(
-      members.flatMap((member) =>
-        member.playTypeName ? [member.playTypeName] : [],
-      ),
-    );
-    return [...names].sort();
-  }, [members]);
+  const typeChips = useMemo(
+    () => typeChipsFor(playTypes, members, unit),
+    [members, playTypes, unit],
+  );
 
   const scoped = useMemo(
     () =>
       members.filter(
         (member) =>
           (unit === "all" || member.unit === unit) &&
-          (playType === "all" || member.playTypeName === playType),
+          (playType === "all" ||
+            (playType === UNCLASSIFIED
+              ? member.playTypeId === undefined
+              : member.playTypeId === playType)),
       ),
     [members, playType, unit],
   );
+
+  // A Type belongs to its Unit, so a chip lit under Defense means nothing
+  // once Offense is chosen; the Type filter opens back up with the Unit.
+  const chooseUnit = (next: "all" | PlayUnit) => {
+    setUnit(next);
+    if (
+      playType !== "all" &&
+      playType !== UNCLASSIFIED &&
+      !typeChipsFor(playTypes, members, next).some(({ id }) => id === playType)
+    ) {
+      setPlayType("all");
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -178,7 +194,7 @@ export function PlaybookBrowser({
               <button
                 className={unit === choice.id ? "active" : undefined}
                 key={choice.id}
-                onClick={() => setUnit(choice.id)}
+                onClick={() => chooseUnit(choice.id)}
                 type="button"
               >
                 {choice.name}
@@ -186,30 +202,36 @@ export function PlaybookBrowser({
             ))}
           </div>
         </div>
-        {playTypes.length > 0 ? (
-          <div className="browser-filter">
-            <span>Type</span>
-            <div className="chip-row">
+        <div className="browser-filter">
+          <span>Type</span>
+          <div className="chip-row">
+            <button
+              className={playType === "all" ? "active" : undefined}
+              onClick={() => setPlayType("all")}
+              type="button"
+            >
+              All
+            </button>
+            {typeChips.map((chip) => (
               <button
-                className={playType === "all" ? "active" : undefined}
-                onClick={() => setPlayType("all")}
+                className={playType === chip.id ? "active" : undefined}
+                key={chip.id}
+                onClick={() => setPlayType(chip.id)}
                 type="button"
               >
-                All
+                {chip.name}
               </button>
-              {playTypes.map((name) => (
-                <button
-                  className={playType === name ? "active" : undefined}
-                  key={name}
-                  onClick={() => setPlayType(name)}
-                  type="button"
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
+            ))}
+            <button
+              className={playType === UNCLASSIFIED ? "active" : undefined}
+              onClick={() => setPlayType(UNCLASSIFIED)}
+              title="Plays left at their unit with no type chosen"
+              type="button"
+            >
+              {UNCLASSIFIED_PLAY_TYPE_NAME}
+            </button>
           </div>
-        ) : null}
+        </div>
         <div
           className="browser-body playbook-scroll"
           data-virtual-count={hits.length}
@@ -313,7 +335,17 @@ function PlayCard({
         <strong>{member.name}</strong>
       </div>
       <span>
-        {member.playTypeName ?? member.unit}
+        {formatClassification({
+          unit: member.unit,
+          ...(member.playTypeId === undefined
+            ? {}
+            : {
+                playType: {
+                  id: member.playTypeId,
+                  name: member.playTypeName ?? member.playTypeId,
+                },
+              }),
+        })}
         {member.tags[0] ? ` · ${member.tags[0]}` : ""}
       </span>
     </button>

@@ -48,6 +48,8 @@ import {
   formationFromOffense,
   stockDefensiveCalls,
   stockFormations,
+  addCoachPlayType,
+  formatClassification,
   type Concept,
   type LabelRole,
   type DefensiveCall,
@@ -241,6 +243,10 @@ import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { FieldDiagram } from "./field-diagram";
 import { SELECTION_BLUE, sceneColors, selectionKey } from "./field-marks";
 import { PlaybackBar } from "./playback-bar";
+import {
+  PlayClassificationControl,
+  type AddPlayTypeOutcome,
+} from "./play-classification-control";
 import { PlaySharePanel } from "./play-share-panel";
 import { readPlaybackNow } from "./playback-now";
 import { createDiagramRenderer } from "./export-diagram";
@@ -257,7 +263,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 export { FieldDiagram };
 
 type View = "Editor" | "Demo" | "Present" | "Print";
-type Menu = "more" | "export" | "save" | "clear" | null;
+type Menu = "more" | "export" | "save" | "clear" | "classify" | null;
 type Overlay =
   | "palette"
   | "shortcuts"
@@ -3936,7 +3942,7 @@ export function ChalkApp({
     const play = editorStore.getSnapshot().document;
     openPrintField({
       playName: play.name,
-      category: play.playType?.name ?? "",
+      category: formatClassification(play),
       svgMarkup: svgMarkupForPrint(svg, {
         width: scene.viewport.width,
         height: scene.viewport.height,
@@ -4619,10 +4625,44 @@ export function ChalkApp({
     return () => globalThis.removeEventListener("pointerdown", onPointerDown);
   }, [openMenu]);
 
+  /**
+   * The Coach's own Type goes into the Playbook beside the built-ins, then
+   * the library reloads so every card, chip and pill sees it at once.
+   */
+  const addPlayType = async (
+    name: string,
+    unit: PlayDocument["unit"],
+  ): Promise<AddPlayTypeOutcome> => {
+    const result = addCoachPlayType(playbook.snapshot.playbook, { name, unit });
+    if (!result.ok) return result;
+    await runtime.library.savePlaybook(result.playbook);
+    await playbook.refresh();
+    return { ok: true, playType: result.playType };
+  };
+  const classification = (
+    <PlayClassificationControl
+      concepts={playbook.snapshot.concepts}
+      formations={allFormations}
+      onAddPlayType={addPlayType}
+      onApply={(command) => {
+        void editorStore
+          .applyCommand(command)
+          .then(() => playbook.refresh())
+          .catch(() => undefined);
+      }}
+      onDismiss={() => setOpenMenu(null)}
+      onToggle={() => toggleMenu("classify")}
+      open={openMenu === "classify"}
+      play={editor.document}
+      playbook={playbook.snapshot.playbook}
+    />
+  );
+
   const header = (
     <Header
       actions={actions}
       activeView={activeView}
+      classification={classification}
       commitPlayName={commitPlayName}
       demoPlayName={demoPlayName}
       focused={focused}
@@ -4698,7 +4738,7 @@ export function ChalkApp({
   const typeName =
     typePresetCatalog.find(({ id }) => id === presentation.typePreset)?.name ??
     "Coach";
-  const playCategory = editor.document.playType?.name ?? "";
+  const playCategory = formatClassification(editor.document);
   const labelDensity = resolveTypeDensity(presentation).label;
   const statusHint = editorStatusHint({
     view:
@@ -5516,6 +5556,7 @@ export function ChalkApp({
             void playbook.loadPlay(playId);
           }}
           onRemember={playbook.rememberBrowser}
+          playTypes={playbook.snapshot.playbook.playTypes}
         />
       ) : null}
       {overlay === "conflicts" && sync ? (
@@ -6062,6 +6103,7 @@ function PrintMode({
 function Header({
   actions,
   activeView,
+  classification,
   commitPlayName,
   demoPlayName,
   focused,
@@ -6089,6 +6131,8 @@ function Header({
   actions: ActionMap;
   wristband: WristbandPicker;
   activeView: View;
+  /** The Unit · Type pill, bound to the open Play (issue #63). */
+  classification: React.ReactNode;
   commitPlayName: () => void;
   demoPlayName: string;
   focused: boolean;
@@ -6153,17 +6197,7 @@ function Header({
             spellCheck={false}
             value={playName}
           />
-          <label className="play-type">
-            <i />
-            <select aria-label="Play type" defaultValue="Pass">
-              <option>Pass</option>
-              <option>Run</option>
-              <option>RPO</option>
-              <option>Screen</option>
-              <option>Defense</option>
-              <option>Special</option>
-            </select>
-          </label>
+          {classification}
           <span className="top-spacer" />
           <button
             className="quiet"
