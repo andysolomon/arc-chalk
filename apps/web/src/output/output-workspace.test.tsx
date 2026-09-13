@@ -337,3 +337,69 @@ describe("Print & export (issue #69)", () => {
     expect(print.mock.calls[1]?.[0]).not.toContain("MAX SPLIT");
   });
 });
+
+describe("configurable coordinator call sheets (issue #70)", () => {
+  it("lays a plan's sheet out from its template, keeps the layout on the device, and says what will not fit", async () => {
+    const user = userEvent.setup();
+    const packet = hundredCallPlan();
+    const library = libraryOf(packet.plays);
+    await library.saveGamePlan(packet.plan);
+    await library.saveGamePlanRevision(packet.revision);
+    const { print } = renderWorkspace(
+      defaultOutputSpec(defaultPresentation, "callSheet", {
+        kind: "plan",
+        planId: packet.plan.id,
+        copy: "revision",
+      }),
+      { library, libraryPlays: [...plays, ...packet.plays] },
+    );
+    const layout = await screen.findByRole("group", {
+      name: "Call sheet layout",
+    });
+    expect(within(layout).getByRole("button", { name: "OC" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(layout).getByLabelText("Personnel")).toBeChecked();
+    // Thirty-four calls in a section will not sit in one column of eighteen.
+    const warnings = within(layout).getByRole("list", {
+      name: "Before printing",
+    });
+    expect(warnings).toHaveTextContent("Openers lists 34 calls");
+    await user.click(within(layout).getByRole("button", { name: "Compact" }));
+    expect(
+      within(layout).getByRole("list", { name: "Before printing" }),
+    ).toHaveTextContent("a column holds 26");
+
+    await user.click(within(layout).getByRole("button", { name: "Two sides" }));
+    await user.type(
+      within(layout).getByLabelText("Title for Openers"),
+      "Script",
+    );
+    await user.selectOptions(
+      within(layout).getByLabelText("Accent for Openers"),
+      "a",
+    );
+    await user.click(within(layout).getByLabelText(/^Check/));
+    await user.click(screen.getByRole("button", { name: "Print…" }));
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    const html = print.mock.calls[0]![0];
+    expect(html).toContain("Week 5 — Offensive coordinator");
+    expect(html).toContain("Side 1 of 2");
+    expect(html).toContain(">Script<");
+    expect(html).toContain('<span class="tag">A</span>');
+    expect(html).toContain("<th>Check</th>");
+    expect(html).toContain('<td class="cc">12</td>');
+
+    const stored = await library.loadCallSheetConfigs();
+    expect(stored[packet.plan.id]).toMatchObject({
+      template: "oc",
+      density: "compact",
+      sides: 2,
+    });
+    expect(stored[packet.plan.id]!.sections[0]).toMatchObject({
+      title: "Script",
+      accent: "a",
+    });
+  });
+});

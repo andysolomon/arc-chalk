@@ -95,17 +95,15 @@ export function estimatePages(doc: Document, paper: OutputPaper): PageEstimate {
     );
   });
   const fragments: number[] = [];
+  // The preview pads the body with the page's margins; the sheet's own
+  // content is what has to fit.
+  const style = view.getComputedStyle(body);
+  const paddingTop = parseFloat(style.paddingTop) || 0;
+  const paddingBottom = parseFloat(style.paddingBottom) || 0;
   if (breaks.length === 0) {
-    // The preview pads the body with the page's margins; the sheet's own
-    // content is what has to fit.
-    const style = view.getComputedStyle(body);
-    fragments.push(
-      body.scrollHeight -
-        (parseFloat(style.paddingTop) || 0) -
-        (parseFloat(style.paddingBottom) || 0),
-    );
+    fragments.push(body.scrollHeight - paddingTop - paddingBottom);
   } else {
-    let top = body.getBoundingClientRect().top;
+    let top = body.getBoundingClientRect().top + paddingTop;
     for (const node of breaks) {
       const rect = node.getBoundingClientRect();
       const after =
@@ -115,7 +113,7 @@ export function estimatePages(doc: Document, paper: OutputPaper): PageEstimate {
       fragments.push(Math.max(0, edge - top));
       top = edge;
     }
-    const last = body.getBoundingClientRect().bottom - top;
+    const last = body.getBoundingClientRect().bottom - paddingBottom - top;
     if (last > 8) fragments.push(last);
   }
   let pages = 0;

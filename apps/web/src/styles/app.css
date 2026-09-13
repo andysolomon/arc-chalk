@@ -1362,6 +1362,90 @@ button.play-type.open {
   background: #fdecec;
   color: #a33a3a;
 }
+/* The coordinator sheet's layout (issue #70). */
+.call-sheet-options .segments {
+  margin-bottom: 6px;
+}
+.call-sheet-sections {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.call-sheet-sections li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+}
+.call-sheet-sections input {
+  min-width: 0;
+  height: 26px;
+  flex: 1;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  font: inherit;
+  font-size: 12px;
+}
+.call-sheet-sections select {
+  height: 26px;
+  max-width: 88px;
+  border: 0;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  font: inherit;
+  font-size: 11px;
+}
+.call-sheet-sections button,
+.call-sheet-left button {
+  height: 24px;
+  min-width: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: #f2f2f2;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.call-sheet-sections button:disabled {
+  color: #c9c9c9;
+  cursor: default;
+}
+.call-sheet-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.call-sheet-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 8px;
+}
+.call-sheet-columns label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  font-size: 12px;
+}
+.call-sheet-columns small {
+  color: var(--muted);
+}
+.call-sheet-warnings {
+  margin: 8px 0 0;
+  padding: 8px 10px 8px 24px;
+  border-radius: 6px;
+  background: #fff7e6;
+  color: #7a5200;
+  font-size: 11px;
+  line-height: 15px;
+}
 @media (max-width: 900px) {
   .output {
     flex-direction: column;
