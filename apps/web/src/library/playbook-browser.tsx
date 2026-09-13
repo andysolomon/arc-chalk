@@ -36,6 +36,7 @@ export function PlaybookBrowser({
   members,
   onClose,
   onOpen,
+  onOpenGamePlans,
   onRemember,
   playTypes,
 }: {
@@ -45,6 +46,8 @@ export function PlaybookBrowser({
   members: readonly PlaySearchProjection[];
   onClose: () => void;
   onOpen: (playId: string) => void;
+  /** The Playbooks workspace (issue #66), reached from the library it curates. */
+  onOpenGamePlans?: () => void;
   onRemember: (state: LibraryBrowserState) => void;
   playTypes: readonly PlayTypeDefinition[];
 }) {
@@ -176,6 +179,19 @@ export function PlaybookBrowser({
             spellCheck={false}
             value={query}
           />
+          {onOpenGamePlans ? (
+            <button
+              className="browser-link"
+              onClick={() => {
+                remember();
+                onOpenGamePlans();
+              }}
+              title="Pick, arrange and number the calls for one game"
+              type="button"
+            >
+              Game plans
+            </button>
+          ) : null}
           <button
             className="browser-close"
             onClick={() => {

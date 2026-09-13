@@ -3373,3 +3373,551 @@ button.library-dot.target.small {
   gap: 8px;
   margin-top: 8px;
 }
+
+/* ---------------------------------------------------------------------------
+   Game plans — the Playbooks workspace (issue #66). Same paper, hairlines and
+   Geist as the Playbook browser it sits beside; a plan is rows, not cards.
+   ------------------------------------------------------------------------- */
+.game-plans {
+  width: 1040px;
+}
+.game-plans-count {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.game-plans-new,
+.browser-link,
+.game-plan-outputs button,
+.game-plan-inline button,
+.game-plan-pick-tools button,
+.game-plan-saved button {
+  height: 26px;
+  flex: none;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: #f2f2f2;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.game-plans-new:hover,
+.browser-link:hover,
+.game-plan-outputs button:hover:not(:disabled),
+.game-plan-inline button:hover:not(:disabled),
+.game-plan-pick-tools button:hover:not(:disabled),
+.game-plan-saved button:hover:not(:disabled) {
+  background: #ebebeb;
+}
+.game-plan-outputs button:disabled,
+.game-plan-inline button:disabled,
+.game-plan-pick-tools button:disabled,
+.game-plan-saved button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.game-plan-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+.game-plan-form input,
+.game-plan-details input,
+.game-plan-inline input,
+.game-plan-add > input,
+.game-plan-section-head input,
+.game-plan-row-main input {
+  min-width: 0;
+  height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  outline: 0;
+}
+.game-plan-form input:focus,
+.game-plan-details input:focus,
+.game-plan-inline input:focus,
+.game-plan-add > input:focus,
+.game-plan-section-head input:focus,
+.game-plan-row-main input:focus,
+.game-plan-code input:focus,
+.game-plan-note:focus {
+  box-shadow: 0 0 0 1px var(--blue);
+}
+.game-plan-form .segments {
+  flex: none;
+}
+.game-plan-form .menu-primary {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+.game-plan-list {
+  gap: 2px;
+}
+.game-plan-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 8px;
+  border-radius: 6px;
+}
+.game-plan-row:hover {
+  background: #f7f7f7;
+}
+.game-plan-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.game-plan-row-main input {
+  flex: 1;
+}
+.game-plan-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.game-plan-open strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.game-plan-open span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.game-plan-row-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+.game-plan-row-actions button:not(.library-remove) {
+  height: 24px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+.game-plan-row-actions button:not(.library-remove):hover {
+  background: #ebebeb;
+  color: var(--ink);
+}
+.game-plan-row-actions .library-remove,
+.game-plan-call-actions .library-remove,
+.game-plan-section-actions .library-remove {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  line-height: 1;
+}
+.game-plan-inline {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+.game-plan-inline input {
+  width: 180px;
+}
+.game-plan-title {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  outline: 0;
+}
+.game-plan-title:hover {
+  background: #f2f2f2;
+}
+.game-plan-title:focus {
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.game-plan-details {
+  display: grid;
+  grid-template-columns: 180px 180px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 10px;
+}
+.game-plan-prepare {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.game-plan-prepare .menu-primary {
+  width: auto;
+  flex: none;
+  margin-top: 0;
+  padding: 0 12px;
+}
+.game-plan-status {
+  margin: 0;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.game-plan-status.stale {
+  color: var(--ink);
+}
+.game-plan-outputs {
+  display: flex;
+  gap: 4px;
+}
+.game-plan-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-content: start;
+}
+.game-plan-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.game-plan-section {
+  min-width: 0;
+  border-radius: 8px;
+  padding: 2px 0 4px;
+}
+.game-plan-section.droppable {
+  box-shadow: 0 0 0 1px var(--line);
+}
+.game-plan-section-head {
+  margin-bottom: 4px;
+  gap: 8px;
+}
+.game-plan-section-name {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: text;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.game-plan-section-name:hover {
+  color: var(--ink);
+}
+.game-plan-section-head input {
+  height: 24px;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.game-plan-section-count {
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+.game-plan-section-actions {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.game-plan-section-actions button:not(.library-remove),
+.game-plan-call-actions button:not(.library-remove) {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+.game-plan-section-actions button:not(.library-remove):hover:not(:disabled),
+.game-plan-call-actions button:not(.library-remove):hover:not(:disabled) {
+  background: #ebebeb;
+  color: var(--ink);
+}
+.game-plan-section-actions button:disabled,
+.game-plan-call-actions button:disabled {
+  color: #c9c9c9;
+  cursor: default;
+}
+.game-plan-call {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 3px 6px 3px 2px;
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 12px;
+}
+.game-plan-call:hover {
+  background: #f7f7f7;
+}
+.game-plan-call.dragging {
+  opacity: 0.45;
+}
+.game-plan-grip {
+  flex: none;
+  width: 12px;
+  color: #c9c9c9;
+  cursor: grab;
+  font-size: 10px;
+  letter-spacing: -2px;
+  user-select: none;
+}
+.game-plan-code {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+.game-plan-code input {
+  width: 48px;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-family: "Geist Mono", monospace;
+  font-size: 12px;
+  text-align: center;
+  outline: 0;
+}
+.game-plan-code button {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+}
+.game-plan-code button:hover {
+  background: #ebebeb;
+  color: var(--ink);
+}
+.game-plan-call-name {
+  flex: 1;
+  min-width: 120px;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.game-plan-call-name:hover {
+  color: var(--blue);
+}
+.game-plan-note {
+  width: 150px;
+  height: 24px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  outline: 0;
+}
+.game-plan-note::placeholder {
+  color: #c9c9c9;
+}
+.game-plan-note:hover,
+.game-plan-note:focus {
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.game-plan-call-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+.game-plan-call-actions select,
+.game-plan-pick-tools select,
+.game-plan-pick-target select {
+  height: 24px;
+  max-width: 120px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+.game-plan-call-actions select:hover,
+.game-plan-pick-tools select:hover {
+  background: #ebebeb;
+  color: var(--ink);
+}
+.game-plan-notice,
+.game-plan-preview,
+.game-plan-report,
+.game-plan-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.game-plan-notice {
+  flex-basis: 100%;
+  color: #e5484d;
+}
+.game-plan-add-section {
+  margin-top: 4px;
+}
+.game-plan-add-section input {
+  flex: 1;
+}
+.game-plan-add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px 12px;
+  border-radius: 8px;
+  background: var(--canvas);
+}
+.game-plan-add .section-heading {
+  margin-bottom: 0;
+}
+.game-plan-chips .chip {
+  height: 22px;
+  padding: 0 8px;
+}
+.game-plan-pick-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.game-plan-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 260px;
+  overflow-y: auto;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  padding: 4px;
+}
+.game-plan-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.game-plan-pick:hover {
+  background: #f2f2f2;
+}
+.game-plan-pick input {
+  margin: 0;
+  accent-color: var(--blue);
+}
+.game-plan-pick-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.game-plan-pick-meta {
+  flex: none;
+  color: var(--muted);
+  font-size: 10px;
+}
+.game-plan-pick-target {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.game-plan-pick-target select {
+  flex: 1;
+  max-width: none;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+}
+.game-plan-add .menu-primary {
+  margin-top: 0;
+}
+.game-plan-saved {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+@media (max-width: 1180px) {
+  .game-plan-body {
+    grid-template-columns: 1fr;
+  }
+  .game-plan-details {
+    grid-template-columns: 1fr 1fr;
+  }
+}

@@ -18,12 +18,13 @@ import { IDBKeyRange, indexedDB } from "fake-indexeddb";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  CHALK_LOCAL_DATABASE_VERSION,
   readRawRecords,
   writeReleasedDatabase,
 } from "./released-database-fixtures";
 
 const FIXED_TIME = 1_786_000_100_000;
+/** The layout the first release shipped; the current database is newer. */
+const RELEASED_VERSION = 1;
 const playbook = offensivePlaybookGolden.playbook;
 
 describe("upgrading a database an earlier release wrote", () => {
@@ -42,7 +43,7 @@ describe("upgrading a database an earlier release wrote", () => {
     const databaseName = `chalk-released-v1-${crypto.randomUUID()}`;
     await writeReleasedDatabase(indexedDB, {
       databaseName,
-      version: CHALK_LOCAL_DATABASE_VERSION,
+      version: RELEASED_VERSION,
       records: {
         playbooks: [playbook],
         concepts: [...offensivePlaybookGolden.concepts],
@@ -182,7 +183,7 @@ describe("upgrading a database an earlier release wrote", () => {
     const databaseName = `chalk-corrupt-${crypto.randomUUID()}`;
     await writeReleasedDatabase(indexedDB, {
       databaseName,
-      version: CHALK_LOCAL_DATABASE_VERSION,
+      version: RELEASED_VERSION,
       records: {
         playbooks: [playbook],
         plays: [

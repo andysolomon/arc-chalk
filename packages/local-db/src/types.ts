@@ -2,6 +2,9 @@ import type {
   BackupPayload,
   Concept,
   Formation,
+  GamePlan,
+  GamePlanRevision,
+  GamePlanRevisionSummary,
   PlayDocument,
   PlayRevision,
   PlayUnit,
@@ -103,6 +106,8 @@ export interface BackupImportResult {
   readonly plays: number;
   readonly revisions: number;
   readonly preferences: number;
+  readonly gamePlans: number;
+  readonly gamePlanRevisions: number;
   /** Plays a newer local edit kept, and versions already stored. */
   readonly skippedPlays: readonly string[];
   readonly skippedRevisions: readonly string[];
@@ -191,6 +196,8 @@ export interface LocalStoreCounts {
   readonly undoHistories: number;
   readonly searchProjections: number;
   readonly thumbnails: number;
+  readonly gamePlans: number;
+  readonly gamePlanRevisions: number;
 }
 
 export interface CommitPlayInput {
@@ -330,6 +337,21 @@ export interface ChalkLocalRepository {
   saveConcept(concept: Concept): Promise<void>;
   listConcepts(playbookId: string): Promise<readonly Concept[]>;
   deleteConcept(conceptId: string): Promise<void>;
+
+  /** Game Plans: curated, numbered views of a Playbook's Plays (ADR 0042). */
+  listGamePlans(playbookId: string): Promise<readonly GamePlan[]>;
+  getGamePlan(planId: string): Promise<GamePlan | undefined>;
+  saveGamePlan(plan: GamePlan): Promise<void>;
+  /** Removes the plan and every revision prepared from it. */
+  deleteGamePlan(planId: string): Promise<void>;
+  /** A prepared revision is immutable; saving an id again changes nothing. */
+  saveGamePlanRevision(revision: GamePlanRevision): Promise<void>;
+  getGamePlanRevision(
+    revisionId: string,
+  ): Promise<GamePlanRevision | undefined>;
+  listGamePlanRevisions(
+    planId: string,
+  ): Promise<readonly GamePlanRevisionSummary[]>;
 
   setPreference(preference: LocalPreference): Promise<void>;
   getPreference(key: string): Promise<LocalPreference | undefined>;

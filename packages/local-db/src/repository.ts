@@ -4,6 +4,9 @@ import {
   readBackupPayload,
   conceptSchema,
   formationSchema,
+  gamePlanRevisionSchema,
+  gamePlanRevisionSummary,
+  gamePlanSchema,
   migrateStoredPlayDocument,
   playDocumentSchema,
   playRevisionSchema,
@@ -14,6 +17,9 @@ import {
   type BackupPayload,
   type Concept,
   type Formation,
+  type GamePlan,
+  type GamePlanRevision,
+  type GamePlanRevisionSummary,
   type PlayDocument,
   type PlayRevision,
   type PlaySearchQuery,
@@ -574,6 +580,8 @@ class DexieLocalRepository implements ChalkLocalRepository {
       storedPlays,
       revisions,
       preferences,
+      gamePlans,
+      gamePlanRevisions,
     ] = await Promise.all([
       this.#database.playbooks.toArray(),
       this.#database.concepts.toArray(),
@@ -581,6 +589,8 @@ class DexieLocalRepository implements ChalkLocalRepository {
       this.#database.plays.toArray(),
       this.#database.revisions.toArray(),
       this.#database.preferences.toArray(),
+      this.#database.gamePlans.toArray(),
+      this.#database.gamePlanRevisions.toArray(),
     ]);
 
     const plays = await Promise.all(
@@ -618,6 +628,8 @@ class DexieLocalRepository implements ChalkLocalRepository {
       preferences: preferences.filter(
         ({ key }) => key !== OPEN_SESSION_PREFERENCE,
       ),
+      gamePlans,
+      gamePlanRevisions,
     });
   }
 
@@ -671,6 +683,8 @@ class DexieLocalRepository implements ChalkLocalRepository {
         this.#database.revisions,
         this.#database.preferences,
         this.#database.searchProjections,
+        this.#database.gamePlans,
+        this.#database.gamePlanRevisions,
       ],
       async () => {
         if (mode === "replace") {
@@ -681,6 +695,8 @@ class DexieLocalRepository implements ChalkLocalRepository {
             this.#database.plays.clear(),
             this.#database.revisions.clear(),
             this.#database.searchProjections.clear(),
+            this.#database.gamePlans.clear(),
+            this.#database.gamePlanRevisions.clear(),
           ]);
         }
 
@@ -726,6 +742,22 @@ class DexieLocalRepository implements ChalkLocalRepository {
           });
         }
 
+        // A plan is the Coach's current work, so a newer local one is kept;
+        // a prepared revision is immutable, so one already stored stays.
+        let importedGamePlans = 0;
+        for (const plan of backup.gamePlans ?? []) {
+          const existing = await this.#database.gamePlans.get(plan.id);
+          if (existing && existing.updatedAtMs > plan.updatedAtMs) continue;
+          await this.#database.gamePlans.put(plan);
+          importedGamePlans += 1;
+        }
+        let importedGamePlanRevisions = 0;
+        for (const revision of backup.gamePlanRevisions ?? []) {
+          if (await this.#database.gamePlanRevisions.get(revision.id)) continue;
+          await this.#database.gamePlanRevisions.add(revision);
+          importedGamePlanRevisions += 1;
+        }
+
         return {
           playbooks: backup.playbooks.length,
           concepts: backup.concepts.length,
@@ -733,6 +765,8 @@ class DexieLocalRepository implements ChalkLocalRepository {
           plays: importedPlays,
           revisions: importedRevisions,
           preferences: backup.preferences.length,
+          gamePlans: importedGamePlans,
+          gamePlanRevisions: importedGamePlanRevisions,
           skippedPlays: skippedPlays.sort(),
           skippedRevisions: skippedRevisions.sort(),
         };
@@ -1199,6 +1233,85 @@ class DexieLocalRepository implements ChalkLocalRepository {
     await this.#database.concepts.delete(conceptId);
   }
 
+  async listGamePlans(playbookId: string): Promise<readonly GamePlan[]> {
+    const records = await this.#database.gamePlans
+      .where("playbookId")
+      .equals(playbookId)
+      .toArray();
+    return records
+      .map((value) => gamePlanSchema.parse(value))
+      .sort(
+        (left, right) =>
+          right.updatedAtMs - left.updatedAtMs ||
+          left.name.localeCompare(right.name),
+      );
+  }
+
+  async getGamePlan(planId: string): Promise<GamePlan | undefined> {
+    const record = await this.#database.gamePlans.get(planId);
+    return record === undefined ? undefined : gamePlanSchema.parse(record);
+  }
+
+  async saveGamePlan(plan: GamePlan): Promise<void> {
+    await this.#database.gamePlans.put(
+      gamePlanSchema.parse(structuredClone(plan)),
+    );
+  }
+
+  async deleteGamePlan(planId: string): Promise<void> {
+    await this.#database.transaction(
+      "rw",
+      this.#database.gamePlans,
+      this.#database.gamePlanRevisions,
+      async () => {
+        await this.#database.gamePlanRevisions
+          .where("planId")
+          .equals(planId)
+          .delete();
+        await this.#database.gamePlans.delete(planId);
+      },
+    );
+  }
+
+  async saveGamePlanRevision(revision: GamePlanRevision): Promise<void> {
+    const validated = gamePlanRevisionSchema.parse(structuredClone(revision));
+    await this.#database.transaction(
+      "rw",
+      this.#database.gamePlanRevisions,
+      async () => {
+        if (await this.#database.gamePlanRevisions.get(validated.id)) return;
+        await this.#database.gamePlanRevisions.add(validated);
+      },
+    );
+  }
+
+  async getGamePlanRevision(
+    revisionId: string,
+  ): Promise<GamePlanRevision | undefined> {
+    const record = await this.#database.gamePlanRevisions.get(revisionId);
+    return record === undefined
+      ? undefined
+      : gamePlanRevisionSchema.parse(record);
+  }
+
+  async listGamePlanRevisions(
+    planId: string,
+  ): Promise<readonly GamePlanRevisionSummary[]> {
+    const records = await this.#database.gamePlanRevisions
+      .where("planId")
+      .equals(planId)
+      .toArray();
+    return records
+      .map((value) =>
+        gamePlanRevisionSummary(gamePlanRevisionSchema.parse(value)),
+      )
+      .sort(
+        (left, right) =>
+          right.createdAtMs - left.createdAtMs ||
+          left.id.localeCompare(right.id),
+      );
+  }
+
   async setPreference(preference: LocalPreference): Promise<void> {
     await this.#database.preferences.put(structuredClone(preference));
   }
@@ -1292,6 +1405,8 @@ class DexieLocalRepository implements ChalkLocalRepository {
       undoHistories,
       searchProjections,
       thumbnails,
+      gamePlans,
+      gamePlanRevisions,
     ] = await Promise.all([
       this.#database.playbooks.count(),
       this.#database.concepts.count(),
@@ -1305,6 +1420,8 @@ class DexieLocalRepository implements ChalkLocalRepository {
       this.#database.undoHistories.count(),
       this.#database.searchProjections.count(),
       this.#database.thumbnails.count(),
+      this.#database.gamePlans.count(),
+      this.#database.gamePlanRevisions.count(),
     ]);
     return {
       playbooks,
@@ -1319,6 +1436,8 @@ class DexieLocalRepository implements ChalkLocalRepository {
       undoHistories,
       searchProjections,
       thumbnails,
+      gamePlans,
+      gamePlanRevisions,
     };
   }
 

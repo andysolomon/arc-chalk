@@ -85,6 +85,7 @@ export function installCss(): string {
     ".hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}" +
     ".hd h1{font-size:20px;margin:0;font-weight:600;letter-spacing:-0.4px}" +
     ".hd span{font-size:12px;color:#8F8F8F;font-family:ui-monospace,Menlo,monospace}" +
+    ".hd .cc{font-family:ui-monospace,Menlo,monospace;color:#4D4D4D;font-size:16px;margin-right:4px}" +
     ".pg svg{width:100%;height:auto;max-height:52%;display:block;flex:none}" +
     "table{width:100%;border-collapse:collapse;margin-top:10px}" +
     "thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}" +
@@ -102,6 +103,8 @@ export interface InstallBodyOptions {
   readonly note?: string;
   readonly pageNo?: number;
   readonly formations?: readonly Formation[];
+  /** A game plan's call code, set beside the name when the page is a call. */
+  readonly code?: string;
 }
 
 function assignmentCell(row: {
@@ -134,7 +137,7 @@ export function installBody(
   return (
     '<div class="pg">' +
     (options.note ? `<div class="cn">${escapeHtml(options.note)}</div>` : "") +
-    `<div class="hd"><h1>${escapeHtml(play.name || "Untitled play")}</h1><span>${escapeHtml(playCategory(play))}</span></div>` +
+    `<div class="hd"><h1>${options.code ? `<span class="cc">${escapeHtml(options.code)}</span> ` : ""}${escapeHtml(play.name || "Untitled play")}</h1><span>${escapeHtml(playCategory(play))}</span></div>` +
     render(play, { typePreset: "print" }) +
     (rows.length > 0
       ? '<table><thead><tr><th style="width:0.7in">Who</th><th>Assignment</th><th>Coaching point</th></tr></thead>' +
@@ -330,6 +333,22 @@ export interface LibraryOptions {
   readonly productName?: string;
 }
 
+/** The wristband sheet: eight 2.1×1.4in cells, two columns, dashed cut lines. */
+export const WRISTBAND_CSS =
+  "@page{size:letter portrait;margin:0.5in}" +
+  ".wg{display:grid;grid-template-columns:2.1in 2.1in;grid-auto-rows:1.4in;justify-content:start}" +
+  ".wc{width:2.1in;height:1.4in;border:0.5px dashed #8F8F8F;padding:3px 6px;display:flex;flex-direction:column;align-items:center;overflow:hidden}" +
+  ".wc b{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;align-self:flex-start;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+  ".wc svg{width:1.3in;height:auto;flex:1;min-height:0}" +
+  ".wc span{font-size:7px;font-family:ui-monospace,Menlo,monospace;color:#4D4D4D;align-self:flex-start}";
+
+/** The thin, unlabeled way a wristband cell draws a Play. */
+export const WRISTBAND_DIAGRAM_OPTIONS = Object.freeze({
+  typePreset: "print",
+  lineWeight: 1.5,
+  layers: { text: false, assigns: false, notes: false, reads: false },
+} as const);
+
 /** Wristband — eight 2.1×1.4in cells, two columns, dashed cut lines. */
 export function wristbandHtml(
   plays: readonly PlayDocument[],
@@ -341,23 +360,13 @@ export function wristbandHtml(
     .map(
       (play) =>
         `<div class="wc"><b>${escapeHtml(play.name)}</b>` +
-        options.render(play, {
-          typePreset: "print",
-          lineWeight: 1.5,
-          layers: { text: false, assigns: false, notes: false, reads: false },
-        }) +
+        options.render(play, WRISTBAND_DIAGRAM_OPTIONS) +
         `<span>${escapeHtml(playMeta(play, options.formations).personnel)}</span></div>`,
     )
     .join("");
   return printDocumentHtml({
     title: "Wristband",
-    css:
-      "@page{size:letter portrait;margin:0.5in}" +
-      ".wg{display:grid;grid-template-columns:2.1in 2.1in;grid-auto-rows:1.4in;justify-content:start}" +
-      ".wc{width:2.1in;height:1.4in;border:0.5px dashed #8F8F8F;padding:3px 6px;display:flex;flex-direction:column;align-items:center;overflow:hidden}" +
-      ".wc b{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;align-self:flex-start;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
-      ".wc svg{width:1.3in;height:auto;flex:1;min-height:0}" +
-      ".wc span{font-size:7px;font-family:ui-monospace,Menlo,monospace;color:#4D4D4D;align-self:flex-start}",
+    css: WRISTBAND_CSS,
     body: `<div class="wg">${cells}</div>`,
     ...(options.productName === undefined
       ? {}
@@ -458,6 +467,26 @@ export function practiceCardPlays(
   return [open, ...library.filter((play) => play.id !== open.id)];
 }
 
+/** The call sheet: three columns of groups, a notes column of ruled lines. */
+export const CALL_SHEET_CSS =
+  "@page{size:letter landscape;margin:0.4in}h1{font-size:18px;margin:0 0 12px;font-weight:600}" +
+  ".wrap{display:grid;grid-template-columns:1fr 2.4in;gap:22px}" +
+  ".cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-content:start}" +
+  ".col{break-inside:avoid}" +
+  ".col h2{font-size:10px;letter-spacing:0.8px;text-transform:uppercase;color:#8F8F8F;margin:0 0 6px;font-weight:500;font-family:ui-monospace,Menlo,monospace}" +
+  ".row{font-size:12px;padding:4px 6px;border-bottom:1px solid #EBEBEB}" +
+  ".nh{font-size:10px;letter-spacing:0.8px;text-transform:uppercase;color:#8F8F8F;margin:0 0 6px;font-weight:500;font-family:ui-monospace,Menlo,monospace}" +
+  ".wl{height:26px;border-bottom:1px solid #EBEBEB}";
+
+/** The sheet's layout: a heading, the group columns, twelve ruled note lines. */
+export function callSheetBody(heading: string, columns: string): string {
+  const lines = '<div class="wl"></div>'.repeat(12);
+  return (
+    `${heading}<div class="wrap"><div class="cols">${columns}</div>` +
+    `<div><div class="nh">In-game notes</div>${lines}</div></div>`
+  );
+}
+
 /** Call sheet — grouped by tag, category as a fallback, 12 ruled lines. */
 export function callSheetHtml(
   plays: readonly PlayDocument[],
@@ -474,21 +503,10 @@ export function callSheetHtml(
         "</div>",
     )
     .join("");
-  const lines = '<div class="wl"></div>'.repeat(12);
   return printDocumentHtml({
     title: "Call sheet",
-    css:
-      "@page{size:letter landscape;margin:0.4in}h1{font-size:18px;margin:0 0 12px;font-weight:600}" +
-      ".wrap{display:grid;grid-template-columns:1fr 2.4in;gap:22px}" +
-      ".cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-content:start}" +
-      ".col{break-inside:avoid}" +
-      ".col h2{font-size:10px;letter-spacing:0.8px;text-transform:uppercase;color:#8F8F8F;margin:0 0 6px;font-weight:500;font-family:ui-monospace,Menlo,monospace}" +
-      ".row{font-size:12px;padding:4px 6px;border-bottom:1px solid #EBEBEB}" +
-      ".nh{font-size:10px;letter-spacing:0.8px;text-transform:uppercase;color:#8F8F8F;margin:0 0 6px;font-weight:500;font-family:ui-monospace,Menlo,monospace}" +
-      ".wl{height:26px;border-bottom:1px solid #EBEBEB}",
-    body:
-      `<h1>Call sheet</h1><div class="wrap"><div class="cols">${columns}</div>` +
-      `<div><div class="nh">In-game notes</div>${lines}</div></div>`,
+    css: CALL_SHEET_CSS,
+    body: callSheetBody("<h1>Call sheet</h1>", columns),
     ...(options.productName === undefined
       ? {}
       : { productName: options.productName }),
@@ -499,6 +517,17 @@ export interface PlaybookOptions extends LibraryOptions {
   /** The cover's season line; the caller supplies the year. */
   readonly year: number;
 }
+
+/** A bound book's cover and contents pages, on top of the install page rules. */
+export const BOOK_CSS =
+  ".cov{align-items:center;justify-content:center;text-align:center;gap:10px}" +
+  ".cov .cm{font-size:11px;letter-spacing:2px;text-transform:uppercase;font-family:ui-monospace,Menlo,monospace;color:#8F8F8F}" +
+  ".cov h1{font-size:44px;margin:0;font-weight:600;letter-spacing:-1.6px}" +
+  ".cov .cs{font-size:12px;color:#4D4D4D;font-family:ui-monospace,Menlo,monospace}" +
+  ".tc{font-size:9px;letter-spacing:0.8px;text-transform:uppercase;color:#8F8F8F;font-family:ui-monospace,Menlo,monospace;margin:14px 0 2px}" +
+  ".tr{display:flex;align-items:baseline;gap:8px;font-size:12px;padding:4px 0}" +
+  ".tr i{flex:1;border-bottom:1px dotted #C9C9C9;transform:translateY(-3px);font-style:normal}" +
+  ".tr .tp{font-family:ui-monospace,Menlo,monospace;color:#8F8F8F;font-size:11px}";
 
 /**
  * Full playbook — cover, contents grouped by Concept with page numbers, then
@@ -543,17 +572,7 @@ export function playbookHtml(
   contents += "</div>";
   return printDocumentHtml({
     title: `${product} — playbook`,
-    css:
-      "@page{size:letter portrait;margin:0.5in}" +
-      installCss() +
-      ".cov{align-items:center;justify-content:center;text-align:center;gap:10px}" +
-      ".cov .cm{font-size:11px;letter-spacing:2px;text-transform:uppercase;font-family:ui-monospace,Menlo,monospace;color:#8F8F8F}" +
-      ".cov h1{font-size:44px;margin:0;font-weight:600;letter-spacing:-1.6px}" +
-      ".cov .cs{font-size:12px;color:#4D4D4D;font-family:ui-monospace,Menlo,monospace}" +
-      ".tc{font-size:9px;letter-spacing:0.8px;text-transform:uppercase;color:#8F8F8F;font-family:ui-monospace,Menlo,monospace;margin:14px 0 2px}" +
-      ".tr{display:flex;align-items:baseline;gap:8px;font-size:12px;padding:4px 0}" +
-      ".tr i{flex:1;border-bottom:1px dotted #C9C9C9;transform:translateY(-3px);font-style:normal}" +
-      ".tr .tp{font-family:ui-monospace,Menlo,monospace;color:#8F8F8F;font-size:11px}",
+    css: "@page{size:letter portrait;margin:0.5in}" + installCss() + BOOK_CSS,
     body: cover + contents + bodies.join(""),
     productName: product,
   });

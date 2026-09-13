@@ -18,6 +18,8 @@ export type ActionId =
   | "mirror"
   | "flipStrength"
   | "newPlay"
+  /** The Playbooks workspace — Game Plans (issue #66). */
+  | "gamePlans"
   | "toolSelect"
   | "toolPlayer"
   | "toolRoute"
@@ -339,6 +341,7 @@ export function paletteCommands(
     { id: "clearField", label: "Clear the whole field" },
     { id: "savePlay", label: "Save play" },
     { id: "newVariation", label: "New variation" },
+    { id: "gamePlans", label: "Game plans" },
     { id: "group", label: "Group", shortcut: "⌘G" },
     { id: "ungroup", label: "Ungroup", shortcut: "⇧⌘G" },
     { id: "bringForward", label: "Bring forward", shortcut: "⌘]" },

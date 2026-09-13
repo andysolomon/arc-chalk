@@ -47,3 +47,19 @@ _Avoid_: Collaboration, invitation, public playbook
 **Film Reference**:
 An external link associated with a Play for coaching context. Chalk does not own, upload, transcode, stream, or offline-cache the referenced video.
 _Avoid_: Hosted video, film library
+
+**Game Plan**:
+A named, durable view of one Playbook for one game and one coordinator unit: which Plays will be called, the Sections they are called from, and the code each answers to. It references Plays and never copies their editable source.
+_Avoid_: Game playbook, weekly playbook copy, folder
+
+**Call**:
+One Play's place in a Game Plan, with one stable call code. A Call may be listed in several Sections and remains one Call.
+_Avoid_: Play copy, numbered play, slot
+
+**Section**:
+An ordered heading inside a Game Plan — Openers, 3rd down, Red zone — that lists Calls in the order the coordinator reads them. Removing a Section never removes its Calls.
+_Avoid_: Folder, category, tag
+
+**Prepared Revision**:
+The immutable snapshot **Prepare for game** makes of a Game Plan and every Play it references. Printed packets and the game-day reader consume a Prepared Revision, never the live library; later edits flag the plan as behind it.
+_Avoid_: Export, published playbook, sync snapshot

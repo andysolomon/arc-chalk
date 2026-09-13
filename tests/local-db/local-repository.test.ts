@@ -167,6 +167,8 @@ describe("ChalkLocalRepository", () => {
       undoHistories: 0,
       searchProjections: 1,
       thumbnails: 0,
+      gamePlans: 0,
+      gamePlanRevisions: 0,
     });
   });
 
@@ -314,6 +316,8 @@ describe("ChalkLocalRepository", () => {
       undoHistories: 0,
       searchProjections: 0,
       thumbnails: 0,
+      gamePlans: 0,
+      gamePlanRevisions: 0,
     });
   });
 

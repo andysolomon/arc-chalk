@@ -1,4 +1,11 @@
-import type { Concept, Formation, PlayRevision, Playbook } from "@chalk/domain";
+import type {
+  Concept,
+  Formation,
+  GamePlan,
+  GamePlanRevision,
+  PlayRevision,
+  Playbook,
+} from "@chalk/domain";
 import Dexie, { type Table } from "dexie";
 
 import type {
@@ -12,7 +19,7 @@ import type {
   UndoHistory,
 } from "./types";
 
-export const CHALK_LOCAL_DATABASE_VERSION = 1;
+export const CHALK_LOCAL_DATABASE_VERSION = 2;
 
 export class ChalkDexieDatabase extends Dexie {
   readonly playbooks!: Table<Playbook, string>;
@@ -27,6 +34,8 @@ export class ChalkDexieDatabase extends Dexie {
   readonly undoHistories!: Table<UndoHistory, string>;
   readonly searchProjections!: Table<PlaySearchProjection, string>;
   readonly thumbnails!: Table<ThumbnailDerivative, string>;
+  readonly gamePlans!: Table<GamePlan, string>;
+  readonly gamePlanRevisions!: Table<GamePlanRevision, string>;
 
   constructor(
     databaseName: string,
@@ -42,7 +51,9 @@ export class ChalkDexieDatabase extends Dexie {
         : {}),
     });
 
-    this.version(CHALK_LOCAL_DATABASE_VERSION).stores({
+    // Version 1 is what the first release wrote; it stays declared so a
+    // device on it upgrades in place rather than starting over.
+    this.version(1).stores({
       playbooks: "&id, updatedAtMs",
       concepts: "&id, playbookId, [playbookId+name]",
       formations: "&id, playbookId, [playbookId+name]",
@@ -57,6 +68,12 @@ export class ChalkDexieDatabase extends Dexie {
       searchProjections:
         "&playId, playbookId, unit, playTypeId, conceptId, formationId, *tags, updatedAtMs",
       thumbnails: "&key, playId, revisionHash, createdAtMs",
+    });
+    // Version 2 adds Game Plans and their prepared revisions (ADR 0042).
+    // Only the new stores are declared; Dexie carries the rest forward.
+    this.version(CHALK_LOCAL_DATABASE_VERSION).stores({
+      gamePlans: "&id, playbookId, updatedAtMs",
+      gamePlanRevisions: "&id, planId, playbookId, createdAtMs",
     });
   }
 }

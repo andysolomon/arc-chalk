@@ -1,5 +1,6 @@
 import * as z from "zod/mini";
 
+import { gamePlanRevisionSchema, gamePlanSchema } from "./game-plan";
 import { migrateStoredPlayDocument } from "./migrations";
 import {
   conceptSchema,
@@ -75,6 +76,9 @@ export const backupPayloadSchema = z.object({
   plays: z.array(backupPlaySchema),
   revisions: z.array(playRevisionSchema),
   preferences: z.array(backupPreferenceSchema),
+  /** Game Plans arrived after the first backups were written; older files omit them. */
+  gamePlans: z.optional(z.array(gamePlanSchema)),
+  gamePlanRevisions: z.optional(z.array(gamePlanRevisionSchema)),
 });
 
 const base64Schema = z.string().check(z.minLength(1));

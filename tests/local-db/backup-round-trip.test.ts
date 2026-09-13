@@ -150,7 +150,7 @@ describe("encrypted backup round trip", () => {
     expect(payload.preferences.map(({ key }) => key)).toEqual([
       "editor.snap.enabled",
     ]);
-    expect(payload.databaseVersion).toBe(1);
+    expect(payload.databaseVersion).toBe(2);
     // Sync queues, conflicts, undo history, and previews belong to a device.
     expect(Object.keys(payload)).toEqual([
       "schemaVersion",
@@ -163,6 +163,8 @@ describe("encrypted backup round trip", () => {
       "plays",
       "revisions",
       "preferences",
+      "gamePlans",
+      "gamePlanRevisions",
     ]);
   });
 
