@@ -162,6 +162,7 @@ describe("game plan wristband", () => {
     ]);
     expect(render.calls[0]?.options).toEqual({
       typePreset: "print",
+      pageKind: "full",
       lineWeight: 1.5,
       layers: { text: false, assigns: false, notes: false, reads: false },
     });
@@ -175,7 +176,7 @@ describe("game plan wristband", () => {
     expect(html).toContain("grid-template-columns:2.1in 2.1in");
   });
 
-  it("stops at the band's cell count", () => {
+  it("prints every call, over as many bands as the cells need, each band named", () => {
     let plan = createGamePlan({
       playbookId: stick.playbookId,
       name: "Many",
@@ -189,17 +190,97 @@ describe("game plan wristband", () => {
       many.map(({ id }) => id),
       { nowMs: T0 + 1, createId },
     ).plan;
-    expect(plan.calls.length).toBeGreaterThan(8);
+    expect(plan.calls.length).toBe(9);
     const { revision } = prepareGamePlan(plan, sourcesOf(many), {
       nowMs: T0 + 2,
       createId,
     });
     const render = recordingRenderer();
-    gamePlanWristbandHtml(revision, { render });
-    expect(render.calls).toHaveLength(8);
+    const html = gamePlanWristbandHtml(revision, { render });
+    // The ninth call is on a second band, not dropped.
+    expect(render.calls).toHaveLength(9);
+    expect(html.match(/<div class="wc/g)).toHaveLength(9);
+    expect(html.match(/<div class="wb">/g)).toHaveLength(2);
+    expect(html).toContain('<div class="wl">Many · Band 1 of 2</div>');
+    expect(html).toContain('<div class="wl">Many · Band 2 of 2</div>');
+    const first = html.indexOf("Band 1 of 2");
+    const second = html.indexOf("Band 2 of 2");
+    expect(html.slice(first, second).match(/<div class="wc/g)).toHaveLength(8);
+    expect(html.slice(second).match(/<div class="wc/g)).toHaveLength(1);
+    expect(html).toContain(".wb{page-break-after:always;break-after:page}");
+
     render.calls.length = 0;
-    gamePlanWristbandHtml(revision, { render, cells: 4 });
-    expect(render.calls).toHaveLength(4);
+    const smaller = gamePlanWristbandHtml(revision, { render, cells: 4 });
+    expect(render.calls).toHaveLength(9);
+    expect(smaller.match(/<div class="wb">/g)).toHaveLength(3);
+    expect(smaller).toContain("Band 3 of 3");
+  });
+
+  it("names no band when one holds the whole plan", () => {
+    const { revision } = weekThree();
+    const html = gamePlanWristbandHtml(revision, {
+      render: recordingRenderer(),
+    });
+    expect(html.match(/<div class="wb">/g)).toHaveLength(1);
+    expect(html).not.toContain('class="wl"');
+  });
+});
+
+/**
+ * The shell's renderer draws options over the editor's live presentation,
+ * so a sheet that leaves a setting unsaid inherits whatever the inspector
+ * shows. This one merges the same way and prints what it ended up with.
+ */
+function baseRenderer(base: {
+  readonly pageKind: string;
+  readonly typePreset: string;
+  readonly layers: Record<string, boolean>;
+}): DiagramRenderer {
+  return (play, options = {}) => {
+    const effective = {
+      pageKind: options.pageKind ?? base.pageKind,
+      typePreset: options.typePreset ?? base.typePreset,
+      layers: { ...base.layers, ...options.layers },
+      lineWeight: options.lineWeight,
+    };
+    return `<svg data-play="${play.id}" data-effective='${JSON.stringify(effective)}'></svg>`;
+  };
+}
+
+describe("the packet's presentation", () => {
+  const coach = baseRenderer({
+    pageKind: "full",
+    typePreset: "coach",
+    layers: { reads: true, assigns: true, notes: true, text: true },
+  });
+  const stripped = baseRenderer({
+    pageKind: "card",
+    typePreset: "player",
+    layers: { reads: false, assigns: false, notes: false, text: false },
+  });
+
+  it("prints the same handout whatever the editor's page, type and layers are", () => {
+    const { revision } = weekThree();
+    const options = { formations: [], year: 2026 };
+    const before = gamePlanHandoutHtml(revision, { ...options, render: coach });
+    const after = gamePlanHandoutHtml(revision, {
+      ...options,
+      render: stripped,
+    });
+    expect(after).toBe(before);
+    expect(before).toContain(
+      `data-effective='{"pageKind":"full","typePreset":"print","layers":{"reads":true,"assigns":true,"notes":true,"text":true}}'`,
+    );
+  });
+
+  it("prints the same wristband whatever the editor's page, type and layers are", () => {
+    const { revision } = weekThree();
+    const before = gamePlanWristbandHtml(revision, { render: coach });
+    const after = gamePlanWristbandHtml(revision, { render: stripped });
+    expect(after).toBe(before);
+    expect(before).toContain(
+      `data-effective='{"pageKind":"full","typePreset":"print","layers":{"reads":false,"assigns":false,"notes":false,"text":false},"lineWeight":1.5}'`,
+    );
   });
 });
 

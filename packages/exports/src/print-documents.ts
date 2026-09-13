@@ -23,6 +23,7 @@ import {
 import {
   cropSvgToScoutCard,
   FIELD_SVG_CSS,
+  type DiagramOptions,
   type DiagramRenderer,
 } from "./diagram";
 
@@ -105,6 +106,11 @@ export interface InstallBodyOptions {
   readonly formations?: readonly Formation[];
   /** A game plan's call code, set beside the name when the page is a call. */
   readonly code?: string;
+  /**
+   * What the page asks of the diagram; print type over the caller's base
+   * unless the document fixes every setting itself, as a game plan does.
+   */
+  readonly diagram?: DiagramOptions;
 }
 
 function assignmentCell(row: {
@@ -138,7 +144,7 @@ export function installBody(
     '<div class="pg">' +
     (options.note ? `<div class="cn">${escapeHtml(options.note)}</div>` : "") +
     `<div class="hd"><h1>${options.code ? `<span class="cc">${escapeHtml(options.code)}</span> ` : ""}${escapeHtml(play.name || "Untitled play")}</h1><span>${escapeHtml(playCategory(play))}</span></div>` +
-    render(play, { typePreset: "print" }) +
+    render(play, options.diagram ?? { typePreset: "print" }) +
     (rows.length > 0
       ? '<table><thead><tr><th style="width:0.7in">Who</th><th>Assignment</th><th>Coaching point</th></tr></thead>' +
         `<tbody>${body}</tbody></table>`

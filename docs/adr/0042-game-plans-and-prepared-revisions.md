@@ -42,6 +42,12 @@ live library, so a packet already handed out cannot change under a coach.
   revision's copy on the next prepare, marked as carried. A Call whose Play exists in no
   revision is listed as **Missing play** and still prints with its code. Calls are never
   silently omitted.
+- A wristband holds eight cells; a plan with more Plays prints as many bands as it
+  takes, each on its own page and named "Band 1 of 2", rather than cutting at the
+  band. A configurable band (#71) may later let the Coach pick which calls go on it.
+- The packet fixes its own diagram presentation — print type, full field, layers set
+  per sheet — so the editor's live page, type and layer settings when a coach presses
+  print cannot change what the prepared revision produces.
 
 ## Storage and portability
 

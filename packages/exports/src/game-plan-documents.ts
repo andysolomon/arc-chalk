@@ -10,9 +10,10 @@ import {
   type GamePlanRevision,
   type PlayDocument,
 } from "@chalk/domain";
+import { defaultLayers } from "@chalk/render";
 
 import { playMeta } from "./coaching-rows";
-import type { DiagramRenderer } from "./diagram";
+import type { DiagramOptions, DiagramRenderer } from "./diagram";
 import {
   BOOK_CSS,
   CALL_SHEET_CSS,
@@ -31,10 +32,34 @@ import {
  * quarterback wears, the sheet the coordinator holds, and the handout in a
  * player's binder all say the same call numbers over the same diagrams, and
  * a Play edited after Thursday's prepare cannot change any of them.
+ *
+ * The same holds for how the diagrams are drawn: every sheet fixes the page,
+ * the type and the layers itself, so whatever the editor's inspector is set
+ * to when a coach presses print, the packet comes out the same.
  */
 
 const MISSING_NAME = "Missing play";
 const BLANK_CODE = "—";
+
+/**
+ * The handout's diagram: copier-safe print type on the full field with every
+ * annotation family on. Complete, so a renderer's base has nothing to add.
+ */
+export const HANDOUT_DIAGRAM_OPTIONS: DiagramOptions = Object.freeze({
+  typePreset: "print",
+  pageKind: "full",
+  layers: defaultLayers,
+});
+
+/** The wristband's thin cell, likewise complete. */
+export const GAME_PLAN_WRISTBAND_DIAGRAM_OPTIONS: DiagramOptions =
+  Object.freeze({
+    ...WRISTBAND_DIAGRAM_OPTIONS,
+    pageKind: "full",
+  });
+
+/** Cells on one band; the original's sheet cuts eight. */
+export const WRISTBAND_CELLS = 8;
 
 const MONTHS = [
   "Jan",
@@ -131,7 +156,7 @@ export function gamePlanCallSheetHtml(
 
 export interface GamePlanWristbandOptions extends GamePlanSheetOptions {
   readonly render: DiagramRenderer;
-  /** How many cells the band has; the original's sheet cuts eight. */
+  /** How many cells one band has; the original's sheet cuts eight. */
   readonly cells?: number;
 }
 
@@ -146,42 +171,66 @@ function firstCallByPlay(revision: GamePlanRevision): Map<string, CallRow> {
   return byPlay;
 }
 
+/** The plan's Plays in plan order, `size` to a band; never fewer bands than the calls need. */
+function bandsOf<T>(
+  items: readonly T[],
+  size: number,
+): readonly (readonly T[])[] {
+  const bands: (readonly T[])[] = [];
+  for (let start = 0; start < items.length; start += size) {
+    bands.push(items.slice(start, start + size));
+  }
+  return bands;
+}
+
 /**
  * Wristband — the plan's Plays in plan order, each cell wearing its call
- * code over the thin diagram, cut at the band's cell count.
+ * code over the thin diagram. A plan with more Plays than one band has
+ * cells prints as many bands as it takes, each on its own page and named
+ * "Band 1 of 2", so no call is quietly left off the sheet.
  */
 export function gamePlanWristbandHtml(
   revision: GamePlanRevision,
   options: GamePlanWristbandOptions,
 ): string {
-  const limit = Math.max(1, Math.trunc(options.cells ?? 8));
+  const size = Math.max(1, Math.trunc(options.cells ?? WRISTBAND_CELLS));
   const rows = firstCallByPlay(revision);
-  const cells = planPlayIds(revision.plan)
-    .slice(0, limit)
-    .map((playId) => {
-      const row = rows.get(playId);
-      const code = row ? codeOf(row) : BLANK_CODE;
-      const play = row?.play;
-      if (!play) {
-        return (
-          `<div class="wc miss"><b><span class="cc">${escapeHtml(code)}</span> ${escapeHtml(row?.name ?? MISSING_NAME)}</b>` +
-          `<span>${MISSING_NAME.toLowerCase()}</span></div>`
-        );
-      }
+  const cellHtml = (playId: string): string => {
+    const row = rows.get(playId);
+    const code = row ? codeOf(row) : BLANK_CODE;
+    const play = row?.play;
+    if (!play) {
       return (
-        `<div class="wc"><b><span class="cc">${escapeHtml(code)}</span> ${escapeHtml(play.name)}</b>` +
-        options.render(play, WRISTBAND_DIAGRAM_OPTIONS) +
-        `<span>${escapeHtml(playMeta(play).personnel)}</span></div>`
+        `<div class="wc miss"><b><span class="cc">${escapeHtml(code)}</span> ${escapeHtml(row?.name ?? MISSING_NAME)}</b>` +
+        `<span>${MISSING_NAME.toLowerCase()}</span></div>`
       );
+    }
+    return (
+      `<div class="wc"><b><span class="cc">${escapeHtml(code)}</span> ${escapeHtml(play.name)}</b>` +
+      options.render(play, GAME_PLAN_WRISTBAND_DIAGRAM_OPTIONS) +
+      `<span>${escapeHtml(playMeta(play).personnel)}</span></div>`
+    );
+  };
+  const bands = bandsOf(planPlayIds(revision.plan), size);
+  const body = bands
+    .map((band, index) => {
+      const label =
+        bands.length > 1
+          ? `<div class="wl">${escapeHtml(revision.plan.name)} · Band ${index + 1} of ${bands.length}</div>`
+          : "";
+      return `<div class="wb">${label}<div class="wg">${band.map(cellHtml).join("")}</div></div>`;
     })
     .join("");
   return printDocumentHtml({
     title: `${revision.plan.name} — wristband`,
     css:
       WRISTBAND_CSS +
+      ".wb{page-break-after:always;break-after:page}" +
+      ".wb:last-of-type{page-break-after:auto;break-after:auto}" +
+      ".wl{font-size:9px;color:#8F8F8F;font-family:ui-monospace,Menlo,monospace;margin:0 0 6px}" +
       ".wc .cc{font-family:ui-monospace,Menlo,monospace;color:#171717;margin-right:2px}" +
       ".wc.miss{color:#8F8F8F;justify-content:space-between}",
-    body: `<div class="wg">${cells}</div>`,
+    body,
     ...(options.productName === undefined
       ? {}
       : { productName: options.productName }),
@@ -242,6 +291,7 @@ export function gamePlanHandoutHtml(
   const bodies = pages.map(({ play, code }, index) =>
     installBody(play, options.render, {
       code,
+      diagram: HANDOUT_DIAGRAM_OPTIONS,
       pageNo: index + 3,
       ...(options.formations === undefined
         ? {}

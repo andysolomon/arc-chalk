@@ -319,4 +319,135 @@ describe("the Game plans workspace", () => {
     expect(view.onClose).toHaveBeenCalled();
     expect(view.onOpenPlay).toHaveBeenCalledWith(plays[0]!.id);
   });
+
+  it("prepares a call number typed a moment before Prepare, even while its save is in flight", async () => {
+    const user = userEvent.setup();
+    const snapshot = snapshotOf();
+    const inner = libraryOf(snapshot);
+    // Plan saves wait at a gate until the test opens it — the write that has
+    // not landed yet when the Coach clicks Prepare.
+    const waiting: (() => void)[] = [];
+    let gated = false;
+    const library: ChalkLibrary = {
+      ...inner,
+      saveGamePlan: (plan) =>
+        gated
+          ? new Promise<void>((resolve) => {
+              waiting.push(resolve);
+            }).then(() => inner.saveGamePlan(plan))
+          : inner.saveGamePlan(plan),
+    };
+    renderWorkspace(library, snapshot);
+    await createPlan(user, "Week 3", "Offense");
+    await addSelected(user, ["Stick — Thunder"]);
+    await user.click(screen.getByRole("button", { name: "Add 1 to plan" }));
+    await screen.findByText("Added 1 new call");
+
+    gated = true;
+    const field = screen.getByLabelText("Call number for Stick — Thunder");
+    await user.type(field, "99");
+    // The click leaves the field, which commits 99, then asks to prepare.
+    await user.click(screen.getByRole("button", { name: "Prepare for game" }));
+    expect(field).toHaveValue("99");
+    await waitFor(() => expect(waiting).toHaveLength(1));
+    expect((await inner.listGamePlans())[0]?.calls[0]?.code).toBe("");
+
+    // The edit lands; Prepare was queued behind it and writes the plan next.
+    waiting.shift()!();
+    await waitFor(() => expect(waiting).toHaveLength(1));
+    waiting.shift()!();
+    await waitFor(() => {
+      expect(screen.getByText("Prepared 1 call")).toBeVisible();
+    });
+    const [plan] = await inner.listGamePlans();
+    const revision = await inner.getGamePlanRevision(plan!.preparedRevisionId!);
+    expect(revision?.plan.calls[0]?.code).toBe("99");
+    expect(plan!.calls[0]?.code).toBe("99");
+  });
+
+  it("prints the same packet after the editor's page, type and layers change", async () => {
+    const user = userEvent.setup();
+    const snapshot = snapshotOf();
+    const library = libraryOf(snapshot);
+    // The shell's renderer draws options over the editor's live presentation.
+    const rendererOver =
+      (base: {
+        pageKind: string;
+        typePreset: string;
+        layers: Record<string, boolean>;
+      }): Parameters<typeof GamePlansWorkspace>[0]["render"] =>
+      (play, options = {}) =>
+        `<svg data-play="${play.id}" data-effective='${JSON.stringify({
+          pageKind: options.pageKind ?? base.pageKind,
+          typePreset: options.typePreset ?? base.typePreset,
+          layers: { ...base.layers, ...options.layers },
+        })}'></svg>`;
+    const coach = rendererOver({
+      pageKind: "full",
+      typePreset: "coach",
+      layers: { reads: true, assigns: true, notes: true, text: true },
+    });
+    const stripped = rendererOver({
+      pageKind: "card",
+      typePreset: "player",
+      layers: { reads: false, assigns: false, notes: false, text: false },
+    });
+    const printed: string[] = [];
+    const open = vi.spyOn(window, "open").mockImplementation(
+      () =>
+        ({
+          document: {
+            write: (html: string) => {
+              printed.push(html);
+            },
+            close: () => undefined,
+          },
+          focus: () => undefined,
+          print: () => undefined,
+        }) as unknown as Window,
+    );
+    try {
+      const view = renderWorkspace(library, snapshot, { render: coach });
+      await createPlan(user, "Week 3", "Offense");
+      await addSelected(user, ["Stick — Thunder"]);
+      await user.click(screen.getByRole("button", { name: "Add 1 to plan" }));
+      await screen.findByText("Added 1 new call");
+      await user.click(
+        screen.getByRole("button", { name: "Prepare for game" }),
+      );
+      await waitFor(() => {
+        expect(screen.getByText("Prepared 1 call")).toBeVisible();
+      });
+      await user.click(screen.getByRole("button", { name: "Handout" }));
+      await user.click(screen.getByRole("button", { name: "Wristband" }));
+      expect(printed).toHaveLength(2);
+
+      // The Coach hides every layer and switches to the card page in the
+      // inspector, then prints again without preparing.
+      view.rerender(
+        <GamePlansWorkspace
+          formations={[]}
+          library={library}
+          now={now}
+          onClose={view.onClose}
+          onOpenPlay={view.onOpenPlay}
+          render={stripped}
+          snapshot={snapshot}
+        />,
+      );
+      await user.click(screen.getByRole("button", { name: "Handout" }));
+      await user.click(screen.getByRole("button", { name: "Wristband" }));
+      expect(printed).toHaveLength(4);
+      expect(printed[2]).toBe(printed[0]);
+      expect(printed[3]).toBe(printed[1]);
+      expect(printed[0]).toContain(
+        `"pageKind":"full","typePreset":"print","layers":{"reads":true,"assigns":true,"notes":true,"text":true}`,
+      );
+      expect(printed[1]).toContain(
+        `"pageKind":"full","typePreset":"print","layers":{"reads":false,"assigns":false,"notes":false,"text":false}`,
+      );
+    } finally {
+      open.mockRestore();
+    }
+  });
 });

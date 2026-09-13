@@ -760,9 +760,13 @@ function PlanEditor({
             className="menu-primary"
             disabled={state.busy || plan.calls.length === 0}
             onClick={() => {
+              // A call number or note still focused commits on blur; the
+              // packet must carry it, so the field is left before we ask.
+              const focused = document.activeElement;
+              if (focused instanceof HTMLElement) focused.blur();
               void state.prepare(plan, now()).then((result) => {
                 const parts = [
-                  `Prepared ${plan.calls.length} ${plan.calls.length === 1 ? "call" : "calls"}`,
+                  `Prepared ${result.callCount} ${result.callCount === 1 ? "call" : "calls"}`,
                   result.carriedPlayIds.length
                     ? `${result.carriedPlayIds.length} carried from the last revision`
                     : undefined,
