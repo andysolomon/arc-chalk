@@ -2427,3 +2427,88 @@ describe("Navigation (issue #65)", () => {
     expect(screen.getByRole("main", { name: "Game Day" })).toBeVisible();
   });
 });
+
+describe("Tablet and narrow screens (issue #68)", () => {
+  /** A screen the browser reports as the given queries matching. */
+  const screenWhere = (matching: (query: string) => boolean) => {
+    const original = globalThis.matchMedia;
+    globalThis.matchMedia = (query: string) =>
+      ({
+        matches: matching(query),
+        media: query,
+        onchange: null,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        dispatchEvent: () => false,
+      }) as MediaQueryList;
+    return () => {
+      globalThis.matchMedia = original;
+    };
+  };
+
+  it("keeps the destinations on a screen below the floor and lets the Coach edit there anyway", async () => {
+    const restore = screenWhere((query) => !query.includes("min-width"));
+    try {
+      const user = userEvent.setup();
+      render(<ChalkApp runtime={createTestRuntime()} />);
+      const nav = screen.getByRole("navigation", { name: "Workspace views" });
+      expect(
+        within(nav).getByRole("button", { name: "Game Day" }),
+      ).toBeVisible();
+      expect(screen.getByText("Read only")).toBeVisible();
+      expect(
+        screen.queryByRole("navigation", { name: "Drawing tools" }),
+      ).toBeNull();
+
+      await user.click(within(nav).getByRole("button", { name: "Playbooks" }));
+      expect(screen.getByRole("main", { name: "Playbooks" })).toBeVisible();
+      await user.click(within(nav).getByRole("button", { name: "Editor" }));
+
+      await user.click(
+        screen.getByRole("button", { name: "Edit on this screen" }),
+      );
+      expect(
+        screen.getByRole("navigation", { name: "Drawing tools" }),
+      ).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Read only" }));
+      expect(
+        screen.queryByRole("navigation", { name: "Drawing tools" }),
+      ).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it("starts the inspector as a closed drawer below 1024 px and keeps the keyboard down on a finger", async () => {
+    const restore = screenWhere(
+      (query) =>
+        query.includes("max-width: 1023px") ||
+        query.includes("pointer: coarse") ||
+        query.includes("min-width"),
+    );
+    try {
+      const user = userEvent.setup();
+      render(<ChalkApp runtime={createTestRuntime()} />);
+      expect(
+        screen.queryByRole("complementary", { name: "Play inspector" }),
+      ).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Inspector" }));
+      expect(
+        screen.getByRole("complementary", { name: "Play inspector" }),
+      ).toBeVisible();
+
+      const nav = screen.getByRole("navigation", { name: "Workspace views" });
+      await user.click(within(nav).getByRole("button", { name: "Playbooks" }));
+      expect(screen.getByLabelText("Search plays")).not.toHaveFocus();
+      // The rail names its tools for a finger without being asked.
+      await user.click(within(nav).getByRole("button", { name: "Editor" }));
+      expect(
+        screen.getByRole("navigation", { name: "Drawing tools" }),
+      ).toHaveClass("labeled");
+    } finally {
+      restore();
+    }
+  });
+});

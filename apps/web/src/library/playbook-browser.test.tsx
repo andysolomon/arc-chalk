@@ -1,5 +1,5 @@
 import { blankPlaybook, stickThunderPlay } from "@chalk/domain";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -96,5 +96,73 @@ describe("the Playbook browser", () => {
     await userEvent.type(screen.getByLabelText("Search plays"), "stick");
     expect(await screen.findByText("Stick — Thunder")).toBeVisible();
     expect(dialog.querySelectorAll("[data-play-id]").length).toBeLessThan(80);
+  });
+});
+
+describe("the Playbook browser on a tablet (issue #68)", () => {
+  const observers: Array<(width: number) => void> = [];
+  const installObserver = () => {
+    globalThis.ResizeObserver = class {
+      private readonly callback: ResizeObserverCallback;
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+      }
+      observe(target: Element) {
+        // Only the scroller's own observer hears a resize; the virtualizer
+        // measures its rows through another one.
+        if (!target.classList.contains("playbook-scroll")) return;
+        observers.push((width) =>
+          this.callback(
+            [{ contentRect: { width }, target } as ResizeObserverEntry],
+            this,
+          ),
+        );
+      }
+      unobserve() {
+        return undefined;
+      }
+      disconnect() {
+        return undefined;
+      }
+    };
+  };
+
+  it("lays the cards out by the width it has and keeps the rows in step", async () => {
+    installObserver();
+    const members = Array.from({ length: 9 }, (_, index) => member(index));
+    render(
+      <PlaybookBrowser
+        currentPlayId="play_0"
+        focusSearch={false}
+        initial={{ scrollTop: 0, query: "" }}
+        library={createMemoryLibrary()}
+        members={members}
+        onClose={() => undefined}
+        onOpen={() => undefined}
+        onRemember={() => undefined}
+        playTypes={blankPlaybook().playTypes}
+      />,
+    );
+    const scroller = document.querySelector(".playbook-scroll")!;
+    expect(scroller).toHaveAttribute("data-grid-columns", "4");
+    // A finger did not ask for the keyboard.
+    expect(screen.getByLabelText("Search plays")).not.toHaveFocus();
+
+    act(() => {
+      for (const resize of observers) resize(662);
+    });
+    expect(scroller).toHaveAttribute("data-grid-columns", "3");
+    await waitFor(() => {
+      const rows = [...document.querySelectorAll(".playbook-virtual-row")];
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect((row as HTMLElement).style.gridTemplateColumns).toBe(
+          "repeat(3, minmax(0, 1fr))",
+        );
+        expect(
+          row.querySelectorAll("[data-play-id]").length,
+        ).toBeLessThanOrEqual(3);
+      }
+    });
   });
 });

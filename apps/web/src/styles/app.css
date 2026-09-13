@@ -51,7 +51,6 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   background: var(--canvas);
-  min-width: 1024px;
 }
 .topbar {
   position: relative;
@@ -935,6 +934,7 @@ button.play-type.open {
 }
 
 .workspace {
+  position: relative;
   min-height: 0;
   flex: 1;
   display: flex;
@@ -2185,6 +2185,13 @@ button.library-dot.target.small {
 .playbook-card.focused {
   box-shadow: 0 0 0 1px #0072f5;
 }
+.playbook-card-type {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .playbook-card strong {
   overflow: hidden;
   font-size: 12px;
@@ -2924,21 +2931,198 @@ button.library-dot.target.small {
   }
 }
 
+/*
+ * A finger's targets are real boxes (issue #68). Primary actions stand at
+ * least 44 × 44 CSS px in their own layout, with the room that implies
+ * between them; compact secondary controls stand 32 px with deliberate
+ * spacing rather than borrowing a neighbour's hit region through an
+ * invisible pseudo-element.
+ */
 @media (pointer: coarse) {
-  button,
+  .topbar {
+    gap: 8px;
+  }
+  .topbar > button,
+  .menu > button,
+  .view-tabs button,
+  .destination-tabs > button {
+    height: 44px;
+    min-width: 44px;
+  }
+  .view-tabs {
+    padding: 0;
+    gap: 4px;
+  }
+  .tool-rail {
+    width: 60px;
+    gap: 6px;
+    padding-top: 10px;
+  }
+  .tool-rail > button,
+  .tool-rail .menu > button {
+    width: 44px;
+    height: 44px;
+  }
+  .tool-rail.labeled {
+    width: 116px;
+  }
+  .tool-rail.labeled > button:not(.rail-collapse):not(.rail-names) {
+    width: 104px;
+  }
+  .tool-rail .rail-collapse,
+  .tool-rail .rail-names {
+    height: 32px;
+  }
+  .inspector-stub {
+    width: 44px;
+  }
+  .menu-item,
+  .clear-grid .menu-item,
+  .palette-item,
+  .help-row button,
+  .game-day-list button,
+  .browser-close,
+  .browser-link,
+  .menu-primary {
+    min-height: 44px;
+  }
+  .menu-panel,
+  .clear-grid {
+    gap: 4px;
+  }
+  .present-bar {
+    height: 64px;
+    gap: 12px;
+  }
+  .present-bar button {
+    height: 44px;
+    min-width: 44px;
+    padding: 0 14px;
+  }
+  .inspector-bar {
+    height: 44px;
+  }
+  .inspector-bar-button,
+  .inspector-collapse,
+  .segments button,
+  .page-kinds button,
+  .disclosure-toggle,
+  .scope-bar button,
+  .timeline button,
+  .status-controls > button:not(.save-state),
+  .status-zoom button,
+  .chip,
+  .round-add,
+  .library-heading button,
+  .back-button {
+    min-height: 32px;
+  }
+  .segments,
+  .page-kinds,
+  .chip-row,
+  .status-zoom {
+    gap: 6px;
+  }
+  .scope-bar {
+    gap: 8px;
+  }
+  .statusbar {
+    height: 40px;
+  }
+  .library-row {
+    min-height: 36px;
+  }
   select {
-    position: relative;
+    min-height: 36px;
   }
-  button::after,
-  select::after {
+}
+
+/*
+ * Below the docked inspector's floor the inspector is a drawer over the
+ * field's right edge (issue #68): the same stub, ⌥1 and Layers controls open
+ * and close it, the rail stays put, and the field keeps the width. The
+ * header gives up what the More menu and Help already carry.
+ */
+.top-break {
+  display: none;
+}
+/* A header that cannot hold everything on one row breaks after the play's
+   name and type, and the actions take a second row, right-aligned — rather
+   than shedding Undo, Present or Help where a finger needs them most. */
+@media (max-width: 1023px), (max-width: 1100px) and (pointer: coarse) {
+  .topbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 56px;
+    padding: 6px 10px;
+    row-gap: 2px;
+  }
+  .top-break {
+    display: block;
+    flex-basis: 100%;
+    height: 0;
+  }
+  .play-name {
+    width: clamp(120px, 30vw, 300px);
+  }
+}
+@media (max-width: 1023px) {
+  .brand {
+    display: none;
+  }
+  .topbar {
+    gap: 6px;
+  }
+  .view-tabs button {
+    padding: 0 8px;
+  }
+  .inspector {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: max(100%, 44px);
-    height: max(100%, 44px);
-    transform: translate(-50%, -50%);
-    content: "";
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 8;
+    width: 292px;
+    box-shadow:
+      -1px 0 rgba(0, 0, 0, 0.08),
+      -12px 0 28px -12px rgba(0, 0, 0, 0.22);
   }
+  .inspector-stub {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 7;
+  }
+}
+@media (max-width: 667px) {
+  .topbar > .new-play,
+  .topbar > .present,
+  .topbar > .divider,
+  .topbar .play-type {
+    display: none;
+  }
+}
+/* The reading shell (a screen below the editor's floor) still carries the
+   three destinations and an explicit way into the editor (issue #68). */
+.reading-topbar .view-tabs {
+  margin-left: 0;
+}
+.reading-topbar .view-tabs button {
+  padding: 0 8px;
+}
+.reading-edit {
+  height: 32px;
+  flex: none;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  box-shadow: 0 0 0 1px var(--line);
+  cursor: pointer;
 }
 
 @media (prefers-reduced-motion: reduce) {

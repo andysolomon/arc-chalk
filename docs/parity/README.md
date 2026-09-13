@@ -46,6 +46,7 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 
 | State                          | Gap measured                                                                                                                  | Date                                                |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| All desktop states             | Unchanged from ADR 0044's numbers on the same machine: nothing in ADR 0045 applies at 1440 × 960 with a fine pointer          | 2026-09-13 (ADR 0045 tablet layout)                 |
 | Editor                         | 1.20% (16,592 px) Linux, from 16,097 on `main` same machine — header destinations                                             | 2026-09-13 (ADR 0044 header)                        |
 | More / Export / Save / Palette | 18,341 / 17,877 / 16,814 / 16,980 px Linux, from 17,169 / 16,623 / 16,319 / 16,496 on `main`; all under ratchet               | 2026-09-13 (ADR 0044)                               |
 | Formations / Defenses browser  | 25,846 / 20,096 px Linux, from 25,324 / 19,574 on `main`; under ratchet                                                       | 2026-09-13 (ADR 0044)                               |

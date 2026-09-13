@@ -2522,6 +2522,17 @@ export function ChalkApp({
    * and a thumb on the glass must not move a man on it.
    */
   const [reading, setReading] = useState(false);
+  /**
+   * The Coach's own say on a screen below the floor (issue #68): he can
+   * draw on it if he means to, for this session. Nothing infers it.
+   */
+  const [editAnyway, setEditAnyway] = useState(false);
+  const readsOnly = reading && !editAnyway;
+  /**
+   * Below the docked inspector's floor the inspector is a drawer over the
+   * field (issue #68). Watched, because a tablet turns over.
+   */
+  const compactRef = useRef(false);
   /** Whether space is down, which turns any drag into a pan. */
   const spaceHeldRef = useRef(false);
   /** A space-drag consumed the key, so keyup must not also play. */
@@ -3329,7 +3340,7 @@ export function ChalkApp({
     // which is what ADR 0016 means by leaving touch the viewport. On a screen
     // too small to work on, moving the field is all any pointer does.
     if (
-      reading ||
+      readsOnly ||
       spaceHeldRef.current ||
       event.altKey ||
       touchNavigates(stylusRef.current, event.pointerType)
@@ -4442,6 +4453,19 @@ export function ChalkApp({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (typeof globalThis.matchMedia !== "function") return;
+    const query = globalThis.matchMedia("(max-width: 1023px)");
+    const read = () => {
+      const was = compactRef.current;
+      compactRef.current = query.matches;
+      if (query.matches && !was) setInspectorOpen(false);
+    };
+    read();
+    query.addEventListener("change", read);
+    return () => query.removeEventListener("change", read);
+  }, []);
+
   // Watched rather than read once, because a phone turned on its side is a
   // different screen and the Coach turns it over without reloading anything.
   useEffect(() => {
@@ -4515,7 +4539,7 @@ export function ChalkApp({
     const onKeyDown = (event: KeyboardEvent) => {
       // A keyboard reaches a phone too — paired, or on a screen the browser
       // has shrunk — and every shortcut below this line changes the Play.
-      if (reading) return;
+      if (readsOnly) return;
       const target = event.target as HTMLElement | null;
       const typing =
         target?.isContentEditable ||
@@ -4786,7 +4810,7 @@ export function ChalkApp({
     openMenu,
     overlay,
     playbook,
-    reading,
+    readsOnly,
     showSelectionOnKey,
   ]);
 
@@ -4807,7 +4831,9 @@ export function ChalkApp({
       if (cancelled) return;
       chromeRef.current = state;
       setChrome(state);
-      setInspectorOpen(state.inspectorOpen);
+      // A drawer starts closed so the field has the width; the stub, ⌥1
+      // and Layers bring it out.
+      setInspectorOpen(state.inspectorOpen && !compactRef.current);
       setRailOpen(state.railOpen);
       chromeLoadedRef.current = true;
     });
@@ -4991,7 +5017,44 @@ export function ChalkApp({
    */
   const railLabels = chrome.railLabels ?? false;
 
-  const header = (
+  /**
+   * Below the editor's floor the header is the three destinations, the
+   * Play's name, and the Coach's choice between reading and editing (issue
+   * #68); everything else waits for a screen that can carry it.
+   */
+  const compactHeader = (
+    <header className="topbar reading-topbar">
+      <div className="chalk-mark" aria-hidden="true">
+        <i />
+      </div>
+      <nav className="view-tabs" aria-label="Workspace views">
+        {destinations.map(({ view, label }) => (
+          <button
+            aria-current={activeView === view ? "page" : undefined}
+            className={activeView === view ? "active" : ""}
+            key={view}
+            onClick={() => goToView(view)}
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      <span className="reading-name">{editor.document.name}</span>
+      <span className="reading-chip">Read only</span>
+      <button
+        className="reading-edit"
+        onClick={() => setEditAnyway(true)}
+        title="Open the drawing tools on this screen for this session"
+        type="button"
+      >
+        Edit on this screen
+      </button>
+    </header>
+  );
+  const header = readsOnly ? (
+    compactHeader
+  ) : (
     <Header
       actions={actions}
       activeView={activeView}
@@ -5014,6 +5077,7 @@ export function ChalkApp({
       sync={sync}
       syncSnapshot={syncSnapshot}
       onOpenConflicts={() => setOverlay("conflicts")}
+      onReadOnly={reading ? () => setEditAnyway(false) : undefined}
       wristband={{
         rows: libraryRows,
         picks: effectiveWristbandPicks,
@@ -5026,21 +5090,15 @@ export function ChalkApp({
     />
   );
 
-  if (reading) {
+  if (readsOnly && activeView === "Editor") {
     // A phone shows the Play and nothing that changes it. The field still
     // moves — a Coach on the sideline wants a closer look at one man — but
     // every pointer here only moves the camera, so the picture in his hand is
-    // the picture that was called.
+    // the picture that was called. The destinations stay a tap away, and so
+    // does the editor for a Coach who means to use it here (issue #68).
     return (
       <div className="chalk-shell view-reading">
-        <header className="topbar reading-topbar">
-          <div className="chalk-mark" aria-hidden="true">
-            <i />
-          </div>
-          <strong className="brand">{PRODUCT_NAME}</strong>
-          <span className="reading-name">{editor.document.name}</span>
-          <span className="reading-chip">Read only</span>
-        </header>
+        {compactHeader}
         <main className="editor-stage">
           <div className="field-wrap">
             <FieldDiagram
@@ -5061,8 +5119,9 @@ export function ChalkApp({
           </div>
         </main>
         <p className="reading-note">
-          This screen is too small to work on. Open the Play on a tablet or a
-          computer to change it.
+          This screen is below the editor's floor. Open the Play on a tablet or
+          a computer to change it, or press Edit on this screen to work here
+          anyway.
         </p>
       </div>
     );
@@ -5202,6 +5261,7 @@ export function ChalkApp({
             <PlaybookBrowser
               currentPlayId={editor.document.id}
               embedded
+              focusSearch={precisePointer}
               initial={playbook.browserState}
               library={runtime.library}
               members={playbook.snapshot.members}
@@ -5925,6 +5985,7 @@ export function ChalkApp({
       {overlay === "defenses" ? (
         <DefenseBrowser
           calls={stockDefensiveCalls}
+          focusSearch={precisePointer}
           favoriteIds={favoriteCallIds}
           currentCallId={onFieldCall?.formation.id}
           onClose={() => {
@@ -5972,6 +6033,7 @@ export function ChalkApp({
       {overlay === "playbook" ? (
         <PlaybookBrowser
           currentPlayId={editor.document.id}
+          focusSearch={precisePointer}
           initial={playbook.browserState}
           library={runtime.library}
           members={playbook.snapshot.members}
@@ -6569,6 +6631,7 @@ function Header({
   sync,
   syncSnapshot,
   onOpenConflicts,
+  onReadOnly,
   setPlayName,
   undo,
   versions,
@@ -6598,6 +6661,8 @@ function Header({
   sync?: SyncOrchestrator;
   syncSnapshot: SyncSnapshot;
   onOpenConflicts: () => void;
+  /** Present on a screen below the floor: the way back to reading. */
+  onReadOnly?: () => void;
   setPlayName: (name: string) => void;
   undo: EditorUndoState;
   versions: readonly EditorVersionSummary[];
@@ -6646,6 +6711,8 @@ function Header({
             value={playName}
           />
           {classification}
+          {/* Where a narrow header breaks into its second row (issue #68). */}
+          <span className="top-break" aria-hidden="true" />
           <span className="top-spacer" />
           <button
             className="quiet"
@@ -6668,6 +6735,16 @@ function Header({
             Redo
           </button>
           <span className="divider" />
+          {onReadOnly ? (
+            <button
+              className="reading-edit"
+              onClick={onReadOnly}
+              title="Put the tools away and read the play"
+              type="button"
+            >
+              Read only
+            </button>
+          ) : null}
           <button
             className="quiet new-play"
             disabled={!actions.newPlay}
