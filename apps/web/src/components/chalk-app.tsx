@@ -198,6 +198,7 @@ import { FieldProfileSection } from "../library/field-profile-section";
 import { LibraryPanel } from "../library/library-panel";
 import { ScopeBar } from "../library/scope-bar";
 import { PlaybookBrowser } from "../library/playbook-browser";
+import { GamePlansWorkspace } from "../library/game-plans-workspace";
 import { usePlaybookLibrary } from "../library/use-playbook-library";
 import { AccountPanel } from "./account-panel";
 import { LifecycleNotices } from "./lifecycle-notices";
@@ -270,6 +271,7 @@ type Overlay =
   | "formations"
   | "defenses"
   | "playbook"
+  | "game-plans"
   | "conflicts"
   | null;
 type Tool =
@@ -4192,6 +4194,10 @@ export function ChalkApp({
       setOpenMenu(null);
     },
     shortcuts: () => setOverlay("shortcuts"),
+    gamePlans: () => {
+      setOpenMenu(null);
+      setOverlay("game-plans");
+    },
     // Chalk saves continuously (ADR 0012); an explicit Save flushes whatever
     // the Coach is still typing rather than pretending durability is manual.
     savePlay: () => {
@@ -5555,8 +5561,24 @@ export function ChalkApp({
             }
             void playbook.loadPlay(playId);
           }}
+          onOpenGamePlans={() => setOverlay("game-plans")}
           onRemember={playbook.rememberBrowser}
           playTypes={playbook.snapshot.playbook.playTypes}
+        />
+      ) : null}
+      {overlay === "game-plans" ? (
+        <GamePlansWorkspace
+          formations={allFormations}
+          library={runtime.library}
+          onClose={() => setOverlay(null)}
+          onOpenPlay={(playId) => {
+            if (interactionRef.current.drawing) {
+              dispatchFieldRef.current({ type: "escape" });
+            }
+            void playbook.loadPlay(playId);
+          }}
+          render={renderDiagram}
+          snapshot={playbook.snapshot}
         />
       ) : null}
       {overlay === "conflicts" && sync ? (

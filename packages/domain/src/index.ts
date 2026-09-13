@@ -13,6 +13,7 @@ export * from "./default-playbook";
 export * from "./field-profile";
 export * from "./formation-catalogue";
 export * from "./formations";
+export * from "./game-plan";
 export * from "./geometry";
 export * from "./image-normalize";
 export * from "./legacy";

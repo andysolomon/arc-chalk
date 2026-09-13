@@ -10,10 +10,14 @@ import {
   parseEncryptedBackup,
   serializeEncryptedBackup,
   searchPlays,
+  gamePlanRevisionSummary,
   starterPlaybookEnvelope,
   stickThunderPlay,
   type Concept,
   type Formation,
+  type GamePlan,
+  type GamePlanRevision,
+  type GamePlanRevisionSummary,
   type PlayDocument,
   type PlaySearchQuery,
   type Playbook,
@@ -101,6 +105,19 @@ export interface ChalkLibrary {
   listPlayVersions(
     playId: string,
   ): ReturnType<ChalkLocalRepository["listPlayVersions"]>;
+  /** Game Plans: curated, numbered views of this Playbook's Plays (ADR 0042). */
+  listGamePlans(): Promise<readonly GamePlan[]>;
+  getGamePlan(planId: string): Promise<GamePlan | undefined>;
+  saveGamePlan(plan: GamePlan): Promise<void>;
+  deleteGamePlan(planId: string): Promise<void>;
+  /** The frozen revisions Prepare for game writes; the packet reads these. */
+  saveGamePlanRevision(revision: GamePlanRevision): Promise<void>;
+  getGamePlanRevision(
+    revisionId: string,
+  ): Promise<GamePlanRevision | undefined>;
+  listGamePlanRevisions(
+    planId: string,
+  ): Promise<readonly GamePlanRevisionSummary[]>;
 }
 
 const CLEAN_EXIT_KEY = "chalk.session.cleanExit";
@@ -308,6 +325,8 @@ export function createMemoryLibrary(
   const stored = new Map(plays.map((play) => [play.id, play]));
   let disclosure: Record<string, boolean> = {};
   let browser: LibraryBrowserState = { scrollTop: 0, query: "" };
+  const gamePlans = new Map<string, GamePlan>();
+  const gamePlanRevisions = new Map<string, GamePlanRevision>();
   return {
     playbookId: current.playbook.id,
     loadSnapshot() {
@@ -395,6 +414,42 @@ export function createMemoryLibrary(
     },
     listPlayVersions() {
       return Promise.resolve([]);
+    },
+    listGamePlans() {
+      return Promise.resolve(
+        [...gamePlans.values()].sort(
+          (left, right) => right.updatedAtMs - left.updatedAtMs,
+        ),
+      );
+    },
+    getGamePlan(planId) {
+      return Promise.resolve(gamePlans.get(planId));
+    },
+    saveGamePlan(plan) {
+      gamePlans.set(plan.id, plan);
+      return Promise.resolve();
+    },
+    deleteGamePlan(planId) {
+      gamePlans.delete(planId);
+      for (const [id, revision] of gamePlanRevisions) {
+        if (revision.planId === planId) gamePlanRevisions.delete(id);
+      }
+      return Promise.resolve();
+    },
+    saveGamePlanRevision(revision) {
+      gamePlanRevisions.set(revision.id, revision);
+      return Promise.resolve();
+    },
+    getGamePlanRevision(revisionId) {
+      return Promise.resolve(gamePlanRevisions.get(revisionId));
+    },
+    listGamePlanRevisions(planId) {
+      return Promise.resolve(
+        [...gamePlanRevisions.values()]
+          .filter((revision) => revision.planId === planId)
+          .sort((left, right) => right.createdAtMs - left.createdAtMs)
+          .map(gamePlanRevisionSummary),
+      );
     },
   };
 }
@@ -536,6 +591,15 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     putThumbnail: (thumbnail) => repository.putThumbnail(thumbnail),
     getUndoHistory: (playId) => repository.getUndoHistory(playId),
     listPlayVersions: (playId) => repository.listPlayVersions(playId),
+    listGamePlans: () => repository.listGamePlans(playbookId),
+    getGamePlan: (planId) => repository.getGamePlan(planId),
+    saveGamePlan: (plan) => repository.saveGamePlan(plan),
+    deleteGamePlan: (planId) => repository.deleteGamePlan(planId),
+    saveGamePlanRevision: (revision) =>
+      repository.saveGamePlanRevision(revision),
+    getGamePlanRevision: (revisionId) =>
+      repository.getGamePlanRevision(revisionId),
+    listGamePlanRevisions: (planId) => repository.listGamePlanRevisions(planId),
   };
 
   return {

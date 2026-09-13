@@ -125,6 +125,12 @@ export function MoreMenu({
       label: "New play",
       title: "Clear the field and start over",
     },
+    // An additive production extension (ADR 0042): the Coach's Game Plans.
+    {
+      id: "gamePlans",
+      label: "Game plans…",
+      title: "Pick, arrange and number the calls for one game",
+    },
   ];
 
   return (
