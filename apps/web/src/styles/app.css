@@ -1087,6 +1087,371 @@ button.play-type.open {
   overflow: auto;
   padding: 18px 24px;
 }
+/* The reader (issue #67): head, situation tabs, and a list beside the call. */
+.game-day.reader {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px 0;
+  overflow: hidden;
+}
+.reader-head {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+.reader-title-block {
+  min-width: 0;
+  flex: 1;
+}
+.reader-search {
+  width: 220px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  outline: 0;
+}
+.reader-search:focus {
+  box-shadow: 0 0 0 1px #005fcc;
+}
+.reader-layout {
+  width: auto;
+  flex: none;
+}
+.reader-layout button {
+  flex: none;
+  padding: 0 14px;
+}
+.reader-ready {
+  flex: none;
+  max-width: 320px;
+  overflow: hidden;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reader-ready.ok {
+  background: #e9f5ec;
+  color: #2b6a3a;
+}
+.reader-ready.missing {
+  background: #fdecec;
+  color: #a33a3a;
+}
+.reader-ready.checking {
+  background: var(--hover);
+  color: var(--muted);
+}
+.reader-notice {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fff7e6;
+  color: #7a5200;
+  font-size: 12px;
+}
+.reader-notice button {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ink);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.reader-tabs {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: none;
+}
+.reader-tabs button {
+  height: 32px;
+  flex: none;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  color: #4d4d4d;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.reader-tabs button.active {
+  background: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+  color: #fff;
+}
+.reader-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 14px;
+}
+.reader-list {
+  width: 300px;
+  flex: none;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.reader-list.grid {
+  width: 380px;
+}
+.reader-list-section h2 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 10px 12px 4px;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.reader-calls {
+  margin: 0;
+  padding: 0 6px 6px;
+  list-style: none;
+}
+.reader-list.grid .reader-calls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+.reader-row {
+  display: flex;
+  align-items: stretch;
+  border-radius: 6px;
+}
+.reader-row.current {
+  background: #eef4ff;
+  box-shadow: inset 0 0 0 1px #c7dcff;
+}
+.reader-row.missing .reader-row-name {
+  color: var(--muted);
+  font-style: italic;
+}
+.reader-pick-call {
+  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.reader-list.grid .reader-pick-call {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px;
+}
+.reader-pick-call code,
+.reader-code {
+  min-width: 2.4em;
+  font-family: "Geist Mono", monospace;
+  font-size: 13px;
+  font-weight: 600;
+}
+.reader-row-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reader-list.grid .reader-row-name {
+  white-space: normal;
+  font-size: 12px;
+}
+.reader-row-mark {
+  flex: none;
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+}
+.reader-star {
+  width: 40px;
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: #d4d4d4;
+  font-size: 16px;
+  cursor: pointer;
+}
+.reader-star[aria-pressed="true"] {
+  color: #e6a700;
+}
+.reader-stage {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 12px;
+}
+.reader-call-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+.reader-code {
+  font-size: 22px;
+}
+.reader-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reader-section-name {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+.reader-diagram {
+  flex: none;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.reader-diagram .field-diagram {
+  width: 100%;
+  height: auto;
+  max-width: none;
+  touch-action: pan-y;
+}
+.reader-playback {
+  padding-top: 6px;
+}
+.reader-play-toggle,
+.reader-back,
+.reader-called,
+.reader-clear {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.reader-nav {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+.reader-step {
+  height: 44px;
+  min-width: 110px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.reader-step:disabled {
+  background: #d4d4d4;
+  cursor: default;
+}
+.reader-position {
+  flex: 1;
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 12px;
+  text-align: center;
+}
+.reader-marks {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.reader-results {
+  width: auto;
+  flex: none;
+}
+.reader-results button {
+  padding: 0 10px;
+}
+.reader-note {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+.reader-missing,
+.reader-pick {
+  color: var(--muted);
+  font-size: 13px;
+}
+@media (max-width: 767px) {
+  .reader-body {
+    flex-direction: column;
+  }
+  .reader-list,
+  .reader-list.grid {
+    width: auto;
+    max-height: 38%;
+  }
+}
 .game-day h1 {
   margin: 0 0 6px;
   font-size: 18px;
@@ -2716,6 +3081,16 @@ button.library-dot.target.small {
   color: #8f8f8f;
   font-family: "Geist Mono", monospace;
   font-size: 11px;
+}
+.present-bar .present-step {
+  min-width: 44px;
+  font-size: 18px;
+}
+.present-bar kbd {
+  margin-left: 6px;
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  opacity: 0.7;
 }
 .present-bar button {
   flex: none;

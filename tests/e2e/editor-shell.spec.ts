@@ -97,9 +97,11 @@ test("opens the original field-first editor shell and its modes", async ({
   ).toBeVisible();
   await expect(present.locator(".present-pos")).toContainText("1 / 5");
   await expect(present.getByText("← → variations")).toBeVisible();
-  await expect(page.getByRole("button", { name: "esc" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Back to the editor" }),
+  ).toBeVisible();
 
-  await page.getByRole("button", { name: "esc" }).click();
+  await page.getByRole("button", { name: "Back to the editor" }).click();
   await expect(
     page.getByRole("navigation", { name: "Drawing tools" }),
   ).toBeVisible();

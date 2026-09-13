@@ -41,6 +41,12 @@ import {
   type ThumbnailDerivative,
 } from "@chalk/local-db";
 
+import {
+  GAME_DAY_KEY,
+  defaultGameDayState,
+  readGameDayState,
+  type GameDayState,
+} from "../library/game-day-state";
 import { createShareCloud, type ShareCloudPort } from "../share/convex-share";
 
 const DATABASE_NAME = "chalk-production-beta";
@@ -90,6 +96,12 @@ export interface ChromeState {
    * with a pointer keeps the original's compact rail.
    */
   readonly railLabels?: boolean;
+  /**
+   * Whether the Coach left Chalk on Game Day (issue #67). A sideline device
+   * that restarts — offline, after a background — opens on the plan he was
+   * reading rather than on the editor.
+   */
+  readonly gameDay?: boolean;
   readonly open: Readonly<Record<string, boolean>>;
   readonly favoritePresets: readonly string[];
   readonly recentPresets: readonly string[];
@@ -128,6 +140,7 @@ export function readChromeState(value: unknown): ChromeState {
     ...(typeof record.railLabels === "boolean"
       ? { railLabels: record.railLabels }
       : {}),
+    ...(record.gameDay === true ? { gameDay: true } : {}),
     open,
     favoritePresets: readIds(record.favoritePresets),
     recentPresets: readIds(record.recentPresets),
@@ -158,6 +171,9 @@ export interface ChalkLibrary {
   saveBrowserState(state: LibraryBrowserState): Promise<void>;
   loadChrome(): Promise<ChromeState>;
   saveChrome(state: ChromeState): Promise<void>;
+  /** Where the Game Day reader was and what the coordinator wrote there (issue #67). */
+  loadGameDay(): Promise<GameDayState>;
+  saveGameDay(state: GameDayState): Promise<void>;
   getThumbnail(key: string): Promise<ThumbnailDerivative | undefined>;
   putThumbnail(thumbnail: ThumbnailDerivative): Promise<void>;
   getUndoHistory(
@@ -387,6 +403,7 @@ export function createMemoryLibrary(
   let disclosure: Record<string, boolean> = {};
   let browser: LibraryBrowserState = { scrollTop: 0, query: "" };
   let chrome: ChromeState = defaultChromeState;
+  let gameDay: GameDayState = defaultGameDayState;
   const gamePlans = new Map<string, GamePlan>();
   const gamePlanRevisions = new Map<string, GamePlanRevision>();
   return {
@@ -470,6 +487,13 @@ export function createMemoryLibrary(
     },
     saveChrome(state) {
       chrome = state;
+      return Promise.resolve();
+    },
+    loadGameDay() {
+      return Promise.resolve(gameDay);
+    },
+    saveGameDay(state) {
+      gameDay = state;
       return Promise.resolve();
     },
     getThumbnail() {
@@ -663,6 +687,14 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     },
     async saveChrome(state) {
       await rememberJson(CHROME_KEY, state);
+    },
+    async loadGameDay() {
+      return readGameDayState(
+        (await repository.getPreference(GAME_DAY_KEY))?.value,
+      );
+    },
+    async saveGameDay(state) {
+      await rememberJson(GAME_DAY_KEY, state);
     },
     getThumbnail: (key) => repository.getThumbnail(key),
     putThumbnail: (thumbnail) => repository.putThumbnail(thumbnail),

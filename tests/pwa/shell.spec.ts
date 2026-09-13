@@ -151,3 +151,45 @@ test("never hands a Share Link the editor shell", async ({ page }) => {
   expect(served.body).toContain("Chalk Share");
   expect(served.body).not.toContain("<title>Chalk</title>");
 });
+
+test("reopens a prepared game plan in Game Day after an offline restart", async ({
+  context,
+  page,
+}) => {
+  await shellReady(page);
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "Game plans…" }).click();
+  const workspace = page.getByRole("region", { name: "Game plans" });
+  await workspace.getByRole("button", { name: "New plan" }).click();
+  await workspace.getByLabel("Plan name").fill("Week 3");
+  await workspace.getByRole("button", { name: "Create plan" }).click();
+  await workspace.getByRole("checkbox", { name: /^Stick — Thunder$/ }).check();
+  await workspace.getByRole("button", { name: /^Add 1 to plan/ }).click();
+  const code = workspace.getByLabel(/^Call number for/).first();
+  await code.fill("12");
+  await code.press("Enter");
+  await workspace.getByRole("button", { name: "Prepare for game" }).click();
+  await expect(workspace.getByText(/^Prepared/)).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Workspace views" })
+    .getByRole("button", { name: "Game Day", exact: true })
+    .click();
+  await page.getByRole("button", { name: /Week 3/ }).click();
+  await expect(page.getByText(/Ready offline · 1 call$/)).toBeVisible();
+
+  await context.setOffline(true);
+  await page.reload();
+  const reader = page.getByRole("main", { name: "Game Day" });
+  await expect(reader.getByText("Offense · Week 3")).toBeVisible();
+  await expect(reader.getByText(/Ready offline · 1 call$/)).toBeVisible();
+  await reader
+    .getByRole("navigation", { name: "Calls" })
+    .getByRole("button", { name: /^12 / })
+    .click();
+  await expect(
+    reader
+      .getByRole("region", { name: "Selected call" })
+      .locator("svg.field-diagram"),
+  ).toBeVisible();
+  await context.setOffline(false);
+});
