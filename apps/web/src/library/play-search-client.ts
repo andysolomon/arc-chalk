@@ -18,50 +18,68 @@ export interface PlaySearchClient {
   dispose(): void;
 }
 
+type Waiter = {
+  readonly resolve: (hits: readonly PlaySearchHit[]) => void;
+  readonly reject: (error: unknown) => void;
+};
+
+/**
+ * The Worker is spawned on the first search and again after a dispose, so a
+ * client that outlives one mount — React's development double-mount
+ * disposes it once before the real mount — keeps answering rather than
+ * posting into a terminated Worker that never replies.
+ */
 export function createPlaySearchClient(): PlaySearchClient {
   if (typeof Worker !== "function") return createMainThreadSearchClient();
-  try {
-    const worker = new Worker(new URL("./search.worker.ts", import.meta.url), {
-      type: "module",
-    });
-    let nextId = 1;
-    const pending = new Map<
-      number,
-      {
-        readonly resolve: (hits: readonly PlaySearchHit[]) => void;
-        readonly reject: (error: unknown) => void;
-      }
-    >();
-    worker.addEventListener("message", (event: MessageEvent) => {
-      const data = event.data as {
-        id?: number;
-        hits?: readonly PlaySearchHit[];
-      };
-      if (typeof data.id !== "number" || !data.hits) return;
-      pending.get(data.id)?.resolve(data.hits);
-      pending.delete(data.id);
-    });
-    worker.addEventListener("error", (event) => {
-      for (const waiter of pending.values()) waiter.reject(event);
-      pending.clear();
-    });
-    return {
-      search(plays, query) {
-        const id = nextId;
-        nextId += 1;
-        return new Promise((resolve, reject) => {
-          pending.set(id, { resolve, reject });
-          worker.postMessage({ id, plays, query });
-        });
-      },
-      dispose() {
-        worker.terminate();
+  let worker: Worker | undefined;
+  let nextId = 1;
+  const pending = new Map<number, Waiter>();
+  const fallback = createMainThreadSearchClient();
+
+  const spawn = (): Worker | undefined => {
+    if (worker) return worker;
+    try {
+      const spawned = new Worker(
+        new URL("./search.worker.ts", import.meta.url),
+        { type: "module" },
+      );
+      spawned.addEventListener("message", (event: MessageEvent) => {
+        const data = event.data as {
+          id?: number;
+          hits?: readonly PlaySearchHit[];
+        };
+        if (typeof data.id !== "number" || !data.hits) return;
+        pending.get(data.id)?.resolve(data.hits);
+        pending.delete(data.id);
+      });
+      spawned.addEventListener("error", (event) => {
+        for (const waiter of pending.values()) waiter.reject(event);
         pending.clear();
-      },
-    };
-  } catch {
-    return createMainThreadSearchClient();
-  }
+      });
+      worker = spawned;
+      return spawned;
+    } catch {
+      return undefined;
+    }
+  };
+
+  return {
+    search(plays, query) {
+      const target = spawn();
+      if (!target) return fallback.search(plays, query);
+      const id = nextId;
+      nextId += 1;
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        target.postMessage({ id, plays, query });
+      });
+    },
+    dispose() {
+      worker?.terminate();
+      worker = undefined;
+      pending.clear();
+    },
+  };
 }
 
 export function createMainThreadSearchClient(): PlaySearchClient {

@@ -18,6 +18,7 @@ export * from "./image-normalize";
 export * from "./legacy";
 export * from "./library";
 export * from "./migrations";
+export * from "./play-classification";
 export * from "./play-propagation";
 export * from "./play-search";
 export * from "./product";

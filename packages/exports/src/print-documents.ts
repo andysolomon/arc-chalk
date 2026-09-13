@@ -411,9 +411,7 @@ export function scoutCardPlays(
   library: readonly PlayDocument[],
   open: PlayDocument,
 ): readonly PlayDocument[] {
-  const defense = library.filter(
-    (play) => play.unit === "defense" || playCategory(play) === "Defense",
-  );
+  const defense = library.filter((play) => play.unit === "defense");
   return defense.length > 0 ? defense : [open];
 }
 

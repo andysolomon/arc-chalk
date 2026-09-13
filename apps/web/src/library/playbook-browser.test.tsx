@@ -1,4 +1,4 @@
-import { stickThunderPlay } from "@chalk/domain";
+import { blankPlaybook, stickThunderPlay } from "@chalk/domain";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -87,6 +87,7 @@ describe("the Playbook browser", () => {
         onClose={() => undefined}
         onOpen={() => undefined}
         onRemember={() => undefined}
+        playTypes={blankPlaybook().playTypes}
       />,
     );
 

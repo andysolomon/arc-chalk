@@ -3,6 +3,7 @@ import {
   assignmentForPath,
   currentBallSpot,
   currentFormation,
+  formatClassification,
   formationMeta,
   offensivePlayers,
   type Concept,
@@ -273,8 +274,14 @@ export function conceptNote(entry: LibraryEntry): string {
   return (entry.concept?.notes ?? "").trim() || entry.play.notes.trim();
 }
 
+/**
+ * The words a printed page uses for a Play's classification — `Defense ·
+ * Coverage`, or `Defense` alone — the same words as the header pill and the
+ * library card, so a sheet never files a Play under a category the editor
+ * does not show.
+ */
 export function playCategory(play: PlayDocument): string {
-  return play.playType?.name ?? "";
+  return formatClassification(play);
 }
 
 export interface CallSheetGroup {
@@ -284,8 +291,9 @@ export interface CallSheetGroup {
 
 /**
  * Grouped by situation tag when the library has them — a Play with no tags
- * borrows its Concept's — by category when it does not. Tag groups lead;
- * category fallbacks follow, as the original sorted them.
+ * borrows its Concept's — by Unit · Type when it does not, so an untagged
+ * Cover 3 lands under Defense · Coverage rather than under Other. Tag groups
+ * lead; classification fallbacks follow, as the original sorted them.
  */
 export function callSheetGroups(
   plays: readonly PlayDocument[],
@@ -298,7 +306,7 @@ export function callSheetGroups(
       ? conceptById.get(play.conceptSource.conceptId)
       : undefined;
     if (concept && concept.tags.length > 0) return concept.tags;
-    return [playCategory(play) || "Other"];
+    return [playCategory(play)];
   };
   const knownTags = new Set([
     ...plays.flatMap((play) => play.tags),
