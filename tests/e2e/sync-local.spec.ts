@@ -14,13 +14,20 @@ test("persists a new play with Gun Doubles Right and Mesh after reload", async (
     .getByRole("dialog", { name: "Formations" })
     .getByText("Gun Doubles Right", { exact: true })
     .click();
-  await page.getByRole("button", { name: "Mesh", exact: true }).click();
+  // Concepts live in the searchable catalogue behind the summary row (#64).
+  await page.getByRole("button", { name: /Concept ›/ }).click();
+  await page
+    .getByRole("dialog", { name: "Concepts and line calls" })
+    .getByRole("button", { name: /^Mesh/ })
+    .first()
+    .click();
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
   await expect(page.locator("[data-scene-path]")).toHaveCount(5);
   await expect(
     page.getByRole("button", { name: "Saved on this device" }),
   ).toBeVisible();
   await page.reload();
+  await page.getByRole("button", { name: /^Library/ }).click();
   await page.getByRole("button", { name: "Browse Playbook" }).click();
   const book = page.getByRole("dialog", { name: "Playbook" });
   await book.getByLabel("Search plays").fill("QA formation and Mesh");

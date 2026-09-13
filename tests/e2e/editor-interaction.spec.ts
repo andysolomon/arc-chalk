@@ -86,6 +86,13 @@ async function openEditor(page: Page): Promise<void> {
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
 }
 
+/**
+ * The defensive call on an offensive play sits under the folded Opponent
+ * look section (issue #64); its one-line summary says what is on the field.
+ */
+const opponentLook = (page: import("@playwright/test").Page) =>
+  page.locator('[data-disclosure="opponent"] .disclosure-summary');
+
 test("drags a Player and his route as one undoable step", async ({ page }) => {
   await openEditor(page);
 
@@ -386,7 +393,7 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
   await openEditor(page);
 
   // Selecting an existing note opens the Text panel in place of the idle one.
-  await expect(page.getByText("Formation", { exact: true })).toBeVisible();
+  await expect(page.getByText("Play setup", { exact: true })).toBeVisible();
   const note = page.locator('[data-scene-label="l2"]');
   const box = (await note.boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -394,7 +401,7 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
   await expect(page.getByRole("textbox", { name: "Label text" })).toHaveValue(
     "2-3 Yds",
   );
-  await expect(page.getByText("Formation", { exact: true })).toBeHidden();
+  await expect(page.getByText("Play setup", { exact: true })).toBeHidden();
 
   await page.getByRole("button", { name: "Alert", exact: true }).click();
   await expect(
@@ -408,7 +415,7 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
 
   // Escape steps back to the play and the idle panels return.
   await page.keyboard.press("Escape");
-  await expect(page.getByText("Formation", { exact: true })).toBeVisible();
+  await expect(page.getByText("Play setup", { exact: true })).toBeVisible();
 });
 
 test("copies a Player and pastes him as a new one", async ({ page }) => {
@@ -515,12 +522,15 @@ test("restyles a route, then one segment of it on its own", async ({
   // Selecting a route opens the Route panel in place of the idle one.
   const onSegment = await fieldPoint(page, 262, 405);
   await page.mouse.click(onSegment.x, onSegment.y);
-  await expect(page.getByText("Formation", { exact: true })).toBeHidden();
+  await expect(page.getByText("Play setup", { exact: true })).toBeHidden();
   // "Route" is both the panel's heading and one of its kind buttons.
   await expect(
     page.locator(".label-heading").getByText("Route", { exact: true }),
   ).toBeVisible();
 
+  // Line, ending and color fold under Appearance (issue #64); once opened it
+  // stays open through the narrowing below.
+  await page.getByRole("button", { name: /^Appearance/ }).click();
   // Restyling with nothing picked out takes the whole line.
   await page.getByRole("button", { name: "Dashed" }).click();
   await expect(page.locator('[data-scene-path="rx"]')).toHaveAttribute(
@@ -1068,9 +1078,7 @@ test("offers Add a defense on an offense-only field, then clears it after a call
   await expect(page.getByRole("button", { name: "Add a defense" })).toHaveCount(
     0,
   );
-  await expect(page.getByTitle("Browse defenses — ⇧⌘D")).toContainText(
-    "Nickel Cover 2",
-  );
+  await expect(opponentLook(page)).toContainText("Nickel Cover 2");
 });
 
 test("puts a call on the field as an alignment, then again with what each man has to do", async ({
@@ -1097,9 +1105,7 @@ test("puts a call on the field as an alignment, then again with what each man ha
   await expect(page.locator("[data-scene-player]")).toHaveCount(22);
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
   await expect(page.getByRole("status")).toContainText("alignment only");
-  await expect(page.getByTitle("Browse defenses — ⇧⌘D")).toContainText(
-    "Nickel Cover 2",
-  );
+  await expect(opponentLook(page)).toContainText("Nickel Cover 2");
 
   // Asked for again with the assignments on, the same call arrives drawing
   // itself — and replaces the alignment rather than standing beside it.
@@ -1148,9 +1154,7 @@ test("swaps one call for another without leaving the last one underneath", async
   // Eleven men, five rush paths and six coverage drops, replacing the old call.
   await expect(page.locator("[data-scene-player]")).toHaveCount(22);
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 11);
-  await expect(page.getByTitle("Browse defenses — ⇧⌘D")).toContainText(
-    "Fire Zone Blitz",
-  );
+  await expect(opponentLook(page)).toContainText("Fire Zone Blitz");
 });
 
 test("draws a whole concept by position, and takes it off with the same button", async ({
@@ -1160,8 +1164,16 @@ test("draws a whole concept by position, and takes it off with the same button",
   const routes = await page.locator("[data-scene-path]").count();
 
   // A concept is a distribution: the men who play a position in it each get
-  // their job, and nobody else is touched.
-  await page.getByRole("button", { name: "4 Verts", exact: true }).click();
+  // their job, and nobody else is touched. The ten concepts live in the
+  // searchable catalogue behind the summary row (issue #64).
+  const summary = page.getByRole("button", { name: /Concept ›/ });
+  const picker = page.getByRole("dialog", { name: "Concepts and line calls" });
+  await expect(summary).toContainText("No concept yet");
+  await summary.click();
+  await picker
+    .getByRole("button", { name: /^4 Verts/ })
+    .first()
+    .click();
   await expect(page.getByRole("status")).toContainText("4 Verts");
   await expect(page.getByRole("status")).toContainText("routes drawn");
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
@@ -1169,12 +1181,18 @@ test("draws a whole concept by position, and takes it off with the same button",
   const drawn = await page.locator("[data-scene-path]").count();
   expect(drawn).toBeGreaterThan(0);
 
-  // The button says which concept is on, and pressing it again takes it off.
-  const verts = page.getByRole("button", { name: "4 Verts", exact: true });
-  await expect(verts).toHaveAttribute("aria-pressed", "true");
-  await verts.click();
+  // The summary says which concept is on, and picking it again takes it off.
+  await expect(summary).toContainText("4 Verts");
+  await summary.click();
+  await expect(
+    picker.getByRole("button", { name: /^4 Verts/ }).first(),
+  ).toHaveAttribute("aria-pressed", "true");
+  await picker
+    .getByRole("button", { name: /^4 Verts/ })
+    .first()
+    .click();
   await expect(page.getByRole("status")).toContainText("cleared");
-  await expect(verts).toHaveAttribute("aria-pressed", "false");
+  await expect(summary).toContainText("No concept yet");
 
   // And the whole thing was one step, both ways.
   await page.keyboard.press("Control+z");
@@ -1278,26 +1296,33 @@ test("gives the whole line a call at once, and takes it off again", async ({
   await openEditor(page);
   const routes = await page.locator("[data-scene-path]").count();
 
-  const passSet = page.getByRole("button", { name: "Pass set", exact: true });
-  await expect(passSet).toHaveAttribute("aria-pressed", "false");
-  await passSet.click();
+  // The six calls live in the searchable catalogue now (issue #64): the
+  // summary row says which one the line has, and opens the picker.
+  const summary = page.getByRole("button", { name: /Line call ›/ });
+  const picker = page.getByRole("dialog", { name: "Concepts and line calls" });
+  const give = async (name: RegExp) => {
+    await summary.click();
+    // A call just given is listed under Recent as well; either row will do.
+    await picker.getByRole("button", { name }).first().click();
+    await expect(picker).toBeHidden();
+  };
+  await expect(summary).toContainText("No line call yet");
+  await give(/^Pass set/);
 
   // Five linemen, five blocks — each drawn from where he stands, so the call
   // keeps every one of them his own alignment.
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 5);
-  await expect(passSet).toHaveAttribute("aria-pressed", "true");
+  await expect(summary).toContainText("Pass set");
 
   // Another call replaces it rather than piling on top.
-  const reach = page.getByRole("button", { name: "Reach", exact: true });
-  await reach.click();
+  await give(/^Reach/);
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 5);
-  await expect(passSet).toHaveAttribute("aria-pressed", "false");
-  await expect(reach).toHaveAttribute("aria-pressed", "true");
+  await expect(summary).toContainText("Reach");
 
-  // And the same button takes it off.
-  await reach.click();
+  // And the same call, picked again, takes it off.
+  await give(/^Reach/);
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
-  await expect(reach).toHaveAttribute("aria-pressed", "false");
+  await expect(summary).toContainText("No line call yet");
 
   await page.keyboard.press("Control+z");
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 5);

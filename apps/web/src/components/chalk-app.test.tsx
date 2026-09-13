@@ -117,6 +117,23 @@ function createTestEditorStore(
   });
 }
 
+/**
+ * Unfolds one of the inspector's folded sections (issue #64): the heading and
+ * a one-line summary stay in view; the controls come out on request.
+ */
+async function unfold(
+  user: ReturnType<typeof userEvent.setup>,
+  scope: HTMLElement,
+  title: string,
+): Promise<void> {
+  await user.click(
+    within(scope).getByRole("button", {
+      name: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+      expanded: false,
+    }),
+  );
+}
+
 describe("Chalk application shell", () => {
   it("preserves the original editor entry points", () => {
     const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
@@ -158,6 +175,7 @@ describe("Chalk application shell", () => {
       name: "Play inspector",
     });
     expect(within(inspector).getByText("Library")).toBeVisible();
+    await unfold(user, inspector, "Library");
     expect(within(inspector).getByText("This play")).toBeVisible();
     expect(
       within(inspector).getByRole("button", { name: "Browse Playbook" }),
@@ -448,6 +466,11 @@ describe("Chalk application shell", () => {
       />,
     );
 
+    await unfold(
+      user,
+      screen.getByRole("complementary", { name: "Play inspector" }),
+      "Opponent look",
+    );
     await user.click(screen.getByTitle("Browse defenses — ⇧⌘D"));
     const book = screen.getByRole("dialog", { name: "Defenses" });
     await user.click(within(book).getByRole("tab", { name: "Favorites" }));
@@ -873,6 +896,7 @@ describe("Chalk application shell", () => {
       name: "Play inspector",
     });
 
+    await unfold(user, inspector, "Print & export");
     await user.click(
       within(inspector).getByRole("button", { name: /^Print$/ }),
     );
@@ -1001,6 +1025,7 @@ describe("Play classification (issue #63)", () => {
     const inspector = screen.getByRole("complementary", {
       name: "Play inspector",
     });
+    await unfold(user, inspector, "Library");
     await user.click(
       within(inspector).getByRole("button", { name: "Browse Playbook" }),
     );
@@ -1038,6 +1063,11 @@ describe("Play classification (issue #63)", () => {
       members: [stickThunderPlay, coverThree, coverage].map(projectionOf),
     });
     render(<ChalkApp runtime={createTestRuntime({ library })} />);
+    await unfold(
+      user,
+      screen.getByRole("complementary", { name: "Play inspector" }),
+      "Library",
+    );
     await user.click(screen.getByRole("button", { name: "Browse Playbook" }));
     const book = screen.getByRole("dialog", { name: "Playbook" });
 
@@ -1185,6 +1215,217 @@ describe("Play classification (issue #63)", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Offense already has a Trick type.",
     );
+  });
+});
+
+describe("Inspector progressive disclosure (issue #64)", () => {
+  const inspectorOf = () =>
+    screen.getByRole("complementary", { name: "Play inspector" });
+  const before = (a: Element, b: Element) =>
+    Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it("leads the idle panel with play setup and folds library and print away", () => {
+    render(<ChalkApp runtime={createTestRuntime()} />);
+    const inspector = inspectorOf();
+    const formation = within(inspector).getByTitle("Browse formations — ⇧⌘F");
+    const concept = within(inspector).getByRole("button", {
+      name: /^No concept yet/,
+    });
+    const lineCall = within(inspector).getByRole("button", {
+      name: /^No line call yet/,
+    });
+    const library = within(inspector).getByRole("button", {
+      name: /^Library/,
+      expanded: false,
+    });
+    const print = within(inspector).getByRole("button", {
+      name: /^Print & export/,
+      expanded: false,
+    });
+    expect(before(formation, concept)).toBe(true);
+    expect(before(concept, lineCall)).toBe(true);
+    expect(before(lineCall, library)).toBe(true);
+    expect(before(library, print)).toBe(true);
+    // The grids and the library tree are not on the idle panel any more.
+    expect(
+      within(inspector).queryByRole("button", { name: "Reach" }),
+    ).toBeNull();
+    expect(within(inspector).queryByText("This play")).toBeNull();
+    expect(within(inspector).queryByText(/Applies to all/)).toBeNull();
+    expect(
+      within(inspector).queryByRole("button", { name: "Half field" }),
+    ).toBeNull();
+    // What the folded sections currently say stays in view.
+    expect(
+      inspector.querySelector('[data-disclosure="print"] .disclosure-summary'),
+    ).toHaveTextContent(/· Coach$/);
+    expect(
+      inspector.querySelector(
+        '[data-disclosure="library"] .disclosure-summary',
+      ),
+    ).toHaveTextContent(/^0 plays$/);
+  });
+
+  it("opens the searchable catalogue, draws a concept in two actions, and stars it", async () => {
+    const user = userEvent.setup();
+    const library = createMemoryLibrary(
+      emptyLibrarySnapshot(stickThunderPlay.playbookId),
+    );
+    const editorStore = createTestEditorStore();
+    render(<ChalkApp runtime={createTestRuntime({ editorStore, library })} />);
+    const inspector = inspectorOf();
+
+    await user.click(
+      within(inspector).getByRole("button", { name: /^No concept yet/ }),
+    );
+    const picker = screen.getByRole("dialog", {
+      name: "Concepts and line calls",
+    });
+    // Opened from the concept row it shows concepts; All brings both back.
+    expect(within(picker).getByText("CONCEPTS")).toBeVisible();
+    expect(within(picker).queryByText("LINE CALLS")).toBeNull();
+    await user.click(within(picker).getByRole("button", { name: "All" }));
+    expect(within(picker).getByText("LINE CALLS")).toBeVisible();
+    await user.type(
+      within(picker).getByLabelText("Search concepts and line calls"),
+      "smash",
+    );
+    expect(within(picker).queryByText("LINE CALLS")).toBeNull();
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(
+        within(inspector).getByRole("button", { name: /^Smash/ }),
+      ).toBeVisible();
+    });
+    expect(
+      screen.queryByRole("dialog", { name: "Concepts and line calls" }),
+    ).toBeNull();
+    expect(
+      editorStore
+        .getSnapshot()
+        .document.paths.some((path) => path.concept === "smash"),
+    ).toBe(true);
+
+    // Second visit: Recent leads, and a star keeps it under Favorites.
+    await user.click(within(inspector).getByRole("button", { name: /^Smash/ }));
+    const again = screen.getByRole("dialog", {
+      name: "Concepts and line calls",
+    });
+    expect(within(again).getByText("RECENT")).toBeVisible();
+    // Smash is listed under Recent and under Concepts; either star will do.
+    await user.click(
+      within(again).getAllByRole("button", { name: "Star Smash" })[0]!,
+    );
+    expect(within(again).getByText("FAVORITES")).toBeVisible();
+    const chrome = await library.loadChrome();
+    expect(chrome.favoritePresets).toEqual(["concept:smash"]);
+    expect(chrome.recentPresets).toEqual(["concept:smash"]);
+  });
+
+  it("gives a line call through the same catalogue and says so on the summary", async () => {
+    const user = userEvent.setup();
+    const editorStore = createTestEditorStore();
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
+    const inspector = inspectorOf();
+    await user.click(
+      within(inspector).getByRole("button", { name: /^No line call yet/ }),
+    );
+    const picker = screen.getByRole("dialog", {
+      name: "Concepts and line calls",
+    });
+    // Opened from the line-call row, it shows line calls only.
+    expect(within(picker).queryByText("CONCEPTS")).toBeNull();
+    await user.click(within(picker).getByRole("button", { name: /^Reach/ }));
+    await waitFor(() => {
+      expect(
+        within(inspector).getByRole("button", { name: /^Reach/ }),
+      ).toBeVisible();
+    });
+  });
+
+  it("leads a defensive play with the call and keeps the offense's tools out of the way", () => {
+    const coverThree = starterExamplePlays().find(
+      ({ name }) => name === "Cover 3 — Fire Zone",
+    )!;
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          editorStore: createTestEditorStore(undefined, coverThree),
+        })}
+      />,
+    );
+    const inspector = inspectorOf();
+    expect(within(inspector).getByText("Defensive call")).toBeVisible();
+    expect(within(inspector).getByTitle("Browse defenses — ⇧⌘D")).toBeVisible();
+    expect(
+      within(inspector).queryByRole("button", { name: /^No concept yet/ }),
+    ).toBeNull();
+    expect(within(inspector).queryByText(/linemen/)).toBeNull();
+    expect(
+      within(inspector).getByRole("button", {
+        name: /^Opponent look/,
+        expanded: false,
+      }),
+    ).toBeVisible();
+  });
+
+  it("folds the inspector away, remembers it on the device, and brings it back with ⌥1", async () => {
+    const user = userEvent.setup();
+    const library = createMemoryLibrary(
+      emptyLibrarySnapshot(stickThunderPlay.playbookId),
+    );
+    render(<ChalkApp runtime={createTestRuntime({ library })} />);
+    await user.click(
+      screen.getByRole("button", { name: "Hide the inspector" }),
+    );
+    expect(
+      screen.queryByRole("complementary", { name: "Play inspector" }),
+    ).toBeNull();
+    await waitFor(async () => {
+      expect((await library.loadChrome()).inspectorOpen).toBe(false);
+    });
+
+    await user.keyboard("{Alt>}1{/Alt}");
+    expect(
+      screen.getByRole("complementary", { name: "Play inspector" }),
+    ).toBeVisible();
+    await waitFor(async () => {
+      expect((await library.loadChrome()).inspectorOpen).toBe(true);
+    });
+
+    // Unfolded sections are remembered the same way.
+    await unfold(user, inspectorOf(), "Print & export");
+    await waitFor(async () => {
+      expect((await library.loadChrome()).open.print).toBe(true);
+    });
+  });
+
+  it("puts the coaching first on a selected route and keeps timing under Advanced", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+    await user.click(
+      within(
+        screen.getByRole("list", { name: "Everything on the field" }),
+      ).getByRole("button", { name: "X route" }),
+    );
+    const inspector = inspectorOf();
+    const read = within(inspector).getByRole("textbox", { name: "Assignment" });
+    const appearance = within(inspector).getByRole("button", {
+      name: /^Appearance/,
+      expanded: false,
+    });
+    expect(before(read, appearance)).toBe(true);
+    expect(within(inspector).queryByLabelText("Delay")).toBeNull();
+    expect(within(inspector).queryByLabelText("Dashed")).toBeNull();
+
+    await unfold(user, inspector, "Advanced");
+    expect(within(inspector).getByLabelText("Delay")).toBeVisible();
+    expect(
+      within(inspector).getByRole("button", { name: "Delete this route" }),
+    ).toBeVisible();
+    await unfold(user, inspector, "Appearance");
+    expect(within(inspector).getByLabelText("Dashed")).toBeVisible();
   });
 });
 
@@ -1709,6 +1950,7 @@ describe("Chalk editor overlays", () => {
       name: "Play inspector",
     });
 
+    await unfold(user, inspector, "Print & export");
     expect(within(inspector).getByText("Page")).toBeVisible();
     expect(
       within(inspector).getByText(
@@ -1760,6 +2002,7 @@ describe("Chalk editor overlays", () => {
       name: "Play inspector",
     });
 
+    await unfold(user, inspector, "Print & export");
     expect(
       within(inspector).getByText(
         "Dense — reads, assignments, conversions and notes all on the field.",
@@ -1787,11 +2030,18 @@ describe("Chalk editor overlays", () => {
       ),
     ).toBeVisible();
 
+    // The layer toggles live in the inspector bar's Layers popover now.
+    await user.click(
+      within(inspector).getByRole("button", { name: /^Layers/ }),
+    );
     await user.click(within(inspector).getByRole("button", { name: "Text" }));
     expect(container.querySelector("[data-scene-label]")).toBeNull();
     expect(
       within(inspector).getByRole("button", { name: "Text" }),
     ).toHaveAttribute("aria-pressed", "false");
+    expect(
+      within(inspector).getByRole("button", { name: /^Layers 3\/4/ }),
+    ).toBeVisible();
   });
 
   it("opens the shortcut reference from the inspector and closes it on Escape", async () => {

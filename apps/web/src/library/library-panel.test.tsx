@@ -46,7 +46,6 @@ const unused = {
   onLoad: () => undefined,
   onNoteCommit: () => undefined,
   onPush: () => undefined,
-  onSave: () => undefined,
   onScope: () => undefined,
   onStartVariation: () => undefined,
   onToggleOpen: () => undefined,

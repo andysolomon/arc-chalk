@@ -49,6 +49,23 @@ const storedIds = (page: import("@playwright/test").Page, key: string) =>
     key,
   );
 
+/** Opens the folded Library section of the inspector (issue #64). */
+const unfoldLibrary = async (page: import("@playwright/test").Page) => {
+  const toggle = page.getByRole("button", { name: /^Library/ });
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute("aria-expanded")) === "false") {
+    await toggle.click();
+  }
+};
+
+/** Opens the folded Opponent look section on an offensive play (issue #64). */
+const unfoldOpponentLook = async (page: import("@playwright/test").Page) => {
+  const toggle = page.getByRole("button", { name: /^Opponent look/ });
+  if ((await toggle.getAttribute("aria-expanded")) === "false") {
+    await toggle.click();
+  }
+};
+
 test("opens the original field-first editor shell and its modes", async ({
   page,
 }) => {
@@ -252,6 +269,9 @@ test("changes the markings and the words from the inspector without moving the P
   await page.goto("/");
   const inspector = page.getByRole("complementary", { name: "Play inspector" });
 
+  // Page and type fold under Print & export; the layers sit in the bar's
+  // Layers popover (issue #64).
+  await inspector.getByRole("button", { name: /^Print & export/ }).click();
   await expect(inspector.getByText("Page", { exact: true })).toBeVisible();
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
   await expect(page.locator("[data-scene-label]")).toHaveCount(12);
@@ -268,6 +288,7 @@ test("changes the markings and the words from the inspector without moving the P
   await inspector.getByRole("button", { name: "Full field" }).click();
   await expect(page.locator("[data-field-yard-line]")).toHaveCount(9);
 
+  await inspector.getByRole("button", { name: /^Layers/ }).click();
   await inspector.getByRole("button", { name: "Text" }).click();
   await expect(page.locator("[data-scene-label]")).toHaveCount(0);
   await inspector.getByRole("button", { name: "Text" }).click();
@@ -393,6 +414,7 @@ test("stars a set, keeps the offense as one of his own, and reopens both", async
   await page.keyboard.press("Escape");
 
   // A call is starred in its own book.
+  await unfoldOpponentLook(page);
   await page.getByTitle("Browse defenses — ⇧⌘D").click();
   const calls = page.getByRole("dialog", { name: "Defenses" });
   await calls.getByRole("button", { name: "Add to favorites" }).first().click();
@@ -441,6 +463,7 @@ test("stars a set, keeps the offense as one of his own, and reopens both", async
   ).toHaveCount(0);
   await page.keyboard.press("Escape");
 
+  await unfoldOpponentLook(page);
   await page.getByTitle("Browse defenses — ⇧⌘D").click();
   const reopenedCalls = page.getByRole("dialog", { name: "Defenses" });
   await reopenedCalls.getByRole("tab", { name: "Favorites" }).click();
@@ -556,7 +579,7 @@ test("names a version and restores it after a reload", async ({ page }) => {
   await inspector.getByRole("button", { name: "Show", exact: true }).click();
   await expect(inspector.getByText("Install week")).toBeVisible();
   await expect(inspector.getByText("just now")).toBeVisible();
-  await inspector.getByRole("button", { name: "Hide" }).click();
+  await inspector.getByRole("button", { name: "Hide", exact: true }).click();
 
   await playName.fill("Thursday rewrite");
   await playName.press("Enter");
@@ -595,7 +618,7 @@ test("opens a library variation, searches the Playbook, and restores browser scr
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByText(/^Library/)).toBeVisible();
+  await unfoldLibrary(page);
   await expect(page.getByText("Gun Doubles Left")).toBeVisible();
 
   await page.getByText("Gun Doubles Left").click();
@@ -629,7 +652,7 @@ test("shows a defensive play's real unit in the header and keeps a chosen type a
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByText(/^Library/)).toBeVisible();
+  await unfoldLibrary(page);
   const pill = page.getByRole("button", { name: "Play type" });
   await expect(pill).toHaveText("Offense · Pass");
 

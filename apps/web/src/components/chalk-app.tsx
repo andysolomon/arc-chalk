@@ -53,6 +53,7 @@ import {
   type Concept,
   type LabelRole,
   type DefensiveCall,
+  type FieldProfile,
   type Formation,
   type MovementPath,
   type Player,
@@ -193,8 +194,15 @@ import {
 } from "react";
 
 import type { AppLifecycle } from "../app/app-lifecycle";
-import type { ChalkRuntime } from "../app/editor-runtime";
-import { FieldProfileSection } from "../library/field-profile-section";
+import {
+  defaultChromeState,
+  type ChalkRuntime,
+  type ChromeState,
+} from "../app/editor-runtime";
+import {
+  FieldProfileSection,
+  NewProfileForm,
+} from "../library/field-profile-section";
 import { LibraryPanel } from "../library/library-panel";
 import { ScopeBar } from "../library/scope-bar";
 import { PlaybookBrowser } from "../library/playbook-browser";
@@ -238,6 +246,13 @@ import {
   type WristbandPicker,
 } from "./editor-overlays";
 import { emptyDefenseGuidance } from "./empty-defense-guidance";
+import {
+  Disclosure,
+  Hint,
+  LayersPopover,
+  PresetPicker,
+} from "./inspector-sections";
+import type { PresetChoice } from "./preset-choices";
 import { editorStatusHint } from "./editor-status-hint";
 import { FieldMinimap } from "./field-minimap";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
@@ -264,7 +279,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 export { FieldDiagram };
 
 type View = "Editor" | "Demo" | "Present" | "Print";
-type Menu = "more" | "export" | "save" | "clear" | "classify" | null;
+type Menu = "more" | "export" | "save" | "clear" | "classify" | "layers" | null;
 type Overlay =
   | "palette"
   | "shortcuts"
@@ -272,6 +287,7 @@ type Overlay =
   | "defenses"
   | "playbook"
   | "game-plans"
+  | "presets"
   | "conflicts"
   | null;
 type Tool =
@@ -1303,6 +1319,8 @@ function QuickCallGrid({
  * The original's Player panel: the man himself, then every line he has and the
  * button that gives him another one. Which of those it offers follows what he
  * is — a lineman blocks and has no route to run, a defender is given a call.
+ * Coaching comes first — his lines, the calls he could be given — and how he
+ * is drawn folds away under Appearance (issue #64).
  */
 function PlayerInspector({
   activePresets,
@@ -1318,6 +1336,8 @@ function PlayerInspector({
   onSelectLine,
   onText,
   onTextCommitted,
+  onToggle,
+  open,
   player,
   text,
 }: {
@@ -1344,6 +1364,8 @@ function PlayerInspector({
   onSelectLine: (pathId: string) => void;
   onText: (field: "label" | "sublabel", value: string) => void;
   onTextCommitted: (field: "label" | "sublabel") => void;
+  onToggle: (id: string) => void;
+  open: Readonly<Record<string, boolean>>;
   player: Player;
   text: Readonly<Record<"label" | "sublabel", string>>;
   scopeBadge?: string;
@@ -1360,6 +1382,12 @@ function PlayerInspector({
     : lineman
       ? "No block yet. Pick one below, or press B and click him to draw one."
       : "No route yet. Pick one below, or press R and click this player to draw one.";
+  const symbolName =
+    playerSymbolChoices.find(({ symbol }) => symbol === player.symbol)?.name ??
+    player.symbol;
+  const fillName =
+    playerFillChoices.find(({ fill }) => fill === player.fill)?.name ??
+    player.fill;
 
   return (
     <div className="label-inspector">
@@ -1375,47 +1403,6 @@ function PlayerInspector({
         </button>
         <span>Player</span>
         {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
-      </div>
-      <div className="symbol-row">
-        {playerSymbolChoices.map((choice) => (
-          <button
-            aria-label={choice.name}
-            aria-pressed={player.symbol === choice.symbol}
-            className={player.symbol === choice.symbol ? "active" : undefined}
-            key={choice.symbol}
-            onClick={() => onAppearance({ symbol: choice.symbol })}
-            title={choice.name}
-            type="button"
-          >
-            <span aria-hidden="true">{choice.glyph}</span>
-          </button>
-        ))}
-      </div>
-      <span className="field-label">Fill</span>
-      <div className="segments">
-        {playerFillChoices.map((choice) => (
-          <button
-            className={player.fill === choice.fill ? "active" : undefined}
-            key={choice.fill}
-            onClick={() => onAppearance({ fill: choice.fill })}
-            type="button"
-          >
-            {choice.name}
-          </button>
-        ))}
-      </div>
-      <div className="color-row">
-        {routeColorChoices.map((color) => (
-          <button
-            aria-label={color}
-            aria-pressed={player.color === color}
-            className={player.color === color ? "swatch active" : "swatch"}
-            key={color}
-            onClick={() => onAppearance({ color })}
-            style={{ background: sceneColors[color] }}
-            type="button"
-          />
-        ))}
       </div>
       <input
         aria-label="Letter"
@@ -1524,19 +1511,17 @@ function PlayerInspector({
         />
       )}
       {!defense && !lineman && (
-        <>
-          <div className="help-row">
-            <button onClick={onAddAlternate} type="button">
-              + Alternate route — new stem from stance
-            </button>
-          </div>
-          <p>
+        <div className="help-row">
+          <button onClick={onAddAlternate} type="button">
+            + Alternate route — new stem from stance
+          </button>
+          <Hint about="alternates and choices">
             An <strong>alternate</strong> starts over at his stance: a different
             call he could be asked to run, drawn dotted. A{" "}
             <strong>choice</strong> stays inside one stem — he runs it, then
             reads and forks. Select a line to add one.
-          </p>
-        </>
+          </Hint>
+        </div>
       )}
       {lineman && (
         <p>
@@ -1544,6 +1529,55 @@ function PlayerInspector({
           contact happens.
         </p>
       )}
+      <Disclosure
+        id="player-appearance"
+        onToggle={onToggle}
+        open={open["player-appearance"] ?? false}
+        summary={`${symbolName} · ${fillName} · ${player.color}`}
+        title="Appearance"
+      >
+        <div className="symbol-row">
+          {playerSymbolChoices.map((choice) => (
+            <button
+              aria-label={choice.name}
+              aria-pressed={player.symbol === choice.symbol}
+              className={player.symbol === choice.symbol ? "active" : undefined}
+              key={choice.symbol}
+              onClick={() => onAppearance({ symbol: choice.symbol })}
+              title={choice.name}
+              type="button"
+            >
+              <span aria-hidden="true">{choice.glyph}</span>
+            </button>
+          ))}
+        </div>
+        <span className="field-label">Fill</span>
+        <div className="segments">
+          {playerFillChoices.map((choice) => (
+            <button
+              className={player.fill === choice.fill ? "active" : undefined}
+              key={choice.fill}
+              onClick={() => onAppearance({ fill: choice.fill })}
+              type="button"
+            >
+              {choice.name}
+            </button>
+          ))}
+        </div>
+        <div className="color-row">
+          {routeColorChoices.map((color) => (
+            <button
+              aria-label={color}
+              aria-pressed={player.color === color}
+              className={player.color === color ? "swatch active" : "swatch"}
+              key={color}
+              onClick={() => onAppearance({ color })}
+              style={{ background: sceneColors[color] }}
+              type="button"
+            />
+          ))}
+        </div>
+      </Disclosure>
     </div>
   );
 }
@@ -1551,7 +1585,9 @@ function PlayerInspector({
 /**
  * The original's Route panel. What it changes follows what the Coach has
  * picked out: a segment takes the line style on its own, a branch takes it
- * for that line, and otherwise the whole route does.
+ * for that line, and otherwise the whole route does. The coaching — read,
+ * assignment, conversion, note — comes first; how the line is drawn and when
+ * it runs fold away under Appearance and Advanced (issue #64).
  */
 function RouteInspector({
   branchIndex,
@@ -1570,6 +1606,8 @@ function RouteInspector({
   onStyle,
   onTiming,
   onTimingCommitted,
+  onToggle,
+  open,
   path,
   segmentIndex,
   timing,
@@ -1591,6 +1629,8 @@ function RouteInspector({
   onStyle: (style: Partial<MovementPath["style"]>) => void;
   onTiming: (field: RouteTimingField, value: string) => void;
   onTimingCommitted: (field: RouteTimingField) => void;
+  onToggle: (id: string) => void;
+  open: Readonly<Record<string, boolean>>;
   path: MovementPath;
   segmentIndex?: number;
   timing: Readonly<Record<RouteTimingField, string>>;
@@ -1630,6 +1670,14 @@ function RouteInspector({
       : branchIndex !== undefined
         ? `Branch ${branchIndex + 1}`
         : `${line.length} breaks`;
+  const lineName =
+    lineStyleChoices.find((choice) => choice.line === shownLine)?.name ??
+    shownLine;
+  const endingName =
+    endingChoices.find((choice) => choice.ending === shownEnding)?.name ??
+    shownEnding;
+  const timed =
+    timing.delay !== "" || timing.hold !== "" || timing.speed !== "";
 
   return (
     <div className="label-inspector">
@@ -1659,55 +1707,14 @@ function RouteInspector({
           </button>
         ))}
       </div>
-      <span className="field-label">Line</span>
-      <div className="button-grid">
-        {lineStyleChoices.map((choice) => (
-          <button
-            // The glyph is the picture of the line; the name is what it is.
-            // Without this a screen reader announces "– –".
-            aria-label={choice.name}
-            className={shownLine === choice.line ? "active" : undefined}
-            key={choice.line}
-            onClick={() => onStyle({ line: choice.line })}
-            title={choice.name}
-            type="button"
-          >
-            <span aria-hidden="true">{choice.glyph}</span>
-          </button>
-        ))}
-      </div>
-      <span className="field-label">Ending</span>
-      <div className="button-grid">
-        {endingChoices.map((choice) => (
-          <button
-            className={shownEnding === choice.ending ? "active" : undefined}
-            key={choice.ending}
-            onClick={() => onStyle({ ending: choice.ending })}
-            type="button"
-          >
-            {choice.name}
-          </button>
-        ))}
-      </div>
-      <span className="field-label">Color</span>
-      <div className="color-row">
-        {routeColorChoices.map((color) => (
-          <button
-            aria-label={color}
-            aria-pressed={style.color === color}
-            className={style.color === color ? "swatch active" : "swatch"}
-            key={color}
-            onClick={() => onStyle({ color })}
-            style={{ background: sceneColors[color] }}
-            type="button"
-          />
-        ))}
-      </div>
-      <p>
-        The ending carries the coaching. Arrow means run through, a dot means
-        throttle down and sit, a bar is a block.
-      </p>
-      <span className="section-heading">Coaching</span>
+      <span className="section-heading">
+        Coaching
+        <Hint about="coaching">
+          Read number and assignment print on the field. Conversion and note
+          ride along with the route — they follow it through mirror, duplicate
+          and save.
+        </Hint>
+      </span>
       <div className="coaching-row">
         <label className="read-field">
           <span>Read</span>
@@ -1752,69 +1759,10 @@ function RouteInspector({
         spellCheck={false}
         value={coaching.coachingNote}
       />
-      <p>
-        Read number and assignment print on the field. Conversion and note ride
-        along with the route — they follow it through mirror, duplicate and
-        save.
-      </p>
-      <span className="section-heading">Timing</span>
-      <div className="timing-row">
-        <label className="read-field">
-          <span>Delay</span>
-          <input
-            aria-label="Delay"
-            inputMode="decimal"
-            onBlur={() => onTimingCommitted("delay")}
-            onChange={(event) => onTiming("delay", event.target.value)}
-            spellCheck={false}
-            value={timing.delay}
-          />
-        </label>
-        <label className="read-field">
-          <span>Speed</span>
-          <input
-            aria-label="Speed"
-            inputMode="decimal"
-            onBlur={() => onTimingCommitted("speed")}
-            onChange={(event) => onTiming("speed", event.target.value)}
-            spellCheck={false}
-            value={timing.speed}
-          />
-        </label>
-        <label className="read-field">
-          <span>Hold</span>
-          <input
-            aria-label="Hold"
-            inputMode="decimal"
-            onBlur={() => onTimingCommitted("hold")}
-            onChange={(event) => onTiming("hold", event.target.value)}
-            spellCheck={false}
-            value={timing.hold}
-          />
-        </label>
-      </div>
-      <p>
-        Delay is beats after the snap. Hold is how long he sits down at the end.
-      </p>
-      <span className="section-heading">Choice within this stem</span>
       <div className="help-row">
         <button onClick={onAddChoice} type="button">
           + Choice at {nodeName}
         </button>
-      </div>
-      {branchIndex === undefined ? undefined : (
-        <div className="help-row">
-          <button className="danger" onClick={onRemoveChoice} type="button">
-            Remove this choice
-          </button>
-        </div>
-      )}
-      <p>
-        A <strong>choice</strong> forks this same stem at the break you picked —
-        one release, then he reads. For a whole second line off his stance, use{" "}
-        <strong>alternate route</strong> in the player panel.
-      </p>
-      <div className="help-row">
         <button
           onClick={onFlip}
           title="Mirror this line about where it starts — turns it in the other direction without redrawing"
@@ -1825,10 +1773,128 @@ function RouteInspector({
         <button onClick={onStraighten} type="button">
           Straighten
         </button>
-        <button className="danger" onClick={onDelete} type="button">
-          Delete
-        </button>
+        <Hint about="choices">
+          A <strong>choice</strong> forks this same stem at the break you picked
+          — one release, then he reads. For a whole second line off his stance,
+          use <strong>alternate route</strong> in the player panel.
+        </Hint>
       </div>
+      {branchIndex === undefined ? undefined : (
+        <div className="help-row">
+          <button className="danger" onClick={onRemoveChoice} type="button">
+            Remove this choice
+          </button>
+        </div>
+      )}
+      <Disclosure
+        id="route-appearance"
+        onToggle={onToggle}
+        open={open["route-appearance"] ?? false}
+        summary={`${lineName} · ${endingName} · ${style.color}`}
+        title="Appearance"
+      >
+        <span className="field-label">Line</span>
+        <div className="button-grid">
+          {lineStyleChoices.map((choice) => (
+            <button
+              // The glyph is the picture of the line; the name is what it is.
+              // Without this a screen reader announces "– –".
+              aria-label={choice.name}
+              className={shownLine === choice.line ? "active" : undefined}
+              key={choice.line}
+              onClick={() => onStyle({ line: choice.line })}
+              title={choice.name}
+              type="button"
+            >
+              <span aria-hidden="true">{choice.glyph}</span>
+            </button>
+          ))}
+        </div>
+        <span className="field-label">Ending</span>
+        <div className="button-grid">
+          {endingChoices.map((choice) => (
+            <button
+              className={shownEnding === choice.ending ? "active" : undefined}
+              key={choice.ending}
+              onClick={() => onStyle({ ending: choice.ending })}
+              type="button"
+            >
+              {choice.name}
+            </button>
+          ))}
+        </div>
+        <span className="field-label">Color</span>
+        <div className="color-row">
+          {routeColorChoices.map((color) => (
+            <button
+              aria-label={color}
+              aria-pressed={style.color === color}
+              className={style.color === color ? "swatch active" : "swatch"}
+              key={color}
+              onClick={() => onStyle({ color })}
+              style={{ background: sceneColors[color] }}
+              type="button"
+            />
+          ))}
+        </div>
+        <p>
+          The ending carries the coaching. Arrow means run through, a dot means
+          throttle down and sit, a bar is a block.
+        </p>
+      </Disclosure>
+      <Disclosure
+        id="route-advanced"
+        onToggle={onToggle}
+        open={open["route-advanced"] ?? false}
+        summary={timed ? "Timing set" : "Timing · delete"}
+        title="Advanced"
+      >
+        <span className="section-heading">Timing</span>
+        <div className="timing-row">
+          <label className="read-field">
+            <span>Delay</span>
+            <input
+              aria-label="Delay"
+              inputMode="decimal"
+              onBlur={() => onTimingCommitted("delay")}
+              onChange={(event) => onTiming("delay", event.target.value)}
+              spellCheck={false}
+              value={timing.delay}
+            />
+          </label>
+          <label className="read-field">
+            <span>Speed</span>
+            <input
+              aria-label="Speed"
+              inputMode="decimal"
+              onBlur={() => onTimingCommitted("speed")}
+              onChange={(event) => onTiming("speed", event.target.value)}
+              spellCheck={false}
+              value={timing.speed}
+            />
+          </label>
+          <label className="read-field">
+            <span>Hold</span>
+            <input
+              aria-label="Hold"
+              inputMode="decimal"
+              onBlur={() => onTimingCommitted("hold")}
+              onChange={(event) => onTiming("hold", event.target.value)}
+              spellCheck={false}
+              value={timing.hold}
+            />
+          </label>
+        </div>
+        <p>
+          Delay is beats after the snap. Hold is how long he sits down at the
+          end.
+        </p>
+        <div className="help-row">
+          <button className="danger" onClick={onDelete} type="button">
+            Delete this route
+          </button>
+        </div>
+      </Disclosure>
     </div>
   );
 }
@@ -1837,19 +1903,22 @@ function Inspector({
   ballSpots,
   call,
   scopeBadge,
-  concepts,
+  currentConcept,
+  currentLineCall,
   defenderCount,
   fieldProfile,
-  layers,
+  fieldProfileName,
+  layersPopover,
   library,
-  lineCalls,
+  librarySummary,
   linemanCount,
-  onConcept,
-  onLineCall,
+  onCollapse,
+  onOpenPresets,
   onPageKind,
   onSpotBall,
-  onToggleLayer,
+  onToggle,
   onTypePreset,
+  open,
   formation,
   formationHint,
   labelEditor,
@@ -1859,8 +1928,10 @@ function Inspector({
   onOpenShortcuts,
   onRestoreVersion,
   pageKind,
+  playbookSettings,
   typeHint,
   typePreset,
+  unit,
   versions,
 }: {
   ballSpots: readonly {
@@ -1872,25 +1943,24 @@ function Inspector({
   }[];
   call?: DefensiveCall;
   scopeBadge?: string;
-  concepts: Readonly<
-    Record<string, { readonly on: boolean; readonly available: boolean }>
-  >;
+  /** The concept drawn on the field now, if one is. */
+  currentConcept?: string;
+  currentLineCall?: string;
   defenderCount: number;
   fieldProfile?: React.ReactNode;
-  layers: Presentation["layers"];
+  fieldProfileName: string;
+  layersPopover?: React.ReactNode;
   library?: React.ReactNode;
-  lineCalls: readonly {
-    readonly key: string;
-    readonly name: string;
-    readonly on: boolean;
-    readonly available: boolean;
-  }[];
-  onConcept: (key: string) => void;
-  onLineCall: (key: string) => void;
+  /** One line about the open Play's family, for the folded Library heading. */
+  librarySummary: string;
+  onCollapse: () => void;
+  onOpenPresets: (group: "concept" | "line") => void;
   onPageKind: (kind: PageKindId) => void;
   onSpotBall: (spot: BallSpot) => void;
-  onToggleLayer: (layer: FieldLayerId) => void;
+  onToggle: (id: string) => void;
   onTypePreset: (preset: TypePresetId) => void;
+  /** Which folded sections the Coach has opened, remembered per device. */
+  open: Readonly<Record<string, boolean>>;
   linemanCount: number;
   formation?: Formation;
   formationHint: string;
@@ -1901,130 +1971,195 @@ function Inspector({
   onOpenShortcuts: () => void;
   onRestoreVersion: (revisionId: string) => void;
   pageKind: PageKindId;
+  playbookSettings?: React.ReactNode;
   typeHint: string;
   typePreset: TypePresetId;
+  unit: PlayDocument["unit"];
   versions: readonly EditorVersionSummary[];
 }) {
+  const defense = unit === "defense";
+  const bar = (
+    <div className="inspector-bar">
+      {layersPopover}
+      <span className="top-spacer" />
+      <button
+        aria-label="Hide the inspector"
+        className="inspector-bar-button inspector-collapse"
+        onClick={onCollapse}
+        title="Hide the inspector — ⌥1"
+        type="button"
+      >
+        ›
+      </button>
+    </div>
+  );
   if (labelEditor) {
     return (
       <aside className="inspector" aria-label="Play inspector">
+        {bar}
         {labelEditor}
       </aside>
     );
   }
+  const formationPicker = (
+    <>
+      <button
+        className="wide-picker"
+        data-current-formation={formation?.id}
+        onClick={onOpenFormations}
+        title="Browse formations — ⇧⌘F"
+      >
+        <span>{formation?.name ?? "Custom alignment"}</span>
+        <span>{formation?.personnelLabel ?? "–"} &nbsp;›</span>
+      </button>
+      <button className="round-add" aria-label="Save current formation">
+        +
+      </button>
+      <div className="segment-row">
+        <span>Ball on</span>
+        <div className="segments">
+          {ballSpots.map((spot) => (
+            <button
+              aria-pressed={spot.on}
+              className={spot.on ? "active" : undefined}
+              disabled={!spot.available}
+              key={spot.spot}
+              onClick={() => onSpotBall(spot.spot)}
+              title={spot.title}
+            >
+              {spot.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Hint about="the formation">{formationHint}</Hint>
+    </>
+  );
+  const defensePicker = (
+    <>
+      <button
+        className="wide-picker"
+        data-current-defense={call?.formation.id}
+        onClick={onOpenDefenses}
+        title="Browse defenses — ⇧⌘D"
+      >
+        <span>
+          {call
+            ? call.formation.name
+            : defenderCount > 0
+              ? "Custom front"
+              : "No defense yet"}
+        </span>
+        <span>
+          {call
+            ? call.formation.description
+            : defenderCount > 0
+              ? `${defenderCount} men`
+              : "–"}{" "}
+          &nbsp;›
+        </span>
+      </button>
+      <Hint about="defensive calls">
+        Start with a call — each one replaces the last and leaves the offense
+        untouched. Just the front and secondary — letter symbols only, so you
+        can draw your own coverage on top. Press Z to add your own drop.
+      </Hint>
+    </>
+  );
+  const conceptRows = (
+    <>
+      <button
+        className="wide-picker preset-summary"
+        onClick={() => onOpenPresets("concept")}
+        title="Concepts — draw the whole distribution by role"
+        type="button"
+      >
+        <span>{currentConcept ?? "No concept yet"}</span>
+        <span>Concept &nbsp;›</span>
+      </button>
+      <button
+        className="wide-picker preset-summary"
+        onClick={() => onOpenPresets("line")}
+        title={`Line calls — give all ${linemanCount} linemen the same call`}
+        type="button"
+      >
+        <span>{currentLineCall ?? "No line call yet"}</span>
+        <span>Line call &nbsp;›</span>
+      </button>
+      <Hint about="concepts and line calls">
+        A concept draws every route by role — X, Z, H, Y and the back each get
+        their job — and replaces their routes; blocking and coverage stay. A
+        line call gives all {linemanCount} linemen one call at once.
+      </Hint>
+    </>
+  );
+  const pageName =
+    pageKindCatalog.find(({ id }) => id === pageKind)?.name ?? pageKind;
+  const typeName =
+    typePresetCatalog.find(({ id }) => id === typePreset)?.name ?? typePreset;
+  const opponentSummary = defense
+    ? (formation?.name ?? "Custom alignment")
+    : call
+      ? call.formation.name
+      : defenderCount > 0
+        ? "Custom front"
+        : "No defense yet";
   return (
     <aside className="inspector" aria-label="Play inspector">
-      <InspectorSection badge={scopeBadge} title="Formation">
-        <button
-          className="wide-picker"
-          data-current-formation={formation?.id}
-          onClick={onOpenFormations}
-          title="Browse formations — ⇧⌘F"
-        >
-          <span>{formation?.name ?? "Custom alignment"}</span>
-          <span>{formation?.personnelLabel ?? "–"} &nbsp;›</span>
-        </button>
-        <button className="round-add" aria-label="Save current formation">
-          +
-        </button>
-        <div className="segment-row">
-          <span>Ball on</span>
-          <div className="segments">
-            {ballSpots.map((spot) => (
-              <button
-                aria-pressed={spot.on}
-                className={spot.on ? "active" : undefined}
-                disabled={!spot.available}
-                key={spot.spot}
-                onClick={() => onSpotBall(spot.spot)}
-                title={spot.title}
-              >
-                {spot.name}
-              </button>
-            ))}
-          </div>
-        </div>
-        <p>{formationHint}</p>
+      {bar}
+      <InspectorSection
+        badge={scopeBadge}
+        title={defense ? "Defensive call" : "Play setup"}
+      >
+        {defense ? defensePicker : formationPicker}
+        {defense ? null : conceptRows}
       </InspectorSection>
-      <InspectorSection badge={scopeBadge} title="Line call">
-        <div className="button-grid">
-          {lineCalls.map((call) => (
-            <button
-              aria-pressed={call.on}
-              className={call.on ? "active" : undefined}
-              disabled={!call.available}
-              key={call.key}
-              onClick={() => onLineCall(call.key)}
-              title={
-                call.on
-                  ? "Click again to take this call off the whole line"
-                  : `Give the whole line ${call.name}`
-              }
-            >
-              {call.name}
-            </button>
-          ))}
-        </div>
-        <p>
-          Applies to all {linemanCount} linemen at once — each one keeps his own
-          alignment. Set left and Set right take the whole line the same way;
-          the others mirror about the ball.
-        </p>
-      </InspectorSection>
-      <InspectorSection badge={scopeBadge} title="Concept">
-        <div className="button-grid">
-          {stockConcepts.map((concept) => (
-            <button
-              aria-pressed={concepts[concept.key]?.on ?? false}
-              className={concepts[concept.key]?.on ? "active" : undefined}
-              disabled={!concepts[concept.key]?.available}
-              key={concept.key}
-              onClick={() => onConcept(concept.key)}
-              title={concept.hint}
-            >
-              {concept.name}
-            </button>
-          ))}
-        </div>
-        <p>
-          Draws the whole distribution by role — X, Z, H, Y and the back each
-          get their job, mirrored to the side they line up on. Replaces their
-          routes; blocking and coverage stay.
-        </p>
-      </InspectorSection>
-      <InspectorSection title="Defense">
-        <button
-          className="wide-picker"
-          data-current-defense={call?.formation.id}
-          onClick={onOpenDefenses}
-          title="Browse defenses — ⇧⌘D"
-        >
-          <span>
-            {call
-              ? call.formation.name
-              : defenderCount > 0
-                ? "Custom front"
-                : "No defense yet"}
-          </span>
-          <span>
-            {call
-              ? call.formation.description
-              : defenderCount > 0
-                ? `${defenderCount} men`
-                : "–"}{" "}
-            &nbsp;›
-          </span>
-        </button>
-        <p>
-          Start with a call — each one replaces the last and leaves the offense
-          untouched. Just the front and secondary — letter symbols only, so you
-          can draw your own coverage on top. Press Z to add your own drop.
-        </p>
-      </InspectorSection>
-      {library}
-      {fieldProfile}
+      <Disclosure
+        id="opponent"
+        onToggle={onToggle}
+        open={open.opponent ?? false}
+        summary={opponentSummary}
+        title="Opponent look"
+      >
+        {defense ? formationPicker : defensePicker}
+      </Disclosure>
+      <Disclosure
+        badge={scopeBadge}
+        id="library"
+        onToggle={onToggle}
+        open={open.library ?? false}
+        summary={librarySummary}
+        title="Library"
+      >
+        {library}
+      </Disclosure>
+      <Disclosure
+        id="field"
+        onToggle={onToggle}
+        open={open.field ?? false}
+        summary={fieldProfileName}
+        title="Field"
+      >
+        {fieldProfile}
+      </Disclosure>
+      <Disclosure
+        id="settings"
+        onToggle={onToggle}
+        open={open.settings ?? false}
+        summary="Field profiles · play types"
+        title="Playbook settings"
+      >
+        {playbookSettings}
+      </Disclosure>
       <HistorySection onRestore={onRestoreVersion} versions={versions} />
-      <InspectorSection title="Page">
+      <Disclosure
+        id="print"
+        onToggle={onToggle}
+        open={open.print ?? false}
+        summary={`${pageName} · ${typeName}`}
+        title="Print & export"
+      >
+        <div className="sub-heading">Page</div>
         <div className="page-kinds">
           {pageKindCatalog.map((kind) => (
             <button
@@ -2057,30 +2192,7 @@ function Inspector({
           ))}
         </div>
         <p>{typeHint}</p>
-        <div className="sub-heading">Show on the field</div>
-        <div className="layer-toggles">
-          {fieldLayerCatalog.map((layer) => {
-            const on = layers[layer.id];
-            return (
-              <button
-                aria-pressed={on}
-                className={on ? "active" : undefined}
-                key={layer.id}
-                onClick={() => onToggleLayer(layer.id)}
-                title={
-                  on
-                    ? `Hide ${layer.name.toLowerCase()} everywhere, exports included`
-                    : `Show ${layer.name.toLowerCase()} again`
-                }
-                type="button"
-              >
-                <span className="layer-dot" />
-                {layer.name}
-              </button>
-            );
-          })}
-        </div>
-      </InspectorSection>
+      </Disclosure>
       <InspectorSection title="Help">
         <div className="help-row">
           <button onClick={onOpenPalette} type="button">
@@ -2243,6 +2355,15 @@ export function ChalkApp({
   // mode"; it does not carry a third piece of state for focus.
   const [railOpen, setRailOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  /**
+   * How the Coach left the chrome on this device — panels, unfolded
+   * inspector sections, starred and recent presets (issue #64). Loaded once;
+   * every change is written back as it happens.
+   */
+  const [chrome, setChrome] = useState<ChromeState>(defaultChromeState);
+  const chromeRef = useRef<ChromeState>(defaultChromeState);
+  const chromeLoadedRef = useRef(false);
+  const [presetGroup, setPresetGroup] = useState<"concept" | "line">();
   const [zonesHidden, setZonesHidden] = useState(false);
   const [recoveryDismissed, setRecoveryDismissed] = useState(false);
   const [freedStorage, setFreedStorage] = useState<ChalkRuntime["storage"]>();
@@ -3724,12 +3845,6 @@ export function ChalkApp({
       })),
     [editor.document],
   );
-  const conceptActions = Object.fromEntries(
-    conceptCommands.map(({ concept, on, command }) => [
-      concept.key,
-      { on, available: command !== undefined },
-    ]),
-  );
   /**
    * Drawing or clearing a concept. Built from the live Play rather than from
    * the render that offered the button, which is the same reason the reorder
@@ -3779,10 +3894,6 @@ export function ChalkApp({
       }),
     [editor.document, linemen],
   );
-  const lineCallActions = lineCallCommands.map(({ command, ...call }) => ({
-    ...call,
-    available: command !== undefined,
-  }));
   const runLineCall = (key: string): void => {
     const document = editorStore.getSnapshot().document;
     const command = applyLinePresetCommand(
@@ -4520,6 +4631,18 @@ export function ChalkApp({
         setOverlay("shortcuts");
         return;
       }
+      if (
+        event.altKey &&
+        !meta &&
+        !typing &&
+        (event.code === "Digit1" || event.code === "Digit2")
+      ) {
+        // ⌥1 and ⌥2 fold the inspector and the tools, as their titles say.
+        event.preventDefault();
+        if (event.code === "Digit1") setInspectorOpen((shown) => !shown);
+        else setRailOpen((shown) => !shown);
+        return;
+      }
       if (typing || meta || event.altKey) return;
       if (event.key === " " && !activating) {
         // Held space turns a drag into a pan. A tap with no drag plays and
@@ -4630,6 +4753,138 @@ export function ChalkApp({
     globalThis.addEventListener("pointerdown", onPointerDown);
     return () => globalThis.removeEventListener("pointerdown", onPointerDown);
   }, [openMenu]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void runtime.library.loadChrome().then((state) => {
+      if (cancelled) return;
+      chromeRef.current = state;
+      setChrome(state);
+      setInspectorOpen(state.inspectorOpen);
+      setRailOpen(state.railOpen);
+      chromeLoadedRef.current = true;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [runtime.library]);
+  const rememberChrome = useCallback(
+    (patch: Partial<ChromeState>) => {
+      const next = { ...chromeRef.current, ...patch };
+      chromeRef.current = next;
+      setChrome(next);
+      void runtime.library.saveChrome(next).catch(() => undefined);
+    },
+    [runtime.library],
+  );
+  useEffect(() => {
+    if (!chromeLoadedRef.current) return;
+    const current = chromeRef.current;
+    if (
+      current.inspectorOpen === inspectorOpen &&
+      current.railOpen === railOpen
+    ) {
+      return;
+    }
+    rememberChrome({ inspectorOpen, railOpen });
+  }, [inspectorOpen, railOpen, rememberChrome]);
+  const toggleDisclosure = (id: string) =>
+    rememberChrome({
+      open: { ...chromeRef.current.open, [id]: !chromeRef.current.open[id] },
+    });
+
+  /**
+   * Concepts and line calls as one searchable catalogue (issue #64). The
+   * buttons the original spread across the idle panel are the same calls;
+   * they now sit one intentional action away, starred and recent ones first.
+   */
+  const presetChoices: readonly PresetChoice[] = [
+    ...conceptCommands.map(({ concept, on, command }) => ({
+      key: `concept:${concept.key}`,
+      name: concept.name,
+      group: "concept" as const,
+      hint: concept.hint,
+      on,
+      available: command !== undefined,
+    })),
+    ...lineCallCommands.map(({ key, name, on, command }) => ({
+      key: `line:${key}`,
+      name,
+      group: "line" as const,
+      on,
+      available: command !== undefined,
+    })),
+  ];
+  const currentConcept = conceptCommands.find(({ on }) => on)?.concept.name;
+  const currentLineCall = lineCallCommands.find(({ on }) => on)?.name;
+  const openPresets = (group: "concept" | "line") => {
+    setPresetGroup(group);
+    setOverlay("presets");
+  };
+  const pickPreset = (choice: PresetChoice) => {
+    const key = choice.key.replace(/^(concept|line):/, "");
+    if (choice.group === "concept") runConcept(key);
+    else runLineCall(key);
+    rememberChrome({
+      recentPresets: [
+        choice.key,
+        ...chromeRef.current.recentPresets.filter((id) => id !== choice.key),
+      ].slice(0, 6),
+    });
+  };
+  const togglePresetFavorite = (key: string) =>
+    rememberChrome({
+      favoritePresets: chromeRef.current.favoritePresets.includes(key)
+        ? chromeRef.current.favoritePresets.filter((id) => id !== key)
+        : [...chromeRef.current.favoritePresets, key],
+    });
+  const layersPopover = (
+    <LayersPopover
+      layers={fieldLayerCatalog.map((layer) => ({
+        id: layer.id,
+        name: layer.name,
+        on: presentation.layers[layer.id],
+      }))}
+      onOpenChange={(shown) => setOpenMenu(shown ? "layers" : null)}
+      onToggle={(id) =>
+        setPresentation((current) => ({
+          ...current,
+          layers: {
+            ...current.layers,
+            [id]: !current.layers[id as FieldLayerId],
+          },
+        }))
+      }
+      open={openMenu === "layers"}
+    />
+  );
+  const librarySummary = playbook.conceptName
+    ? `${playbook.conceptName} · ${playbook.familySize} ${playbook.familySize === 1 ? "version" : "versions"}`
+    : `${playbook.snapshot.members.length} ${playbook.snapshot.members.length === 1 ? "play" : "plays"}`;
+  /** A new Field Profile is Playbook-wide, so it is made under Playbook settings. */
+  const createFieldProfile = (profile: FieldProfile, asDefault: boolean) => {
+    const playbookRecord = playbook.snapshot.playbook;
+    const fieldProfiles = [
+      ...playbookRecord.fieldProfiles.filter(({ id }) => id !== profile.id),
+      profile,
+    ];
+    void runtime.library
+      .savePlaybook({
+        ...playbookRecord,
+        fieldProfiles,
+        defaultFieldProfileId: asDefault
+          ? profile.id
+          : playbookRecord.defaultFieldProfileId,
+        updatedAtMs: Date.now(),
+      })
+      .then(() => playbook.refresh());
+    void editorStore
+      .applyCommand({
+        kind: "set-field-profile",
+        fieldProfile: profile,
+      })
+      .catch(() => undefined);
+  };
 
   /**
    * The Coach's own Type goes into the Playbook beside the built-ins, then
@@ -5013,6 +5268,8 @@ export function ChalkApp({
             labelEditor={
               selectedPath ? (
                 <RouteInspector
+                  onToggle={toggleDisclosure}
+                  open={chrome.open}
                   branchIndex={interaction.selectedBranchIndex}
                   coaching={routeCoaching(selectedPath)}
                   scopeBadge={playbook.scopeBadge}
@@ -5111,6 +5368,8 @@ export function ChalkApp({
                 />
               ) : selectedPlayer ? (
                 <PlayerInspector
+                  onToggle={toggleDisclosure}
+                  open={chrome.open}
                   activePresets={playerPresets(selectedPlayer)}
                   scopeBadge={playbook.scopeBadge}
                   lines={playerLines(selectedPlayer)}
@@ -5276,36 +5535,32 @@ export function ChalkApp({
             ballSpots={ballSpotActions}
             call={onFieldCall}
             scopeBadge={playbook.scopeBadge}
-            concepts={conceptActions}
+            currentConcept={currentConcept}
+            currentLineCall={currentLineCall}
+            fieldProfileName={editor.document.fieldProfile.name}
+            layersPopover={layersPopover}
+            librarySummary={librarySummary}
+            onCollapse={() => setInspectorOpen(false)}
+            onOpenPresets={openPresets}
+            onToggle={toggleDisclosure}
+            open={chrome.open}
+            unit={editor.document.unit}
+            playbookSettings={
+              <>
+                <NewProfileForm
+                  current={editor.document.fieldProfile}
+                  onCreate={createFieldProfile}
+                />
+                <p>
+                  Play types are managed from the Unit · Type pill in the
+                  header.
+                </p>
+              </>
+            }
             fieldProfile={
               <FieldProfileSection
                 formations={allFormations}
                 onApplyProfile={(profile) => {
-                  void editorStore
-                    .applyCommand({
-                      kind: "set-field-profile",
-                      fieldProfile: profile,
-                    })
-                    .catch(() => undefined);
-                }}
-                onCreateProfile={(profile, asDefault) => {
-                  const playbookRecord = playbook.snapshot.playbook;
-                  const fieldProfiles = [
-                    ...playbookRecord.fieldProfiles.filter(
-                      ({ id }) => id !== profile.id,
-                    ),
-                    profile,
-                  ];
-                  void runtime.library
-                    .savePlaybook({
-                      ...playbookRecord,
-                      fieldProfiles,
-                      defaultFieldProfileId: asDefault
-                        ? profile.id
-                        : playbookRecord.defaultFieldProfileId,
-                      updatedAtMs: Date.now(),
-                    })
-                    .then(() => playbook.refresh());
                   void editorStore
                     .applyCommand({
                       kind: "set-field-profile",
@@ -5336,7 +5591,6 @@ export function ChalkApp({
                 }}
                 onNoteCommit={playbook.noteCommit}
                 onPush={playbook.push}
-                onSave={playbook.savePlay}
                 onScope={playbook.setScope}
                 onStartVariation={playbook.startVariation}
                 onToggleOpen={playbook.toggleOpen}
@@ -5352,7 +5606,6 @@ export function ChalkApp({
                 variationOpen={playbook.variationOpen}
               />
             }
-            lineCalls={lineCallActions}
             linemanCount={linemen.length}
             defenderCount={
               editor.document.players.filter(({ unit }) => unit === "defense")
@@ -5360,8 +5613,6 @@ export function ChalkApp({
             }
             formation={onFieldFormation}
             formationHint={formationHint}
-            onConcept={runConcept}
-            onLineCall={runLineCall}
             onSpotBall={spotTheBall}
             onOpenDefenses={() => setOverlay("defenses")}
             onOpenFormations={() => setOverlay("formations")}
@@ -5371,17 +5622,10 @@ export function ChalkApp({
             onPageKind={(pageKind) =>
               setPresentation((current) => ({ ...current, pageKind }))
             }
-            onToggleLayer={(layer: FieldLayerId) =>
-              setPresentation((current) => ({
-                ...current,
-                layers: { ...current.layers, [layer]: !current.layers[layer] },
-              }))
-            }
             onTypePreset={(typePreset) =>
               setPresentation((current) => ({ ...current, typePreset }))
             }
             pageKind={presentation.pageKind}
-            layers={presentation.layers}
             typePreset={presentation.typePreset}
             typeHint={
               typePresetCatalog.find(({ id }) => id === presentation.typePreset)
@@ -5545,6 +5789,17 @@ export function ChalkApp({
           onRemove={removeCoachFormation}
           onSave={saveCoachFormation}
           onToggleFavorite={toggleFavoriteFormation}
+        />
+      ) : null}
+      {overlay === "presets" ? (
+        <PresetPicker
+          choices={presetChoices}
+          favorites={chrome.favoritePresets}
+          initialGroup={presetGroup}
+          onClose={() => setOverlay(null)}
+          onPick={pickPreset}
+          onToggleFavorite={togglePresetFavorite}
+          recents={chrome.recentPresets}
         />
       ) : null}
       {overlay === "playbook" ? (
