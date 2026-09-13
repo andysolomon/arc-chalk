@@ -54,6 +54,10 @@ test("plays the seeded Play and leaves it editable at a frozen frame", async ({
     .getByRole("list", { name: "Everything on the field" })
     .getByRole("button", { name: "X route" })
     .press("Enter");
+  // Timing folds under Advanced on the route panel (issue #64).
+  await page
+    .getByRole("button", { name: /^Advanced/, expanded: false })
+    .click();
   await expect(page.getByText("Timing")).toBeVisible();
   await expect(page.getByLabel("Delay")).toBeEnabled();
 

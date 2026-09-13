@@ -253,6 +253,9 @@ test.describe("production editor overlays against the canonical original", () =>
   });
 
   test("Defenses browser matches the original", async ({ page }) => {
+    // The defensive call on an offensive Play sits under the folded Opponent
+    // look section (issue #64, ADR 0043).
+    await page.getByRole("button", { name: /^Opponent look/ }).click();
     await page.getByTitle("Browse defenses — ⇧⌘D").click();
     await expect(
       page.getByPlaceholder("Search — cover 3, nickel, blitz…"),

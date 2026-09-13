@@ -21,7 +21,6 @@ export function LibraryPanel({
   onLoad,
   onNoteCommit,
   onPush,
-  onSave,
   onScope,
   onStartVariation,
   onToggleOpen,
@@ -45,7 +44,6 @@ export function LibraryPanel({
   onLoad: (playId: string) => void;
   onNoteCommit: (conceptId: string, notes: string, tags: string) => void;
   onPush: (conceptId: string) => void;
-  onSave: () => void;
   onScope: (scope: LibraryEditScope) => void;
   onStartVariation: () => void;
   onToggleOpen: (conceptId: string) => void;
@@ -102,13 +100,9 @@ export function LibraryPanel({
           {snapshot.members.length ? ` · ${snapshot.members.length}` : ""}
         </span>
         <span>
-          <button
-            onClick={onSave}
-            title="Update the play you have open"
-            type="button"
-          >
-            {savedFlash ? "Saved" : "Save"}
-          </button>
+          {/* The sidebar Save duplicated the header's Save menu; the play saves
+              continuously and the header names a version (issue #64). */}
+          {savedFlash ? <span className="library-saved">Saved</span> : null}
           <button
             className="link-button"
             onClick={onStartVariation}

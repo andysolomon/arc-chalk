@@ -44,41 +44,47 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 
 `tests/parity/production-shell.spec.ts` captures the production shell and compares it against the **original's own golden**, so the recorded number is the live parity gap rather than an opinion. Each threshold in that file is a ratchet: it records the gap measured when the state was last worked on and may only be lowered. Raising one is a parity regression needing product-owner approval per ADR 0039.
 
-| State              | Gap measured                   | Date                           |
-| ------------------ | ------------------------------ | ------------------------------ |
-| Present            | 8.99% (124,322 px)             | 2026-08-21 (field viewBox)     |
-| Editor             | 1.65% (22,846 px of 1,382,400) | 2026-08-21 (field viewBox)     |
-| Keyboard shortcuts | 2.42% (33,420 px)              | 2026-08-21 (field viewBox)     |
-| Demo               | 2.05% (28,317 px)              | 2026-08-21 (field viewBox)     |
-| Formations browser | 2.01% (27,730 px)              | 2026-08-21 (field viewBox)     |
-| More menu          | 1.67% (23,038 px)              | 2026-08-21 (field viewBox)     |
-| Save/version menu  | 1.66% (23,010 px)              | 2026-08-21 (field viewBox)     |
-| Command palette    | 1.66% (23,004 px)              | 2026-08-21 (field viewBox)     |
-| Export menu        | 1.60% (22,095 px)              | 2026-08-21 (field viewBox)     |
-| Defenses browser   | 1.59% (22,033 px)              | 2026-08-21 (field viewBox)     |
-| Print              | 0.80% (11,117 px)              | 2026-08-21 (field viewBox)     |
-| Editor             | 1.71% (23,685 px of 1,382,400) | 2026-08-21                     |
-| Present            | 17.96% (248,333 px)            | 2026-08-21 (first measurement) |
-| Print              | 0.84% (11,638 px)              | 2026-08-21 (first measurement) |
-| Demo               | 2.12% (29,338 px)              | 2026-08-21 (first measurement) |
-| Export menu        | 1.65% (22,859 px)              | 2026-08-21                     |
-| Command palette    | 1.72% (23,752 px)              | 2026-08-21                     |
-| Save/version menu  | 1.73% (23,849 px)              | 2026-08-21                     |
-| More menu          | 1.73% (23,877 px)              | 2026-08-21                     |
-| Keyboard shortcuts | 2.50% (34,604 px)              | 2026-08-21                     |
-| Editor             | 1.85% (25,526 px of 1,382,400) | 2026-08-06                     |
-| Export menu        | 1.74% (24,057 px)              | 2026-08-06 (first measurement) |
-| Command palette    | 1.80% (24,818 px)              | 2026-08-06 (first measurement) |
-| Save/version menu  | 1.81% (25,027 px)              | 2026-08-06 (first measurement) |
-| More menu          | 1.81% (25,040 px)              | 2026-08-06 (first measurement) |
-| Keyboard shortcuts | 2.64% (36,477 px)              | 2026-08-06                     |
-| Formations browser | 1.98% (27,413 px)              | 2026-08-21                     |
-| Formations browser | 2.03% (28,051 px)              | 2026-08-06 (first measurement) |
-| Defenses browser   | 1.57% (21,716 px)              | 2026-08-21                     |
-| Defenses browser   | 1.65% (22,845 px)              | 2026-08-06 (first measurement) |
-| Keyboard shortcuts | 3.48% (48,152 px)              | 2026-08-06 (first measurement) |
-| Editor             | 1.89% (26,186 px of 1,382,400) | 2026-08-06                     |
-| Editor             | 2.14% (29,631 px of 1,382,400) | 2026-08-06 (first measurement) |
+| State                          | Gap measured                                                                                              | Date                                                |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Editor                         | 1.16% (16,097 px) Linux, from 17,722 on `main` same machine                                               | 2026-09-13 (ADR 0043 folded inspector)              |
+| Shortcuts                      | 2.45% (33,818 px) Linux, from 38,313 on `main` same machine                                               | 2026-09-13 (ADR 0043)                               |
+| Defenses browser               | 1.42% (19,574 px) Linux, from 20,866 on `main` same machine                                               | 2026-09-13 (ADR 0043, Opponent look unfolded first) |
+| Formations browser             | 1.83% (25,324 px) Linux, from 26,597 on `main` same machine                                               | 2026-09-13 (ADR 0043)                               |
+| More / Export / Save / Palette | 17,169 / 16,623 / 16,319 / 16,496 px Linux, each below `main`                                             | 2026-09-13 (ADR 0043)                               |
+| Print                          | 0.84% (11,553 px) Linux, identical on `main` same machine — above the macOS ratchet by rasterization only | 2026-09-13                                          |
+| Present                        | 8.99% (124,322 px)                                                                                        | 2026-08-21 (field viewBox)                          |
+| Editor                         | 1.65% (22,846 px of 1,382,400)                                                                            | 2026-08-21 (field viewBox)                          |
+| Keyboard shortcuts             | 2.42% (33,420 px)                                                                                         | 2026-08-21 (field viewBox)                          |
+| Demo                           | 2.05% (28,317 px)                                                                                         | 2026-08-21 (field viewBox)                          |
+| Formations browser             | 2.01% (27,730 px)                                                                                         | 2026-08-21 (field viewBox)                          |
+| More menu                      | 1.67% (23,038 px)                                                                                         | 2026-08-21 (field viewBox)                          |
+| Save/version menu              | 1.66% (23,010 px)                                                                                         | 2026-08-21 (field viewBox)                          |
+| Command palette                | 1.66% (23,004 px)                                                                                         | 2026-08-21 (field viewBox)                          |
+| Export menu                    | 1.60% (22,095 px)                                                                                         | 2026-08-21 (field viewBox)                          |
+| Defenses browser               | 1.59% (22,033 px)                                                                                         | 2026-08-21 (field viewBox)                          |
+| Print                          | 0.80% (11,117 px)                                                                                         | 2026-08-21 (field viewBox)                          |
+| Editor                         | 1.71% (23,685 px of 1,382,400)                                                                            | 2026-08-21                                          |
+| Present                        | 17.96% (248,333 px)                                                                                       | 2026-08-21 (first measurement)                      |
+| Print                          | 0.84% (11,638 px)                                                                                         | 2026-08-21 (first measurement)                      |
+| Demo                           | 2.12% (29,338 px)                                                                                         | 2026-08-21 (first measurement)                      |
+| Export menu                    | 1.65% (22,859 px)                                                                                         | 2026-08-21                                          |
+| Command palette                | 1.72% (23,752 px)                                                                                         | 2026-08-21                                          |
+| Save/version menu              | 1.73% (23,849 px)                                                                                         | 2026-08-21                                          |
+| More menu                      | 1.73% (23,877 px)                                                                                         | 2026-08-21                                          |
+| Keyboard shortcuts             | 2.50% (34,604 px)                                                                                         | 2026-08-21                                          |
+| Editor                         | 1.85% (25,526 px of 1,382,400)                                                                            | 2026-08-06                                          |
+| Export menu                    | 1.74% (24,057 px)                                                                                         | 2026-08-06 (first measurement)                      |
+| Command palette                | 1.80% (24,818 px)                                                                                         | 2026-08-06 (first measurement)                      |
+| Save/version menu              | 1.81% (25,027 px)                                                                                         | 2026-08-06 (first measurement)                      |
+| More menu                      | 1.81% (25,040 px)                                                                                         | 2026-08-06 (first measurement)                      |
+| Keyboard shortcuts             | 2.64% (36,477 px)                                                                                         | 2026-08-06                                          |
+| Formations browser             | 1.98% (27,413 px)                                                                                         | 2026-08-21                                          |
+| Formations browser             | 2.03% (28,051 px)                                                                                         | 2026-08-06 (first measurement)                      |
+| Defenses browser               | 1.57% (21,716 px)                                                                                         | 2026-08-21                                          |
+| Defenses browser               | 1.65% (22,845 px)                                                                                         | 2026-08-06 (first measurement)                      |
+| Keyboard shortcuts             | 3.48% (48,152 px)                                                                                         | 2026-08-06 (first measurement)                      |
+| Editor                         | 1.89% (26,186 px of 1,382,400)                                                                            | 2026-08-06                                          |
+| Editor                         | 2.14% (29,631 px of 1,382,400)                                                                            | 2026-08-06 (first measurement)                      |
 
 ### Measuring a metric rather than guessing at it
 
@@ -95,13 +101,13 @@ Closed so far:
 
 Metrics matched to the original by measurement:
 
-| Element              | Original        | Was             | Now             |
-| -------------------- | --------------- | --------------- | --------------- |
-| Play title width     | 410 px          | 310 px          | 410 px          |
-| Play Type control x  | 794             | 695             | 795             |
-| Tool-rail glyph      | 18 × 18 at x 19 | 22 × 22 at x 17 | 18 × 18 at x 19 |
+| Element              | Original                                               | Was             | Now             |
+| -------------------- | ------------------------------------------------------ | --------------- | --------------- |
+| Play title width     | 410 px                                                 | 310 px          | 410 px          |
+| Play Type control x  | 794                                                    | 695             | 795             |
+| Tool-rail glyph      | 18 × 18 at x 19                                        | 22 × 22 at x 17 | 18 × 18 at x 19 |
 | Rail below Text      | Clear/Snap 40×40 at y 808/852; collapse 40×22 at y 896 | (unmeasured)    | same boxes      |
-| Inspector body width | 256 px          | 252 px          | 256 px          |
+| Inspector body width | 256 px                                                 | 252 px          | 256 px          |
 
 ### The five chrome overlays
 

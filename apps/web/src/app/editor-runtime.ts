@@ -75,6 +75,56 @@ export interface LibraryBrowserState {
   readonly query: string;
 }
 
+/**
+ * How the Coach left the chrome: which panels stand open, which inspector
+ * sections he unfolded, and the presets he starred or reached for lately.
+ * Device-local, like favorites — it says how he works here, not what a Play
+ * is (issue #64).
+ */
+export interface ChromeState {
+  readonly inspectorOpen: boolean;
+  readonly railOpen: boolean;
+  readonly open: Readonly<Record<string, boolean>>;
+  readonly favoritePresets: readonly string[];
+  readonly recentPresets: readonly string[];
+}
+
+export const CHROME_KEY = "chrome.v1";
+
+export const defaultChromeState: ChromeState = Object.freeze({
+  inspectorOpen: true,
+  railOpen: true,
+  open: {},
+  favoritePresets: [],
+  recentPresets: [],
+});
+
+export function readChromeState(value: unknown): ChromeState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return defaultChromeState;
+  }
+  const record = value as Record<string, unknown>;
+  const open =
+    record.open &&
+    typeof record.open === "object" &&
+    !Array.isArray(record.open)
+      ? Object.fromEntries(
+          Object.entries(record.open as Record<string, unknown>).filter(
+            (entry): entry is [string, boolean] =>
+              typeof entry[1] === "boolean",
+          ),
+        )
+      : {};
+  return {
+    inspectorOpen:
+      typeof record.inspectorOpen === "boolean" ? record.inspectorOpen : true,
+    railOpen: typeof record.railOpen === "boolean" ? record.railOpen : true,
+    open,
+    favoritePresets: readIds(record.favoritePresets),
+    recentPresets: readIds(record.recentPresets),
+  };
+}
+
 const readIds = (value: unknown): readonly string[] =>
   Array.isArray(value) ? value.filter((id) => typeof id === "string") : [];
 
@@ -97,6 +147,8 @@ export interface ChalkLibrary {
   saveDisclosure(open: Readonly<Record<string, boolean>>): Promise<void>;
   loadBrowserState(): Promise<LibraryBrowserState>;
   saveBrowserState(state: LibraryBrowserState): Promise<void>;
+  loadChrome(): Promise<ChromeState>;
+  saveChrome(state: ChromeState): Promise<void>;
   getThumbnail(key: string): Promise<ThumbnailDerivative | undefined>;
   putThumbnail(thumbnail: ThumbnailDerivative): Promise<void>;
   getUndoHistory(
@@ -325,6 +377,7 @@ export function createMemoryLibrary(
   const stored = new Map(plays.map((play) => [play.id, play]));
   let disclosure: Record<string, boolean> = {};
   let browser: LibraryBrowserState = { scrollTop: 0, query: "" };
+  let chrome: ChromeState = defaultChromeState;
   const gamePlans = new Map<string, GamePlan>();
   const gamePlanRevisions = new Map<string, GamePlanRevision>();
   return {
@@ -401,6 +454,13 @@ export function createMemoryLibrary(
     },
     saveBrowserState(state) {
       browser = state;
+      return Promise.resolve();
+    },
+    loadChrome() {
+      return Promise.resolve(chrome);
+    },
+    saveChrome(state) {
+      chrome = state;
       return Promise.resolve();
     },
     getThumbnail() {
@@ -586,6 +646,14 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     },
     async saveBrowserState(state) {
       await rememberJson(LIBRARY_BROWSER_KEY, state);
+    },
+    async loadChrome() {
+      return readChromeState(
+        (await repository.getPreference(CHROME_KEY))?.value,
+      );
+    },
+    async saveChrome(state) {
+      await rememberJson(CHROME_KEY, state);
     },
     getThumbnail: (key) => repository.getThumbnail(key),
     putThumbnail: (thumbnail) => repository.putThumbnail(thumbnail),

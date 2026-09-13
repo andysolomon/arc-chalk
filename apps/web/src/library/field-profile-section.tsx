@@ -25,7 +25,11 @@ export function FieldProfileSection({
 }: {
   formations: readonly Formation[];
   onApplyProfile: (profile: FieldProfile) => void;
-  onCreateProfile: (profile: FieldProfile, asDefault: boolean) => void;
+  /**
+   * Omitted when the new-profile form lives elsewhere — Playbook settings —
+   * so the section is only the current markings and their reapply offers.
+   */
+  onCreateProfile?: (profile: FieldProfile, asDefault: boolean) => void;
   onReapplyFormation: (formation: Formation) => void;
   play: PlayDocument;
   playbook: Playbook;
@@ -43,8 +47,7 @@ export function FieldProfileSection({
       : undefined;
 
   return (
-    <section className="inspector-section">
-      <div className="section-heading">Field</div>
+    <div className="field-profile-section">
       <div className="chip-row field-profile-chips">
         {catalogue.map((profile) => {
           const on = play.fieldProfile.id === profile.id;
@@ -88,12 +91,17 @@ export function FieldProfileSection({
           </button>
         </div>
       ) : null}
-      <NewProfileForm current={play.fieldProfile} onCreate={onCreateProfile} />
-    </section>
+      {onCreateProfile ? (
+        <NewProfileForm
+          current={play.fieldProfile}
+          onCreate={onCreateProfile}
+        />
+      ) : null}
+    </div>
   );
 }
 
-function NewProfileForm({
+export function NewProfileForm({
   current,
   onCreate,
 }: {

@@ -1303,6 +1303,235 @@ button.play-type.open {
 .inspector-section {
   padding: 17px 16px 0 20px;
 }
+/* The inspector's own thin bar: what is drawn on the field, and the way
+   out. The sections below fold; their headings and a one-line summary stay
+   (issue #64). */
+.inspector-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px 0 16px;
+  background: var(--canvas);
+  box-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.06);
+}
+.inspector-bar-button {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.inspector-bar-button:hover,
+.inspector-bar-button.open {
+  background: #f2f2f2;
+  color: var(--ink);
+}
+.inspector-collapse {
+  width: 24px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+.layers-menu {
+  position: relative;
+}
+.layers-panel {
+  top: 30px;
+  left: 0;
+  right: auto;
+  width: 196px;
+}
+.layers-panel .layer-toggles {
+  padding: 0 4px 4px;
+}
+.disclosure-heading {
+  margin-bottom: 0;
+  justify-content: space-between;
+  gap: 8px;
+}
+.disclosure.open .disclosure-heading {
+  margin-bottom: 10px;
+}
+.disclosure-toggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  margin-left: -6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.disclosure-toggle:hover {
+  background: #f2f2f2;
+  color: var(--ink);
+}
+.disclosure-caret {
+  width: 10px;
+  color: #c9c9c9;
+  font-size: 10px;
+}
+.disclosure-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-align: right;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+.disclosure:not(.open) {
+  padding-bottom: 0;
+}
+/* Inside a selected-object panel a folded section is a flex child of the
+   panel's column: it must be allowed to shrink, or three timing inputs set
+   its minimum width and push the panel sideways. */
+.label-inspector .disclosure {
+  min-width: 0;
+  padding: 14px 0 0;
+}
+.label-inspector .disclosure > div {
+  min-width: 0;
+}
+.hint {
+  display: inline;
+}
+.hint-toggle {
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #f2f2f2;
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  vertical-align: middle;
+  cursor: pointer;
+}
+.hint-toggle:hover,
+.hint-toggle[aria-expanded="true"] {
+  background: #ebebeb;
+  color: var(--ink);
+}
+.inspector p.hint-body {
+  margin-top: 8px;
+}
+.help-row .hint {
+  display: flex;
+  align-items: center;
+}
+.preset-summary + .preset-summary {
+  margin-top: 6px;
+}
+.wide-picker.preset-summary {
+  margin-top: 6px;
+}
+.preset-picker {
+  width: 520px;
+  max-height: 72vh;
+}
+.preset-body {
+  padding: 4px 8px 10px;
+}
+.preset-group + .preset-group {
+  margin-top: 6px;
+}
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.preset-row.first .preset-choice {
+  box-shadow: 0 0 0 1px var(--blue) inset;
+}
+.preset-choice {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.preset-choice:hover:not(:disabled),
+.preset-choice.active {
+  background: #f2f2f2;
+}
+.preset-choice:disabled {
+  color: #c9c9c9;
+  cursor: default;
+}
+.preset-kind {
+  flex: none;
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+}
+.preset-star {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #c9c9c9;
+  font-size: 14px;
+  cursor: pointer;
+}
+.preset-star:hover,
+.preset-star.on {
+  color: var(--blue);
+}
+.library-saved {
+  color: #398e4a;
+  font-size: 11px;
+}
+/* A destructive control shows itself when the row is under the pointer or
+   holds focus, not all the time (issue #64). */
+.library-row .library-remove {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.library-row:hover .library-remove,
+.library-row:focus-within .library-remove,
+.library-row .library-remove:focus-visible {
+  opacity: 1;
+}
+@media (pointer: coarse) {
+  .library-row .library-remove {
+    opacity: 1;
+  }
+}
 .section-heading {
   display: flex;
   align-items: center;
@@ -2624,6 +2853,9 @@ button.library-dot.target.small {
   font-size: 11px;
 }
 .label-inspector .read-field input {
+  /* A text input's intrinsic width would otherwise set the row's minimum
+     and push three timing fields past the panel's edge. */
+  width: 0;
   min-width: 0;
   flex: 1;
   height: auto;
@@ -2639,6 +2871,7 @@ button.library-dot.target.small {
 }
 .timing-row .read-field {
   width: auto;
+  min-width: 0;
   flex: 1;
 }
 .label-inspector p {
