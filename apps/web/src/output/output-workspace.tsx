@@ -20,8 +20,11 @@ import {
   preparedStamp,
   previewCss,
   withPreviewCss,
+  defaultWristbandConfig,
   reconcileCallSheetConfig,
+  reconcileWristbandConfig,
   type CallSheetConfig,
+  type WristbandConfig,
   type OutputPreset,
   type OutputSourceKind,
 } from "@chalk/exports";
@@ -42,6 +45,7 @@ import {
 } from "../components/export-files";
 import { FieldDiagram } from "../components/field-diagram";
 import { CallSheetOptions } from "./call-sheet-options";
+import { WristbandOptions } from "./wristband-options";
 import {
   buildOutputDocument,
   framesManifest,
@@ -105,6 +109,9 @@ export function OutputWorkspace({
   const [sheetConfigs, setSheetConfigs] = useState<
     Readonly<Record<string, CallSheetConfig>>
   >({});
+  const [bandConfigs, setBandConfigs] = useState<
+    Readonly<Record<string, WristbandConfig>>
+  >({});
   /**
    * What was read for a plan, keyed to the plan and the revision it was read
    * for: another plan's packet is never taken for this one, and while a
@@ -132,6 +139,9 @@ export function OutputWorkspace({
     });
     void ports.library.loadCallSheetConfigs().then((configs) => {
       if (!cancelled) setSheetConfigs(configs);
+    });
+    void ports.library.loadWristbandConfigs().then((configs) => {
+      if (!cancelled) setBandConfigs(configs);
     });
     return () => {
       cancelled = true;
@@ -323,12 +333,31 @@ export function OutputWorkspace({
       .saveCallSheetConfig(plan.id, next)
       .catch(() => undefined);
   };
+  // The plan's wristband: stored on this device and brought up to date with
+  // the packet, or every call of the plan in plan order, to confirm.
+  const packet = resolved.revision;
+  const bandConfig = useMemo<WristbandConfig | undefined>(() => {
+    if (!plan || !packet) return undefined;
+    const stored = bandConfigs[plan.id];
+    return stored
+      ? reconcileWristbandConfig(stored, packet)
+      : defaultWristbandConfig(packet);
+  }, [bandConfigs, packet, plan]);
+  const setBandConfig = (next: WristbandConfig) => {
+    if (!plan) return;
+    setBandConfigs((current) => ({ ...current, [plan.id]: next }));
+    void ports.library
+      .saveWristbandConfig(plan.id, next)
+      .catch(() => undefined);
+  };
   const optionsInUse: OutputOptions = useMemo(
     () =>
       spec.format === "callSheet" && sheetConfig
         ? { ...spec.options, callSheet: sheetConfig }
-        : spec.options,
-    [sheetConfig, spec.format, spec.options],
+        : spec.format === "wristband" && bandConfig
+          ? { ...spec.options, wristband: bandConfig }
+          : spec.options,
+    [bandConfig, sheetConfig, spec.format, spec.options],
   );
   const acceptance = planLoading
     ? { ok: false as const, reason: "Reading the plan…" }
@@ -629,6 +658,16 @@ export function OutputWorkspace({
               config={sheetConfig}
               onChange={setSheetConfig}
               plan={sheetPlan}
+              revision={resolved.revision}
+            />
+          ) : null}
+          {spec.format === "wristband" &&
+          source.kind === "plan" &&
+          resolved.revision &&
+          bandConfig ? (
+            <WristbandOptions
+              config={bandConfig}
+              onChange={setBandConfig}
               revision={resolved.revision}
             />
           ) : null}
