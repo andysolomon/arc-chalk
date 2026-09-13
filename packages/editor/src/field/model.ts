@@ -161,7 +161,12 @@ export type FieldGesture =
       readonly moved: boolean;
     };
 
-export type FieldDrawingKind = "route" | "motion" | "block" | "zone";
+/**
+ * What a drawing tool lays down. The Block tool draws a block on an offensive
+ * player and a blitz path on a defender — the same press, named for what it
+ * does to the man it starts from (issue #65).
+ */
+export type FieldDrawingKind = "route" | "motion" | "block" | "zone" | "blitz";
 
 /**
  * An in-progress route. Drawing spans several presses — start on a Player,
@@ -219,7 +224,8 @@ export interface FieldInteractionContext {
   readonly scene: RenderScene;
   readonly screenScale: SnapScreenScale;
   readonly snap: SnapSettings;
-  readonly tool: "select" | "player" | "text" | FieldDrawingKind;
+  readonly tool:
+    "select" | "player" | "text" | "route" | "motion" | "block" | "zone";
   /** The drawn frame's depth extents, so a route cannot leave the page. */
   readonly depthWindow?: {
     readonly minDepthYards: number;

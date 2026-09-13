@@ -31,6 +31,7 @@ const UNITS: readonly {
 
 export function PlaybookBrowser({
   currentPlayId,
+  embedded = false,
   initial,
   library,
   members,
@@ -41,6 +42,12 @@ export function PlaybookBrowser({
   playTypes,
 }: {
   currentPlayId: string;
+  /**
+   * Shown as a page of the Playbooks destination rather than a dialog over
+   * the editor (issue #65): no backdrop, no close, and a click outside the
+   * cards is not a way out.
+   */
+  embedded?: boolean;
   initial: LibraryBrowserState;
   library: ChalkLibrary;
   members: readonly PlaySearchProjection[];
@@ -156,18 +163,22 @@ export function PlaybookBrowser({
 
   return (
     <div
-      className="overlay browser-overlay"
-      onClick={() => {
-        remember();
-        onClose();
-      }}
+      className={`overlay browser-overlay${embedded ? " embedded" : ""}`}
+      onClick={
+        embedded
+          ? undefined
+          : () => {
+              remember();
+              onClose();
+            }
+      }
       role="presentation"
     >
       <div
         aria-label="Playbook"
         className="browser playbook-browser"
         onClick={(event) => event.stopPropagation()}
-        role="dialog"
+        role={embedded ? "region" : "dialog"}
       >
         <div className="browser-head">
           <div className="browser-title">Playbook</div>
@@ -192,23 +203,25 @@ export function PlaybookBrowser({
               Game plans
             </button>
           ) : null}
-          <button
-            className="browser-close"
-            onClick={() => {
-              remember();
-              onClose();
-            }}
-            type="button"
-          >
-            ×
-          </button>
+          {embedded ? null : (
+            <button
+              className="browser-close"
+              onClick={() => {
+                remember();
+                onClose();
+              }}
+              type="button"
+            >
+              ×
+            </button>
+          )}
         </div>
         <div className="browser-filter">
           <span>Unit</span>
           <div className="chip-row">
             {UNITS.map((choice) => (
               <button
-                className={unit === choice.id ? "active" : undefined}
+                className={unit === choice.id ? "chip active" : "chip"}
                 key={choice.id}
                 onClick={() => chooseUnit(choice.id)}
                 type="button"
@@ -222,7 +235,7 @@ export function PlaybookBrowser({
           <span>Type</span>
           <div className="chip-row">
             <button
-              className={playType === "all" ? "active" : undefined}
+              className={playType === "all" ? "chip active" : "chip"}
               onClick={() => setPlayType("all")}
               type="button"
             >
@@ -230,7 +243,7 @@ export function PlaybookBrowser({
             </button>
             {typeChips.map((chip) => (
               <button
-                className={playType === chip.id ? "active" : undefined}
+                className={playType === chip.id ? "chip active" : "chip"}
                 key={chip.id}
                 onClick={() => setPlayType(chip.id)}
                 type="button"

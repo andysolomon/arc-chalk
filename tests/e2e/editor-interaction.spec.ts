@@ -571,6 +571,7 @@ test("clears the concept and leaves the formation standing", async ({
   const routesBefore = await routes.count();
   expect(routesBefore).toBeGreaterThan(0);
 
+  await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("button", { name: "Clear a layer" }).click();
   await page.getByRole("button", { name: "Routes", exact: true }).click();
 
@@ -589,6 +590,7 @@ test("clears the concept and leaves the formation standing", async ({
 
 test("greys a Clear that would take nothing", async ({ page }) => {
   await openEditor(page);
+  await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("button", { name: "Clear a layer" }).click();
 
   // Stick — Thunder is an offensive Play: there is no call on the field to
@@ -612,6 +614,7 @@ test("greys a Clear that would take nothing", async ({ page }) => {
   // itself greyed the moment it has nothing left to take.
   await page.getByRole("button", { name: "Offense", exact: true }).click();
   await expect(page.locator("[data-scene-player]")).toHaveCount(0);
+  await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("button", { name: "Clear a layer" }).click();
   await expect(
     page.getByRole("button", { name: "Offense", exact: true }),
@@ -1626,13 +1629,13 @@ test("lets a control the Coach tabbed to have its own Enter and Space", async ({
   });
   await shortcuts.press("Enter");
   await expect(
-    page.getByText("Keyboard shortcuts", { exact: true }),
+    page.getByRole("dialog", { name: "Keyboard shortcuts" }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
 
   await shortcuts.press(" ");
   await expect(
-    page.getByText("Keyboard shortcuts", { exact: true }),
+    page.getByRole("dialog", { name: "Keyboard shortcuts" }),
   ).toBeVisible();
 });
 

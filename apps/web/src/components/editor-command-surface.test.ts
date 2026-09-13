@@ -56,3 +56,32 @@ describe("the command palette catalogue", () => {
     expect(first("Defense:")).toBeLessThan(first("Open:"));
   });
 });
+
+describe("Help (issue #65)", () => {
+  it("leads with the tour, lists every tutorial, and keeps the two references", async () => {
+    const { helpEntries, helpTutorialRange } =
+      await import("./editor-command-surface");
+    expect(helpEntries[0]).toMatchObject({
+      id: "demo",
+      label: "Demo — guided tour",
+    });
+    const tutorials = helpEntries.slice(
+      helpTutorialRange.start,
+      helpTutorialRange.end,
+    );
+    expect(tutorials.map(({ id }) => id)).toEqual([
+      "demo:tools",
+      "demo:quick",
+      "demo:block",
+      "demo:air",
+      "demo:defense",
+    ]);
+    expect(
+      helpEntries.slice(helpTutorialRange.end).map(({ id }) => id),
+    ).toEqual(["shortcuts", "palette"]);
+    const labels = paletteCommands().map(({ label }) => label);
+    expect(labels).toContain("Playbooks");
+    expect(labels).toContain("Game Day");
+    expect(labels).toContain("Demo — guided tour");
+  });
+});

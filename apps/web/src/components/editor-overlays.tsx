@@ -16,6 +16,8 @@ import {
   clearEntries,
   clearMenuHint,
   exportGroups,
+  helpEntries,
+  helpTutorialRange,
   paletteCommands,
   positionGroups,
   saveItems,
@@ -24,7 +26,6 @@ import {
   type MenuEntry,
 } from "./editor-command-surface";
 import { formationThumbnail } from "./formation-thumbnail";
-import { RailIcon } from "./rail-icons";
 
 function MenuItem({
   actions,
@@ -96,6 +97,13 @@ export function MoreMenu({
   open: boolean;
   zonesHidden: boolean;
 }) {
+  // Clear… walks into its own page of the menu, the way Export's submenus
+  // do; opening the menu again starts it on the actions.
+  const [clearing, setClearing] = useState(false);
+  const toggle = () => {
+    setClearing(false);
+    onToggle();
+  };
   const entries: readonly MenuEntry[] = [
     {
       id: focused ? "showPanels" : "focus",
@@ -141,33 +149,99 @@ export function MoreMenu({
         // reader would otherwise hear an ellipsis.
         aria-label="More actions"
         className={`more${open ? " open" : ""}`}
-        onClick={onToggle}
+        onClick={toggle}
         title="More actions"
         type="button"
       >
         ⋯
       </button>
       <div className="menu-panel more-panel" hidden={!open}>
-        {entries.map((entry) => (
-          <MenuItem
+        {clearing ? (
+          <ClearPage
             actions={actions}
-            entry={entry}
-            key={entry.label}
+            onBack={() => setClearing(false)}
             onDismiss={onDismiss}
           />
-        ))}
-        {children}
+        ) : (
+          <>
+            {entries.map((entry) => (
+              <MenuItem
+                actions={actions}
+                entry={entry}
+                key={entry.label}
+                onDismiss={onDismiss}
+              />
+            ))}
+            <button
+              aria-label="Clear a layer"
+              className="menu-item"
+              onClick={() => setClearing(true)}
+              title="Clear one layer of the field — routes, coverage, a unit, the text, or all of it"
+              type="button"
+            >
+              <span className="menu-item-name">Clear…</span>
+              <span className="menu-chevron" aria-hidden="true">
+                ›
+              </span>
+            </button>
+            {children}
+          </>
+        )}
       </div>
     </div>
   );
 }
 
 /**
- * The Clear menu on the tool rail. Each button is greyed by the absence of
- * its own action, which the shell derives from whether the erasure would take
- * anything, so nothing here looks dead and still takes a click.
+ * The Clear page of the More menu (issue #65 moved it off the rail, where its
+ * eraser glyph said nothing about scope). Each button is greyed by the
+ * absence of its own action, which the shell derives from whether the erasure
+ * would take anything, so nothing here looks dead and still takes a click.
  */
-export function ClearMenu({
+function ClearPage({
+  actions,
+  onBack,
+  onDismiss,
+}: {
+  actions: ActionMap;
+  onBack: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="clear-panel" role="group" aria-label="Clear a layer">
+      <div className="menu-subhead">
+        <button
+          aria-label="Back to actions"
+          className="menu-back"
+          onClick={onBack}
+          title="Back to actions"
+          type="button"
+        >
+          ‹
+        </button>
+        <span>Clear</span>
+      </div>
+      <div className="clear-grid">
+        {clearEntries.map((entry) => (
+          <MenuItem
+            actions={actions}
+            entry={entry}
+            key={entry.id}
+            onDismiss={onDismiss}
+          />
+        ))}
+      </div>
+      <p className="menu-note">{clearMenuHint}</p>
+    </div>
+  );
+}
+
+/**
+ * Help (issue #65): the guided tours the original kept in a Demo tab beside
+ * the play, and the two references the inspector already carried. The first
+ * entry is the first-day route — the tools walked on a real play.
+ */
+export function HelpMenu({
   actions,
   onDismiss,
   onToggle,
@@ -178,22 +252,30 @@ export function ClearMenu({
   onToggle: () => void;
   open: boolean;
 }) {
+  const [lead, ...rest] = helpEntries;
+  const tutorials = rest.slice(
+    helpTutorialRange.start - 1,
+    helpTutorialRange.end - 1,
+  );
+  const references = rest.slice(helpTutorialRange.end - 1);
   return (
     <div className="menu">
       <button
         aria-expanded={open}
-        aria-label="Clear a layer"
-        className={open ? "open" : undefined}
+        className={`help${open ? " open" : ""}`}
         onClick={onToggle}
-        title="Clear a layer"
+        title="Demo, tutorials and shortcuts"
         type="button"
       >
-        <RailIcon glyph="erase" />
+        Help
       </button>
-      <div className="menu-panel clear-panel" hidden={!open}>
-        <div className="menu-heading">Clear</div>
-        <div className="clear-grid">
-          {clearEntries.map((entry) => (
+      <div className="menu-panel help-panel" hidden={!open}>
+        {lead ? (
+          <MenuItem actions={actions} entry={lead} onDismiss={onDismiss} />
+        ) : null}
+        <div className="menu-group">
+          <div className="menu-head">TUTORIALS</div>
+          {tutorials.map((entry) => (
             <MenuItem
               actions={actions}
               entry={entry}
@@ -202,7 +284,17 @@ export function ClearMenu({
             />
           ))}
         </div>
-        <p className="menu-note">{clearMenuHint}</p>
+        <div className="menu-group">
+          <div className="menu-head">REFERENCE</div>
+          {references.map((entry) => (
+            <MenuItem
+              actions={actions}
+              entry={entry}
+              key={entry.id}
+              onDismiss={onDismiss}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -238,10 +330,10 @@ export function ExportMenu({
         aria-expanded={open}
         className={`export${open ? " open" : ""}`}
         onClick={onToggle}
-        title="Export and print"
+        title="Print preview, paper outputs and image exports"
         type="button"
       >
-        Export
+        Print & export
       </button>
       {/* Mounting the panel only while it is open is what returns the menu to
           its top level the next time the Coach opens it. */}
@@ -283,6 +375,17 @@ function ExportPanel({
 
   return (
     <div className="menu-panel export-panel">
+      {submenu === null ? (
+        <MenuItem
+          actions={actions}
+          entry={{
+            id: "print",
+            label: "Print preview",
+            title: "The letter-landscape sheet, before it prints",
+          }}
+          onDismiss={onDismiss}
+        />
+      ) : null}
       {submenu === null
         ? exportGroups.map((group) => (
             <div className="menu-group" key={group.head}>

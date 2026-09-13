@@ -229,16 +229,10 @@ describe("Chalk application shell", () => {
     expect(glyph("Text — T")).toHaveAttribute("width", "18");
     expect(glyph("Text — T")).toHaveAttribute("height", "18");
 
+    // Clear left the rail for the More menu's Clear… page (issue #65).
     expect(
-      [...(glyph("Clear a layer")?.querySelectorAll("path") ?? [])].map(
-        (path) => path.getAttribute("d"),
-      ),
-    ).toEqual([
-      "M3 15.2 L15 15.2",
-      "M6.4 15.2 L3.6 12.1 L10.2 3.6 L14 6.4 Z",
-      "M7.2 9.1 L11.4 12.2",
-    ]);
-    expect(glyph("Clear a layer")?.querySelector("g")).toBeNull();
+      within(rail).queryByRole("button", { name: "Clear a layer" }),
+    ).toBeNull();
 
     const collapse = within(rail).getByRole("button", {
       name: "Hide the tools",
@@ -769,10 +763,9 @@ describe("Chalk application shell", () => {
     });
     render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
 
+    await user.click(screen.getByRole("button", { name: "Help" }));
     await user.click(
-      within(
-        screen.getByRole("navigation", { name: "Workspace views" }),
-      ).getByRole("button", { name: "Demo" }),
+      screen.getByRole("button", { name: "Demo — guided tour" }),
     );
     const demo = screen.getByRole("region", { name: "Demo" });
     expect(within(demo).getByText("Player tool")).toBeVisible();
@@ -820,10 +813,11 @@ describe("Chalk application shell", () => {
     render(<ChalkApp runtime={createTestRuntime()} />);
 
     await user.click(
-      within(
-        screen.getByRole("navigation", { name: "Workspace views" }),
-      ).getByRole("button", { name: "Print" }),
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Print & export",
+      }),
     );
+    await user.click(screen.getByRole("button", { name: "Print preview" }));
     const sheet = screen.getByRole("region", { name: "Print preview" });
     expect(within(sheet).getByText("Stick — Thunder")).toBeVisible();
     expect(within(sheet).getByText("Offense · Pass")).toBeVisible();
@@ -870,7 +864,11 @@ describe("Chalk application shell", () => {
 
     render(<ChalkApp runtime={createTestRuntime()} />);
 
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Print & export",
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Print the field" }));
 
     expect(open).toHaveBeenCalledWith("", "_blank");
@@ -901,10 +899,11 @@ describe("Chalk application shell", () => {
       within(inspector).getByRole("button", { name: /^Print$/ }),
     );
     await user.click(
-      within(
-        screen.getByRole("navigation", { name: "Workspace views" }),
-      ).getByRole("button", { name: "Print" }),
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Print & export",
+      }),
     );
+    await user.click(screen.getByRole("button", { name: "Print preview" }));
 
     const sheet = screen.getByRole("region", { name: "Print preview" });
     expect(
@@ -1830,7 +1829,11 @@ describe("Chalk editor overlays", () => {
 
     render(<ChalkApp runtime={createTestRuntime()} />);
 
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Print & export",
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Install page" }));
 
     expect(open).toHaveBeenCalledWith("", "_blank");
@@ -1890,7 +1893,11 @@ describe("Chalk editor overlays", () => {
 
     render(<ChalkApp runtime={createTestRuntime()} />);
 
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Print & export",
+      }),
+    );
     await user.click(
       screen.getByRole("button", { name: "Wristband — 8 cells" }),
     );
@@ -2063,7 +2070,11 @@ describe("Chalk editor overlays", () => {
     const user = userEvent.setup();
     render(<ChalkApp runtime={createTestRuntime()} />);
 
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Print & export",
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Position view" }));
 
     expect(screen.getByText("POSITION VIEW")).toBeVisible();
@@ -2074,8 +2085,16 @@ describe("Chalk editor overlays", () => {
 
     // Reopening returns to the top level rather than the submenu.
     await user.click(screen.getByRole("button", { name: "Position view" }));
-    await user.click(screen.getByRole("button", { name: "Export" }));
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Print & export",
+      }),
+    );
+    await user.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Print & export",
+      }),
+    );
     expect(screen.getByText("DIAGRAM")).toBeVisible();
   });
 
@@ -2086,7 +2105,11 @@ describe("Chalk editor overlays", () => {
     await user.click(screen.getByRole("button", { name: "More actions" }));
     expect(screen.getByRole("button", { name: "Mirror" })).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Print & export",
+      }),
+    );
     expect(screen.getByText("DIAGRAM")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Mirror" })).toBeNull();
   });
@@ -2175,5 +2198,232 @@ describe("Chalk editor overlays", () => {
       "rel",
       "noopener noreferrer nofollow",
     );
+  });
+});
+
+describe("Navigation (issue #65)", () => {
+  const banner = () => screen.getByRole("banner");
+  const nav = () => screen.getByRole("navigation", { name: "Workspace views" });
+
+  it("puts Editor, Playbooks and Game Day in the header and the rest behind actions", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    expect(
+      within(nav())
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["Editor", "Playbooks", "Game Day"]);
+    expect(within(nav()).queryByRole("button", { name: "Demo" })).toBeNull();
+    expect(within(nav()).queryByRole("button", { name: "Print" })).toBeNull();
+    expect(
+      within(banner()).getByRole("button", { name: "New play" }),
+    ).toBeVisible();
+    expect(
+      within(banner()).getByRole("button", { name: "Present" }),
+    ).toBeVisible();
+    expect(
+      within(banner()).getByRole("button", { name: "Print & export" }),
+    ).toBeVisible();
+
+    await user.click(within(banner()).getByRole("button", { name: "Help" }));
+    const help = within(banner());
+    expect(
+      help.getByRole("button", { name: "Demo — guided tour" }),
+    ).toBeVisible();
+    expect(help.getByText("TUTORIALS")).toBeVisible();
+    expect(help.getByRole("button", { name: "Defense" })).toBeVisible();
+    expect(
+      help.getByRole("button", { name: "Keyboard shortcuts ?" }),
+    ).toBeVisible();
+    expect(
+      help.getByRole("button", { name: "Command palette ⌘K" }),
+    ).toBeVisible();
+
+    // Present is still one action away, and esc still comes back.
+    await user.click(within(banner()).getByRole("button", { name: "Present" }));
+    expect(screen.getByRole("region", { name: "Present" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "esc" }));
+    expect(nav()).toBeVisible();
+  });
+
+  it("opens a tutorial from Help on its own tour", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(within(banner()).getByRole("button", { name: "Help" }));
+    await user.click(within(banner()).getByRole("button", { name: "Defense" }));
+    const demo = screen.getByRole("region", { name: "Demo" });
+    expect(within(demo).getByRole("button", { name: "Defense" })).toHaveClass(
+      "active",
+    );
+    expect(screen.getByText("Cover 3 — Fire Zone")).toBeVisible();
+  });
+
+  it("makes Playbooks a destination with its two pages and a labeled New play", async () => {
+    const user = userEvent.setup();
+    const editorStore = createTestEditorStore();
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
+
+    await user.click(within(nav()).getByRole("button", { name: "Playbooks" }));
+    const page = screen.getByRole("main", { name: "Playbooks" });
+    expect(
+      within(page).getByRole("region", { name: "Playbook" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("navigation", { name: "Drawing tools" }),
+    ).toBeNull();
+    expect(
+      within(nav()).getByRole("button", { name: "Playbooks" }),
+    ).toHaveClass("active");
+    // A page, not a dialog: nothing to click outside of.
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await user.click(
+      within(
+        screen.getByRole("navigation", { name: "Playbooks pages" }),
+      ).getByRole("button", { name: "Game plans" }),
+    );
+    expect(
+      within(page).getByRole("region", { name: "Game plans" }),
+    ).toBeVisible();
+
+    await user.click(within(page).getByRole("button", { name: "New play" }));
+    expect(
+      screen.getByRole("navigation", { name: "Drawing tools" }),
+    ).toBeVisible();
+    await waitFor(() => {
+      expect(editorStore.getSnapshot().document.players).toHaveLength(0);
+    });
+
+    await user.click(within(nav()).getByRole("button", { name: "Playbooks" }));
+    await user.keyboard("{Escape}");
+    expect(
+      screen.getByRole("navigation", { name: "Drawing tools" }),
+    ).toBeVisible();
+  });
+
+  it("shows Game Day with the way to a prepared plan when nothing is prepared", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.click(within(nav()).getByRole("button", { name: "Game Day" }));
+    const page = screen.getByRole("main", { name: "Game Day" });
+    expect(within(page).getByText(/Nothing is prepared/)).toBeVisible();
+    await user.click(
+      within(page).getByRole("button", { name: "Open Game plans" }),
+    );
+    expect(screen.getByRole("region", { name: "Game plans" })).toBeVisible();
+  });
+
+  it("moves Clear into the More menu as Clear… with its scopes and undo in view", async () => {
+    const user = userEvent.setup();
+    const editorStore = createTestEditorStore();
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
+
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(screen.getByRole("button", { name: "Clear a layer" }));
+    const clear = screen.getByRole("group", { name: "Clear a layer" });
+    expect(
+      within(clear)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["‹", "Coverage", "Routes", "Offense", "Defense", "Text", "All"]);
+    expect(within(clear).getByText(/Undo brings any of it back/)).toBeVisible();
+    // An offensive play has no coverage to take off.
+    expect(
+      within(clear).getByRole("button", { name: "Coverage" }),
+    ).toBeDisabled();
+
+    await user.click(within(clear).getByRole("button", { name: "Routes" }));
+    await waitFor(() => {
+      expect(editorStore.getSnapshot().document.paths).toHaveLength(0);
+    });
+    expect(screen.getByRole("button", { name: "Undo" })).toHaveAttribute(
+      "title",
+      "Undo Clear offensive routes",
+    );
+    expect(screen.queryByRole("group", { name: "Clear a layer" })).toBeNull();
+
+    // Reopening the menu starts on the actions, with Back a page away.
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.getByRole("button", { name: "Mirror" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Clear a layer" }));
+    await user.click(screen.getByRole("button", { name: "Back to actions" }));
+    expect(screen.getByRole("button", { name: "Mirror" })).toBeVisible();
+  });
+
+  it("names the tools on request, remembers it, and calls Block a Blitz on a defender", async () => {
+    const user = userEvent.setup();
+    const coverThree = starterExamplePlays().find(
+      ({ name }) => name === "Cover 3 — Fire Zone",
+    )!;
+    const library = createMemoryLibrary(
+      emptyLibrarySnapshot(coverThree.playbookId),
+    );
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          editorStore: createTestEditorStore(undefined, coverThree),
+          library,
+        })}
+      />,
+    );
+    const rail = screen.getByRole("navigation", { name: "Drawing tools" });
+    expect(rail).not.toHaveClass("labeled");
+    expect(
+      within(rail).getByRole("button", { name: "Block — B" }),
+    ).toBeVisible();
+
+    await user.click(within(rail).getByRole("button", { name: "Tool names" }));
+    expect(rail).toHaveClass("labeled");
+    expect(within(rail).getByText("Zone drop")).toBeVisible();
+    await waitFor(async () => {
+      expect((await library.loadChrome()).railLabels).toBe(true);
+    });
+
+    await user.click(
+      within(
+        screen.getByRole("list", { name: "Everything on the field" }),
+      ).getAllByRole("button", { name: /defense player$/ })[0]!,
+    );
+    expect(
+      within(rail).getByRole("button", { name: "Blitz — B" }),
+    ).toBeVisible();
+    expect(within(rail).getByText("Blitz")).toBeVisible();
+    expect(
+      within(rail).queryByRole("button", { name: "Block — B" }),
+    ).toBeNull();
+  });
+
+  it("points a Coach on his first blank field at Help → Demo", () => {
+    render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          editorStore: createTestEditorStore(undefined, {
+            ...stickThunderPlay,
+            players: [],
+            paths: [],
+            labels: [],
+          }),
+        })}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "new here? Help → Demo walks the drawing tools on a real play",
+      ),
+    ).toBeVisible();
+  });
+
+  it("reaches the destinations and the tour from the palette", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    await user.keyboard("{Control>}k{/Control}");
+    const search = screen.getByRole("textbox", { name: "Command palette" });
+    await user.type(search, "Game Day");
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("main", { name: "Game Day" })).toBeVisible();
   });
 });

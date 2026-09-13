@@ -207,6 +207,7 @@ import { LibraryPanel } from "../library/library-panel";
 import { ScopeBar } from "../library/scope-bar";
 import { PlaybookBrowser } from "../library/playbook-browser";
 import { GamePlansWorkspace } from "../library/game-plans-workspace";
+import { GameDayView } from "../library/game-day-view";
 import { usePlaybookLibrary } from "../library/use-playbook-library";
 import { AccountPanel } from "./account-panel";
 import { LifecycleNotices } from "./lifecycle-notices";
@@ -234,12 +235,12 @@ import {
 
 import { paletteCommands, type ActionMap } from "./editor-command-surface";
 import {
-  ClearMenu,
   CommandPalette,
   ContextMenu,
   DefenseBrowser,
   ExportMenu,
   FormationBrowser,
+  HelpMenu,
   MoreMenu,
   SaveMenu,
   ShortcutReference,
@@ -254,6 +255,7 @@ import {
 } from "./inspector-sections";
 import type { PresetChoice } from "./preset-choices";
 import { editorStatusHint } from "./editor-status-hint";
+import { toolLabelFor, tools, type ToolId } from "./tool-labels";
 import { FieldMinimap } from "./field-minimap";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { FieldDiagram } from "./field-diagram";
@@ -278,8 +280,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 export { FieldDiagram };
 
-type View = "Editor" | "Demo" | "Present" | "Print";
-type Menu = "more" | "export" | "save" | "clear" | "classify" | "layers" | null;
+/**
+ * Where the Coach can be. Editor, Playbooks and Game Day are the three
+ * destinations in the header (issue #65); Demo lives under Help, Present is
+ * an action, and Print is the preview behind Print & export.
+ */
+type View = "Editor" | "Playbooks" | "GameDay" | "Demo" | "Present" | "Print";
+type Menu = "more" | "export" | "save" | "help" | "classify" | "layers" | null;
 type Overlay =
   | "palette"
   | "shortcuts"
@@ -290,23 +297,15 @@ type Overlay =
   | "presets"
   | "conflicts"
   | null;
-type Tool =
-  "select" | "player" | "route" | "motion" | "block" | "zone" | "text";
+type Tool = ToolId;
 
-const views: View[] = ["Editor", "Demo", "Present", "Print"];
-const tools: Array<{
-  id: Tool;
-  label: string;
-  shortcut: string;
-}> = [
-  { id: "select", label: "Select", shortcut: "V" },
-  { id: "player", label: "Player", shortcut: "P" },
-  { id: "route", label: "Route", shortcut: "R" },
-  { id: "motion", label: "Motion", shortcut: "M" },
-  { id: "block", label: "Block", shortcut: "B" },
-  { id: "zone", label: "Zone drop", shortcut: "Z" },
-  { id: "text", label: "Text", shortcut: "T" },
-];
+/** The three destinations in the header (issue #65). */
+const destinations: readonly { readonly view: View; readonly label: string }[] =
+  [
+    { view: "Editor", label: "Editor" },
+    { view: "Playbooks", label: "Playbooks" },
+    { view: "GameDay", label: "Game Day" },
+  ];
 
 /** The original's own wait before a held press becomes a menu. */
 const LONG_PRESS_MS = 480;
@@ -2334,6 +2333,10 @@ export function ChalkApp({
   const [demoPlayName, setDemoPlayName] = useState(
     () => demoTour("tools").playName,
   );
+  /** Which tour Help opened; the Demo tabs take over from there. */
+  const [demoTourId, setDemoTourId] = useState<DemoTour["id"]>("tools");
+  /** Plays or Game plans inside the Playbooks destination. */
+  const [playbooksTab, setPlaybooksTab] = useState<"plays" | "plans">("plays");
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [openMenu, setOpenMenu] = useState<Menu>(null);
   /**
@@ -4029,6 +4032,15 @@ export function ChalkApp({
     setOpenMenu(null);
     setOverlay(null);
   }, []);
+  /** Help's tutorials open Demo on the tour named (issue #65). */
+  const openTour = useCallback(
+    (tourId: DemoTour["id"]): void => {
+      setDemoTourId(tourId);
+      setDemoPlayName(demoTour(tourId).playName);
+      goToView("Demo");
+    },
+    [goToView],
+  );
 
   const openDemoInEditor = useCallback(
     (tour: DemoTour): void => {
@@ -4305,10 +4317,24 @@ export function ChalkApp({
       setOpenMenu(null);
     },
     shortcuts: () => setOverlay("shortcuts"),
-    gamePlans: () => {
+    palette: () => {
       setOpenMenu(null);
-      setOverlay("game-plans");
+      setOverlay("palette");
     },
+    gamePlans: () => {
+      setPlaybooksTab("plans");
+      goToView("Playbooks");
+    },
+    editor: () => goToView("Editor"),
+    playbooks: () => {
+      setPlaybooksTab("plays");
+      goToView("Playbooks");
+    },
+    gameDay: () => goToView("GameDay"),
+    demo: () => openTour("tools"),
+    ...Object.fromEntries(
+      demoTours.map((tour) => [`demo:${tour.id}`, () => openTour(tour.id)]),
+    ),
     // Chalk saves continuously (ADR 0012); an explicit Save flushes whatever
     // the Coach is still typing rather than pretending durability is manual.
     savePlay: () => {
@@ -4328,7 +4354,8 @@ export function ChalkApp({
         dispatchFieldRef.current({ type: "escape" });
       }
       playbook.newPlay();
-      setOpenMenu(null);
+      // A blank play is drawn in the editor, wherever it was asked for.
+      goToView("Editor");
     },
     clearRoutesOffense: clearAction("offensive-lines"),
     clearRoutesDefense: clearAction("defensive-lines"),
@@ -4509,6 +4536,26 @@ export function ChalkApp({
 
       if (!typing && activeView === "Demo") {
         // Arrows and space belong to the tour; editor shortcuts stay off.
+        return;
+      }
+      if (activeView === "Playbooks" || activeView === "GameDay") {
+        // The destinations carry their own keys; the field's shortcuts would
+        // draw on a Play nobody is looking at. Escape comes back to it, and
+        // the palette still opens.
+        if (event.key === "Escape") {
+          if (overlay !== null || openMenu !== null) {
+            setOverlay(null);
+            setOpenMenu(null);
+          } else if (!typing) {
+            event.preventDefault();
+            goToView("Editor");
+          }
+          return;
+        }
+        if (meta && key === "k") {
+          event.preventDefault();
+          setOverlay((current) => (current === "palette" ? null : "palette"));
+        }
         return;
       }
       if (!typing && (activeView === "Present" || activeView === "Print")) {
@@ -4919,6 +4966,31 @@ export function ChalkApp({
     />
   );
 
+  const paletteOverlay = (
+    <CommandPalette
+      actions={actions}
+      commands={paletteCommands({
+        defenses: stockDefensiveCalls.map((call) => ({
+          id: call.formation.id,
+          name: call.formation.name,
+        })),
+        formations: allFormations,
+        savedPlays: playbook.snapshot.members.map((member) => ({
+          id: member.playId,
+          name: member.name,
+        })),
+        zonesHidden,
+      })}
+      onClose={() => setOverlay(null)}
+    />
+  );
+  /**
+   * Tool names beside the glyphs (issue #65): on until the Coach says
+   * otherwise where the pointer is a finger, off on a desk so the rail keeps
+   * the original's footprint.
+   */
+  const railLabels = chrome.railLabels ?? !precisePointer;
+
   const header = (
     <Header
       actions={actions}
@@ -5016,6 +5088,10 @@ export function ChalkApp({
       : undefined,
     labelsTooSmall: labelDensity * (fieldWidthPx / camera.width) < 11,
     animating: showAnimation,
+    firstUse:
+      playbook.snapshot.members.length === 0 &&
+      editor.document.players.length === 0 &&
+      editor.document.labels.length === 0,
   });
 
   if (activeView === "Present") {
@@ -5070,6 +5146,7 @@ export function ChalkApp({
       <div className="chalk-shell view-demo">
         {header}
         <DemoMode
+          initialTourId={demoTourId}
           onOpenInEditor={openDemoInEditor}
           onTourChange={(next) => setDemoPlayName(next.playName)}
         />
@@ -5080,30 +5157,137 @@ export function ChalkApp({
     );
   }
 
+  if (activeView === "Playbooks") {
+    // The Playbook and the Game plans are one destination with two pages;
+    // opening a Play from either steps back into the editor with it.
+    const openPlay = (playId: string) => {
+      if (interactionRef.current.drawing) {
+        dispatchFieldRef.current({ type: "escape" });
+      }
+      void playbook.loadPlay(playId);
+      goToView("Editor");
+    };
+    return (
+      <div className="chalk-shell view-playbooks">
+        {header}
+        <main className="destination" aria-label="Playbooks">
+          <nav className="destination-tabs" aria-label="Playbooks pages">
+            <button
+              aria-pressed={playbooksTab === "plays"}
+              className={playbooksTab === "plays" ? "active" : undefined}
+              onClick={() => setPlaybooksTab("plays")}
+              type="button"
+            >
+              Plays
+            </button>
+            <button
+              aria-pressed={playbooksTab === "plans"}
+              className={playbooksTab === "plans" ? "active" : undefined}
+              onClick={() => setPlaybooksTab("plans")}
+              type="button"
+            >
+              Game plans
+            </button>
+            <span className="top-spacer" />
+            <button
+              className="destination-new"
+              onClick={actions.newPlay}
+              title="Start a blank play in the editor"
+              type="button"
+            >
+              New play
+            </button>
+          </nav>
+          {playbooksTab === "plays" ? (
+            <PlaybookBrowser
+              currentPlayId={editor.document.id}
+              embedded
+              initial={playbook.browserState}
+              library={runtime.library}
+              members={playbook.snapshot.members}
+              onClose={() => goToView("Editor")}
+              onOpen={openPlay}
+              onOpenGamePlans={() => setPlaybooksTab("plans")}
+              onRemember={playbook.rememberBrowser}
+              playTypes={playbook.snapshot.playbook.playTypes}
+            />
+          ) : (
+            <GamePlansWorkspace
+              embedded
+              formations={allFormations}
+              library={runtime.library}
+              onClose={() => goToView("Editor")}
+              onOpenPlay={openPlay}
+              render={renderDiagram}
+              snapshot={playbook.snapshot}
+            />
+          )}
+        </main>
+        {overlay === "palette" ? paletteOverlay : null}
+      </div>
+    );
+  }
+
+  if (activeView === "GameDay") {
+    return (
+      <div className="chalk-shell view-game-day">
+        {header}
+        <GameDayView
+          library={runtime.library}
+          onOpenPlaybooks={() => {
+            setPlaybooksTab("plans");
+            goToView("Playbooks");
+          }}
+          snapshot={playbook.snapshot}
+        />
+        {overlay === "palette" ? paletteOverlay : null}
+      </div>
+    );
+  }
+
   return (
     <div className="chalk-shell">
       {header}
       <div className="workspace">
         {railOpen ? (
-          <nav className="tool-rail" aria-label="Drawing tools">
-            {tools.map((tool) => (
-              <button
-                className={activeTool === tool.id ? "active" : ""}
-                key={tool.id}
-                onClick={() => selectTool(tool.id)}
-                title={`${tool.label} — ${tool.shortcut}`}
-                aria-label={`${tool.label} — ${tool.shortcut}`}
-              >
-                <RailIcon glyph={tool.id} />
-              </button>
-            ))}
+          <nav
+            className={`tool-rail${railLabels ? " labeled" : ""}`}
+            aria-label="Drawing tools"
+          >
+            {tools.map((tool) => {
+              const label = toolLabelFor(tool.id, selectedPlayer);
+              return (
+                <button
+                  className={activeTool === tool.id ? "active" : ""}
+                  key={tool.id}
+                  onClick={() => selectTool(tool.id)}
+                  title={`${label} — ${tool.shortcut}`}
+                  aria-label={`${label} — ${tool.shortcut}`}
+                >
+                  <RailIcon glyph={tool.id} />
+                  {railLabels ? (
+                    <span className="rail-label" aria-hidden="true">
+                      {label}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
             <span className="rail-spacer" />
-            <ClearMenu
-              actions={actions}
-              onDismiss={() => setOpenMenu(null)}
-              onToggle={() => toggleMenu("clear")}
-              open={openMenu === "clear"}
-            />
+            <button
+              aria-label="Tool names"
+              aria-pressed={railLabels}
+              className="rail-names"
+              onClick={() => rememberChrome({ railLabels: !railLabels })}
+              title={
+                railLabels
+                  ? "Hide the tool names"
+                  : "Show each tool's name and key beside it"
+              }
+              type="button"
+            >
+              Aa
+            </button>
             <button
               aria-label="Angle snap 45 degrees — S"
               aria-pressed={snapEnabled}
@@ -5734,24 +5918,7 @@ export function ChalkApp({
           </button>
         </div>
       </div>
-      {overlay === "palette" ? (
-        <CommandPalette
-          actions={actions}
-          commands={paletteCommands({
-            defenses: stockDefensiveCalls.map((call) => ({
-              id: call.formation.id,
-              name: call.formation.name,
-            })),
-            formations: allFormations,
-            savedPlays: playbook.snapshot.members.map((member) => ({
-              id: member.playId,
-              name: member.name,
-            })),
-            zonesHidden,
-          })}
-          onClose={() => setOverlay(null)}
-        />
-      ) : null}
+      {overlay === "palette" ? paletteOverlay : null}
       {overlay === "shortcuts" ? (
         <ShortcutReference onClose={() => setOverlay(null)} />
       ) : null}
@@ -6076,14 +6243,17 @@ function DemoCursorOverlay({
 }
 
 function DemoMode({
+  initialTourId = "tools",
   onOpenInEditor,
   onTourChange,
 }: {
+  /** The tour Help asked for; the panel's own tabs take over from there. */
+  initialTourId?: DemoTour["id"];
   onOpenInEditor: (tour: DemoTour) => void;
   onTourChange: (tour: DemoTour) => void;
 }) {
   const [playback, setPlayback] = useState<DemoPlayback>(() =>
-    startDemo("tools", performance.now()),
+    startDemo(initialTourId, performance.now()),
   );
   const tour = demoTour(playback.tourId);
   const step = tour.steps[playback.stepIndex] ?? tour.steps[0]!;
@@ -6415,7 +6585,7 @@ function Header({
   focused: boolean;
   onCloseMenu: () => void;
   onCreateVersion: (label: string) => void;
-  onMenu: (menu: "more" | "export" | "save") => void;
+  onMenu: (menu: "more" | "export" | "save" | "help") => void;
   onRedo: () => void;
   onRestoreVersion: (revisionId: string) => void;
   onUndo: () => void;
@@ -6440,13 +6610,14 @@ function Header({
       </div>
       <strong className="brand">{PRODUCT_NAME}</strong>
       <nav className="view-tabs" aria-label="Workspace views">
-        {views.map((view) => (
+        {destinations.map(({ view, label }) => (
           <button
+            aria-current={activeView === view ? "page" : undefined}
             className={activeView === view ? "active" : ""}
             key={view}
             onClick={() => onView(view)}
           >
-            {view}
+            {label}
           </button>
         ))}
       </nav>
@@ -6497,6 +6668,30 @@ function Header({
             Redo
           </button>
           <span className="divider" />
+          <button
+            className="quiet new-play"
+            disabled={!actions.newPlay}
+            onClick={actions.newPlay}
+            title="Clear the field and start over"
+            type="button"
+          >
+            New play
+          </button>
+          <button
+            className="quiet present"
+            disabled={!actions.present || activeView === "Present"}
+            onClick={actions.present}
+            title="Present the play full-window — esc returns"
+            type="button"
+          >
+            Present
+          </button>
+          <HelpMenu
+            actions={actions}
+            onDismiss={onCloseMenu}
+            onToggle={() => onMenu("help")}
+            open={openMenu === "help"}
+          />
           <MoreMenu
             actions={actions}
             focused={focused}
