@@ -13,11 +13,19 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 960 } },
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 960 },
+      },
     },
     {
+      // The editor's tablet gate runs the iPad in landscape, where the
+      // inspector docks; portrait and Split View — where it is a drawer or
+      // the reading shell (ADR 0045) — are covered by tablet-layout.spec.
       name: "webkit-ipad",
-      use: { ...devices["iPad Pro 11"] },
+      use: {
+        ...devices["iPad Pro 11 landscape"],
+      },
     },
   ],
   webServer: {

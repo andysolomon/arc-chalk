@@ -50,9 +50,15 @@ unchanged. Recorded in `docs/original-prototype-parity-matrix.md`.
 
 ## Evidence
 
-`tests/e2e/inspector-layout.spec.ts` now walks 1366 × 1024, 1180 × 820, 1024 × 768,
+`tests/e2e/tablet-layout.spec.ts` walks 1366 × 1024, 1180 × 820, 1024 × 768,
 834 × 1194, 694 × 768 and 507 × 768 on Chromium with touch emulated, and checks that
 the destinations, the play, and the selected call stay reachable without horizontal
 overflow, that primary targets measure at least 44 px with no two boxes overlapping,
 and that search is not focused on entry. WebKit and physical iPad Safari checks are
 recorded on the pull request as run or not run; this machine cannot launch WebKit.
+
+The `webkit-ipad` Playwright project — the editor's tablet gate — now names the iPad Pro
+11 in landscape (1194 × 834), where the inspector docks and the drawing suite reads it
+as it always did. It had run in portrait only because that is the device descriptor's
+default, on a page that overflowed its 1024 px floor. Portrait and Split View, where the
+inspector is a drawer or the reading shell stands in, are the tablet spec's business.

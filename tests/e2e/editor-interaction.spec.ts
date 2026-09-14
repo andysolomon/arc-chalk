@@ -78,6 +78,18 @@ async function drag(
   await page.mouse.up();
 }
 
+/**
+ * Below 1024 px the inspector is a drawer that starts closed (issue #68),
+ * so a test that reads the selected object's panel opens it first.
+ */
+async function revealInspector(page: Page): Promise<void> {
+  const stub = page.getByRole("button", { name: "Inspector", exact: true });
+  if (!(await stub.isVisible())) return;
+  // By key, so an open context menu's backdrop does not take the press.
+  await stub.focus();
+  await page.keyboard.press("Enter");
+}
+
 async function openEditor(page: Page): Promise<void> {
   await page.goto("/");
   await expect(
@@ -811,6 +823,7 @@ test("opens the menu on a route with a right-click and deletes it", async ({
   const menu = page.getByRole("menu");
   await expect(menu).toBeVisible();
   // The route was picked by the asking, so the panel is about it too.
+  await revealInspector(page);
   await expect(
     page.locator(".label-heading").getByText("Route", { exact: true }),
   ).toBeVisible();
@@ -845,6 +858,7 @@ test("greys what a man cannot be sent behind, and closes on Escape", async ({
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
   // Escape closed the menu and left what he had picked alone.
+  await revealInspector(page);
   await expect(
     page.locator(".label-heading").getByText("Player", { exact: true }),
   ).toBeVisible();
