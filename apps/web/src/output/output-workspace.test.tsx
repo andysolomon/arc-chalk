@@ -336,6 +336,61 @@ describe("Print & export (issue #69)", () => {
     await waitFor(() => expect(print).toHaveBeenCalledTimes(2));
     expect(print.mock.calls[1]?.[0]).not.toContain("MAX SPLIT");
   });
+
+  it("prints the packet's sections as prepared when the live plan has since lost or renamed one", async () => {
+    const user = userEvent.setup();
+    const packet = hundredCallPlan();
+    const library = libraryOf(packet.plays);
+    const [openers, thirdDown, redZone] = packet.plan.sections;
+    // After preparing: Openers deleted, 3rd down renamed, the packet kept.
+    const live = {
+      ...packet.plan,
+      sections: [{ ...thirdDown!, name: "Money down" }, redZone!],
+      calls: packet.plan.calls.filter(
+        (call) => !openers!.callIds.includes(call.id),
+      ),
+    };
+    await library.saveGamePlan(live);
+    await library.saveGamePlanRevision(packet.revision);
+    const { print } = renderWorkspace(
+      defaultOutputSpec(defaultPresentation, "callSheet", {
+        kind: "plan",
+        planId: packet.plan.id,
+        copy: "revision",
+      }),
+      { library, libraryPlays: [...plays, ...packet.plays] },
+    );
+    const layout = await screen.findByRole("group", {
+      name: "Call sheet layout",
+    });
+    // The layout offers the packet's sections under their prepared names.
+    expect(within(layout).getByLabelText("Title for Openers")).toBeVisible();
+    expect(within(layout).getByLabelText("Title for 3rd down")).toBeVisible();
+    expect(within(layout).queryByLabelText("Title for Money down")).toBeNull();
+    await waitFor(() =>
+      expect(status()).toHaveTextContent("Week 5 · Offense · 100 plays"),
+    );
+    await user.click(screen.getByRole("button", { name: "Print…" }));
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    const html = print.mock.calls[0]![0];
+    expect(html).toContain("Openers");
+    expect(html).toContain("3rd down");
+    expect(html).not.toContain("Money down");
+    expect(html).toContain("100 calls ·");
+    expect(html.match(/<td class="cc">/g)).toHaveLength(100);
+
+    // A section the Coach leaves off is said so, not counted as printed.
+    await user.click(
+      within(layout).getByRole("button", {
+        name: "Leave Openers off the sheet",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Print…" }));
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(2));
+    expect(print.mock.calls[1]![0]).toContain(
+      "66 of 100 calls — 34 left off this sheet",
+    );
+  }, 20_000);
 });
 
 describe("configurable coordinator call sheets (issue #70)", () => {

@@ -170,6 +170,22 @@ describe("configured coordinator call sheets (issue #70)", () => {
     // The two-minute section went to side two by default.
     const sideTwo = html.slice(html.indexOf("Side 2 of 2"));
     expect(sideTwo).toContain("Two minute");
+    // The footer counts a call once however many sections list it.
+    const total = revision.plan.calls.length;
+    expect(html).toContain(`${total} calls · codes as on the wristband`);
+
+    // A section left off the sheet is said so, not counted as printed.
+    const without = configuredCallSheetHtml(revision, {
+      ...config,
+      sections: config.sections.slice(1),
+    });
+    const openersOnly = revision.plan.sections[0]!.callIds.filter(
+      (id) => !revision.plan.sections[1]!.callIds.includes(id),
+    ).length;
+    expect(without).toContain(
+      `${total - openersOnly} of ${total} calls — ${openersOnly} left off this sheet`,
+    );
+    expect(without).not.toContain("Openers");
   });
 
   it("warns about a section that flows, a missing play and a duplicate code before printing", () => {
@@ -249,6 +265,16 @@ describe("configured coordinator call sheets (issue #70)", () => {
       side: 2,
     });
     expect(config.columns).toEqual(["formation", "alert"]);
+
+    // A section left off on purpose stays off; one the plan has lost is forgotten.
+    const off = reconcileCallSheetConfig(
+      { ...config, sections: [], omitted: [plan.sections[0]!.id, "gone"] },
+      plan,
+    );
+    expect(off.sections.map(({ sectionId }) => sectionId)).toEqual([
+      plan.sections[1]!.id,
+    ]);
+    expect(off.omitted).toEqual([plan.sections[0]!.id]);
     expect(config.density).toBe("compact");
     expect(config.notesColumn).toBe(true);
     expect(readCallSheetConfigs("x")).toEqual({});

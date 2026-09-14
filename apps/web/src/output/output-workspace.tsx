@@ -299,15 +299,23 @@ export function OutputWorkspace({
   ]);
 
   const format = outputFormat(spec.format);
+  // The plan the sheet is laid out from: the prepared revision's own copy
+  // when the packet prints, so a section deleted or renamed in the live
+  // plan afterwards still prints as it was prepared; the live plan only for
+  // its current plays.
+  const sheetPlan =
+    source.kind === "plan" && source.copy === "revision" && revision
+      ? revision.plan
+      : plan;
   // The plan's own sheet layout: stored on this device, brought up to date
-  // with the plan, or the template its unit points at.
+  // with the plan it prints, or the template its unit points at.
   const sheetConfig = useMemo<CallSheetConfig | undefined>(() => {
-    if (!plan) return undefined;
+    if (!plan || !sheetPlan) return undefined;
     const stored = sheetConfigs[plan.id];
     return stored
-      ? reconcileCallSheetConfig(stored, plan)
-      : defaultCallSheetConfig(plan);
-  }, [plan, sheetConfigs]);
+      ? reconcileCallSheetConfig(stored, sheetPlan)
+      : defaultCallSheetConfig(sheetPlan);
+  }, [plan, sheetConfigs, sheetPlan]);
   const setSheetConfig = (next: CallSheetConfig) => {
     if (!plan) return;
     setSheetConfigs((current) => ({ ...current, [plan.id]: next }));
@@ -614,13 +622,13 @@ export function OutputWorkspace({
           ) : null}
           {spec.format === "callSheet" &&
           source.kind === "plan" &&
-          plan &&
+          sheetPlan &&
           resolved.revision &&
           sheetConfig ? (
             <CallSheetOptions
               config={sheetConfig}
               onChange={setSheetConfig}
-              plan={plan}
+              plan={sheetPlan}
               revision={resolved.revision}
             />
           ) : null}

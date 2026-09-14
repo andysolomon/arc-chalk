@@ -55,10 +55,15 @@ export function CallSheetOptions({
     next.splice(target, 0, moved!);
     onChange({ ...config, sections: next });
   };
+  // Left off on purpose: the plan's reconcile does not put it back.
   const remove = (index: number) =>
     onChange({
       ...config,
       sections: config.sections.filter((_, at) => at !== index),
+      omitted: [
+        ...config.omitted,
+        ...(config.sections[index] ? [config.sections[index].sectionId] : []),
+      ],
     });
   const left = plan.sections.filter(
     (section) =>
@@ -182,6 +187,7 @@ export function CallSheetOptions({
                       side: config.sides,
                     },
                   ],
+                  omitted: config.omitted.filter((id) => id !== section.id),
                 })
               }
               type="button"

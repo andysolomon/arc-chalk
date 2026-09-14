@@ -121,6 +121,8 @@ export interface CallSheetConfig {
   readonly template: CallSheetTemplateId;
   /** The sections that print, in the order they print. */
   readonly sections: readonly CallSheetSection[];
+  /** Sections the Coach left off on purpose; they are not put back. */
+  readonly omitted: readonly string[];
   readonly columns: readonly CallSheetColumnId[];
   readonly density: CallSheetDensity;
   readonly sides: 1 | 2;
@@ -178,6 +180,7 @@ export function defaultCallSheetConfig(plan: GamePlan): CallSheetConfig {
       accent: "none",
       side: index < Math.ceil(plan.sections.length / 2) ? 1 : 2,
     })),
+    omitted: [],
     columns: template.columns,
     density: "normal",
     sides: 1,
@@ -189,7 +192,8 @@ export function defaultCallSheetConfig(plan: GamePlan): CallSheetConfig {
 /**
  * A stored config brought up to date with the plan it prints: sections the
  * plan no longer has drop out, new ones join at the end, unknown columns are
- * dropped. Nothing else is changed on the Coach's behalf.
+ * dropped. A section the Coach left off stays off. Nothing else is changed
+ * on the Coach's behalf.
  */
 export function reconcileCallSheetConfig(
   config: CallSheetConfig,
@@ -200,8 +204,12 @@ export function reconcileCallSheetConfig(
     known.has(section.sectionId),
   );
   const listed = new Set(kept.map(({ sectionId }) => sectionId));
+  const omitted = config.omitted.filter(
+    (id) => known.has(id) && !listed.has(id),
+  );
+  const off = new Set(omitted);
   const added = plan.sections
-    .filter(({ id }) => !listed.has(id))
+    .filter(({ id }) => !listed.has(id) && !off.has(id))
     .map((section): CallSheetSection => ({
       sectionId: section.id,
       accent: "none",
@@ -211,6 +219,7 @@ export function reconcileCallSheetConfig(
   return {
     ...config,
     sections: [...kept, ...added],
+    omitted,
     columns: config.columns.filter((id) => columns.has(id)),
   };
 }
@@ -422,6 +431,19 @@ export function configuredCallSheetHtml(
   );
   const sides = config.sides === 2 ? [1, 2] : [1];
   const template = callSheetTemplate(config.template);
+  // The count is what this sheet prints, a call counted once however many
+  // sections list it; sections the Coach left off are said so, never
+  // counted as printed.
+  const printed = new Set(
+    chosen.flatMap((section) =>
+      bySection.get(section.sectionId)!.calls.map((row) => row.callId),
+    ),
+  ).size;
+  const total = revision.plan.calls.length;
+  const count =
+    printed === total
+      ? `${total} calls`
+      : `${printed} of ${total} calls — ${total - printed} left off this sheet`;
   const meta = [
     revision.plan.opponent ? `vs ${revision.plan.opponent}` : "",
     revision.plan.gameLabel ?? "",
@@ -456,7 +478,7 @@ export function configuredCallSheetHtml(
           sides.length > 1 ? `<br>Side ${side} of ${sides.length}` : ""
         }</div></div>` +
         `<div class="wrap${notes ? " notes" : ""}"><div class="cols">${columns}</div>${notes}</div>` +
-        `<div class="foot"><span>${revision.plan.calls.length} calls · codes as on the wristband and Game Day</span><span>${escapeHtml(revision.id)}</span></div>` +
+        `<div class="foot"><span>${count} · codes as on the wristband and Game Day</span><span>${escapeHtml(revision.id)}</span></div>` +
         "</div>"
       );
     })
@@ -514,6 +536,9 @@ export function readCallSheetConfigs(
             (c): c is CallSheetColumnId =>
               typeof c === "string" && columns.has(c as CallSheetColumnId),
           )
+        : [],
+      omitted: Array.isArray(r.omitted)
+        ? r.omitted.filter((id): id is string => typeof id === "string")
         : [],
       density: r.density === "compact" ? "compact" : "normal",
       sides: r.sides === 2 ? 2 : 1,
