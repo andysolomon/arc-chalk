@@ -2134,7 +2134,7 @@ describe("Chalk editor overlays", () => {
     const bar = screen.getByLabelText("Playback controls");
     expect(bar).toBeVisible();
     expect(within(bar).getByRole("button", { name: "Play" })).toBeVisible();
-    expect(within(bar).getByRole("button", { name: "Reset" })).toBeVisible();
+    expect(within(bar).getByRole("button", { name: "Reset positions" })).toBeVisible();
     expect(
       within(bar).getByRole("slider", { name: "Scrub the play" }),
     ).toBeVisible();
@@ -2232,6 +2232,11 @@ describe("Navigation (issue #65)", () => {
     expect(
       within(banner()).getByRole("button", { name: "New play" }),
     ).toBeVisible();
+    const resetPositions = within(banner()).getByRole("button", {
+      name: "Reset positions",
+    });
+    expect(resetPositions).toBeVisible();
+    expect(resetPositions).toBeDisabled();
     expect(
       within(banner()).getByRole("button", { name: "Present" }),
     ).toBeVisible();
@@ -2260,6 +2265,29 @@ describe("Navigation (issue #65)", () => {
       screen.getByRole("button", { name: "Back to the editor" }),
     );
     expect(nav()).toBeVisible();
+  });
+
+  it("resets animated positions from the header after playback moves off the snap", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+
+    const bar = screen.getByLabelText("Playback controls");
+    const resetPositions = within(banner()).getByRole("button", {
+      name: "Reset positions",
+    });
+    expect(resetPositions).toBeDisabled();
+
+    const slider = within(bar).getByRole("slider", { name: "Scrub the play" });
+    const start = Number(slider.getAttribute("aria-valuemin"));
+    const end = Number(slider.getAttribute("aria-valuemax"));
+    slider.focus();
+    await user.keyboard("{End}");
+    expect(Number(slider.getAttribute("aria-valuenow"))).toBe(end);
+    expect(resetPositions).toBeEnabled();
+
+    await user.click(resetPositions);
+    expect(Number(slider.getAttribute("aria-valuenow"))).toBe(start);
+    expect(resetPositions).toBeDisabled();
   });
 
   it("opens a tutorial from Help on its own tour", async () => {

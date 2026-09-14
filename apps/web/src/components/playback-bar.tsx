@@ -133,7 +133,7 @@ export function PlaybackBar({
         ))}
       </span>
       <button
-        aria-label="Reset"
+        aria-label="Reset positions"
         onClick={onReset}
         title="Back to the snap"
         type="button"

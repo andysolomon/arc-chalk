@@ -264,7 +264,7 @@ export function HelpMenu({
         aria-expanded={open}
         className={`help${open ? " open" : ""}`}
         onClick={onToggle}
-        title="Demo, tutorials and shortcuts"
+        title="Tutorials and shortcuts"
         type="button"
       >
         Help
