@@ -4985,11 +4985,11 @@ export function ChalkApp({
     />
   );
   /**
-   * Tool names beside the glyphs (issue #65): on until the Coach says
-   * otherwise where the pointer is a finger, off on a desk so the rail keeps
-   * the original's footprint.
+   * Tool names beside the glyphs (issue #65): off until the Coach asks, so
+   * the rail keeps the original's footprint; the Aa control that asks is a
+   * tap away, and the answer is remembered per device.
    */
-  const railLabels = chrome.railLabels ?? !precisePointer;
+  const railLabels = chrome.railLabels ?? false;
 
   const header = (
     <Header

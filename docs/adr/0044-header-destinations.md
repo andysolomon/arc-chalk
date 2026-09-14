@@ -36,9 +36,9 @@ status bar.
 with their keys and glyphs. _Clear_ leaves the rail for a **Clear…** page of the More
 menu that names the six scopes, explains them, and says Undo brings any of it back; a
 scope that would take nothing is greyed, as before. Snap stays as its compact toggle.
-An _Aa_ control at the foot of the rail shows each tool's name beside its glyph, on by
-default where the pointer is a finger and remembered per device otherwise, so no one
-has to hover or hold to learn what a glyph is. The rail widens to 108 px while named.
+An _Aa_ control at the foot of the rail shows each tool's name beside its glyph, a tap
+away and remembered per device, so no one has to hover or hold to learn what a glyph
+is. The rail widens to 108 px while named.
 
 **Contextual names.** Block reads **Blitz** while a defender is selected, because that
 is what the press draws: the drawing machine now starts a `blitz` path from a defender
