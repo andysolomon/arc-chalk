@@ -85,6 +85,14 @@ describe("binder (issue #72)", () => {
     });
     expect(html).toContain("<h1>Week 5</h1>");
     expect(html).toContain(packet.revision.id);
+    // What the printer keeps whole is marked, and the rule that keeps it.
+    expect(html).toContain('<div class="tr" data-keep data-contents-for=');
+    expect(html).toContain("<tr data-keep>");
+    expect(html).toContain('<div class="hd" data-keep>');
+    expect(html).toContain("<svg data-keep ");
+    expect(html).toContain(
+      "[data-keep]{break-inside:avoid;page-break-inside:avoid}",
+    );
     expect(html.match(/data-book-page="divider:/g)).toHaveLength(3);
     expect(html.match(/data-book-page="plan_call_/g)).toHaveLength(100);
     expect(html).toContain('<span class="cc">1</span> · ');
@@ -153,7 +161,7 @@ describe("binder (issue #72)", () => {
       options,
     );
     expect(html).not.toContain("Contents");
-    expect(html).toContain('<div class="na">');
+    expect(html).toContain('<div class="na" data-keep>');
     expect(html).not.toContain('class="pno"');
   });
 });
@@ -200,13 +208,48 @@ describe("handout (issue #72)", () => {
       options,
     );
     expect(bare).not.toContain("<table>");
+    const fullFit = handoutFit(entries, {
+      ...defaultHandoutConfig,
+      up: 4,
+      assignments: "full",
+    });
+    expect(fullFit.grows).toBe(true);
+    expect(fullFit.warnings.some((w) => w.includes("never cut"))).toBe(true);
     expect(
       handoutFit(entries, {
         ...defaultHandoutConfig,
-        up: 4,
-        assignments: "full",
-      }).warnings.some((w) => w.includes("flows onto extra sheets")),
-    ).toBe(true);
+        assignments: "none",
+        notes: false,
+      }).grows,
+    ).toBe(false);
+  });
+
+  it("never clips a card: it is at least its share of the sheet, grows past it, and keeps the diagram a fixed height", () => {
+    const entries = bookEntriesOf({ plays: plays.slice(0, 4) });
+    for (const config of [
+      { ...defaultHandoutConfig, assignments: "full" as const },
+      { ...defaultHandoutConfig, up: 4 as const, assignments: "full" as const },
+      { ...defaultHandoutConfig },
+    ]) {
+      const html = handoutSheetHtml(entries, config, options);
+      expect(html).not.toContain("overflow:hidden");
+      expect(html).toContain("overflow:visible");
+      expect(html).toContain("grid-auto-rows:auto");
+    }
+    // Two up portrait on letter: cards share ten inches less the gap.
+    const two = handoutSheetHtml(entries, defaultHandoutConfig, options);
+    expect(two).toContain("min-height:4.88in");
+    expect(two).toContain(
+      ".hc svg{width:100%;height:auto;display:block;max-height:2.83in}",
+    );
+    // One up: the whole sheet, the diagram just over half of it.
+    const one = handoutSheetHtml(
+      entries,
+      { ...defaultHandoutConfig, up: 1 },
+      options,
+    );
+    expect(one).toContain("min-height:auto");
+    expect(one).toContain("max-height:5.2in");
   });
 
   it("reads stored layouts back with sane bounds", () => {

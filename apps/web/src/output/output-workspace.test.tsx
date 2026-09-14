@@ -580,7 +580,7 @@ describe("binder and handout layouts (issue #72)", () => {
       );
       expect(html).toContain('data-book-page="divider:Openers"');
       expect(html).toContain(packet.revision.id);
-      expect(html).toContain('<div class="na">');
+      expect(html).toContain('<div class="na" data-keep>');
       // No layout was measured in this document, so nothing claims a number.
       expect(html).not.toMatch(/<span class="tp">\d+<\/span>/);
       expect((await library.loadBookConfigs()).binder).toMatchObject({

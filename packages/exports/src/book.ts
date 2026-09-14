@@ -150,6 +150,22 @@ export function binderPageCss(config: BinderConfig): string {
 }
 
 /**
+ * The pieces of a page that never split across sheets — a contents row, a
+ * table row, the header, the diagram — carry `data-keep`, and print with
+ * `break-inside: avoid`; the preview's page measure pushes each whole piece
+ * onto the next sheet exactly as the printer will.
+ */
+function keepTogether(html: string): string {
+  return html
+    .replace(/<tr>/g, "<tr data-keep>")
+    .replace(
+      /<div class="(tr[^"]*|hd|mt|ps|na|cn)"/g,
+      '<div class="$1" data-keep',
+    )
+    .replace(/<svg /g, "<svg data-keep ");
+}
+
+/**
  * The binder. Every page element carries `data-book-page` with an id, so
  * the preview can measure how many sheets each really takes and hand back
  * a page map; with the map, contents rows and page footers carry the
@@ -246,15 +262,23 @@ export function binderHtml(
       ".dv{font-size:32px;font-weight:600;letter-spacing:-1px;border-bottom:3px solid #171717;padding-bottom:8px;margin-bottom:8px}" +
       ".na{margin-top:10px}.na .nh{font-size:9px;letter-spacing:0.8px;text-transform:uppercase;color:#8F8F8F;font-family:ui-monospace,Menlo,monospace}" +
       ".na .wl{height:22px;border-bottom:1px solid #EBEBEB}" +
-      ".pg svg{max-height:48%}",
-    body: pages.join(""),
+      ".pg svg{max-height:48%}" +
+      "[data-keep]{break-inside:avoid;page-break-inside:avoid}",
+    body: keepTogether(pages.join("")),
     productName: product,
   });
 }
 
 export interface HandoutFit {
   readonly warnings: readonly string[];
+  /** Sheets at the chosen count per sheet; a growing card adds to this. */
   readonly sheets: number;
+  /**
+   * Cards can outgrow their share of the sheet: full assignments, or notes,
+   * are never cut, so the sheet count is a floor and the preview counts the
+   * pages actually laid out.
+   */
+  readonly grows: boolean;
 }
 
 const compactRows = 6;
@@ -276,9 +300,14 @@ export function handoutFit(
       );
     }
   }
-  if (config.up === 4 && config.assignments === "full") {
+  const grows = config.assignments === "full" || config.notes;
+  if (config.assignments === "full") {
     warnings.push(
-      "Four to a sheet with full assignments flows onto extra sheets; the diagram is not shrunk to fit.",
+      `Full assignments are never cut: a card that outgrows its ${config.up === 1 ? "sheet" : "share of the sheet"} grows and pushes the cards after it onto another sheet; the diagram is not shrunk to fit. The preview counts the sheets as laid out.`,
+    );
+  } else if (config.notes) {
+    warnings.push(
+      "Coaching notes are never cut: a long note grows its card and pushes the cards after it onto another sheet.",
     );
   }
   for (const entry of entries.filter((e) => e.missing)) {
@@ -289,15 +318,18 @@ export function handoutFit(
   return {
     warnings,
     sheets: Math.max(1, Math.ceil(entries.length / config.up)),
+    grows,
   };
 }
 
 /**
  * The handout: the selected plays one, two or four to a sheet, each card a
  * legible diagram with name and code, then compact or full assignments and
- * the coaching notes if asked. Cards are a fixed size; what does not fit a
- * compact card is counted, not hidden, and a full card flows onto the next
- * sheet rather than shrinking.
+ * the coaching notes if asked. A card is at least its share of the sheet
+ * and never less; what a compact card leaves off is counted, and a card
+ * that has more to show than its share grows — nothing is clipped — and
+ * pushes the cards after it onto another sheet. The diagram keeps a fixed
+ * height so the card's text, not the picture, decides what grows.
  */
 export function handoutSheetHtml(
   entries: readonly BookEntry[],
@@ -363,25 +395,40 @@ export function handoutSheetHtml(
   const landscape = config.orientation === "landscape";
   const cols = per === 4 ? 2 : per === 2 && landscape ? 2 : 1;
   const rowsPerSheet = per / cols;
+  // The sheet's usable height, and each card's share of it.
+  const sheetIn = landscape
+    ? config.paper === "a4"
+      ? 7.27
+      : 7.5
+    : config.paper === "a4"
+      ? 10.69
+      : 10;
+  const rowIn =
+    Math.round(((sheetIn - (rowsPerSheet - 1) * 0.25) / rowsPerSheet) * 100) /
+    100;
+  const diagramIn =
+    Math.round(rowIn * (rowsPerSheet === 1 ? 0.52 : 0.58) * 100) / 100;
   return printDocumentHtml({
     title: `${options.title} — handout`,
     css:
       `@page{size:${pageSize(config.paper, config.orientation)};margin:0.5in}` +
       ".hs{page-break-after:always;break-after:page;display:grid;gap:0.25in;align-content:start}" +
       ".hs:last-of-type{page-break-after:auto;break-after:auto}" +
-      `.hs{grid-template-columns:repeat(${cols},1fr);grid-auto-rows:${rowsPerSheet === 1 ? "auto" : `calc((${landscape ? (config.paper === "a4" ? 7.27 : 7.5) : config.paper === "a4" ? 10.69 : 10}in - ${(rowsPerSheet - 1) * 0.25}in) / ${rowsPerSheet})`}}` +
-      ".hc{break-inside:avoid;page-break-inside:avoid;border:1px solid #EBEBEB;border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;min-height:0;overflow:hidden}" +
+      `.hs{grid-template-columns:repeat(${cols},1fr);grid-auto-rows:auto}` +
+      // A card is at least its share of the sheet and grows past it rather
+      // than clip: overflow stays visible, and a card that will not fit the
+      // sheet's remainder moves whole to the next.
+      `.hc{break-inside:avoid;page-break-inside:avoid;border:1px solid #EBEBEB;border-radius:6px;padding:8px 10px;box-sizing:border-box;min-height:${rowsPerSheet === 1 ? "auto" : `${rowIn}in`};overflow:visible}` +
       ".hc.miss{color:#8F8F8F}" +
       ".hh{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}" +
       ".hh .cc{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:16px}" +
       ".hh b{font-size:14px;font-weight:600;letter-spacing:-0.3px}" +
       ".hh .hm{margin-left:auto;font-size:9px;color:#8F8F8F;font-family:ui-monospace,Menlo,monospace}" +
-      ".hc svg{width:100%;height:auto;display:block;flex:none;max-height:58%}" +
+      `.hc svg{width:100%;height:auto;display:block;max-height:${diagramIn}in}` +
       ".ps{margin-top:6px;font-family:ui-monospace,Menlo,monospace;font-size:10px;letter-spacing:0.4px}" +
       "table{width:100%;border-collapse:collapse;margin-top:6px}td{font-size:10px;line-height:13px;padding:2px 6px 2px 0;border-top:1px solid #EBEBEB;vertical-align:top}td.w{font-weight:600;width:0.6in;white-space:nowrap}.cv{color:#8F8F8F}" +
       ".more{font-size:9px;color:#8F8F8F;margin-top:4px;font-family:ui-monospace,Menlo,monospace}" +
-      ".hn{margin-top:6px;font-size:10px;line-height:14px;color:#4D4D4D}" +
-      ".up1 .hc svg{max-height:52%}",
+      ".hn{margin-top:6px;font-size:10px;line-height:14px;color:#4D4D4D;white-space:pre-line}",
     body: sheets.join(""),
     productName: product,
   });

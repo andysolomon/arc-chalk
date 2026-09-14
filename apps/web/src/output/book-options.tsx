@@ -160,10 +160,12 @@ export function BookOptions({
         Coaching notes on the card
       </label>
       <p className="output-note">
+        {fit.grows ? "At least " : ""}
         {fit.sheets} {fit.sheets === 1 ? "sheet" : "sheets"} for{" "}
-        {entries.length} {entries.length === 1 ? "play" : "plays"}. Cards keep
-        their size; what does not fit is counted or flows onto another sheet,
-        never shrunk away.
+        {entries.length} {entries.length === 1 ? "play" : "plays"}
+        {fit.grows
+          ? "; the preview counts the sheets as laid out. A card is never clipped: one with more to show grows and pushes the rest onto another sheet."
+          : ". Cards keep their size; what does not fit is counted on the card, never shrunk away."}
       </p>
       {fit.warnings.length > 0 ? (
         <ul className="call-sheet-warnings" aria-label="Before printing">

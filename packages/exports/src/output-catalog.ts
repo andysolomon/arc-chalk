@@ -32,6 +32,8 @@ export interface OutputPaper {
   readonly orientation: "portrait" | "landscape";
   /** All four margins, in inches. */
   readonly marginIn: number;
+  /** Extra margin on the bound side, in inches, taken from the content width. */
+  readonly gutterIn?: number;
 }
 
 /** How much of the coaching detail prints on each diagram. */
@@ -381,11 +383,14 @@ export function paperInches(paper: OutputPaper): {
  */
 export function previewCss(paper: OutputPaper, mono: boolean): string {
   const { width, height } = paperInches(paper);
-  const inner = width - paper.marginIn * 2;
+  const gutter = paper.gutterIn ?? 0;
+  // The gutter comes out of the content width, as it does on paper, so the
+  // preview wraps and paginates at the width that prints.
+  const inner = width - paper.marginIn * 2 - gutter;
   return (
     "@media screen{html{background:#e9e9e9}" +
     `body{width:${inner}in;min-height:${height - paper.marginIn * 2}in;margin:16px auto;` +
-    `padding:${paper.marginIn}in;box-sizing:content-box;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 12px 30px -12px rgba(0,0,0,.3)}` +
+    `padding:${paper.marginIn}in ${paper.marginIn}in ${paper.marginIn}in ${paper.marginIn + gutter}in;box-sizing:content-box;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 12px 30px -12px rgba(0,0,0,.3)}` +
     ".__pf{display:none}" +
     "[data-page-break],.pg,.wb{box-shadow:0 1px 0 0 #c9c9c9}" +
     ".pg:last-of-type{box-shadow:none}" +

@@ -50,7 +50,12 @@ export interface PrintDocumentInput {
   readonly productName?: string;
 }
 
-/** The original's `printDoc` wrapper: one page rule, product footer, body. */
+/**
+ * The original's `printDoc` wrapper: one page rule, product footer, body.
+ * The footer is fixed to every sheet's foot, and comes before the body
+ * rather than after it: placed after a last page that fills its sheet
+ * exactly, Chromium gives it a blank sheet of its own.
+ */
 export function printDocumentHtml(input: PrintDocumentInput): string {
   const product = input.productName ?? PRODUCT_NAME;
   return (
@@ -62,8 +67,8 @@ export function printDocumentHtml(input: PrintDocumentInput): string {
     FIELD_SVG_CSS +
     FOOT_CSS +
     "</style></head><body>" +
-    input.body +
     `<div class="__pf">${escapeHtml(product)}</div>` +
+    input.body +
     "</body></html>"
   );
 }

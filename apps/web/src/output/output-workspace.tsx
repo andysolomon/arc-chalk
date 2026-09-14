@@ -329,7 +329,14 @@ export function OutputWorkspace({
   const paper = useMemo<OutputPaper | undefined>(
     () =>
       spec.format === "binder"
-        ? { size: books.binder.paper, orientation: "portrait", marginIn: 0.5 }
+        ? {
+            size: books.binder.paper,
+            orientation: "portrait",
+            marginIn: 0.5,
+            // The punch-side gutter narrows the printed column; the preview
+            // wraps and paginates at that width.
+            gutterIn: books.binder.gutterIn,
+          }
         : spec.format === "handout"
           ? {
               size: books.handout.paper,
@@ -337,7 +344,13 @@ export function OutputWorkspace({
               marginIn: 0.5,
             }
           : format.paper,
-    [books.binder.paper, books.handout, format.paper, spec.format],
+    [
+      books.binder.gutterIn,
+      books.binder.paper,
+      books.handout,
+      format.paper,
+      spec.format,
+    ],
   );
   // The plan the sheet is laid out from: the prepared revision's own copy
   // when the packet prints, so a section deleted or renamed in the live
