@@ -10,6 +10,7 @@ import {
 import {
   callSheetHtml,
   configuredCallSheetHtml,
+  configuredWristbandHtml,
   detailLayers,
   exportFileName,
   frameSequenceManifest,
@@ -33,6 +34,7 @@ import {
   wristbandHtml,
   type CallSheetConfig,
   type DetailPreset,
+  type WristbandConfig,
   type DiagramRenderer,
   type OutputFormatId,
   type PositionGroupId,
@@ -73,6 +75,8 @@ export interface OutputOptions {
   readonly positionGroup: PositionGroupId;
   /** How a plan's coordinator sheet is laid out (issue #70). */
   readonly callSheet?: CallSheetConfig;
+  /** How a plan's wristband inserts are cut (issue #71). */
+  readonly wristband?: WristbandConfig;
 }
 
 export interface OutputContext {
@@ -249,7 +253,11 @@ export function buildOutputDocument(
       return html(
         source.label,
         source.revision
-          ? gamePlanWristbandHtml(source.revision, { render })
+          ? options.wristband
+            ? configuredWristbandHtml(source.revision, options.wristband, {
+                render,
+              })
+            : gamePlanWristbandHtml(source.revision, { render })
           : wristbandHtml(plays, library),
         "Pick some plays first.",
       );

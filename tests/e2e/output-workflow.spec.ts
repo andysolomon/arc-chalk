@@ -79,6 +79,20 @@ test("prints a game plan's call sheet from the workflow and keeps it under Recen
   await expect(preview.locator("body")).toContainText("Script");
   await layout.getByRole("button", { name: "One side" }).click();
 
+  // The wristband starts from the plan's own calls, to confirm, and prints
+  // at the chosen size with its calibration bar.
+  await output.getByRole("button", { name: /^Wristband/ }).click();
+  const band = output.getByRole("group", { name: "Wristband inserts" });
+  await expect(
+    band.getByRole("list", { name: "Calls on the band" }).getByRole("listitem"),
+  ).toHaveCount(2);
+  await band.getByLabel("Size preset").selectOption("3x1.5-1x3");
+  await expect(preview.locator("body")).toContainText(
+    "print at 100 % (Actual size)",
+  );
+  await expect(preview.locator(".wc")).toHaveCount(2);
+  await output.getByRole("button", { name: /^Coordinator call sheet/ }).click();
+
   // A format that takes one play says so and leaves the plan alone.
   await output.getByRole("button", { name: /^Install page/ }).click();
   await expect(output.getByRole("alert")).toContainText(

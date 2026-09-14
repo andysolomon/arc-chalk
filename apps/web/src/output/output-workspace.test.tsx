@@ -458,3 +458,87 @@ describe("configurable coordinator call sheets (issue #70)", () => {
     });
   });
 });
+
+describe("configurable wristband inserts (issue #71)", () => {
+  it(
+    "confirms the plan's calls, reorders them, takes one off, names one short, and keeps it all on the device",
+    { timeout: 20_000 },
+    async () => {
+      const user = userEvent.setup();
+      const packet = hundredCallPlan();
+      const library = libraryOf(packet.plays);
+      await library.saveGamePlan(packet.plan);
+      await library.saveGamePlanRevision(packet.revision);
+      const { print } = renderWorkspace(
+        defaultOutputSpec(defaultPresentation, "wristband", {
+          kind: "plan",
+          planId: packet.plan.id,
+          copy: "revision",
+        }),
+        { library, libraryPlays: [...plays, ...packet.plays] },
+      );
+      const band = await screen.findByRole("group", {
+        name: "Wristband inserts",
+      });
+      // A hundred calls paginate into thirteen inserts of eight; nothing is cut.
+      expect(band).toHaveTextContent(
+        "8 cells an insert · 100 calls → 13 inserts",
+      );
+      const list = within(band).getByRole("list", {
+        name: "Calls on the band",
+      });
+      const items = within(list).getAllByRole("listitem");
+      expect(items).toHaveLength(100);
+      expect(items[0]).toHaveTextContent("1");
+      expect(items[1]).toHaveTextContent("4");
+
+      await user.click(
+        within(items[1]!).getByRole("button", { name: /^Move .* up$/ }),
+      );
+      expect(within(list).getAllByRole("listitem")[0]).toHaveTextContent("4");
+      await user.click(
+        within(within(list).getAllByRole("listitem")[2]!).getByRole("button", {
+          name: /^Take .* off the band$/,
+        }),
+      );
+      expect(within(list).getAllByRole("listitem")).toHaveLength(99);
+      expect(
+        screen.getByRole("group", { name: "Calls not on the band" }),
+      ).toHaveTextContent("+ 7");
+      await user.type(
+        within(within(list).getAllByRole("listitem")[0]!).getByRole("textbox"),
+        "Thunder",
+      );
+      await user.selectOptions(
+        within(band).getByLabelText("Size preset"),
+        "3x1.5-1x3",
+      );
+      expect(band).toHaveTextContent(
+        "3 cells an insert · 99 calls → 33 inserts",
+      );
+
+      await user.click(screen.getByRole("button", { name: "Print…" }));
+      await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+      const html = print.mock.calls[0]![0];
+      expect(html).toContain("Insert 1 of 33");
+      expect(html).toContain("grid-template-columns:repeat(1,3in)");
+      expect(html.indexOf('<b class="cc">4</b>')).toBeLessThan(
+        html.indexOf('<b class="cc">1</b>'),
+      );
+      expect(html).toContain("Thunder");
+      expect(html).not.toContain('<b class="cc">7</b>');
+
+      const stored = await library.loadWristbandConfigs();
+      expect(stored[packet.plan.id]).toMatchObject({
+        cellWidthIn: 3,
+        columns: 1,
+        rows: 3,
+        presetId: "3x1.5-1x3",
+      });
+      expect(stored[packet.plan.id]!.calls[0]).toMatchObject({
+        shortName: "Thunder",
+      });
+      expect(stored[packet.plan.id]!.calls).toHaveLength(99);
+    },
+  );
+});

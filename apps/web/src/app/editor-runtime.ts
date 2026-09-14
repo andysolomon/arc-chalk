@@ -44,8 +44,10 @@ import {
 import {
   readCallSheetConfigs,
   readOutputPresets,
+  readWristbandConfigs,
   type CallSheetConfig,
   type OutputPreset,
+  type WristbandConfig,
 } from "@chalk/exports";
 
 import {
@@ -117,6 +119,7 @@ export interface ChromeState {
 export const CHROME_KEY = "chrome.v1";
 export const OUTPUT_PRESETS_KEY = "output.presets.v1";
 export const CALL_SHEET_KEY = "callSheet.v1";
+export const WRISTBAND_KEY = "wristband.v1";
 
 export const defaultChromeState: ChromeState = Object.freeze({
   inspectorOpen: true,
@@ -189,6 +192,9 @@ export interface ChalkLibrary {
   /** How each plan's coordinator sheet is laid out, by plan id (issue #70). */
   loadCallSheetConfigs(): Promise<Readonly<Record<string, CallSheetConfig>>>;
   saveCallSheetConfig(planId: string, config: CallSheetConfig): Promise<void>;
+  /** How each plan's wristband inserts are cut, by plan id (issue #71). */
+  loadWristbandConfigs(): Promise<Readonly<Record<string, WristbandConfig>>>;
+  saveWristbandConfig(planId: string, config: WristbandConfig): Promise<void>;
   getThumbnail(key: string): Promise<ThumbnailDerivative | undefined>;
   putThumbnail(thumbnail: ThumbnailDerivative): Promise<void>;
   getUndoHistory(
@@ -421,6 +427,7 @@ export function createMemoryLibrary(
   let gameDay: GameDayState = defaultGameDayState;
   let outputPresets: readonly OutputPreset[] = [];
   let callSheets: Record<string, CallSheetConfig> = {};
+  let wristbands: Record<string, WristbandConfig> = {};
   const gamePlans = new Map<string, GamePlan>();
   const gamePlanRevisions = new Map<string, GamePlanRevision>();
   return {
@@ -525,6 +532,13 @@ export function createMemoryLibrary(
     },
     saveCallSheetConfig(planId, config) {
       callSheets = { ...callSheets, [planId]: config };
+      return Promise.resolve();
+    },
+    loadWristbandConfigs() {
+      return Promise.resolve(wristbands);
+    },
+    saveWristbandConfig(planId, config) {
+      wristbands = { ...wristbands, [planId]: config };
       return Promise.resolve();
     },
     getThumbnail() {
@@ -745,6 +759,17 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
         (await repository.getPreference(CALL_SHEET_KEY))?.value,
       );
       await rememberJson(CALL_SHEET_KEY, { ...current, [planId]: config });
+    },
+    async loadWristbandConfigs() {
+      return readWristbandConfigs(
+        (await repository.getPreference(WRISTBAND_KEY))?.value,
+      );
+    },
+    async saveWristbandConfig(planId, config) {
+      const current = readWristbandConfigs(
+        (await repository.getPreference(WRISTBAND_KEY))?.value,
+      );
+      await rememberJson(WRISTBAND_KEY, { ...current, [planId]: config });
     },
     getThumbnail: (key) => repository.getThumbnail(key),
     putThumbnail: (thumbnail) => repository.putThumbnail(thumbnail),
