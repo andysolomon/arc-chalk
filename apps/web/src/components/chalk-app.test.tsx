@@ -2502,11 +2502,13 @@ describe("Tablet and narrow screens (issue #68)", () => {
       const nav = screen.getByRole("navigation", { name: "Workspace views" });
       await user.click(within(nav).getByRole("button", { name: "Playbooks" }));
       expect(screen.getByLabelText("Search plays")).not.toHaveFocus();
-      // The rail names its tools for a finger without being asked.
+      // The rail keeps its footprint; the names are a tap away on Aa.
       await user.click(within(nav).getByRole("button", { name: "Editor" }));
+      const rail = screen.getByRole("navigation", { name: "Drawing tools" });
+      expect(rail).not.toHaveClass("labeled");
       expect(
-        screen.getByRole("navigation", { name: "Drawing tools" }),
-      ).toHaveClass("labeled");
+        within(rail).getByRole("button", { name: "Tool names" }),
+      ).toBeVisible();
     } finally {
       restore();
     }
