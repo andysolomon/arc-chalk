@@ -101,6 +101,19 @@ test("prints a game plan's call sheet from the workflow and keeps it under Recen
   await expect(status).toContainText("Game plan: Week 3");
   await output.getByRole("button", { name: /^Coordinator call sheet/ }).click();
 
+  // The binder's page numbers come from the preview's own layout: the
+  // contents fill in once measured, and the count agrees with the status.
+  await output.getByRole("button", { name: /^Binder playbook/ }).click();
+  await expect(preview.locator("[data-contents-for] .tp").first()).toHaveText(
+    /^\d+$/,
+  );
+  const pages = await preview.locator("[data-book-page]").count();
+  await expect(status).toContainText(`${pages} pages`);
+  await expect(preview.locator(".pno").last()).toHaveText(String(pages));
+  await output.getByRole("button", { name: /^Handout/ }).click();
+  await expect(preview.locator(".hs.up2")).toHaveCount(1);
+  await output.getByRole("button", { name: /^Coordinator call sheet/ }).click();
+
   await output.getByRole("button", { name: "Print…" }).click();
   await expect(output.getByRole("status", { name: "Outcome" })).toContainText(
     "Sent to print.",

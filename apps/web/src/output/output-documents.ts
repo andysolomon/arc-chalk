@@ -8,6 +8,9 @@ import {
   type PlayDocument,
 } from "@chalk/domain";
 import {
+  binderHtml,
+  bookEntriesOf,
+  bookRevisionLine,
   callSheetHtml,
   configuredCallSheetHtml,
   configuredWristbandHtml,
@@ -19,6 +22,7 @@ import {
   gamePlanHandoutHtml,
   gamePlanWristbandHtml,
   handoutHtml,
+  handoutSheetHtml,
   installPageHtml,
   outputFormat,
   playFileBase,
@@ -32,8 +36,10 @@ import {
   slideHtml,
   standaloneSvg,
   wristbandHtml,
+  type BookConfigs,
   type CallSheetConfig,
   type DetailPreset,
+  type PageMap,
   type WristbandConfig,
   type DiagramRenderer,
   type OutputFormatId,
@@ -77,6 +83,9 @@ export interface OutputOptions {
   readonly callSheet?: CallSheetConfig;
   /** How a plan's wristband inserts are cut (issue #71). */
   readonly wristband?: WristbandConfig;
+  /** Binder and handout layouts, and the binder's measured page map (issue #72). */
+  readonly books?: BookConfigs;
+  readonly pageMap?: PageMap;
 }
 
 export interface OutputContext {
@@ -265,19 +274,61 @@ export function buildOutputDocument(
       return html(source.label, scoutCardsHtml(plays, library));
     case "practice":
       return html(source.label, practiceCardsHtml(plays, library));
-    case "binder":
+    case "binder": {
+      if (!options.books) {
+        return html(
+          source.label,
+          source.revision
+            ? gamePlanHandoutHtml(source.revision, {
+                ...library,
+                year: context.year,
+              })
+            : playbookHtml(plays, { ...library, year: context.year }),
+          "The playbook has no saved plays yet.",
+        );
+      }
+      const entries = bookEntriesOf(source);
+      if (entries.length === 0) {
+        return {
+          kind: "empty",
+          reason: "The playbook has no saved plays yet.",
+        };
+      }
+      const revisionLine = bookRevisionLine(source.revision);
       return html(
         source.label,
-        source.revision
-          ? gamePlanHandoutHtml(source.revision, {
-              ...library,
-              year: context.year,
-            })
-          : playbookHtml(plays, { ...library, year: context.year }),
-        "The playbook has no saved plays yet.",
+        binderHtml(
+          entries,
+          options.books.binder,
+          {
+            render,
+            formations: context.formations,
+            year: context.year,
+            title: source.label,
+            ...(source.unit ? { subtitle: source.unit } : {}),
+            ...(revisionLine ? { revisionLine } : {}),
+          },
+          options.pageMap,
+        ),
       );
-    case "handout":
-      return html(source.label, handoutHtml(plays, library));
+    }
+    case "handout": {
+      if (!options.books)
+        return html(source.label, handoutHtml(plays, library));
+      const entries = bookEntriesOf(source);
+      if (entries.length === 0) {
+        return { kind: "empty", reason: "Pick at least one play." };
+      }
+      return html(
+        source.label,
+        handoutSheetHtml(entries, options.books.handout, {
+          render,
+          formations: context.formations,
+          year: context.year,
+          title: source.label,
+        }),
+      );
+    }
   }
 }
 

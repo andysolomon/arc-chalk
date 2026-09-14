@@ -176,17 +176,16 @@ export function WristbandOptions({
                 ⋮⋮
               </span>
               <code>{row?.code.trim() || "—"}</code>
-              <input
-                aria-label={`Short name for ${row?.name ?? call.callId}`}
-                onChange={(event) =>
+              <ShortName
+                callId={call.callId}
+                label={`Short name for ${row?.name ?? call.callId}`}
+                onCommit={(text) =>
                   setCalls(
                     config.calls.map((candidate) =>
                       candidate.callId === call.callId
                         ? {
                             callId: call.callId,
-                            ...(event.target.value.trim()
-                              ? { shortName: event.target.value }
-                              : {}),
+                            ...(text.trim() ? { shortName: text } : {}),
                           }
                         : candidate,
                     ),
@@ -262,5 +261,41 @@ export function WristbandOptions({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * A short name is committed when the Coach leaves the field, not on every
+ * keystroke: each commit redraws every cell on the band.
+ */
+function ShortName({
+  callId,
+  label,
+  onCommit,
+  placeholder,
+  value,
+}: {
+  callId: string;
+  label: string;
+  onCommit: (text: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  const [draft, setDraft] = useState<string>();
+  return (
+    <input
+      aria-label={label}
+      key={callId}
+      onBlur={() => {
+        if (draft !== undefined && draft !== value) onCommit(draft);
+        setDraft(undefined);
+      }}
+      onChange={(event) => setDraft(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur();
+      }}
+      placeholder={placeholder}
+      value={draft ?? value}
+    />
   );
 }

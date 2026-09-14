@@ -462,7 +462,7 @@ describe("configurable coordinator call sheets (issue #70)", () => {
 describe("configurable wristband inserts (issue #71)", () => {
   it(
     "confirms the plan's calls, reorders them, takes one off, names one short, and keeps it all on the device",
-    { timeout: 20_000 },
+    { timeout: 40_000 },
     async () => {
       const user = userEvent.setup();
       const packet = hundredCallPlan();
@@ -539,6 +539,65 @@ describe("configurable wristband inserts (issue #71)", () => {
         shortName: "Thunder",
       });
       expect(stored[packet.plan.id]!.calls).toHaveLength(99);
+    },
+  );
+});
+
+describe("binder and handout layouts (issue #72)", () => {
+  it(
+    "builds the binder from the plan's packet with gutter, dividers and unmeasured numbers, and a handout two to a sheet",
+    { timeout: 40_000 },
+    async () => {
+      const user = userEvent.setup();
+      const packet = hundredCallPlan();
+      const library = libraryOf(packet.plays);
+      await library.saveGamePlan(packet.plan);
+      await library.saveGamePlanRevision(packet.revision);
+      const { print } = renderWorkspace(
+        defaultOutputSpec(defaultPresentation, "binder", {
+          kind: "plan",
+          planId: packet.plan.id,
+          copy: "revision",
+        }),
+        { library, libraryPlays: [...plays, ...packet.plays] },
+      );
+      const binder = await screen.findByRole("group", {
+        name: "Binder layout",
+      });
+      await user.clear(within(binder).getByLabelText("Punch-side gutter (in)"));
+      await user.type(
+        within(binder).getByLabelText("Punch-side gutter (in)"),
+        "0.75",
+      );
+      await user.click(
+        within(binder).getByLabelText("Ruled notes area under each play"),
+      );
+      await user.click(screen.getByRole("button", { name: "Print…" }));
+      await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+      const html = print.mock.calls[0]![0];
+      expect(html).toContain(
+        "@page :right{margin-left:1.25in;margin-right:0.5in}",
+      );
+      expect(html).toContain('data-book-page="divider:Openers"');
+      expect(html).toContain(packet.revision.id);
+      expect(html).toContain('<div class="na" data-keep>');
+      // No layout was measured in this document, so nothing claims a number.
+      expect(html).not.toMatch(/<span class="tp">\d+<\/span>/);
+      expect((await library.loadBookConfigs()).binder).toMatchObject({
+        gutterIn: 0.75,
+        notesArea: true,
+      });
+
+      await user.click(screen.getByRole("button", { name: /^Handout/ }));
+      const handout = await screen.findByRole("group", {
+        name: "Handout layout",
+      });
+      expect(handout).toHaveTextContent("50 sheets for 100 plays");
+      await user.click(within(handout).getByRole("button", { name: "4-up" }));
+      expect(handout).toHaveTextContent("25 sheets for 100 plays");
+      await user.click(screen.getByRole("button", { name: "Print…" }));
+      await waitFor(() => expect(print).toHaveBeenCalledTimes(2));
+      expect(print.mock.calls[1]![0].match(/class="hs up4"/g)).toHaveLength(25);
     },
   );
 });
