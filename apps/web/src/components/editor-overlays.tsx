@@ -1292,6 +1292,7 @@ export function DefenseBrowser({
   calls,
   currentCallId,
   favoriteIds,
+  focusSearch = true,
   onClose,
   onPick,
   onPreview,
@@ -1302,6 +1303,8 @@ export function DefenseBrowser({
   calls: readonly DefensiveCall[];
   currentCallId?: string;
   favoriteIds: readonly string[];
+  /** Search takes focus for a keyboard, not for a finger (issue #68). */
+  focusSearch?: boolean;
   onClose: () => void;
   onPick: (callId: string) => void;
   onPreview: (callId?: string) => void;
@@ -1363,7 +1366,7 @@ export function DefenseBrowser({
           <div className="browser-title">Defenses</div>
           <input
             aria-label="Search defenses"
-            autoFocus
+            autoFocus={focusSearch}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search — cover 3, nickel, blitz…"
             spellCheck={false}

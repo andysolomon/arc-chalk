@@ -14,6 +14,7 @@ import {
   createPlaySearchClient,
   projectionsForHits,
 } from "./play-search-client";
+import { gridColumnsFor } from "./grid-columns";
 import { UNCLASSIFIED, typeChipsFor } from "./type-chips";
 import {
   createThumbnailScheduler,
@@ -21,7 +22,6 @@ import {
   type ThumbnailRequest,
 } from "./thumbnail-scheduler";
 
-const GRID_COLUMNS = 4;
 const CARD_ROW_HEIGHT = 118;
 
 const UNITS: readonly {
@@ -32,6 +32,7 @@ const UNITS: readonly {
 export function PlaybookBrowser({
   currentPlayId,
   embedded = false,
+  focusSearch = true,
   initial,
   library,
   members,
@@ -48,6 +49,11 @@ export function PlaybookBrowser({
    * cards is not a way out.
    */
   embedded?: boolean;
+  /**
+   * Whether search takes focus as the browser opens. A keyboard wants it; a
+   * finger does not want the keyboard raised over the cards (issue #68).
+   */
+  focusSearch?: boolean;
   initial: LibraryBrowserState;
   library: ChalkLibrary;
   members: readonly PlaySearchProjection[];
@@ -65,6 +71,19 @@ export function PlaybookBrowser({
   const [focusedPlayId, setFocusedPlayId] = useState(initial.focusedPlayId);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const restoredRef = useRef(false);
+  const [columns, setColumns] = useState(() =>
+    gridColumnsFor(scrollerRef.current?.clientWidth ?? 0),
+  );
+  useEffect(() => {
+    const node = scrollerRef.current;
+    if (!node || typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry?.contentRect.width ?? node.clientWidth;
+      setColumns(gridColumnsFor(width));
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const search = useMemo(() => createPlaySearchClient(), []);
   const thumbnails = useMemo(
     () => createThumbnailScheduler(library),
@@ -118,11 +137,11 @@ export function PlaybookBrowser({
 
   const rows = useMemo(() => {
     const grouped: PlaySearchProjection[][] = [];
-    for (let index = 0; index < hits.length; index += GRID_COLUMNS) {
-      grouped.push(hits.slice(index, index + GRID_COLUMNS));
+    for (let index = 0; index < hits.length; index += columns) {
+      grouped.push(hits.slice(index, index + columns));
     }
     return grouped;
-  }, [hits]);
+  }, [columns, hits]);
 
   // TanStack Virtual returns functions the compiler cannot memoize.
   // eslint-disable-next-line react-hooks/incompatible-library -- virtualizer API
@@ -143,10 +162,22 @@ export function PlaybookBrowser({
         (member) => member.playId === initial.focusedPlayId,
       );
       if (index >= 0) {
-        virtualizer.scrollToIndex(Math.floor(index / GRID_COLUMNS));
+        virtualizer.scrollToIndex(Math.floor(index / columns));
       }
     }
-  }, [hits, initial.focusedPlayId, initial.scrollTop, virtualizer]);
+  }, [columns, hits, initial.focusedPlayId, initial.scrollTop, virtualizer]);
+
+  // A reflow regroups every row, so the card the Coach was on would land on
+  // a different row than the one he is scrolled to. Keep it in view.
+  const columnsSeenRef = useRef(columns);
+  useEffect(() => {
+    if (columnsSeenRef.current === columns) return;
+    columnsSeenRef.current = columns;
+    virtualizer.measure();
+    if (!focusedPlayId) return;
+    const index = hits.findIndex((member) => member.playId === focusedPlayId);
+    if (index >= 0) virtualizer.scrollToIndex(Math.floor(index / columns));
+  }, [columns, focusedPlayId, hits, virtualizer]);
 
   const remember = (playId?: string) => {
     onRemember({
@@ -184,7 +215,7 @@ export function PlaybookBrowser({
           <div className="browser-title">Playbook</div>
           <input
             aria-label="Search plays"
-            autoFocus
+            autoFocus={focusSearch}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search — stick, thunder, red zone…"
             spellCheck={false}
@@ -252,7 +283,7 @@ export function PlaybookBrowser({
               </button>
             ))}
             <button
-              className={playType === UNCLASSIFIED ? "active" : undefined}
+              className={playType === UNCLASSIFIED ? "chip active" : "chip"}
               onClick={() => setPlayType(UNCLASSIFIED)}
               title="Plays left at their unit with no type chosen"
               type="button"
@@ -263,6 +294,7 @@ export function PlaybookBrowser({
         </div>
         <div
           className="browser-body playbook-scroll"
+          data-grid-columns={columns}
           data-virtual-count={hits.length}
           onScroll={() => remember()}
           ref={scrollerRef}
@@ -281,11 +313,13 @@ export function PlaybookBrowser({
                   className="browser-grid playbook-virtual-row"
                   data-index={row.index}
                   key={row.key}
+                  ref={virtualizer.measureElement}
                   style={{
                     position: "absolute",
                     top: 0,
                     left: 0,
                     width: "100%",
+                    gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
                     transform: `translateY(${row.start}px)`,
                   }}
                 >
@@ -363,7 +397,7 @@ function PlayCard({
       <div className="browser-name-row">
         <strong>{member.name}</strong>
       </div>
-      <span>
+      <span className="playbook-card-type">
         {formatClassification({
           unit: member.unit,
           ...(member.playTypeId === undefined
