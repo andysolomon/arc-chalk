@@ -4038,11 +4038,26 @@ export function ChalkApp({
     };
   };
 
-  const goToView = useCallback((view: View): void => {
-    setActiveView(view);
-    setOpenMenu(null);
-    setOverlay(null);
-  }, []);
+  const goToView = useCallback(
+    (view: View): void => {
+      setActiveView(view);
+      setOpenMenu(null);
+      setOverlay(null);
+      if (chromeLoadedRef.current) {
+        const wasGameDay = chromeRef.current.gameDay === true;
+        if (view === "GameDay" || wasGameDay) {
+          const { gameDay: _was, ...rest } = chromeRef.current;
+          void _was;
+          const next: ChromeState =
+            view === "GameDay" ? { ...rest, gameDay: true } : rest;
+          chromeRef.current = next;
+          setChrome(next);
+          void runtime.library.saveChrome(next).catch(() => undefined);
+        }
+      }
+    },
+    [runtime.library],
+  );
   /** Help's tutorials open Demo on the tour named (issue #65). */
   const openTour = useCallback(
     (tourId: DemoTour["id"]): void => {
@@ -4834,6 +4849,8 @@ export function ChalkApp({
       // A drawer starts closed so the field has the width; the stub, ⌥1
       // and Layers bring it out.
       setInspectorOpen(state.inspectorOpen && !compactRef.current);
+      // A device left on Game Day comes back to it (issue #67).
+      if (state.gameDay) setActiveView("GameDay");
       setRailOpen(state.railOpen);
       chromeLoadedRef.current = true;
     });
@@ -5052,6 +5069,15 @@ export function ChalkApp({
       </button>
     </header>
   );
+  /** Whether an image a prepared Play references is on this device. */
+  const hasImage = useCallback(
+    (hash: string) =>
+      runtime.getImage(hash).then(
+        (image) => image !== undefined,
+        () => false,
+      ),
+    [runtime],
+  );
   const header = readsOnly ? (
     compactHeader
   ) : (
@@ -5158,6 +5184,7 @@ export function ChalkApp({
       <div className="chalk-shell view-present">
         <PresentMode
           onLeave={() => goToView("Editor")}
+          onStep={(direction) => playbook.stepFamily(direction)}
           playName={editor.document.name}
           positionLine={playbook.presentLine}
           scene={scene}
@@ -5293,6 +5320,7 @@ export function ChalkApp({
       <div className="chalk-shell view-game-day">
         {header}
         <GameDayView
+          hasImage={hasImage}
           library={runtime.library}
           onOpenPlaybooks={() => {
             setPlaybooksTab("plans");
@@ -6532,6 +6560,7 @@ function DemoMode({
 
 function PresentMode({
   onLeave,
+  onStep,
   playName,
   positionLine,
   scene,
@@ -6539,6 +6568,8 @@ function PresentMode({
   timeline,
 }: {
   onLeave: () => void;
+  /** Previous and Next variation, for a thumb as well as the arrow keys (issue #67). */
+  onStep: (direction: 1 | -1) => void;
   playName: string;
   positionLine: string;
   scene: SvgRenderScene;
@@ -6552,15 +6583,34 @@ function PresentMode({
       </div>
       {timeline}
       <div className="present-bar">
+        <button
+          aria-label="Previous variation"
+          className="present-step"
+          onClick={() => onStep(-1)}
+          title="Previous variation — ←"
+          type="button"
+        >
+          ‹
+        </button>
+        <button
+          aria-label="Next variation"
+          className="present-step"
+          onClick={() => onStep(1)}
+          title="Next variation — →"
+          type="button"
+        >
+          ›
+        </button>
         <div className="present-name">{playName}</div>
         <div className="present-pos">{positionLine}</div>
         <div className="present-hint">← → variations</div>
         <button
+          aria-label="Back to the editor"
           onClick={onLeave}
           title="Back to the editor — esc"
           type="button"
         >
-          esc
+          Back <kbd>esc</kbd>
         </button>
       </div>
     </div>

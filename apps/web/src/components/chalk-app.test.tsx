@@ -607,7 +607,9 @@ describe("Chalk application shell", () => {
     expect(screen.getByRole("region", { name: "Present" })).toBeVisible();
     expect(screen.getByText("Mesh — Alert")).toBeVisible();
     expect(screen.getByText("← → variations")).toBeVisible();
-    expect(screen.getByRole("button", { name: "esc" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Back to the editor" }),
+    ).toBeVisible();
     await waitFor(() => {
       expect(editorStore.getSnapshot().document.name).toBe("Mesh — Alert");
     });
@@ -617,7 +619,9 @@ describe("Chalk application shell", () => {
       screen.queryByRole("button", { name: "Saved on this device" }),
     ).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Play name" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "esc" }));
+    await user.click(
+      screen.getByRole("button", { name: "Back to the editor" }),
+    );
     expect(
       screen.getByRole("button", { name: "Saved on this device" }),
     ).toBeVisible();
@@ -2243,7 +2247,9 @@ describe("Navigation (issue #65)", () => {
     // Present is still one action away, and esc still comes back.
     await user.click(within(banner()).getByRole("button", { name: "Present" }));
     expect(screen.getByRole("region", { name: "Present" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "esc" }));
+    await user.click(
+      screen.getByRole("button", { name: "Back to the editor" }),
+    );
     expect(nav()).toBeVisible();
   });
 
@@ -2512,5 +2518,74 @@ describe("Tablet and narrow screens (issue #68)", () => {
     } finally {
       restore();
     }
+  });
+});
+
+describe("Present for a thumb (issue #67)", () => {
+  it("steps variations with visible Previous and Next and comes back with a labeled Back", async () => {
+    const user = userEvent.setup();
+    const envelope = starterPlaybookEnvelope();
+    const library = createMemoryLibrary(
+      {
+        playbook: envelope.playbook,
+        concepts: envelope.concepts,
+        members: starterExamplePlays().map((play) => ({
+          playId: play.id,
+          playbookId: play.playbookId,
+          name: play.name,
+          unit: play.unit,
+          ...(play.conceptSource
+            ? { conceptId: play.conceptSource.conceptId }
+            : {}),
+          tags: play.tags,
+          playerRoles: [],
+          assignmentText: [],
+          notes: play.notes,
+          documentHash: `hash_${play.id}`,
+          updatedAtMs: 1,
+        })),
+      },
+      starterExamplePlays().map((play) => ({
+        id: play.id,
+        playbookId: play.playbookId,
+        document: play,
+        documentHash: `hash_${play.id}`,
+        updatedAtMs: 1,
+      })),
+    );
+    render(<ChalkApp runtime={createTestRuntime({ library })} />);
+    await user.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Present",
+      }),
+    );
+    const present = screen.getByRole("region", { name: "Present" });
+    await waitFor(() => {
+      expect(present.querySelector(".present-pos")?.textContent).toMatch(
+        /^1 \/ /,
+      );
+    });
+    await user.click(
+      within(present).getByRole("button", { name: "Next variation" }),
+    );
+    await waitFor(() => {
+      expect(present.querySelector(".present-pos")?.textContent).toMatch(
+        /^2 \/ /,
+      );
+    });
+    await user.click(
+      within(present).getByRole("button", { name: "Previous variation" }),
+    );
+    await waitFor(() => {
+      expect(present.querySelector(".present-pos")?.textContent).toMatch(
+        /^1 \/ /,
+      );
+    });
+    await user.click(
+      within(present).getByRole("button", { name: "Back to the editor" }),
+    );
+    expect(
+      screen.getByRole("navigation", { name: "Drawing tools" }),
+    ).toBeVisible();
   });
 });
