@@ -44,6 +44,9 @@ export type ActionId =
   | "toggleRail"
   | "present"
   | "print"
+  /** The output workflow (issue #69) and the outputs run lately. */
+  | "output"
+  | `preset:${string}`
   | "fitToSelection"
   | "toggleSnapping"
   | "fitField"

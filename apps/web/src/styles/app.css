@@ -1087,6 +1087,295 @@ button.play-type.open {
   overflow: auto;
   padding: 18px 24px;
 }
+/* Print & export (issue #69): choices down the left, the sheet on the right. */
+.output {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
+  padding: 12px 16px 0;
+  background: var(--canvas);
+}
+.output-steps {
+  width: 300px;
+  flex: none;
+  overflow: auto;
+  padding-bottom: 12px;
+}
+.output-step {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.output-step h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.output-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.output-choices button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: #4d4d4d;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.output-choices button.active {
+  background: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+  color: #fff;
+}
+.output-format-group {
+  margin-top: 6px;
+}
+.output-format {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.output-format small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.output-format:hover {
+  background: var(--hover);
+}
+.output-format.active {
+  background: #eef4ff;
+  box-shadow: inset 0 0 0 1px #c7dcff;
+}
+.output-format.unfit {
+  color: var(--muted);
+}
+.output-format.unfit span::after {
+  content: " — needs another source";
+  font-size: 10px;
+}
+.output-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.output-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 15px;
+}
+.output-picker input[type="search"],
+.output-plan select {
+  width: 100%;
+  height: 30px;
+  margin-top: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.output-plan label {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.output-copy {
+  margin-top: 8px;
+}
+.output-pick-list {
+  max-height: 180px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.output-pick-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  font-size: 12px;
+}
+.output-order {
+  margin: 8px 0 0;
+  padding: 0 0 0 18px;
+  font-size: 12px;
+}
+.output-order li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+}
+.output-order span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.output-order button {
+  width: 24px;
+  height: 22px;
+  border: 0;
+  border-radius: 4px;
+  background: #f2f2f2;
+  color: var(--ink);
+  cursor: pointer;
+}
+.output-order button:disabled {
+  color: #c9c9c9;
+  cursor: default;
+}
+.output-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+.output-summary {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.output-summary strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+.output-blocked {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fff7e6;
+  color: #7a5200;
+  font-size: 12px;
+}
+.output-preview {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-radius: 8px;
+  background: #e9e9e9;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.output-frame {
+  width: 100%;
+  min-height: 100%;
+  flex: 1;
+  border: 0;
+  background: #e9e9e9;
+}
+.print-inline {
+  position: static;
+  flex: 1;
+  background: transparent;
+}
+.output-file-preview {
+  padding: 24px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.output-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.output-actions .menu-primary {
+  width: auto;
+  padding: 0 16px;
+}
+.output-secondary {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.output-secondary:disabled {
+  color: #c9c9c9;
+  cursor: default;
+}
+.output-honest {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 11px;
+}
+.output-outcome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #e9f5ec;
+  color: #2b6a3a;
+  font-size: 12px;
+}
+.output-outcome.failed {
+  background: #fdecec;
+  color: #a33a3a;
+}
+@media (max-width: 900px) {
+  .output {
+    flex-direction: column;
+    overflow: auto;
+  }
+  .output-steps {
+    width: auto;
+    overflow: visible;
+  }
+  .output-main {
+    min-height: 70vh;
+  }
+}
+
 /* The reader (issue #67): head, situation tabs, and a list beside the call. */
 .game-day.reader {
   display: flex;

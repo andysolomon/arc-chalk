@@ -161,7 +161,7 @@ test("opens the original field-first editor shell and its modes", async ({
   ).toBeVisible();
 });
 
-test("opens Print preview as the letter-landscape sheet and leaves on Escape", async ({
+test("opens Print & export on the letter-landscape sheet and leaves on Escape", async ({
   page,
 }) => {
   await page.goto("/");
@@ -174,15 +174,20 @@ test("opens Print preview as the letter-landscape sheet and leaves on Escape", a
     .getByRole("button", { name: "Print preview", exact: true })
     .click();
 
-  const sheet = page.getByRole("region", { name: "Print preview" });
-  await expect(sheet).toBeVisible();
+  const workspace = page.getByRole("region", { name: "Print & export" });
+  await expect(workspace).toBeVisible();
+  const sheet = workspace.getByRole("region", { name: "Print preview" });
   await expect(sheet.getByText("Stick — Thunder")).toBeVisible();
-  await expect(sheet.getByText("Pass")).toBeVisible();
+  await expect(sheet.getByText("Offense · Pass")).toBeVisible();
   await expect(
     sheet.getByText("letter landscape · half-inch margins · coach type"),
   ).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "Print this" })).toBeVisible();
   await expect(page.locator(".print-diagram svg.field-diagram")).toBeVisible();
+  // The source and the paper are stated before anything prints.
+  await expect(workspace.getByRole("status")).toContainText(
+    "Current play: Stick — Thunder · Offense · 1 play",
+  );
+  await expect(workspace.getByRole("button", { name: "Print…" })).toBeEnabled();
   await expect(
     page.getByText(
       "letter landscape, half-inch margins — this is what export → print produces · esc returns to the editor",
@@ -190,7 +195,7 @@ test("opens Print preview as the letter-landscape sheet and leaves on Escape", a
   ).toBeVisible();
 
   await page.keyboard.press("Escape");
-  await expect(sheet).toHaveCount(0);
+  await expect(workspace).toHaveCount(0);
   await expect(
     page.getByRole("navigation", { name: "Drawing tools" }),
   ).toBeVisible();

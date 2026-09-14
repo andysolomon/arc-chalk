@@ -208,6 +208,8 @@ import { ScopeBar } from "../library/scope-bar";
 import { PlaybookBrowser } from "../library/playbook-browser";
 import { GamePlansWorkspace } from "../library/game-plans-workspace";
 import { GameDayView } from "../library/game-day-view";
+import { defaultOutputSpec, type OutputSpec } from "../output/output-spec";
+import { OutputWorkspace } from "../output/output-workspace";
 import { usePlaybookLibrary } from "../library/use-playbook-library";
 import { AccountPanel } from "./account-panel";
 import { LifecycleNotices } from "./lifecycle-notices";
@@ -228,12 +230,18 @@ import {
   scoutCardPlays,
   scoutCardsHtml,
   slideHtml,
+  rememberPreset,
   standaloneSvg,
   wristbandHtml,
+  type OutputPreset,
   type PositionGroupId,
 } from "@chalk/exports";
 
-import { paletteCommands, type ActionMap } from "./editor-command-surface";
+import {
+  paletteCommands,
+  type ActionMap,
+  type MenuEntry,
+} from "./editor-command-surface";
 import {
   CommandPalette,
   ContextMenu,
@@ -2402,7 +2410,13 @@ export function ChalkApp({
   const [liveStore] = useState(() =>
     createLiveSnapshotStore<FieldInteractionModel>(idleFieldInteraction),
   );
-  const printSvgRef = useRef<SVGSVGElement | null>(null);
+  /** What Print & export opens on, and the outputs run lately (issue #69). */
+  const [outputSpec, setOutputSpec] = useState<OutputSpec>(() =>
+    defaultOutputSpec(defaultPresentation),
+  );
+  const [outputPresets, setOutputPresets] = useState<readonly OutputPreset[]>(
+    [],
+  );
   const labelTextInputRef = useRef<HTMLInputElement | null>(null);
   // A label the Coach has just placed is waiting to be typed into. A ref,
   // not state: nothing renders from it, and clearing it must not re-render.
@@ -4088,7 +4102,7 @@ export function ChalkApp({
    * `exportPdf` is.
    */
   const printTheField = (): void => {
-    const svg = printSvgRef.current ?? fieldSvgRef.current;
+    const svg = fieldSvgRef.current;
     if (!svg) return;
     const play = editorStore.getSnapshot().document;
     openPrintField({
@@ -4175,8 +4189,14 @@ export function ChalkApp({
     formations: allFormations,
   };
   const printOrSay = (html: string | undefined, name: string, text: string) => {
-    if (html) openPrintWindow(html);
-    else setToast({ name, text });
+    if (!html) setToast({ name, text });
+    else if (!openPrintWindow(html)) {
+      // A blocked pop-up is said, and the way round it named (issue #69).
+      setToast({
+        name: "The browser blocked the print window",
+        text: "— open Print & export to print from here",
+      });
+    }
     setOpenMenu(null);
   };
   const positionAction = (groupId: PositionGroupId) => () => {
@@ -4314,7 +4334,40 @@ export function ChalkApp({
       setOpenMenu(null);
     },
     present: () => goToView("Present"),
-    print: () => goToView("Print"),
+    print: () => {
+      setOutputSpec(defaultOutputSpec(presentation));
+      goToView("Print");
+    },
+    output: () => {
+      setOutputSpec(defaultOutputSpec(presentation));
+      goToView("Print");
+    },
+    ...Object.fromEntries(
+      outputPresets.map((preset) => [
+        `preset:${preset.id}`,
+        () => {
+          setOutputSpec({
+            ...defaultOutputSpec(
+              presentation,
+              preset.format,
+              preset.sourceKind === "book"
+                ? { kind: "book" }
+                : preset.sourceKind === "plan"
+                  ? { kind: "plan", planId: "", copy: "revision" }
+                  : preset.sourceKind === "selection"
+                    ? { kind: "selection", playIds: [editor.document.id] }
+                    : { kind: "current" },
+            ),
+            options: {
+              ...defaultOutputSpec(presentation).options,
+              detail: preset.detail,
+              mono: preset.mono,
+            },
+          });
+          goToView("Print");
+        },
+      ]),
+    ),
     printField: printTheField,
     printProgression: () => {
       const play = editorStore.getSnapshot().document;
@@ -4854,6 +4907,9 @@ export function ChalkApp({
       setRailOpen(state.railOpen);
       chromeLoadedRef.current = true;
     });
+    void runtime.library.loadOutputPresets().then((presets) => {
+      if (!cancelled) setOutputPresets(presets);
+    });
     return () => {
       cancelled = true;
     };
@@ -5078,6 +5134,52 @@ export function ChalkApp({
       ),
     [runtime],
   );
+  /**
+   * What Print & export reads: every stored play with the open one standing
+   * in for its copy, so the sheet shows what is on the field (issue #69).
+   */
+  const outputPorts = useMemo(
+    () => ({
+      library: runtime.library,
+      loadLibrary: async () => {
+        const open = editorStore.getSnapshot().document;
+        const envelope = await Promise.resolve()
+          .then(() => runtime.repository.loadPlaybook(open.playbookId))
+          .catch(() => undefined);
+        if (!envelope) return { plays: [open], concepts: [] };
+        const plays = envelope.plays.map((play) =>
+          play.id === open.id ? open : play,
+        );
+        return {
+          plays: plays.some(({ id }) => id === open.id)
+            ? plays
+            : [open, ...plays],
+          concepts: envelope.concepts,
+        };
+      },
+    }),
+    [editorStore, runtime.library, runtime.repository],
+  );
+  const outputSpecKey = `${outputSpec.format}:${outputSpec.source.kind}:${activeView}`;
+  const rememberOutput = useCallback(
+    (ran: Omit<OutputPreset, "id" | "atMs">) => {
+      setOutputPresets((current) => {
+        const next = rememberPreset(current, {
+          ...ran,
+          id: `${ran.format}-${ran.sourceKind}`,
+          atMs: Date.now(),
+        });
+        void runtime.library.saveOutputPresets(next).catch(() => undefined);
+        return next;
+      });
+    },
+    [runtime.library],
+  );
+  const recentOutputs: readonly MenuEntry[] = outputPresets.map((preset) => ({
+    id: `preset:${preset.id}`,
+    label: preset.name,
+    title: "Run this output again",
+  }));
   const header = readsOnly ? (
     compactHeader
   ) : (
@@ -5104,6 +5206,7 @@ export function ChalkApp({
       syncSnapshot={syncSnapshot}
       onOpenConflicts={() => setOverlay("conflicts")}
       onReadOnly={reading ? () => setEditAnyway(false) : undefined}
+      recentOutputs={recentOutputs}
       wristband={{
         rows: libraryRows,
         picks: effectiveWristbandPicks,
@@ -5153,10 +5256,6 @@ export function ChalkApp({
     );
   }
 
-  const typeName =
-    typePresetCatalog.find(({ id }) => id === presentation.typePreset)?.name ??
-    "Coach";
-  const playCategory = formatClassification(editor.document);
   const labelDensity = resolveTypeDensity(presentation).label;
   const statusHint = editorStatusHint({
     view:
@@ -5212,13 +5311,16 @@ export function ChalkApp({
     return (
       <div className="chalk-shell view-print">
         {header}
-        <PrintMode
-          category={playCategory}
-          onPrint={printTheField}
-          playName={editor.document.name}
-          scene={scene}
-          svgRef={printSvgRef}
-          typeName={typeName.toLowerCase()}
+        <OutputWorkspace
+          currentPlay={editor.document}
+          formations={allFormations}
+          initial={outputSpec}
+          key={outputSpecKey}
+          onClose={() => goToView("Editor")}
+          onRan={rememberOutput}
+          ports={outputPorts}
+          presentation={presentation}
+          snapshot={playbook.snapshot}
         />
         <div className="statusbar">
           <span>{statusHint}</span>
@@ -6617,48 +6719,6 @@ function PresentMode({
   );
 }
 
-/**
- * Letter-landscape Print preview. The sheet is what Export → Print the field
- * produces; "Print this" runs that same print.
- */
-function PrintMode({
-  category,
-  onPrint,
-  playName,
-  scene,
-  svgRef,
-  typeName,
-}: {
-  category: string;
-  onPrint: () => void;
-  playName: string;
-  scene: SvgRenderScene;
-  svgRef: React.Ref<SVGSVGElement>;
-  typeName: string;
-}) {
-  return (
-    <div aria-label="Print preview" className="print-mode" role="region">
-      <div className="print-sheet">
-        <div className="print-margins">
-          <div className="print-hd">
-            <div className="print-title">{playName}</div>
-            <div className="print-cat">{category}</div>
-          </div>
-          <div className="print-diagram">
-            <FieldDiagram scene={scene} svgRef={svgRef} />
-          </div>
-        </div>
-      </div>
-      <div className="print-actions">
-        <button onClick={onPrint} type="button">
-          Print this
-        </button>
-        <span>letter landscape · half-inch margins · {typeName} type</span>
-      </div>
-    </div>
-  );
-}
-
 function Header({
   actions,
   activeView,
@@ -6682,6 +6742,7 @@ function Header({
   syncSnapshot,
   onOpenConflicts,
   onReadOnly,
+  recentOutputs,
   setPlayName,
   undo,
   versions,
@@ -6690,6 +6751,8 @@ function Header({
 }: {
   actions: ActionMap;
   wristband: WristbandPicker;
+  /** Outputs run lately, under Recent in Print & export (issue #69). */
+  recentOutputs?: readonly MenuEntry[];
   activeView: View;
   /** The Unit · Type pill, bound to the open Play (issue #63). */
   classification: React.ReactNode;
@@ -6848,6 +6911,7 @@ function Header({
             onDismiss={onCloseMenu}
             onToggle={() => onMenu("export")}
             open={openMenu === "export"}
+            recent={recentOutputs}
             wristband={wristband}
           />
           <SaveMenu

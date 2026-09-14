@@ -803,7 +803,7 @@ describe("Chalk application shell", () => {
     ).toBe(true);
   });
 
-  it("shows the letter-landscape Print sheet and prints it", async () => {
+  it("shows the letter-landscape Print sheet in Print & export and opens it to print", async () => {
     const user = userEvent.setup();
     const popup = {
       document: { write: vi.fn(), close: vi.fn() },
@@ -822,7 +822,10 @@ describe("Chalk application shell", () => {
       }),
     );
     await user.click(screen.getByRole("button", { name: "Print preview" }));
-    const sheet = screen.getByRole("region", { name: "Print preview" });
+    const workspace = screen.getByRole("region", { name: "Print & export" });
+    const sheet = within(workspace).getByRole("region", {
+      name: "Print preview",
+    });
     expect(within(sheet).getByText("Stick — Thunder")).toBeVisible();
     expect(within(sheet).getByText("Offense · Pass")).toBeVisible();
     expect(
@@ -834,21 +837,27 @@ describe("Chalk application shell", () => {
       "data-type-preset",
       "coach",
     );
+    // The source, the count and the paper are stated before anything prints.
+    expect(
+      within(workspace).getByRole("status", { name: "What prints" }),
+    ).toHaveTextContent("Current play: Stick — Thunder · Offense · 1 play");
+    expect(
+      within(workspace).getByRole("status", { name: "What prints" }),
+    ).toHaveTextContent("Letter landscape · half-inch margins");
 
-    await user.click(screen.getByRole("button", { name: "Print this" }));
+    await user.click(
+      within(workspace).getByRole("button", { name: "Open in a new tab" }),
+    );
     expect(open).toHaveBeenCalledWith("", "_blank");
     expect(popup.document.write).toHaveBeenCalledWith(
       expect.stringContaining("<h1>Stick — Thunder</h1>"),
-    );
-    expect(popup.document.write).toHaveBeenCalledWith(
-      expect.stringContaining("<span>Offense · Pass</span>"),
     );
     expect(popup.document.write).toHaveBeenCalledWith(
       expect.stringContaining("@page{size:letter landscape;margin:0.5in}"),
     );
 
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("region", { name: "Print preview" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Print & export" })).toBeNull();
     expect(
       screen.getByRole("navigation", { name: "Drawing tools" }),
     ).toBeVisible();
