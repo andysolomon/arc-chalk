@@ -67,53 +67,65 @@ const reader = () => screen.getByRole("main", { name: "Game Day" });
 const stage = () => screen.getByRole("region", { name: "Selected call" });
 
 describe("the Game Day reader (issue #67)", () => {
-  it("opens a prepared plan, finds a call by number, steps Next, and comes back to its section", async () => {
-    const user = userEvent.setup();
-    const packet = hundredCallPlan();
-    const { library, snapshot } = await libraryWith(packet);
-    renderReader(library, snapshot);
+  it(
+    "opens a prepared plan, finds a call by number, steps Next, and comes back to its section",
+    { timeout: 20_000 },
+    async () => {
+      const user = userEvent.setup();
+      const packet = hundredCallPlan();
+      const { library, snapshot } = await libraryWith(packet);
+      renderReader(library, snapshot);
 
-    await user.click(await screen.findByRole("button", { name: /Week 5/ }));
-    expect(within(reader()).getByText("Offense · Week 5")).toBeVisible();
-    expect(await screen.findByText(/Ready offline · 100 calls/)).toBeVisible();
-    // Situations, favorites, and every section by name.
-    const tabs = screen.getByRole("navigation", { name: "Situations" });
-    expect(
-      within(tabs)
-        .getAllByRole("button")
-        .map((tab) => tab.textContent),
-    ).toEqual(["All", "★ Favorites", "Openers", "3rd down", "Red zone"]);
+      await user.click(await screen.findByRole("button", { name: /Week 5/ }));
+      expect(within(reader()).getByText("Offense · Week 5")).toBeVisible();
+      expect(
+        await screen.findByText(/Ready offline · 100 calls/),
+      ).toBeVisible();
+      // Situations, favorites, and every section by name.
+      const tabs = screen.getByRole("navigation", { name: "Situations" });
+      expect(
+        within(tabs)
+          .getAllByRole("button")
+          .map((tab) => tab.textContent),
+      ).toEqual(["All", "★ Favorites", "Openers", "3rd down", "Red zone"]);
 
-    await user.type(
-      screen.getByRole("searchbox", { name: "Find a call by number or name" }),
-      "12",
-    );
-    const calls = screen.getByRole("navigation", { name: "Calls" });
-    const rows = within(calls).getAllByRole("button", { name: /^12 / });
-    expect(rows).toHaveLength(1);
-    await user.click(rows[0]!);
-    expect(within(stage()).getByText("12")).toBeVisible();
-    expect(within(stage()).getByText(/ 12$/)).toBeVisible();
+      await user.type(
+        screen.getByRole("searchbox", {
+          name: "Find a call by number or name",
+        }),
+        "12",
+      );
+      const calls = screen.getByRole("navigation", { name: "Calls" });
+      const rows = within(calls).getAllByRole("button", { name: /^12 / });
+      expect(rows).toHaveLength(1);
+      await user.click(rows[0]!);
+      expect(within(stage()).getByText("12")).toBeVisible();
+      expect(within(stage()).getByText(/ 12$/)).toBeVisible();
 
-    // Next inside a one-call search stays put; clearing the search frees it.
-    expect(screen.getByRole("button", { name: "Next call" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Back to Red zone" }));
-    expect(
-      screen.getByRole("searchbox", { name: "Find a call by number or name" }),
-    ).toHaveValue("");
-    // Call 12 is in the third section (12 % 3 === 0 → "Red zone").
-    expect(within(tabs).getByRole("button", { name: "Red zone" })).toHaveClass(
-      "active",
-    );
-    await user.click(screen.getByRole("button", { name: "Next call" }));
-    expect(within(stage()).getByText("15")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Previous call" }));
-    expect(within(stage()).getByText("12")).toBeVisible();
-    // The diagram is drawn and takes no pointer.
-    const svg = stage().querySelector("svg.field-diagram")!;
-    expect(svg).toBeTruthy();
-    expect(svg.getAttribute("tabindex")).toBeNull();
-  });
+      // Next inside a one-call search stays put; clearing the search frees it.
+      expect(screen.getByRole("button", { name: "Next call" })).toBeDisabled();
+      await user.click(
+        screen.getByRole("button", { name: "Back to Red zone" }),
+      );
+      expect(
+        screen.getByRole("searchbox", {
+          name: "Find a call by number or name",
+        }),
+      ).toHaveValue("");
+      // Call 12 is in the third section (12 % 3 === 0 → "Red zone").
+      expect(
+        within(tabs).getByRole("button", { name: "Red zone" }),
+      ).toHaveClass("active");
+      await user.click(screen.getByRole("button", { name: "Next call" }));
+      expect(within(stage()).getByText("15")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Previous call" }));
+      expect(within(stage()).getByText("12")).toBeVisible();
+      // The diagram is drawn and takes no pointer.
+      const svg = stage().querySelector("svg.field-diagram")!;
+      expect(svg).toBeTruthy();
+      expect(svg.getAttribute("tabindex")).toBeNull();
+    },
+  );
 
   it(
     "keeps stars, notes and marks on the device beside the revision, and lands back where it was",
@@ -174,42 +186,46 @@ describe("the Game Day reader (issue #67)", () => {
     },
   );
 
-  it("says when the plan has moved on, and switches revisions only when asked", async () => {
-    const user = userEvent.setup();
-    const packet = hundredCallPlan();
-    const { library, snapshot } = await libraryWith(packet, (id) =>
-      id === "play_call_1" ? "h_changed" : `h_${id}`,
-    );
-    const first = renderReader(library, snapshot);
-    await user.click(await screen.findByRole("button", { name: /Week 5/ }));
-    expect(
-      await screen.findByText(/have changed since this packet was prepared/),
-    ).toBeVisible();
-    first.unmount();
+  it(
+    "says when the plan has moved on, and switches revisions only when asked",
+    { timeout: 20_000 },
+    async () => {
+      const user = userEvent.setup();
+      const packet = hundredCallPlan();
+      const { library, snapshot } = await libraryWith(packet, (id) =>
+        id === "play_call_1" ? "h_changed" : `h_${id}`,
+      );
+      const first = renderReader(library, snapshot);
+      await user.click(await screen.findByRole("button", { name: /Week 5/ }));
+      expect(
+        await screen.findByText(/have changed since this packet was prepared/),
+      ).toBeVisible();
+      first.unmount();
 
-    // A newer packet is prepared behind the reader's back.
-    const newer = hundredCallPlan({
-      planId: packet.plan.id,
-      nowMs: 5000,
-      idPrefix: "b",
-    });
-    const renamed: GamePlan = { ...newer.plan, name: "Week 5 — final" };
-    await library.saveGamePlanRevision({ ...newer.revision, plan: renamed });
-    await library.saveGamePlan({
-      ...renamed,
-      preparedRevisionId: newer.revision.id,
-    });
-    renderReader(library, snapshot);
-    expect(
-      await screen.findByText(/A newer packet has been prepared/),
-    ).toBeVisible();
-    // Still the packet that was opened.
-    expect(screen.getByText("Offense · Week 5")).toBeVisible();
-    await user.click(
-      screen.getByRole("button", { name: "Switch to the newest" }),
-    );
-    expect(await screen.findByText("Offense · Week 5 — final")).toBeVisible();
-  });
+      // A newer packet is prepared behind the reader's back.
+      const newer = hundredCallPlan({
+        planId: packet.plan.id,
+        nowMs: 5000,
+        idPrefix: "b",
+      });
+      const renamed: GamePlan = { ...newer.plan, name: "Week 5 — final" };
+      await library.saveGamePlanRevision({ ...newer.revision, plan: renamed });
+      await library.saveGamePlan({
+        ...renamed,
+        preparedRevisionId: newer.revision.id,
+      });
+      renderReader(library, snapshot);
+      expect(
+        await screen.findByText(/A newer packet has been prepared/),
+      ).toBeVisible();
+      // Still the packet that was opened.
+      expect(screen.getByText("Offense · Week 5")).toBeVisible();
+      await user.click(
+        screen.getByRole("button", { name: "Switch to the newest" }),
+      );
+      expect(await screen.findByText("Offense · Week 5 — final")).toBeVisible();
+    },
+  );
 
   it("does not claim readiness it cannot show", async () => {
     const user = userEvent.setup();

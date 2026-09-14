@@ -42,9 +42,12 @@ import {
 } from "@chalk/local-db";
 
 import {
+  defaultBookConfigs,
+  readBookConfigs,
   readCallSheetConfigs,
   readOutputPresets,
   readWristbandConfigs,
+  type BookConfigs,
   type CallSheetConfig,
   type OutputPreset,
   type WristbandConfig,
@@ -120,6 +123,7 @@ export const CHROME_KEY = "chrome.v1";
 export const OUTPUT_PRESETS_KEY = "output.presets.v1";
 export const CALL_SHEET_KEY = "callSheet.v1";
 export const WRISTBAND_KEY = "wristband.v1";
+export const BOOK_KEY = "book.v1";
 
 export const defaultChromeState: ChromeState = Object.freeze({
   inspectorOpen: true,
@@ -195,6 +199,9 @@ export interface ChalkLibrary {
   /** How each plan's wristband inserts are cut, by plan id (issue #71). */
   loadWristbandConfigs(): Promise<Readonly<Record<string, WristbandConfig>>>;
   saveWristbandConfig(planId: string, config: WristbandConfig): Promise<void>;
+  /** How binders and handouts are laid out on this device (issue #72). */
+  loadBookConfigs(): Promise<BookConfigs>;
+  saveBookConfigs(configs: BookConfigs): Promise<void>;
   getThumbnail(key: string): Promise<ThumbnailDerivative | undefined>;
   putThumbnail(thumbnail: ThumbnailDerivative): Promise<void>;
   getUndoHistory(
@@ -428,6 +435,7 @@ export function createMemoryLibrary(
   let outputPresets: readonly OutputPreset[] = [];
   let callSheets: Record<string, CallSheetConfig> = {};
   let wristbands: Record<string, WristbandConfig> = {};
+  let books: BookConfigs = defaultBookConfigs;
   const gamePlans = new Map<string, GamePlan>();
   const gamePlanRevisions = new Map<string, GamePlanRevision>();
   return {
@@ -539,6 +547,13 @@ export function createMemoryLibrary(
     },
     saveWristbandConfig(planId, config) {
       wristbands = { ...wristbands, [planId]: config };
+      return Promise.resolve();
+    },
+    loadBookConfigs() {
+      return Promise.resolve(books);
+    },
+    saveBookConfigs(configs) {
+      books = configs;
       return Promise.resolve();
     },
     getThumbnail() {
@@ -770,6 +785,12 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
         (await repository.getPreference(WRISTBAND_KEY))?.value,
       );
       await rememberJson(WRISTBAND_KEY, { ...current, [planId]: config });
+    },
+    async loadBookConfigs() {
+      return readBookConfigs((await repository.getPreference(BOOK_KEY))?.value);
+    },
+    async saveBookConfigs(configs) {
+      await rememberJson(BOOK_KEY, configs);
     },
     getThumbnail: (key) => repository.getThumbnail(key),
     putThumbnail: (thumbnail) => repository.putThumbnail(thumbnail),

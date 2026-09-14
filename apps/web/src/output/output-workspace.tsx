@@ -20,10 +20,15 @@ import {
   preparedStamp,
   previewCss,
   withPreviewCss,
+  bookEntriesOf,
+  defaultBookConfigs,
   defaultWristbandConfig,
   reconcileCallSheetConfig,
   reconcileWristbandConfig,
+  type BookConfigs,
   type CallSheetConfig,
+  type OutputPaper,
+  type PageMap,
   type WristbandConfig,
   type OutputPreset,
   type OutputSourceKind,
@@ -45,6 +50,8 @@ import {
 } from "../components/export-files";
 import { FieldDiagram } from "../components/field-diagram";
 import { CallSheetOptions } from "./call-sheet-options";
+import { BookOptions } from "./book-options";
+import { measureBookPages, samePageMap } from "./paginate";
 import { WristbandOptions } from "./wristband-options";
 import {
   buildOutputDocument,
@@ -112,6 +119,12 @@ export function OutputWorkspace({
   const [bandConfigs, setBandConfigs] = useState<
     Readonly<Record<string, WristbandConfig>>
   >({});
+  const [books, setBooks] = useState<BookConfigs>(defaultBookConfigs);
+  /** The binder's page numbers, as the preview measured them. */
+  const [pageMap, setPageMap] = useState<{
+    readonly key: string;
+    readonly map: PageMap;
+  }>();
   /**
    * What was read for a plan, keyed to the plan and the revision it was read
    * for: another plan's packet is never taken for this one, and while a
@@ -142,6 +155,9 @@ export function OutputWorkspace({
     });
     void ports.library.loadWristbandConfigs().then((configs) => {
       if (!cancelled) setBandConfigs(configs);
+    });
+    void ports.library.loadBookConfigs().then((configs) => {
+      if (!cancelled) setBooks(configs);
     });
     return () => {
       cancelled = true;
@@ -309,6 +325,20 @@ export function OutputWorkspace({
   ]);
 
   const format = outputFormat(spec.format);
+  // A book's paper is the book's own choice; the catalogue's is the default.
+  const paper = useMemo<OutputPaper | undefined>(
+    () =>
+      spec.format === "binder"
+        ? { size: books.binder.paper, orientation: "portrait", marginIn: 0.5 }
+        : spec.format === "handout"
+          ? {
+              size: books.handout.paper,
+              orientation: books.handout.orientation,
+              marginIn: 0.5,
+            }
+          : format.paper,
+    [books.binder.paper, books.handout, format.paper, spec.format],
+  );
   // The plan the sheet is laid out from: the prepared revision's own copy
   // when the packet prints, so a section deleted or renamed in the live
   // plan afterwards still prints as it was prepared; the live plan only for
@@ -350,14 +380,37 @@ export function OutputWorkspace({
       .saveWristbandConfig(plan.id, next)
       .catch(() => undefined);
   };
+  const setBookConfigs = (next: BookConfigs) => {
+    setBooks(next);
+    void ports.library.saveBookConfigs(next).catch(() => undefined);
+  };
+  // The binder's page numbers depend on the layout they are measured in;
+  // a map measured for another source, config or paper is not reused.
+  const bookKey = `${spec.format}:${resolved.label}:${resolved.plays.length}:${JSON.stringify(books.binder)}:${spec.options.detail}:${spec.options.mono}`;
   const optionsInUse: OutputOptions = useMemo(
     () =>
       spec.format === "callSheet" && sheetConfig
         ? { ...spec.options, callSheet: sheetConfig }
         : spec.format === "wristband" && bandConfig
           ? { ...spec.options, wristband: bandConfig }
-          : spec.options,
-    [bandConfig, sheetConfig, spec.format, spec.options],
+          : spec.format === "binder" || spec.format === "handout"
+            ? {
+                ...spec.options,
+                books,
+                ...(pageMap && pageMap.key === bookKey
+                  ? { pageMap: pageMap.map }
+                  : {}),
+              }
+            : spec.options,
+    [
+      bandConfig,
+      bookKey,
+      books,
+      pageMap,
+      sheetConfig,
+      spec.format,
+      spec.options,
+    ],
   );
   const acceptance = planLoading
     ? { ok: false as const, reason: "Reading the plan…" }
@@ -386,13 +439,10 @@ export function OutputWorkspace({
 
   const previewHtml = useMemo(
     () =>
-      document?.kind === "html" && format.paper
-        ? withPreviewCss(
-            document.html,
-            previewCss(format.paper, spec.options.mono),
-          )
+      document?.kind === "html" && paper
+        ? withPreviewCss(document.html, previewCss(paper, spec.options.mono))
         : undefined,
-    [document, format.paper, spec.options.mono],
+    [document, paper, spec.options.mono],
   );
 
   const [measured, setMeasured] = useState<{
@@ -405,12 +455,21 @@ export function OutputWorkspace({
   const measure = useCallback(() => {
     const frame = frameRef.current;
     const doc = frame?.contentDocument;
-    if (!doc || !format.paper || !doc.body) return;
+    if (!doc || !paper || !doc.body) return;
     setMeasured({
       html: frame.srcdoc,
-      estimate: estimatePages(doc, format.paper),
+      estimate: estimatePages(doc, paper),
     });
-  }, [format.paper]);
+    if (spec.format === "binder") {
+      // Page numbers as laid out; a second pass writes them into the book.
+      const map = measureBookPages(doc, paper);
+      setPageMap((current) =>
+        current?.key === bookKey && samePageMap(current.map, map)
+          ? current
+          : { key: bookKey, map },
+      );
+    }
+  }, [bookKey, paper, spec.format]);
 
   const run = async (how: "print" | "window" | "download") => {
     if (!document) return;
@@ -671,6 +730,15 @@ export function OutputWorkspace({
               revision={resolved.revision}
             />
           ) : null}
+          {(spec.format === "binder" || spec.format === "handout") &&
+          acceptance.ok ? (
+            <BookOptions
+              configs={books}
+              entries={bookEntriesOf(resolved)}
+              kind={spec.format}
+              onChange={setBookConfigs}
+            />
+          ) : null}
           {spec.format === "position" ? (
             <>
               <div className="sub-heading">Group</div>
@@ -699,7 +767,7 @@ export function OutputWorkspace({
         <div aria-label="What prints" className="output-summary" role="status">
           <strong>{format.name}</strong>
           <span>{summary}</span>
-          <span>{paperLabel(format.paper)}</span>
+          <span>{paperLabel(paper)}</span>
           {estimate ? (
             <span>
               {estimate.pages} {estimate.pages === 1 ? "page" : "pages"}

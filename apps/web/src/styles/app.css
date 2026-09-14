@@ -1544,6 +1544,31 @@ button.play-type.open {
   gap: 4px;
   margin-top: 6px;
 }
+/* Binder and handout layouts (issue #72). */
+.book-options .segments {
+  margin-bottom: 6px;
+}
+.book-gutter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.book-gutter input {
+  width: 72px;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
 @media (max-width: 900px) {
   .output {
     flex-direction: column;
