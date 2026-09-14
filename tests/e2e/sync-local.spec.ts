@@ -5,7 +5,8 @@ test("persists a new play with Gun Doubles Right and Mesh after reload", async (
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "More actions", exact: true }).click();
-  await page.getByRole("button", { name: "New play", exact: true }).click();
+  // The labeled header button (issue #65); the More menu carries one too.
+  await page.getByRole("banner").locator("button.new-play").click();
   const name = page.getByRole("textbox", { name: "Play name" });
   await name.fill("QA formation and Mesh");
   await name.press("Enter");
