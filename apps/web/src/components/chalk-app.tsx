@@ -5186,6 +5186,10 @@ export function ChalkApp({
     <Header
       actions={actions}
       activeView={activeView}
+      canResetPositions={
+        animationPlan.items.length > 0 &&
+        (visibleClock.playing || visibleClock.timeMs !== animationPlan.startMs)
+      }
       classification={classification}
       commitPlayName={commitPlayName}
       demoPlayName={demoPlayName}
@@ -5194,6 +5198,7 @@ export function ChalkApp({
       onCreateVersion={createVersion}
       onMenu={toggleMenu}
       onRedo={redo}
+      onResetPositions={resetPlay}
       onRestoreVersion={restoreVersion}
       onUndo={undo}
       onView={goToView}
@@ -6722,6 +6727,7 @@ function PresentMode({
 function Header({
   actions,
   activeView,
+  canResetPositions,
   classification,
   commitPlayName,
   demoPlayName,
@@ -6730,6 +6736,7 @@ function Header({
   onCreateVersion,
   onMenu,
   onRedo,
+  onResetPositions,
   onRestoreVersion,
   onUndo,
   onView,
@@ -6754,6 +6761,8 @@ function Header({
   /** Outputs run lately, under Recent in Print & export (issue #69). */
   recentOutputs?: readonly MenuEntry[];
   activeView: View;
+  /** Men are off the snap — put them back where the play starts. */
+  canResetPositions: boolean;
   /** The Unit · Type pill, bound to the open Play (issue #63). */
   classification: React.ReactNode;
   commitPlayName: () => void;
@@ -6763,6 +6772,7 @@ function Header({
   onCreateVersion: (label: string) => void;
   onMenu: (menu: "more" | "export" | "save" | "help") => void;
   onRedo: () => void;
+  onResetPositions: () => void;
   onRestoreVersion: (revisionId: string) => void;
   onUndo: () => void;
   onView: (view: View) => void;
@@ -6866,6 +6876,15 @@ function Header({
             type="button"
           >
             New play
+          </button>
+          <button
+            className="quiet reset-positions"
+            disabled={!canResetPositions}
+            onClick={onResetPositions}
+            title="Put every man back at the snap"
+            type="button"
+          >
+            Reset positions
           </button>
           <button
             className="quiet present"
