@@ -1,4 +1,5 @@
 import {
+  createGamePlan,
   starterExamplePlays,
   starterPlaybookEnvelope,
   type PlayDocument,
@@ -211,6 +212,95 @@ describe("Print & export (issue #69)", () => {
       ),
     );
   });
+
+  it("drops one plan's packet the moment another plan is chosen, and prints nothing while the next one reads", async () => {
+    const user = userEvent.setup();
+    const packet = hundredCallPlan();
+    const other = hundredCallPlan({
+      planId: "plan_b",
+      idPrefix: "b",
+      nowMs: 5,
+    });
+    const library = libraryOf(packet.plays);
+    await library.saveGamePlan(packet.plan);
+    await library.saveGamePlanRevision(packet.revision);
+    await library.saveGamePlan({ ...other.plan, name: "Week 6" });
+    await library.saveGamePlanRevision(other.revision);
+    const draft = createGamePlan({
+      playbookId: packet.plan.playbookId,
+      name: "Draft B",
+      unit: "offense",
+      nowMs: 9,
+      id: "plan_draft",
+    });
+    await library.saveGamePlan(draft);
+    // The other plan's packet is held back until the test lets it through.
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slow: ChalkLibrary = {
+      ...library,
+      getGamePlanRevision: (id) =>
+        id === other.revision.id
+          ? gate.then(() => library.getGamePlanRevision(id))
+          : library.getGamePlanRevision(id),
+    };
+    renderWorkspace(
+      defaultOutputSpec(defaultPresentation, "callSheet", {
+        kind: "plan",
+        planId: packet.plan.id,
+        copy: "revision",
+      }),
+      { library: slow, libraryPlays: [...plays, ...packet.plays] },
+    );
+    await waitFor(() =>
+      expect(status()).toHaveTextContent(
+        "Game plan: Week 5 · Offense · 100 plays",
+      ),
+    );
+    const planSelect = screen.getByRole("combobox", { name: "Plan" });
+    const printButton = () => screen.getByRole("button", { name: "Print…" });
+
+    // Prepared → unprepared: no packet is carried over.
+    await user.selectOptions(planSelect, draft.id);
+    await waitFor(() => expect(status()).toHaveTextContent("Draft B"));
+    expect(status()).not.toHaveTextContent("100 plays");
+    expect(status()).not.toHaveTextContent("prepared");
+    expect(screen.getByText(/has not been prepared/)).toBeInTheDocument();
+    expect(printButton()).toBeDisabled();
+
+    // Prepared → prepared while the packet is still reading: nothing prints
+    // and the first plan's hundred calls never appear under the second's name.
+    await user.selectOptions(planSelect, other.plan.id);
+    await waitFor(() => expect(status()).toHaveTextContent("reading the plan"));
+    expect(status()).not.toHaveTextContent("100 plays");
+    expect(screen.getByRole("alert")).toHaveTextContent("Reading the plan");
+    expect(printButton()).toBeDisabled();
+    release();
+    await waitFor(() =>
+      expect(status()).toHaveTextContent(
+        "Game plan: Week 6 · Offense · 100 plays",
+      ),
+    );
+    expect(status()).toHaveTextContent("prepared 1 Jan 1970");
+    expect(printButton()).toBeEnabled();
+
+    // Leaving the plan source and coming back reads the plan chosen, not
+    // the one before it.
+    await user.click(screen.getByRole("radio", { name: /^Current play/ }));
+    await waitFor(() => expect(status()).not.toHaveTextContent("Game plan"));
+    await user.click(screen.getByRole("radio", { name: /^Game plan/ }));
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Plan" }),
+      packet.plan.id,
+    );
+    await waitFor(() =>
+      expect(status()).toHaveTextContent(
+        "Game plan: Week 5 · Offense · 100 plays",
+      ),
+    );
+  }, 20_000);
 
   it("reports a blocked pop-up with the way round it", async () => {
     const user = userEvent.setup();

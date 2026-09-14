@@ -98,8 +98,17 @@ export function OutputWorkspace({
     readonly concepts: readonly Concept[];
   }>();
   const [plans, setPlans] = useState<readonly GamePlan[]>([]);
-  const [revision, setRevision] = useState<GamePlanRevision>();
-  const [planPlays, setPlanPlays] = useState<readonly PlayDocument[]>();
+  /**
+   * What was read for a plan, keyed to the plan and the revision it was read
+   * for: another plan's packet is never taken for this one, and while a
+   * plan's own reads are still in flight nothing prints.
+   */
+  const [loaded, setLoaded] = useState<{
+    readonly planId: string;
+    readonly revisionId: string | undefined;
+    readonly revision: GamePlanRevision | undefined;
+    readonly plays: readonly PlayDocument[];
+  }>();
   const [outcome, setOutcome] = useState<
     PrintOutcome | { ok: "sent"; what: string }
   >();
@@ -124,29 +133,42 @@ export function OutputWorkspace({
     source.kind === "plan"
       ? plans.find(({ id }) => id === source.planId)
       : undefined;
+  const planId = plan?.id;
+  const revisionId = plan?.preparedRevisionId;
+  const planCalls = plan?.calls;
   useEffect(() => {
-    if (source.kind !== "plan" || !plan) return;
+    if (!planId || !planCalls) return;
     let cancelled = false;
-    if (plan.preparedRevisionId) {
-      void ports.library
-        .getGamePlanRevision(plan.preparedRevisionId)
-        .then((found) => {
-          if (!cancelled) setRevision(found);
-        });
-    }
-    void Promise.all(
-      plan.calls.map((call) => ports.library.getPlay(call.playId)),
-    ).then((stored) => {
-      if (!cancelled) {
-        setPlanPlays(
-          stored.flatMap((entry) => (entry ? [entry.document] : [])),
-        );
-      }
+    void Promise.all([
+      revisionId
+        ? ports.library.getGamePlanRevision(revisionId)
+        : Promise.resolve(undefined),
+      Promise.all(planCalls.map((call) => ports.library.getPlay(call.playId))),
+    ]).then(([found, stored]) => {
+      if (cancelled) return;
+      setLoaded({
+        planId,
+        revisionId,
+        revision: found,
+        plays: stored.flatMap((entry) => (entry ? [entry.document] : [])),
+      });
     });
     return () => {
       cancelled = true;
     };
-  }, [plan, ports.library, source.kind]);
+  }, [planCalls, planId, ports.library, revisionId]);
+  // Only what was read for this plan, at its current prepared revision.
+  const loadedHere =
+    loaded &&
+    plan &&
+    loaded.planId === plan.id &&
+    loaded.revisionId === plan.preparedRevisionId
+      ? loaded
+      : undefined;
+  const revision = loadedHere?.revision;
+  const planPlays = loadedHere?.plays;
+  const planLoading =
+    source.kind === "plan" && plan !== undefined && !loadedHere;
 
   const concepts = libraryPlays?.concepts ?? snapshot.concepts;
   const resolved = useMemo<ResolvedSource>(() => {
@@ -180,6 +202,16 @@ export function OutputWorkspace({
       case "plan": {
         if (!plan) {
           return { kind: "plan", label: "Game plan", plays: [], order: "" };
+        }
+        if (planLoading) {
+          return {
+            kind: "plan",
+            label: plan.name,
+            plays: [],
+            copy: "reading the plan…",
+            unit: unitName(plan.unit),
+            order: "",
+          };
         }
         const usePacket = source.copy === "revision" && revision;
         const packet =
@@ -246,16 +278,26 @@ export function OutputWorkspace({
           order: "in library order",
         };
     }
-  }, [currentPlay, libraryPlays, plan, planPlays, revision, source]);
+  }, [
+    currentPlay,
+    libraryPlays,
+    plan,
+    planLoading,
+    planPlays,
+    revision,
+    source,
+  ]);
 
   const format = outputFormat(spec.format);
-  const acceptance = acceptSource(format, {
-    kind: source.kind,
-    playCount: resolved.plays.length,
-    ...(source.kind === "plan"
-      ? { prepared: source.copy === "current" || revision !== undefined }
-      : {}),
-  });
+  const acceptance = planLoading
+    ? { ok: false as const, reason: "Reading the plan…" }
+    : acceptSource(format, {
+        kind: source.kind,
+        playCount: resolved.plays.length,
+        ...(source.kind === "plan"
+          ? { prepared: source.copy === "current" || revision !== undefined }
+          : {}),
+      });
   const document = useMemo<OutputDocument | undefined>(() => {
     if (!acceptance.ok) return undefined;
     return buildOutputDocument(spec.format, resolved, spec.options, {
