@@ -84,6 +84,12 @@ export interface LibraryBrowserState {
 export interface ChromeState {
   readonly inspectorOpen: boolean;
   readonly railOpen: boolean;
+  /**
+   * Whether the tool rail shows each tool's name beside its glyph (issue
+   * #65). Unset until the Coach chooses: a touch screen shows them, a desk
+   * with a pointer keeps the original's compact rail.
+   */
+  readonly railLabels?: boolean;
   readonly open: Readonly<Record<string, boolean>>;
   readonly favoritePresets: readonly string[];
   readonly recentPresets: readonly string[];
@@ -119,6 +125,9 @@ export function readChromeState(value: unknown): ChromeState {
     inspectorOpen:
       typeof record.inspectorOpen === "boolean" ? record.inspectorOpen : true,
     railOpen: typeof record.railOpen === "boolean" ? record.railOpen : true,
+    ...(typeof record.railLabels === "boolean"
+      ? { railLabels: record.railLabels }
+      : {}),
     open,
     favoritePresets: readIds(record.favoritePresets),
     recentPresets: readIds(record.recentPresets),

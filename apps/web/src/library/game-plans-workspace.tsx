@@ -57,6 +57,7 @@ import { useGamePlans, type GamePlansState } from "./use-game-plans";
  * under a coach.
  */
 export function GamePlansWorkspace({
+  embedded = false,
   formations,
   library,
   now = () => Date.now(),
@@ -65,6 +66,8 @@ export function GamePlansWorkspace({
   render,
   snapshot,
 }: {
+  /** A page of the Playbooks destination rather than a dialog (issue #65). */
+  embedded?: boolean;
   formations: readonly Formation[];
   library: ChalkLibrary;
   now?: () => number;
@@ -76,15 +79,15 @@ export function GamePlansWorkspace({
   const state = useGamePlans(library);
   return (
     <div
-      className="overlay browser-overlay"
-      onClick={onClose}
+      className={`overlay browser-overlay${embedded ? " embedded" : ""}`}
+      onClick={embedded ? undefined : onClose}
       role="presentation"
     >
       <div
         aria-label="Game plans"
         className="browser game-plans"
         onClick={(event) => event.stopPropagation()}
-        role="dialog"
+        role={embedded ? "region" : "dialog"}
       >
         {state.openPlan ? (
           <PlanEditor

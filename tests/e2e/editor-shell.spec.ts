@@ -104,7 +104,10 @@ test("opens the original field-first editor shell and its modes", async ({
     page.getByRole("navigation", { name: "Drawing tools" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Demo", exact: true }).click();
+  await page.getByRole("button", { name: "Help", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Demo — guided tour", exact: true })
+    .click();
   const demo = page.getByRole("region", { name: "Demo" });
   await expect(demo).toBeVisible();
   await page.getByRole("button", { name: "Pause", exact: true }).click();
@@ -162,8 +165,11 @@ test("opens Print preview as the letter-landscape sheet and leaves on Escape", a
   await page.goto("/");
 
   await page
-    .getByRole("navigation", { name: "Workspace views" })
-    .getByRole("button", { name: "Print" })
+    .getByRole("banner")
+    .getByRole("button", { name: "Print & export", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Print preview", exact: true })
     .click();
 
   const sheet = page.getByRole("region", { name: "Print preview" });
@@ -196,9 +202,9 @@ test("opens a demo into a new Play and leaves the previous Play unchanged", asyn
     "Stick — Thunder",
   );
 
+  await page.getByRole("button", { name: "Help", exact: true }).click();
   await page
-    .getByRole("navigation", { name: "Workspace views" })
-    .getByRole("button", { name: "Demo", exact: true })
+    .getByRole("button", { name: "Demo — guided tour", exact: true })
     .click();
   const demo = page.getByRole("region", { name: "Demo" });
   await expect(demo).toBeVisible();

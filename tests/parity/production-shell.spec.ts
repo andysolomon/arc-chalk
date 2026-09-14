@@ -112,7 +112,7 @@ test.describe("production shell against the canonical original", () => {
   test("Present matches the original desktop golden", async ({ page }) => {
     await loadProductionShell(page);
     await page
-      .getByRole("navigation", { name: "Workspace views" })
+      .getByRole("banner")
       .getByRole("button", { name: "Present", exact: true })
       .click();
     await expect(page.getByRole("region", { name: "Present" })).toBeVisible();
@@ -131,8 +131,11 @@ test.describe("production shell against the canonical original", () => {
   test("Print matches the original desktop golden", async ({ page }) => {
     await loadProductionShell(page);
     await page
-      .getByRole("navigation", { name: "Workspace views" })
-      .getByRole("button", { name: "Print", exact: true })
+      .getByRole("banner")
+      .getByRole("button", { name: "Print & export", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Print preview", exact: true })
       .click();
     await expect(
       page.getByRole("region", { name: "Print preview" }),
@@ -148,9 +151,9 @@ test.describe("production shell against the canonical original", () => {
 
   test("Demo matches the original desktop golden", async ({ page }) => {
     await loadProductionShell(page);
+    await page.getByRole("button", { name: "Help", exact: true }).click();
     await page
-      .getByRole("navigation", { name: "Workspace views" })
-      .getByRole("button", { name: "Demo", exact: true })
+      .getByRole("button", { name: "Demo — guided tour", exact: true })
       .click();
     await expect(page.getByRole("region", { name: "Demo" })).toBeVisible();
     await page.getByRole("button", { name: "Pause", exact: true }).click();
@@ -189,7 +192,10 @@ test.describe("production editor overlays against the canonical original", () =>
   });
 
   test("Export menu matches the original", async ({ page }) => {
-    await page.getByRole("button", { name: "Export", exact: true }).click();
+    await page
+      .getByRole("banner")
+      .getByRole("button", { name: "Print & export", exact: true })
+      .click();
     await expect(page.getByText("DIAGRAM", { exact: true })).toBeVisible();
 
     await expect(page).toHaveScreenshot(
@@ -276,7 +282,7 @@ test.describe("production editor overlays against the canonical original", () =>
       .getByRole("button", { name: "Shortcuts ?", exact: true })
       .click();
     await expect(
-      page.getByText("Keyboard shortcuts", { exact: true }),
+      page.getByRole("dialog", { name: "Keyboard shortcuts" }),
     ).toBeVisible();
 
     await expect(page).toHaveScreenshot(

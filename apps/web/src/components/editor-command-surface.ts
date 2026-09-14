@@ -1,4 +1,9 @@
-import { stockDefensiveCalls, stockFormations } from "@chalk/domain";
+import {
+  demoTours,
+  stockDefensiveCalls,
+  stockFormations,
+  type DemoTourId,
+} from "@chalk/domain";
 
 /**
  * The original prototype's five chrome overlays: the More menu, the Export
@@ -20,6 +25,14 @@ export type ActionId =
   | "newPlay"
   /** The Playbooks workspace — Game Plans (issue #66). */
   | "gamePlans"
+  /** The three destinations in the header: Editor, Playbooks, Game Day (issue #65). */
+  | "editor"
+  | "playbooks"
+  | "gameDay"
+  /** Demo and its tours live under Help (issue #65). */
+  | "demo"
+  | `demo:${DemoTourId}`
+  | "palette"
   | "toolSelect"
   | "toolPlayer"
   | "toolRoute"
@@ -144,6 +157,33 @@ export const clearMenuHint =
   "Clears one layer and leaves the rest standing — Routes takes the concept " +
   "off, Coverage takes the call off, both keep their players, so you can " +
   "redraw the concept from the same formation. Undo brings any of it back.";
+
+/**
+ * The Help menu (issue #65): the guided tours the original keeps behind its
+ * Demo tab, and the two references the inspector already carried. A Coach on
+ * his first day finds the tools walked for him here rather than in a tab
+ * beside the play he is trying to draw.
+ */
+export const helpEntries: readonly MenuEntry[] = [
+  {
+    id: "demo",
+    label: "Demo — guided tour",
+    title: "Watch the drawing tools used on a real play",
+  },
+  ...demoTours.map((tour): MenuEntry => ({
+    id: `demo:${tour.id}`,
+    label: tour.tab,
+    title: `Tutorial — ${tour.playName}`,
+  })),
+  { id: "shortcuts", label: "Keyboard shortcuts", shortcut: "?" },
+  { id: "palette", label: "Command palette", shortcut: "⌘K" },
+];
+
+/** Where the tutorials start and end inside {@link helpEntries}. */
+export const helpTutorialRange = Object.freeze({
+  start: 1,
+  end: 1 + demoTours.length,
+});
 
 export const conceptNames = [
   "Mesh",
@@ -342,6 +382,9 @@ export function paletteCommands(
     { id: "savePlay", label: "Save play" },
     { id: "newVariation", label: "New variation" },
     { id: "gamePlans", label: "Game plans" },
+    { id: "playbooks", label: "Playbooks" },
+    { id: "gameDay", label: "Game Day" },
+    { id: "demo", label: "Demo — guided tour" },
     { id: "group", label: "Group", shortcut: "⌘G" },
     { id: "ungroup", label: "Ungroup", shortcut: "⇧⌘G" },
     { id: "bringForward", label: "Bring forward", shortcut: "⌘]" },

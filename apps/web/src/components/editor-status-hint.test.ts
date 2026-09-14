@@ -89,3 +89,26 @@ describe("what the status bar says on the left", () => {
     ).toBe(DEMO_STATUS_HINT);
   });
 });
+
+describe("the first blank field (issue #65)", () => {
+  it("points at Help → Demo with the Select tool, and steps aside for a tool", () => {
+    expect(
+      editorStatusHint({
+        view: "editor",
+        tool: "select",
+        atFit: true,
+        selectionCount: 0,
+        firstUse: true,
+      }),
+    ).toBe("new here? Help → Demo walks the drawing tools on a real play");
+    expect(
+      editorStatusHint({
+        view: "editor",
+        tool: "player",
+        atFit: true,
+        selectionCount: 0,
+        firstUse: true,
+      }),
+    ).toContain("click the field to place a player");
+  });
+});

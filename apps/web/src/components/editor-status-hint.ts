@@ -11,7 +11,15 @@ export interface EditorStatusHintInput {
   readonly drawing?: { readonly depthBuffer: string };
   readonly labelsTooSmall?: boolean;
   readonly animating?: boolean;
+  /**
+   * Nothing saved and nothing drawn: the Coach's first minute. The bar
+   * points him at Help → Demo before the tool hints (issue #65).
+   */
+  readonly firstUse?: boolean;
 }
+
+export const FIRST_USE_HINT =
+  "new here? Help → Demo walks the drawing tools on a real play";
 
 const toolHint: Record<StatusHintTool, (atFit: boolean) => string> = {
   select: (atFit) =>
@@ -51,6 +59,7 @@ export function editorStatusHint(input: EditorStatusHintInput): string {
   if (input.selectionCount > 1) {
     return "drag any selected item to move the group · shift-click: add/remove · ⌫ delete · ⌘D duplicate";
   }
+  if (input.firstUse && input.tool === "select") return FIRST_USE_HINT;
   const hint = toolHint[input.tool](input.atFit);
   return input.labelsTooSmall ? `labels hidden — zoom in   ·   ${hint}` : hint;
 }

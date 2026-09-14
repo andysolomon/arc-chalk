@@ -13,7 +13,7 @@ test("builds a game plan from the library, prepares it, and keeps it across relo
 
   await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("button", { name: "Game plans…" }).click();
-  const workspace = page.getByRole("dialog", { name: "Game plans" });
+  const workspace = page.getByRole("region", { name: "Game plans" });
   await expect(workspace).toBeVisible();
 
   await workspace.getByRole("button", { name: "New plan" }).click();
@@ -66,7 +66,7 @@ test("builds a game plan from the library, prepares it, and keeps it across relo
   await expect(page.getByText(/^Library/)).toBeVisible();
   await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("button", { name: "Game plans…" }).click();
-  const again = page.getByRole("dialog", { name: "Game plans" });
+  const again = page.getByRole("region", { name: "Game plans" });
   await again.getByRole("button", { name: /^Week 3 /, exact: false }).click();
   await expect(again.getByLabel(/^Call number for/).first()).toHaveValue("12");
   await expect(again.getByText(/^Prepared/)).toBeVisible();

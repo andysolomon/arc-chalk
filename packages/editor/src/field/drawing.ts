@@ -3,6 +3,7 @@ import {
   type Coordinate,
   type PathStyle,
   type PlayCommand,
+  type Player,
 } from "@chalk/domain";
 
 import { snapRouteEndpoint } from "../smart-snapping";
@@ -112,7 +113,20 @@ const drawingLabels: Record<FieldDrawingKind, string> = {
   motion: "Draw motion",
   block: "Draw block",
   zone: "Draw zone drop",
+  blitz: "Draw blitz path",
 };
+
+/**
+ * The kind a tool draws from this man. Block on a defender is a blitz path —
+ * solid red to an arrow — because a defender does not block; the rail's label
+ * says the same thing (issue #65).
+ */
+export function drawingKindFor(
+  tool: FieldDrawingKind,
+  player: { readonly unit: Player["unit"] },
+): FieldDrawingKind {
+  return tool === "block" && player.unit === "defense" ? "blitz" : tool;
+}
 
 /** Abandons an in-progress route, leaving the committed Play untouched. */
 export function clearDrawing(
@@ -132,7 +146,7 @@ export function startDrawing(
     selection: [],
     gesture: { kind: "idle" },
     drawing: {
-      kind,
+      kind: drawingKindFor(kind, player),
       playerId,
       points: [
         {
