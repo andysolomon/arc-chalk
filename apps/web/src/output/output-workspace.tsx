@@ -10,6 +10,7 @@ import {
 } from "@chalk/domain";
 import {
   acceptSource,
+  defaultCallSheetConfig,
   detailPresets,
   outputFormat,
   outputFormats,
@@ -19,6 +20,8 @@ import {
   preparedStamp,
   previewCss,
   withPreviewCss,
+  reconcileCallSheetConfig,
+  type CallSheetConfig,
   type OutputPreset,
   type OutputSourceKind,
 } from "@chalk/exports";
@@ -38,6 +41,7 @@ import {
   pngFromSvg,
 } from "../components/export-files";
 import { FieldDiagram } from "../components/field-diagram";
+import { CallSheetOptions } from "./call-sheet-options";
 import {
   buildOutputDocument,
   framesManifest,
@@ -98,6 +102,9 @@ export function OutputWorkspace({
     readonly concepts: readonly Concept[];
   }>();
   const [plans, setPlans] = useState<readonly GamePlan[]>([]);
+  const [sheetConfigs, setSheetConfigs] = useState<
+    Readonly<Record<string, CallSheetConfig>>
+  >({});
   /**
    * What was read for a plan, keyed to the plan and the revision it was read
    * for: another plan's packet is never taken for this one, and while a
@@ -122,6 +129,9 @@ export function OutputWorkspace({
     });
     void ports.library.listGamePlans().then((list) => {
       if (!cancelled) setPlans(list);
+    });
+    void ports.library.loadCallSheetConfigs().then((configs) => {
+      if (!cancelled) setSheetConfigs(configs);
     });
     return () => {
       cancelled = true;
@@ -289,6 +299,37 @@ export function OutputWorkspace({
   ]);
 
   const format = outputFormat(spec.format);
+  // The plan the sheet is laid out from: the prepared revision's own copy
+  // when the packet prints, so a section deleted or renamed in the live
+  // plan afterwards still prints as it was prepared; the live plan only for
+  // its current plays.
+  const sheetPlan =
+    source.kind === "plan" && source.copy === "revision" && revision
+      ? revision.plan
+      : plan;
+  // The plan's own sheet layout: stored on this device, brought up to date
+  // with the plan it prints, or the template its unit points at.
+  const sheetConfig = useMemo<CallSheetConfig | undefined>(() => {
+    if (!plan || !sheetPlan) return undefined;
+    const stored = sheetConfigs[plan.id];
+    return stored
+      ? reconcileCallSheetConfig(stored, sheetPlan)
+      : defaultCallSheetConfig(sheetPlan);
+  }, [plan, sheetConfigs, sheetPlan]);
+  const setSheetConfig = (next: CallSheetConfig) => {
+    if (!plan) return;
+    setSheetConfigs((current) => ({ ...current, [plan.id]: next }));
+    void ports.library
+      .saveCallSheetConfig(plan.id, next)
+      .catch(() => undefined);
+  };
+  const optionsInUse: OutputOptions = useMemo(
+    () =>
+      spec.format === "callSheet" && sheetConfig
+        ? { ...spec.options, callSheet: sheetConfig }
+        : spec.options,
+    [sheetConfig, spec.format, spec.options],
+  );
   const acceptance = planLoading
     ? { ok: false as const, reason: "Reading the plan…" }
     : acceptSource(format, {
@@ -300,7 +341,7 @@ export function OutputWorkspace({
       });
   const document = useMemo<OutputDocument | undefined>(() => {
     if (!acceptance.ok) return undefined;
-    return buildOutputDocument(spec.format, resolved, spec.options, {
+    return buildOutputDocument(spec.format, resolved, optionsInUse, {
       concepts,
       formations,
       year: new Date().getFullYear(),
@@ -309,9 +350,9 @@ export function OutputWorkspace({
     acceptance.ok,
     concepts,
     formations,
+    optionsInUse,
     resolved,
     spec.format,
-    spec.options,
   ]);
 
   const previewHtml = useMemo(
@@ -578,6 +619,18 @@ export function OutputWorkspace({
                 ))}
               </div>
             </>
+          ) : null}
+          {spec.format === "callSheet" &&
+          source.kind === "plan" &&
+          sheetPlan &&
+          resolved.revision &&
+          sheetConfig ? (
+            <CallSheetOptions
+              config={sheetConfig}
+              onChange={setSheetConfig}
+              plan={sheetPlan}
+              revision={resolved.revision}
+            />
           ) : null}
           {spec.format === "position" ? (
             <>

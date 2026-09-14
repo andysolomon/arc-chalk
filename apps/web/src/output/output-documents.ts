@@ -9,6 +9,7 @@ import {
 } from "@chalk/domain";
 import {
   callSheetHtml,
+  configuredCallSheetHtml,
   detailLayers,
   exportFileName,
   frameSequenceManifest,
@@ -30,6 +31,7 @@ import {
   slideHtml,
   standaloneSvg,
   wristbandHtml,
+  type CallSheetConfig,
   type DetailPreset,
   type DiagramRenderer,
   type OutputFormatId,
@@ -69,6 +71,8 @@ export interface OutputOptions {
   readonly pageKind: PageKindId;
   readonly typePreset: TypePresetId;
   readonly positionGroup: PositionGroupId;
+  /** How a plan's coordinator sheet is laid out (issue #70). */
+  readonly callSheet?: CallSheetConfig;
 }
 
 export interface OutputContext {
@@ -233,7 +237,12 @@ export function buildOutputDocument(
       return html(
         source.label,
         source.revision
-          ? gamePlanCallSheetHtml(source.revision, {})
+          ? options.callSheet
+            ? configuredCallSheetHtml(source.revision, options.callSheet, {
+                formations: context.formations,
+                render,
+              })
+            : gamePlanCallSheetHtml(source.revision, {})
           : callSheetHtml(plays, { concepts: context.concepts }),
       );
     case "wristband":

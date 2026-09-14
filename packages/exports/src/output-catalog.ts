@@ -386,7 +386,7 @@ export function previewCss(paper: OutputPaper, mono: boolean): string {
     "@media screen{html{background:#e9e9e9}" +
     `body{width:${inner}in;min-height:${height - paper.marginIn * 2}in;margin:16px auto;` +
     `padding:${paper.marginIn}in;box-sizing:content-box;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 12px 30px -12px rgba(0,0,0,.3)}` +
-    ".__pf{position:static!important;margin-top:12px}" +
+    ".__pf{display:none}" +
     "[data-page-break],.pg,.wb{box-shadow:0 1px 0 0 #c9c9c9}" +
     ".pg:last-of-type{box-shadow:none}" +
     (mono ? "html{filter:grayscale(1)}" : "") +

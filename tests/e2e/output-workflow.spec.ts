@@ -65,6 +65,20 @@ test("prints a game plan's call sheet from the workflow and keeps it under Recen
   await expect(status).toContainText(/\d+ page/);
   await page.screenshot({ path: testInfo.outputPath("output-workflow.png") });
 
+  // The coordinator sheet is laid out here: template, sections, columns,
+  // density and sides — and the preview follows.
+  const layout = output.getByRole("group", { name: "Call sheet layout" });
+  await expect(layout.getByRole("button", { name: "OC" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await layout.getByRole("button", { name: "Two sides" }).click();
+  await expect(preview.locator("body")).toContainText("Side 1 of 2");
+  await expect(status).toContainText("2 pages");
+  await layout.getByLabel("Title for Openers").fill("Script");
+  await expect(preview.locator("body")).toContainText("Script");
+  await layout.getByRole("button", { name: "One side" }).click();
+
   // A format that takes one play says so and leaves the plan alone.
   await output.getByRole("button", { name: /^Install page/ }).click();
   await expect(output.getByRole("alert")).toContainText(

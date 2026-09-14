@@ -41,7 +41,12 @@ import {
   type ThumbnailDerivative,
 } from "@chalk/local-db";
 
-import { readOutputPresets, type OutputPreset } from "@chalk/exports";
+import {
+  readCallSheetConfigs,
+  readOutputPresets,
+  type CallSheetConfig,
+  type OutputPreset,
+} from "@chalk/exports";
 
 import {
   GAME_DAY_KEY,
@@ -111,6 +116,7 @@ export interface ChromeState {
 
 export const CHROME_KEY = "chrome.v1";
 export const OUTPUT_PRESETS_KEY = "output.presets.v1";
+export const CALL_SHEET_KEY = "callSheet.v1";
 
 export const defaultChromeState: ChromeState = Object.freeze({
   inspectorOpen: true,
@@ -180,6 +186,9 @@ export interface ChalkLibrary {
   /** The outputs the Coach ran lately, so one runs again in a click (issue #69). */
   loadOutputPresets(): Promise<readonly OutputPreset[]>;
   saveOutputPresets(presets: readonly OutputPreset[]): Promise<void>;
+  /** How each plan's coordinator sheet is laid out, by plan id (issue #70). */
+  loadCallSheetConfigs(): Promise<Readonly<Record<string, CallSheetConfig>>>;
+  saveCallSheetConfig(planId: string, config: CallSheetConfig): Promise<void>;
   getThumbnail(key: string): Promise<ThumbnailDerivative | undefined>;
   putThumbnail(thumbnail: ThumbnailDerivative): Promise<void>;
   getUndoHistory(
@@ -411,6 +420,7 @@ export function createMemoryLibrary(
   let chrome: ChromeState = defaultChromeState;
   let gameDay: GameDayState = defaultGameDayState;
   let outputPresets: readonly OutputPreset[] = [];
+  let callSheets: Record<string, CallSheetConfig> = {};
   const gamePlans = new Map<string, GamePlan>();
   const gamePlanRevisions = new Map<string, GamePlanRevision>();
   return {
@@ -508,6 +518,13 @@ export function createMemoryLibrary(
     },
     saveOutputPresets(presets) {
       outputPresets = presets;
+      return Promise.resolve();
+    },
+    loadCallSheetConfigs() {
+      return Promise.resolve(callSheets);
+    },
+    saveCallSheetConfig(planId, config) {
+      callSheets = { ...callSheets, [planId]: config };
       return Promise.resolve();
     },
     getThumbnail() {
@@ -717,6 +734,17 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     },
     async saveOutputPresets(presets) {
       await rememberJson(OUTPUT_PRESETS_KEY, presets);
+    },
+    async loadCallSheetConfigs() {
+      return readCallSheetConfigs(
+        (await repository.getPreference(CALL_SHEET_KEY))?.value,
+      );
+    },
+    async saveCallSheetConfig(planId, config) {
+      const current = readCallSheetConfigs(
+        (await repository.getPreference(CALL_SHEET_KEY))?.value,
+      );
+      await rememberJson(CALL_SHEET_KEY, { ...current, [planId]: config });
     },
     getThumbnail: (key) => repository.getThumbnail(key),
     putThumbnail: (thumbnail) => repository.putThumbnail(thumbnail),
