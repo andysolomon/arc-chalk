@@ -9,4 +9,5 @@ export * from "./diagram";
 export * from "./game-plan-documents";
 export * from "./output-catalog";
 export * from "./print-documents";
+export * from "./unit-badge";
 export * from "./wristband";

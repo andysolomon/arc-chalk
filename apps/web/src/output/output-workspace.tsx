@@ -215,6 +215,7 @@ export function OutputWorkspace({
           label: currentPlay.name,
           plays: [currentPlay],
           unit: unitName(currentPlay.unit),
+          unitId: currentPlay.unit,
           order: "the open play",
         };
       case "selection": {
@@ -246,6 +247,7 @@ export function OutputWorkspace({
             plays: [],
             copy: "reading the plan…",
             unit: unitName(plan.unit),
+            unitId: plan.unit,
             order: "",
           };
         }
@@ -303,6 +305,7 @@ export function OutputWorkspace({
               ? "current plays, not the prepared packet"
               : "current plays",
           unit: unitName(plan.unit),
+          unitId: plan.unit,
           order: "in section order",
         };
       }
@@ -949,7 +952,7 @@ function FieldSheet({
           <div className="print-hd">
             <div className="print-title">{play.name}</div>
             <div className="print-cat">
-              {play.unit === "defense" ? "Defense" : "Offense"}
+              {unitName(play.unit)}
               {play.playType ? ` · ${play.playType.name}` : ""}
             </div>
           </div>

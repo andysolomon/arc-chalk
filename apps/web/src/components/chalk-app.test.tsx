@@ -134,6 +134,23 @@ async function unfold(
   );
 }
 
+/**
+ * Opens the Settings overlay — Field, Playbook settings, History and Print &
+ * export moved off the inspector into a single dialog the Coach opens from
+ * the More menu. Returns the panel so subsequent queries stay scoped to it.
+ */
+async function openSettings(
+  user: ReturnType<typeof userEvent.setup>,
+): Promise<HTMLElement> {
+  await user.click(
+    within(screen.getByRole("banner")).getByRole("button", {
+      name: "More actions",
+    }),
+  );
+  await user.click(screen.getByRole("button", { name: "Settings…" }));
+  return screen.getByRole("dialog", { name: "Settings" });
+}
+
 describe("Chalk application shell", () => {
   it("preserves the original editor entry points", () => {
     const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
@@ -903,14 +920,9 @@ describe("Chalk application shell", () => {
   it("prints in the Print type when that preset is selected", async () => {
     const user = userEvent.setup();
     render(<ChalkApp runtime={createTestRuntime()} />);
-    const inspector = screen.getByRole("complementary", {
-      name: "Play inspector",
-    });
+    const settings = await openSettings(user);
 
-    await unfold(user, inspector, "Print & export");
-    await user.click(
-      within(inspector).getByRole("button", { name: /^Print$/ }),
-    );
+    await user.click(within(settings).getByRole("button", { name: /^Print$/ }));
     await user.click(
       within(screen.getByRole("banner")).getByRole("button", {
         name: "Print & export",
@@ -1250,14 +1262,9 @@ describe("Inspector progressive disclosure (issue #64)", () => {
       name: /^Library/,
       expanded: false,
     });
-    const print = within(inspector).getByRole("button", {
-      name: /^Print & export/,
-      expanded: false,
-    });
     expect(before(formation, concept)).toBe(true);
     expect(before(concept, lineCall)).toBe(true);
     expect(before(lineCall, library)).toBe(true);
-    expect(before(library, print)).toBe(true);
     // The grids and the library tree are not on the idle panel any more.
     expect(
       within(inspector).queryByRole("button", { name: "Reach" }),
@@ -1267,10 +1274,21 @@ describe("Inspector progressive disclosure (issue #64)", () => {
     expect(
       within(inspector).queryByRole("button", { name: "Half field" }),
     ).toBeNull();
-    // What the folded sections currently say stays in view.
+    // Print & export, Field profile, Playbook settings and History moved
+    // into the Settings overlay — they should not be on the inspector.
     expect(
-      inspector.querySelector('[data-disclosure="print"] .disclosure-summary'),
-    ).toHaveTextContent(/· Coach$/);
+      within(inspector).queryByRole("button", { name: /^Print & export/ }),
+    ).toBeNull();
+    expect(
+      within(inspector).queryByRole("button", { name: /^Field$/ }),
+    ).toBeNull();
+    expect(
+      within(inspector).queryByRole("button", { name: /^Playbook settings/ }),
+    ).toBeNull();
+    expect(
+      within(inspector).queryByRole("button", { name: /^History/ }),
+    ).toBeNull();
+    // What the folded sections currently say stays in view.
     expect(
       inspector.querySelector(
         '[data-disclosure="library"] .disclosure-summary',
@@ -1407,9 +1425,9 @@ describe("Inspector progressive disclosure (issue #64)", () => {
     });
 
     // Unfolded sections are remembered the same way.
-    await unfold(user, inspectorOf(), "Print & export");
+    await unfold(user, inspectorOf(), "Library");
     await waitFor(async () => {
-      expect((await library.loadChrome()).open.print).toBe(true);
+      expect((await library.loadChrome()).open.library).toBe(true);
     });
   });
 
@@ -1503,20 +1521,17 @@ describe("Chalk device durability surfaces", () => {
     await user.click(screen.getByRole("button", { name: "Restore" }));
     expect(restored).toEqual(["revision_1"]);
 
-    const inspector = screen.getByRole("complementary", {
-      name: "Play inspector",
-    });
-    expect(within(inspector).getByText("History 1")).toBeVisible();
-    await user.click(within(inspector).getByRole("button", { name: /^Show$/ }));
-    expect(within(inspector).getByText("just now")).toBeVisible();
-    expect(within(inspector).getByText("Install week")).toBeVisible();
+    const settings = await openSettings(user);
+    expect(within(settings).getByText("History 1")).toBeVisible();
+    expect(within(settings).getByText("just now")).toBeVisible();
+    expect(within(settings).getByText("Install week")).toBeVisible();
     expect(
-      within(inspector).getByText(
+      within(settings).getByText(
         "Named snapshots of this play, kept across a closed tab. Restoring is itself undoable.",
       ),
     ).toBeVisible();
     await user.click(
-      within(inspector).getByRole("button", { name: "Restore" }),
+      within(settings).getByRole("button", { name: "Restore" }),
     );
     expect(restored).toEqual(["revision_1", "revision_1"]);
   });
@@ -1524,20 +1539,17 @@ describe("Chalk device durability surfaces", () => {
   it("points History at named snapshots instead of a 90-second autosave", async () => {
     const user = userEvent.setup();
     render(<ChalkApp runtime={createTestRuntime()} />);
-    const inspector = screen.getByRole("complementary", {
-      name: "Play inspector",
-    });
+    const settings = await openSettings(user);
 
     expect(
-      within(inspector).getByText("History", { exact: true }),
+      within(settings).getByRole("heading", { name: /^History/ }),
     ).toBeVisible();
-    await user.click(within(inspector).getByRole("button", { name: /^Show$/ }));
     expect(
-      within(inspector).getByText(
+      within(settings).getByText(
         "Nothing saved back yet. Name a Snapshot from Save when you want a state you can come back to.",
       ),
     ).toBeVisible();
-    expect(within(inspector).queryByText(/90 seconds/)).toBeNull();
+    expect(within(settings).queryByText(/90 seconds/)).toBeNull();
   });
 
   it("tells the Coach the app closed unexpectedly without claiming lost work", async () => {
@@ -1966,14 +1978,11 @@ describe("Chalk editor overlays", () => {
   it("changes what prints under the play without moving the players", async () => {
     const user = userEvent.setup();
     const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
-    const inspector = screen.getByRole("complementary", {
-      name: "Play inspector",
-    });
+    const settings = await openSettings(user);
 
-    await unfold(user, inspector, "Print & export");
-    expect(within(inspector).getByText("Page")).toBeVisible();
+    expect(within(settings).getByText("Page")).toBeVisible();
     expect(
-      within(inspector).getByText(
+      within(settings).getByText(
         "Changes what prints under the play — the players and lines never move.",
       ),
     ).toBeVisible();
@@ -1983,7 +1992,7 @@ describe("Chalk editor overlays", () => {
     expect(container.querySelectorAll("[data-scene-player]")).toHaveLength(11);
 
     await user.click(
-      within(inspector).getByRole("button", { name: "Half field" }),
+      within(settings).getByRole("button", { name: "Half field" }),
     );
     expect(container.querySelectorAll("[data-field-yard-line]")).toHaveLength(
       7,
@@ -1991,7 +2000,7 @@ describe("Chalk editor overlays", () => {
     expect(container.querySelectorAll("[data-scene-player]")).toHaveLength(11);
 
     await user.click(
-      within(inspector).getByRole("button", { name: "Scout card" }),
+      within(settings).getByRole("button", { name: "Scout card" }),
     );
     expect(container.querySelectorAll("[data-field-yard-line]")).toHaveLength(
       1,
@@ -1999,7 +2008,7 @@ describe("Chalk editor overlays", () => {
     expect(container.querySelector("[data-field-sideline]")).toBeNull();
 
     await user.click(
-      within(inspector).getByRole("button", { name: "Playbook page" }),
+      within(settings).getByRole("button", { name: "Playbook page" }),
     );
     expect(container.querySelector("svg.field-diagram")).toHaveAttribute(
       "data-field-style",
@@ -2010,7 +2019,7 @@ describe("Chalk editor overlays", () => {
     );
     expect(container.querySelector("[data-field-sideline]")).toBeNull();
 
-    await user.click(within(inspector).getByRole("button", { name: "Blank" }));
+    await user.click(within(settings).getByRole("button", { name: "Blank" }));
     expect(container.querySelector("[data-field-yard-line]")).toBeNull();
     expect(container.querySelectorAll("[data-scene-player]")).toHaveLength(11);
   });
@@ -2021,18 +2030,18 @@ describe("Chalk editor overlays", () => {
     const inspector = screen.getByRole("complementary", {
       name: "Play inspector",
     });
+    const settings = await openSettings(user);
 
-    await unfold(user, inspector, "Print & export");
     expect(
-      within(inspector).getByText(
+      within(settings).getByText(
         "Dense — reads, assignments, conversions and notes all on the field.",
       ),
     ).toBeVisible();
     expect(container.querySelectorAll("[data-scene-label]")).toHaveLength(12);
 
-    await user.click(within(inspector).getByRole("button", { name: "Player" }));
+    await user.click(within(settings).getByRole("button", { name: "Player" }));
     expect(
-      within(inspector).getByText(
+      within(settings).getByText(
         "Bigger type, assignments only — what a player reads across a room.",
       ),
     ).toBeVisible();
@@ -2042,10 +2051,10 @@ describe("Chalk editor overlays", () => {
     );
 
     await user.click(
-      within(inspector).getByRole("button", { name: /^Print$/ }),
+      within(settings).getByRole("button", { name: /^Print$/ }),
     );
     expect(
-      within(inspector).getByText(
+      within(settings).getByText(
         "Pure black, no color fills — survives a copier.",
       ),
     ).toBeVisible();

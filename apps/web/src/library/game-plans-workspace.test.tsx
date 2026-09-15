@@ -148,7 +148,11 @@ describe("the Game plans workspace", () => {
     const rows = dialog().querySelectorAll("[data-plan-id]");
     expect(rows).toHaveLength(2);
     expect(screen.getByText("Week 3")).toBeVisible();
-    expect(screen.getByText(/Defense · vs Central · 0 calls/)).toBeVisible();
+    // The unit is a labeled badge on the row, ahead of the same words.
+    const defensive = [...rows].find((row) =>
+      row.querySelector('.unit-badge[data-unit="defense"]'),
+    );
+    expect(defensive).toHaveTextContent(/Defense · vs Central · 0 calls/);
     expect(await library.listGamePlans()).toHaveLength(2);
 
     // Rename in place, duplicate as last week's plan, reopen the copy.

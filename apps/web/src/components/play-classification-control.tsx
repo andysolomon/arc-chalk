@@ -61,6 +61,7 @@ export function PlayClassificationControl({
         aria-expanded={open}
         aria-label="Play type"
         className={`play-type${open ? " open" : ""}`}
+        data-unit={play.unit}
         onClick={onToggle}
         title="Unit and type — what this play is filed as"
         type="button"
@@ -183,6 +184,7 @@ function ClassificationPanel({
             <button
               aria-pressed={on}
               className={on ? "active" : undefined}
+              data-unit={choice.id}
               key={choice.id}
               onClick={() => chooseUnit(choice.id)}
               type="button"

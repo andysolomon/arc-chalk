@@ -77,7 +77,13 @@ describe("the Game Day reader (issue #67)", () => {
       renderReader(library, snapshot);
 
       await user.click(await screen.findByRole("button", { name: /Week 5/ }));
-      expect(within(reader()).getByText("Offense · Week 5")).toBeVisible();
+      expect(reader().querySelector(".game-day-title")).toHaveTextContent(
+        "Offense Week 5",
+      );
+      // The unit is a labeled badge, not a word in the title.
+      expect(
+        within(reader()).getByText("Offense", { selector: ".unit-badge" }),
+      ).toBeVisible();
       expect(
         await screen.findByText(/Ready offline · 100 calls/),
       ).toBeVisible();
@@ -219,11 +225,17 @@ describe("the Game Day reader (issue #67)", () => {
         await screen.findByText(/A newer packet has been prepared/),
       ).toBeVisible();
       // Still the packet that was opened.
-      expect(screen.getByText("Offense · Week 5")).toBeVisible();
+      expect(
+        screen.getByText("Week 5", { selector: ".game-day-title" }),
+      ).toBeVisible();
       await user.click(
         screen.getByRole("button", { name: "Switch to the newest" }),
       );
-      expect(await screen.findByText("Offense · Week 5 — final")).toBeVisible();
+      expect(
+        await screen.findByText("Week 5 — final", {
+          selector: ".game-day-title",
+        }),
+      ).toBeVisible();
     },
   );
 

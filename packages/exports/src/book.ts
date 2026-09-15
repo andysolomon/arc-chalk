@@ -3,6 +3,7 @@ import {
   type Formation,
   type GamePlanRevision,
   type PlayDocument,
+  type PlayUnit,
 } from "@chalk/domain";
 
 import { playMeta, playRows, progressionStrip } from "./coaching-rows";
@@ -16,6 +17,7 @@ import {
   installCss,
   printDocumentHtml,
 } from "./print-documents";
+import { unitBadgeHtml } from "./unit-badge";
 
 /**
  * Binder and handout layouts (issue #72). A binder is one play a page with
@@ -126,6 +128,8 @@ export interface BookOptions {
   /** The plan the book came from, for the cover and the header. */
   readonly title: string;
   readonly subtitle?: string;
+  /** The plan's Unit, as a badge on the cover beside the subtitle. */
+  readonly unit?: PlayUnit;
   readonly revisionLine?: string;
 }
 
@@ -184,9 +188,11 @@ export function binderHtml(
   const pages: string[] = [];
   const cover =
     `<div class="pg cov" data-book-page="cover"><div class="cm">${escapeHtml(product)}</div><h1>${escapeHtml(options.title)}</h1>` +
-    (options.subtitle
-      ? `<div class="cs">${escapeHtml(options.subtitle)}</div>`
-      : "") +
+    (options.unit
+      ? `<div class="cs">${unitBadgeHtml(options.unit)}</div>`
+      : options.subtitle
+        ? `<div class="cs">${escapeHtml(options.subtitle)}</div>`
+        : "") +
     `<div class="cs">${options.year} season · ${entries.length} ${entries.length === 1 ? "play" : "plays"}${
       options.revisionLine ? ` · ${escapeHtml(options.revisionLine)}` : ""
     }</div></div>`;

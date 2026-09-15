@@ -20,6 +20,7 @@ import {
   type LibraryEntry,
   type PositionGroupId,
 } from "./coaching-rows";
+import { classificationHtml, UNIT_BADGE_CSS } from "./unit-badge";
 import {
   cropSvgToScoutCard,
   FIELD_SVG_CSS,
@@ -65,6 +66,7 @@ export function printDocumentHtml(input: PrintDocumentInput): string {
     "color:#171717;-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
     input.css +
     FIELD_SVG_CSS +
+    UNIT_BADGE_CSS +
     FOOT_CSS +
     "</style></head><body>" +
     `<div class="__pf">${escapeHtml(product)}</div>` +
@@ -148,7 +150,7 @@ export function installBody(
   return (
     '<div class="pg">' +
     (options.note ? `<div class="cn">${escapeHtml(options.note)}</div>` : "") +
-    `<div class="hd"><h1>${options.code ? `<span class="cc">${escapeHtml(options.code)}</span> ` : ""}${escapeHtml(play.name || "Untitled play")}</h1><span>${escapeHtml(playCategory(play))}</span></div>` +
+    `<div class="hd"><h1>${options.code ? `<span class="cc">${escapeHtml(options.code)}</span> ` : ""}${escapeHtml(play.name || "Untitled play")}</h1><span>${classificationHtml(play)}</span></div>` +
     render(play, options.diagram ?? { typePreset: "print" }) +
     (rows.length > 0
       ? '<table><thead><tr><th style="width:0.7in">Who</th><th>Assignment</th><th>Coaching point</th></tr></thead>' +
@@ -276,7 +278,7 @@ export function quizHtml(
       "td.n{font-family:ui-monospace,Menlo,monospace;color:#8F8F8F;width:0.35in}" +
       "td.bl{border-bottom:1px solid #8F8F8F;height:22px}",
     body:
-      `<div class="pg"><div class="hd"><h1>${escapeHtml(play.name || "Untitled play")} — quiz</h1><span>${escapeHtml(playCategory(play))}</span></div>` +
+      `<div class="pg"><div class="hd"><h1>${escapeHtml(play.name || "Untitled play")} — quiz</h1><span>${classificationHtml(play)}</span></div>` +
       options.render(quizPlay(play), {
         typePreset: "print",
         layers: stripped,
@@ -444,7 +446,7 @@ export function practiceCardsHtml(
     .map((play) => {
       const strip = progressionStrip(play);
       return (
-        `<div class="card"><div class="cn"><b>${escapeHtml(play.name)}</b><span>${escapeHtml(playCategory(play))}</span></div>` +
+        `<div class="card"><div class="cn"><b>${escapeHtml(play.name)}</b><span>${classificationHtml(play)}</span></div>` +
         options.render(play) +
         (strip ? `<div class="ps">${escapeHtml(strip)}</div>` : "") +
         "</div>"
