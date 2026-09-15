@@ -98,7 +98,7 @@ describe("configured coordinator call sheets (issue #70)", () => {
     const html = configuredCallSheetHtml(revision, config, { formations: [] });
     expect(html).toContain("Week 3 — Offensive coordinator");
     expect(html).toContain(
-      "vs Central · Homecoming · Offense · Prepared 13 Sep 2026 · v2",
+      'vs Central · Homecoming · <span class="ub" data-unit="offense">Offense</span> · Prepared 13 Sep 2026 · v2',
     );
     expect(html).not.toContain("Cover 3");
     // Every offensive call is on it with its code.

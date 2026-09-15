@@ -60,10 +60,21 @@ for (const [label, viewport] of [
       await within(/^No concept yet/);
       await within(/^No line call yet/);
       await within(/^Library/);
-      // Print settings are folded, below, and not what the coach sees first.
+      // Print, Field profile, Playbook settings and History moved into the
+      // Settings overlay; they should not be folded disclosures on the
+      // inspector any more.
       await expect(
         inspector.getByRole("button", { name: /^Print & export/ }),
-      ).toHaveAttribute("aria-expanded", "false");
+      ).toHaveCount(0);
+      await expect(
+        inspector.getByRole("button", { name: /^Field$/ }),
+      ).toHaveCount(0);
+      await expect(
+        inspector.getByRole("button", { name: /^Playbook settings/ }),
+      ).toHaveCount(0);
+      await expect(
+        inspector.getByRole("button", { name: /^History/ }),
+      ).toHaveCount(0);
       await expect(
         inspector.getByRole("button", { name: "Half field" }),
       ).toHaveCount(0);

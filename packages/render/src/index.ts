@@ -337,3 +337,4 @@ export function buildRenderScene(
 
 export * from "./presentation";
 export * from "./svg";
+export * from "./unit-palette";

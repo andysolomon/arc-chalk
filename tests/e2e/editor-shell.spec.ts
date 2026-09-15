@@ -282,23 +282,29 @@ test("changes the markings and the words from the inspector without moving the P
   await page.goto("/");
   const inspector = page.getByRole("complementary", { name: "Play inspector" });
 
-  // Page and type fold under Print & export; the layers sit in the bar's
-  // Layers popover (issue #64).
-  await inspector.getByRole("button", { name: /^Print & export/ }).click();
-  await expect(inspector.getByText("Page", { exact: true })).toBeVisible();
+  // Page and type moved into the Settings overlay (along with Field,
+  // Playbook settings and History). The layers stay in the bar's Layers
+  // popover (issue #64).
+  await page
+    .getByRole("banner")
+    .getByRole("button", { name: "More actions" })
+    .click();
+  await page.getByRole("button", { name: "Settings…" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(settings.getByText("Page", { exact: true })).toBeVisible();
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
   await expect(page.locator("[data-scene-label]")).toHaveCount(12);
   await expect(page.locator("[data-field-yard-line]")).toHaveCount(9);
 
-  await inspector.getByRole("button", { name: "Half field" }).click();
+  await settings.getByRole("button", { name: "Half field" }).click();
   await expect(page.locator("[data-field-yard-line]")).toHaveCount(7);
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
 
-  await inspector.getByRole("button", { name: "Blank" }).click();
+  await settings.getByRole("button", { name: "Blank" }).click();
   await expect(page.locator("[data-field-yard-line]")).toHaveCount(0);
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
 
-  await inspector.getByRole("button", { name: "Full field" }).click();
+  await settings.getByRole("button", { name: "Full field" }).click();
   await expect(page.locator("[data-field-yard-line]")).toHaveCount(9);
 
   await inspector.getByRole("button", { name: /^Layers/ }).click();

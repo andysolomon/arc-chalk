@@ -17,6 +17,43 @@
   --canvas: #fafafa;
   --hover: #ebebeb;
   --blue: #0072f5;
+  /* Semantic palette (ADR 0051). Units: one accent for a dot or hairline,
+     one tint for a chip's ground; ink stays the text. The hex values mirror
+     `unitPalette` in @chalk/render, which the printed documents use. */
+  --unit-offense: #2e6bb0;
+  --unit-offense-tint: #e6eff9;
+  --unit-defense: #7a2e5a;
+  --unit-defense-tint: #f6e6ef;
+  --unit-special: #8a6a12;
+  --unit-special-tint: #f7f0dc;
+  /* Interactive state: the selection blue for what is current, a ring of the
+     same blue for where the keyboard is, and a lighter gray than muted text
+     for what cannot be pressed. */
+  --selected: var(--blue);
+  --selected-tint: #eef4ff;
+  --selected-line: #c7dcff;
+  --focus: var(--blue);
+  --disabled: #c9c9c9;
+  /* Status only — never navigation or decoration. */
+  --ready: #2b6a3a;
+  --ready-tint: #e9f5ec;
+  --warn: #8a5a00;
+  --warn-tint: #fdf6e3;
+  --red: #c53b3f;
+  --error: var(--red);
+  --error-tint: #fdecec;
+}
+[data-unit="offense"] {
+  --unit-accent: var(--unit-offense);
+  --unit-tint: var(--unit-offense-tint);
+}
+[data-unit="defense"] {
+  --unit-accent: var(--unit-defense);
+  --unit-tint: var(--unit-defense-tint);
+}
+[data-unit="special-teams"] {
+  --unit-accent: var(--unit-special);
+  --unit-tint: var(--unit-special-tint);
 }
 
 * {
@@ -40,9 +77,20 @@ button {
 }
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--blue);
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+a[href]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+/* A disabled control is lighter than muted text and refuses the pointer,
+   so it never reads as an inactive tab or an unselected segment. */
+button:disabled,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
 }
 
 .chalk-shell {
@@ -152,7 +200,7 @@ select:focus-visible {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--blue);
+  background: var(--unit-accent, var(--blue));
 }
 .play-type select {
   border: 0;
@@ -248,7 +296,7 @@ button.play-type.open {
 }
 .classify-add button:disabled {
   color: var(--muted);
-  cursor: default;
+  cursor: not-allowed;
 }
 .classify-confirm {
   padding: 2px 4px 4px;
@@ -297,8 +345,8 @@ button.play-type.open {
   color: var(--ink);
 }
 .topbar button:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 .divider {
   width: 1px;
@@ -409,8 +457,8 @@ button.play-type.open {
   color: var(--red);
 }
 .clear-grid .menu-item:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 .menu-note {
   margin: 8px 0 0;
@@ -446,8 +494,8 @@ button.play-type.open {
   background: #f2f2f2;
 }
 .menu-item:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 .menu-item-name {
   min-width: 0;
@@ -511,7 +559,7 @@ button.play-type.open {
 }
 .wristband-row:disabled {
   opacity: 0.45;
-  cursor: default;
+  cursor: not-allowed;
 }
 .menu-hint {
   margin: 0;
@@ -537,8 +585,8 @@ button.play-type.open {
   background: #383838;
 }
 .menu-primary:disabled {
-  background: #c9c9c9;
-  cursor: default;
+  background: var(--disabled);
+  cursor: not-allowed;
 }
 .menu-quiet {
   height: 30px;
@@ -688,8 +736,8 @@ button.play-type.open {
   background: #f2f2f2;
 }
 .palette-item:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 .palette-name {
   min-width: 0;
@@ -800,6 +848,102 @@ button.play-type.open {
 .inspector-stub:hover {
   background: #f2f2f2;
 }
+/* The same affordance the inspector has on its right edge — a slim handle
+   the Coach can click to bring the tool rail back when it was hidden for
+   focus mode (issue: tool rail had no stub to come back from). */
+.rail-stub {
+  width: 28px;
+  flex: none;
+  border: 0;
+  background: var(--canvas);
+  box-shadow: 1px 0 rgba(0, 0, 0, 0.06);
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  cursor: pointer;
+}
+.rail-stub:hover {
+  background: #f2f2f2;
+}
+/* Settings overlay — what used to be four folded disclosures on the right
+   inspector (Field, Playbook settings, History, Print & export) lives here
+   now, opened from the More menu. Same shape as the shortcuts overlay so it
+   reads as one of the editor's dialogs. */
+.settings-overlay {
+  align-items: flex-start;
+  justify-content: center;
+}
+.settings-panel {
+  width: 560px;
+  max-width: 92vw;
+  max-height: 86vh;
+  margin-top: 6vh;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 18px 40px -12px rgba(0, 0, 0, 0.28);
+}
+.settings-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  line-height: 20px;
+}
+.settings-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.settings-close {
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.settings-close:hover {
+  color: var(--ink);
+}
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.settings-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-section-heading h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.settings-summary {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
 .snapshot-list {
   margin: 6px 0 0;
   padding: 0;
@@ -859,7 +1003,7 @@ button.play-type.open {
   padding: 0;
 }
 .save-state.error {
-  color: #c53b3f;
+  color: var(--error);
 }
 .backup-field {
   display: block;
@@ -919,17 +1063,33 @@ button.play-type.open {
 }
 .lifecycle-notices .notice.update,
 .lifecycle-notices .notice.install {
-  background: #eef4ff;
+  background: var(--selected-tint);
+}
+.lifecycle-notices .notice.offline-ready {
+  background: var(--ready-tint);
+}
+.lifecycle-notices .notice-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+.lifecycle-notices .notice .quiet {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
 }
 .lifecycle-notices .notice.shell-fault {
-  border-color: #c53b3f;
+  border-color: var(--error);
+  background: var(--error-tint);
 }
 .lifecycle-notices button[disabled] {
   opacity: 0.6;
 }
 .lifecycle-error {
   margin: 0;
-  color: #c53b3f;
+  color: var(--error);
   font-size: 12px;
 }
 
@@ -1167,8 +1327,10 @@ button.play-type.open {
   background: var(--hover);
 }
 .output-format.active {
-  background: #eef4ff;
-  box-shadow: inset 0 0 0 1px #c7dcff;
+  background: var(--selected-tint);
+  box-shadow:
+    inset 3px 0 0 var(--selected),
+    inset 0 0 0 1px var(--selected-line);
 }
 .output-format.unfit {
   color: var(--muted);
@@ -1255,8 +1417,8 @@ button.play-type.open {
   cursor: pointer;
 }
 .output-order button:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 .output-main {
   display: flex;
@@ -1338,8 +1500,8 @@ button.play-type.open {
   cursor: pointer;
 }
 .output-secondary:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 .output-honest {
   flex-basis: 100%;
@@ -1413,8 +1575,8 @@ button.play-type.open {
   cursor: pointer;
 }
 .call-sheet-sections button:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 .call-sheet-left {
   display: flex;
@@ -1535,8 +1697,8 @@ button.play-type.open {
   cursor: pointer;
 }
 .wristband-calls button:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 .wristband-off {
   display: flex;
@@ -1637,12 +1799,12 @@ button.play-type.open {
   white-space: nowrap;
 }
 .reader-ready.ok {
-  background: #e9f5ec;
-  color: #2b6a3a;
+  background: var(--ready-tint);
+  color: var(--ready);
 }
 .reader-ready.missing {
-  background: #fdecec;
-  color: #a33a3a;
+  background: var(--error-tint);
+  color: var(--error);
 }
 .reader-ready.checking {
   background: var(--hover);
@@ -1745,8 +1907,10 @@ button.play-type.open {
   border-radius: 6px;
 }
 .reader-row.current {
-  background: #eef4ff;
-  box-shadow: inset 0 0 0 1px #c7dcff;
+  background: var(--selected-tint);
+  box-shadow:
+    inset 3px 0 0 var(--selected),
+    inset 0 0 0 1px var(--selected-line);
 }
 .reader-row.missing .reader-row-name {
   color: var(--muted);
@@ -1897,7 +2061,7 @@ button.play-type.open {
 }
 .reader-step:disabled {
   background: #d4d4d4;
-  cursor: default;
+  cursor: not-allowed;
 }
 .reader-position {
   flex: 1;
@@ -2225,7 +2389,7 @@ button.play-type.open {
   cursor: pointer;
 }
 .scrubber:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-radius: 3px;
 }
@@ -2540,8 +2704,8 @@ button.play-type.open {
   background: #f2f2f2;
 }
 .preset-choice:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 .preset-kind {
   flex: none;
@@ -2718,7 +2882,7 @@ button.play-type.open {
   margin-bottom: 0;
 }
 .segments.scope button:disabled {
-  cursor: default;
+  cursor: not-allowed;
   opacity: 0.45;
 }
 /* The tree's dots: blue is the open play; a sibling's dot is a switch. */
@@ -3042,9 +3206,13 @@ button.library-dot.target.small {
   display: block;
   height: 100%;
 }
-.playbook-card.current,
+.playbook-card.current {
+  background: var(--selected-tint);
+  box-shadow: 0 0 0 1px var(--selected);
+}
 .playbook-card.focused {
-  box-shadow: 0 0 0 1px #0072f5;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 .playbook-card-type {
   overflow: hidden;
@@ -3437,7 +3605,7 @@ button.library-dot.target.small {
 }
 .demo-controls button:disabled {
   opacity: 0.45;
-  cursor: default;
+  cursor: not-allowed;
 }
 .demo-panel {
   width: 292px;
@@ -3847,6 +4015,9 @@ button.library-dot.target.small {
   .inspector-stub {
     width: 44px;
   }
+  .rail-stub {
+    width: 44px;
+  }
   .menu-item,
   .clear-grid .menu-item,
   .palette-item,
@@ -3962,6 +4133,13 @@ button.library-dot.target.small {
     position: absolute;
     top: 0;
     right: 0;
+    bottom: 0;
+    z-index: 7;
+  }
+  .rail-stub {
+    position: absolute;
+    top: 0;
+    left: 0;
     bottom: 0;
     z-index: 7;
   }
@@ -4344,6 +4522,43 @@ button.library-dot.target.small {
   font-size: 11px;
   white-space: nowrap;
 }
+/* The Unit as a labeled chip (ADR 0051): tint ground, accent dot, ink word. */
+.unit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--unit-tint, #f2f2f2);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--unit-accent, var(--muted)) 40%, transparent);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.unit-badge i {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--unit-accent, var(--muted));
+}
+/* A Unit chip or segment carries its dot beside the word. */
+.chip[data-unit]::before,
+.segments button[data-unit]::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--unit-accent);
+  vertical-align: 1px;
+}
 .chip.active {
   background: var(--ink);
   box-shadow: 0 0 0 1px var(--ink);
@@ -4610,8 +4825,8 @@ button.library-dot.target.small {
   background: #f5f5f5;
 }
 .browser-save:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 .browser-toggle {
   display: flex;
@@ -4669,8 +4884,8 @@ button.library-dot.target.small {
   color: var(--paper);
 }
 .button-grid button:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 /* Said to a screen reader, and to nobody else. */
 .visually-hidden {
@@ -4796,7 +5011,33 @@ button.library-dot.target.small {
   color: #c2540a;
 }
 .sync-state.synced {
-  color: #398e4a;
+  color: var(--ready);
+}
+/* Routine shell status, once acknowledged, is a stable word in the status
+   bar rather than a band over the field. */
+.shell-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  white-space: nowrap;
+}
+.shell-quiet i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ready);
+}
+button.shell-quiet {
+  cursor: pointer;
+}
+button.shell-quiet:hover {
+  color: var(--ink);
 }
 
 .conflict-inbox {
@@ -4900,7 +5141,7 @@ button.library-dot.target.small {
 .game-plan-pick-tools button:disabled,
 .game-plan-saved button:disabled {
   color: var(--muted);
-  cursor: default;
+  cursor: not-allowed;
 }
 .game-plan-form {
   display: grid;
@@ -5161,8 +5402,8 @@ button.library-dot.target.small {
 }
 .game-plan-section-actions button:disabled,
 .game-plan-call-actions button:disabled {
-  color: #c9c9c9;
-  cursor: default;
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 .game-plan-call {
   display: flex;
