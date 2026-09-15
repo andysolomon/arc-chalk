@@ -1,6 +1,6 @@
 import {
   UNCLASSIFIED_PLAY_TYPE_NAME,
-  formatClassification,
+  CLASSIFICATION_SEPARATOR,
   playUnits,
   type PlayTypeDefinition,
   type PlayUnit,
@@ -10,6 +10,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ChalkLibrary, LibraryBrowserState } from "../app/editor-runtime";
+import { UnitBadge } from "../components/unit-badge";
 import {
   gridColumnsFor,
   NARROW_BROWSER_QUERY,
@@ -277,6 +278,7 @@ export function PlaybookBrowser({
             {UNITS.map((choice) => (
               <button
                 className={unit === choice.id ? "chip active" : "chip"}
+                data-unit={choice.id === "all" ? undefined : choice.id}
                 key={choice.id}
                 onClick={() => chooseUnit(choice.id)}
                 type="button"
@@ -423,18 +425,11 @@ function PlayCard({
         <strong>{member.name}</strong>
       </div>
       <span className="playbook-card-type">
-        {formatClassification({
-          unit: member.unit,
-          ...(member.playTypeId === undefined
-            ? {}
-            : {
-                playType: {
-                  id: member.playTypeId,
-                  name: member.playTypeName ?? member.playTypeId,
-                },
-              }),
-        })}
-        {member.tags[0] ? ` · ${member.tags[0]}` : ""}
+        <UnitBadge unit={member.unit} />
+        {member.playTypeId === undefined
+          ? ""
+          : `${CLASSIFICATION_SEPARATOR}${member.playTypeName ?? member.playTypeId}`}
+        {member.tags[0] ? `${CLASSIFICATION_SEPARATOR}${member.tags[0]}` : ""}
       </span>
     </button>
   );

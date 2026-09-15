@@ -3,7 +3,6 @@ import {
   gamePlanSubtitle,
   planPlayIds,
   revisionRows,
-  unitName,
   type CallRow,
   type Concept,
   type Formation,
@@ -25,6 +24,7 @@ import {
   installCss,
   printDocumentHtml,
 } from "./print-documents";
+import { unitBadgeHtml } from "./unit-badge";
 
 /**
  * The game-day packet. Every sheet here reads one prepared revision and
@@ -89,12 +89,15 @@ export function preparedStamp(revision: GamePlanRevision): string {
   return `Prepared ${date}${label ? ` · ${label}` : ""}`;
 }
 
-/** The line under a plan's name: opponent, unit, and when it was prepared. */
+/**
+ * The line under a plan's name: opponent, unit, and when it was prepared.
+ * Already HTML — the Unit is a badge, the words around it escaped.
+ */
 function planLine(revision: GamePlanRevision): string {
   return [
-    gamePlanSubtitle(revision.plan),
-    unitName(revision.plan.unit),
-    preparedStamp(revision),
+    escapeHtml(gamePlanSubtitle(revision.plan)),
+    unitBadgeHtml(revision.plan.unit),
+    escapeHtml(preparedStamp(revision)),
   ]
     .filter((part) => part.length > 0)
     .join(" · ");
@@ -135,7 +138,7 @@ export function gamePlanCallSheetHtml(
     .join("");
   const heading =
     `<h1>${escapeHtml(revision.plan.name)}</h1>` +
-    `<div class="sub">${escapeHtml(planLine(revision))}</div>`;
+    `<div class="sub">${planLine(revision)}</div>`;
   return printDocumentHtml({
     title: `${revision.plan.name} — call sheet`,
     css:
@@ -274,7 +277,7 @@ export function gamePlanHandoutHtml(
   }
   const cover =
     `<div class="pg cov"><div class="cm">${escapeHtml(product)}</div><h1>${escapeHtml(plan.name)}</h1>` +
-    `<div class="cs">${escapeHtml(planLine(revision))}</div>` +
+    `<div class="cs">${planLine(revision)}</div>` +
     `<div class="cs">${options.year} season · ${plan.calls.length} ${plan.calls.length === 1 ? "call" : "calls"}</div></div>`;
   let contents = `<div class="pg"><div class="hd"><h1>Contents</h1><span>${plan.calls.length} ${plan.calls.length === 1 ? "call" : "calls"}</span></div>`;
   for (const section of sections) {

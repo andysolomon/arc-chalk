@@ -35,12 +35,28 @@ export type ShellFault =
   /** The service worker could not register, so offline will not work. */
   | "register-failed";
 
+/**
+ * Routine notices the Coach can set aside for good on this device. A fault
+ * is never one of them: a failed save or a shell that could not be prepared
+ * stays loud until it is fixed.
+ */
+export type Acknowledgement = "offline-ready" | "install";
+
 export interface LifecycleSnapshot {
   readonly connectivity: Connectivity;
   readonly update: UpdateState;
   readonly install: InstallState;
-  /** The shell has been cached once, so the next start works offline. */
+  /**
+   * The shell is cached on this device, so it opens without a connection.
+   * This says nothing about a game plan's plays and images — Game Day checks
+   * those against the device itself.
+   */
   readonly offlineReady: boolean;
+  /**
+   * What the Coach has already read. An acknowledged note condenses to a
+   * quiet indicator in the status bar instead of a band over the field.
+   */
+  readonly acknowledged: ReadonlySet<Acknowledgement>;
   readonly fault?: ShellFault;
   /** Something went wrong during an action; cleared by the next action. */
   readonly error?: string;
@@ -62,7 +78,13 @@ export interface AppLifecycle {
    * Local data is untouched — it lives in IndexedDB, never in a cache.
    */
   readonly repairShell: () => Promise<void>;
+  /** The offline-ready note has been read; it becomes a quiet indicator. */
   readonly dismissOfflineReady: () => void;
+  /**
+   * The install offer has been read. The browser's prompt is kept, so a
+   * quiet Install in the status bar can still use it.
+   */
+  readonly dismissInstall: () => void;
 }
 
 export interface ShellRegistrationEvents {
@@ -109,6 +131,20 @@ export interface LifecyclePorts {
     readonly read: () => number | undefined;
     readonly write: (dataVersion: number) => void;
   };
+  /**
+   * Whether a worker is serving this page. A controlled page is one the
+   * cached shell already answers for, so it is offline-ready on later
+   * starts too, not only the first time the worker installs.
+   */
+  readonly shellStatus?: {
+    readonly isControlled: () => boolean;
+    readonly subscribe: (listener: () => void) => () => void;
+  };
+  /** Which routine notices this device has already acknowledged. */
+  readonly acknowledgements?: {
+    readonly read: () => readonly Acknowledgement[];
+    readonly write: (acknowledged: readonly Acknowledgement[]) => void;
+  };
 }
 
 export interface LifecycleOptions {
@@ -126,6 +162,7 @@ export const idleLifecycleSnapshot: LifecycleSnapshot = {
   update: "current",
   install: "unavailable",
   offlineReady: false,
+  acknowledged: new Set<Acknowledgement>(),
 };
 
 export function createAppLifecycle(options: LifecycleOptions): AppLifecycle {
@@ -136,6 +173,8 @@ export function createAppLifecycle(options: LifecycleOptions): AppLifecycle {
     connectivity:
       ports.connectivity?.isOnline() === false ? "offline" : "online",
     install: ports.installPrompt?.isInstalled() ? "installed" : "unavailable",
+    offlineReady: ports.shellStatus?.isControlled() === true,
+    acknowledged: new Set(ports.acknowledgements?.read() ?? []),
   };
   let pendingPrompt: InstallPromptLike | undefined;
   let activateWaitingShell: ((reload: boolean) => Promise<void>) | undefined;
@@ -153,6 +192,19 @@ export function createAppLifecycle(options: LifecycleOptions): AppLifecycle {
   } else if (recorded !== dataVersion) {
     ports.shellRecord?.write(dataVersion);
   }
+
+  ports.shellStatus?.subscribe(() => {
+    if (ports.shellStatus?.isControlled() && !snapshot.offlineReady) {
+      publish({ offlineReady: true });
+    }
+  });
+
+  const acknowledge = (what: Acknowledgement) => {
+    if (snapshot.acknowledged.has(what)) return;
+    const acknowledged = new Set(snapshot.acknowledged).add(what);
+    ports.acknowledgements?.write([...acknowledged]);
+    publish({ acknowledged });
+  };
 
   ports.connectivity?.subscribe(() => {
     publish({
@@ -240,7 +292,10 @@ export function createAppLifecycle(options: LifecycleOptions): AppLifecycle {
       }
     },
     dismissOfflineReady() {
-      if (snapshot.offlineReady) publish({ offlineReady: false });
+      acknowledge("offline-ready");
+    },
+    dismissInstall() {
+      acknowledge("install");
     },
   };
 }

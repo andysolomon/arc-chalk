@@ -44,6 +44,7 @@ import type { PlaySearchProjection } from "@chalk/local-db";
 import { useMemo, useState } from "react";
 
 import type { ChalkLibrary, LibrarySnapshot } from "../app/editor-runtime";
+import { UnitBadge } from "../components/unit-badge";
 import { agoStamp } from "../components/ago-stamp";
 import { openPrintWindow } from "../components/print-window";
 import { UNCLASSIFIED, typeChipsFor } from "./type-chips";
@@ -248,6 +249,7 @@ function PlanList({
               <button
                 aria-pressed={unit === choice.id}
                 className={unit === choice.id ? "active" : undefined}
+                data-unit={choice.id}
                 key={choice.id}
                 onClick={() => setUnit(choice.id)}
                 type="button"
@@ -332,7 +334,7 @@ function PlanList({
                   >
                     <strong>{plan.name}</strong>
                     <span>
-                      {unitName(plan.unit)}
+                      <UnitBadge unit={plan.unit} />
                       {subtitle ? ` · ${subtitle}` : ""}
                       {` · ${plan.calls.length} ${plan.calls.length === 1 ? "call" : "calls"}`}
                       {` · ${plan.preparedRevisionId ? "Prepared" : status.text}`}
@@ -719,7 +721,9 @@ function PlanEditor({
           }}
           spellCheck={false}
         />
-        <span className="game-plans-count">{unitName(plan.unit)}</span>
+        <span className="game-plans-count">
+          <UnitBadge unit={plan.unit} />
+        </span>
         <button
           aria-label="Close game plans"
           className="browser-close"
@@ -1197,6 +1201,7 @@ function AddPlaysPanel({
         {[{ id: "all" as const, name: "All" }, ...playUnits].map((choice) => (
           <button
             className={`chip${unit === choice.id ? " active" : ""}`}
+            data-unit={choice.id === "all" ? undefined : choice.id}
             key={choice.id}
             onClick={() => {
               setUnit(choice.id);

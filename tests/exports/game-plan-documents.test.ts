@@ -102,7 +102,7 @@ describe("game plan call sheet", () => {
     const html = gamePlanCallSheetHtml(revision);
     expect(html).toContain('<h1>Week 3 &lt;"Central"&gt;</h1>');
     expect(html).toContain(
-      "Homecoming · vs Central &amp; Sons · Offense · Prepared 13 Sep 2026 · Thursday",
+      'Homecoming · vs Central &amp; Sons · <span class="ub" data-unit="offense">Offense</span> · Prepared 13 Sep 2026 · Thursday',
     );
     expect(html.indexOf("<h2>Openers</h2>")).toBeLessThan(
       html.indexOf("<h2>3rd down</h2>"),
@@ -299,7 +299,7 @@ describe("game plan handout", () => {
     ]);
     expect(html).toContain('<div class="pg cov">');
     expect(html).toContain(
-      "Homecoming · vs Central &amp; Sons · Offense · Prepared 13 Sep 2026 · Thursday",
+      'Homecoming · vs Central &amp; Sons · <span class="ub" data-unit="offense">Offense</span> · Prepared 13 Sep 2026 · Thursday',
     );
     expect(html).toContain("2026 season · 3 calls");
     const contents = html.slice(

@@ -6,6 +6,7 @@ import {
   type Formation,
   type GamePlanRevision,
   type PlayDocument,
+  type PlayUnit,
 } from "@chalk/domain";
 import {
   binderHtml,
@@ -69,6 +70,8 @@ export interface ResolvedSource {
   /** "prepared 13 Sep 2026" or "current plays" — which copy of the plays. */
   readonly copy?: string;
   readonly unit?: string;
+  /** The same Unit as an id, for badges on paper. */
+  readonly unitId?: PlayUnit;
   readonly order: string;
 }
 
@@ -306,6 +309,7 @@ export function buildOutputDocument(
             year: context.year,
             title: source.label,
             ...(source.unit ? { subtitle: source.unit } : {}),
+            ...(source.unitId ? { unit: source.unitId } : {}),
             ...(revisionLine ? { revisionLine } : {}),
           },
           options.pageMap,

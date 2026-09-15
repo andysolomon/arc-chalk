@@ -1,6 +1,5 @@
 import {
   revisionRows,
-  unitName,
   type CallRow,
   type Formation,
   type GamePlan,
@@ -14,6 +13,7 @@ import type { DiagramRenderer } from "./diagram";
 import { WRISTBAND_DIAGRAM_OPTIONS } from "./print-documents";
 import { preparedStamp } from "./game-plan-documents";
 import { escapeHtml, printDocumentHtml } from "./print-documents";
+import { unitBadgeHtml } from "./unit-badge";
 
 /**
  * A coordinator's call sheet, configured rather than assumed (issue #70):
@@ -444,11 +444,12 @@ export function configuredCallSheetHtml(
     printed === total
       ? `${total} calls`
       : `${printed} of ${total} calls — ${total - printed} left off this sheet`;
+  // Each part escaped on its own: the Unit is a badge, not text.
   const meta = [
-    revision.plan.opponent ? `vs ${revision.plan.opponent}` : "",
-    revision.plan.gameLabel ?? "",
-    unitName(revision.plan.unit),
-    preparedStamp(revision),
+    escapeHtml(revision.plan.opponent ? `vs ${revision.plan.opponent}` : ""),
+    escapeHtml(revision.plan.gameLabel ?? ""),
+    unitBadgeHtml(revision.plan.unit),
+    escapeHtml(preparedStamp(revision)),
   ]
     .filter((part) => part.length > 0)
     .join(" · ");
@@ -474,7 +475,7 @@ export function configuredCallSheetHtml(
           : "";
       return (
         `<div class="side${config.density === "compact" ? " compact" : ""}">` +
-        `<div class="hd"><h1>${escapeHtml(revision.plan.name)} — ${escapeHtml(template.name)}</h1><div class="meta">${escapeHtml(meta)}${
+        `<div class="hd"><h1>${escapeHtml(revision.plan.name)} — ${escapeHtml(template.name)}</h1><div class="meta">${meta}${
           sides.length > 1 ? `<br>Side ${side} of ${sides.length}` : ""
         }</div></div>` +
         `<div class="wrap${notes ? " notes" : ""}"><div class="cols">${columns}</div>${notes}</div>` +
