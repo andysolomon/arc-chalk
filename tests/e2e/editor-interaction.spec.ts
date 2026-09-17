@@ -177,9 +177,7 @@ test("trashes the selection from the tool rail", async ({ page }) => {
 
   const start = await playerCenter(page, "x");
   await page.mouse.click(start.x, start.y);
-  await expect(page.locator('[data-scene-player="x"]')).toHaveClass(
-    /selected/,
-  );
+  await expect(page.locator('[data-scene-player="x"]')).toHaveClass(/selected/);
   await expect(trash).toBeEnabled();
 
   await trash.click();
