@@ -4273,6 +4273,17 @@ button.library-dot.target.small {
     0 0 0 1px rgba(0, 0, 0, 0.08),
     0 18px 40px -12px rgba(0, 0, 0, 0.28);
 }
+/*
+ * On a tablet the overlay browsers shrink to their cards, which on a short
+ * Playbook is a small sheet in the middle of the glass. Floor them at most
+ * of the overlay so a finger has room to scan (issue #68). A fine pointer
+ * at the parity viewport never sees this.
+ */
+@media (pointer: coarse) {
+  .browser-overlay:not(.embedded) .browser {
+    min-height: 88%;
+  }
+}
 .browser-head {
   display: flex;
   align-items: center;

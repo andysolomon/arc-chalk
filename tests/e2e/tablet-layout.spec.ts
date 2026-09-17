@@ -172,5 +172,39 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(search).toBeFocused();
       await noHorizontalOverflow(page);
     });
+
+    test("gives overlay browsers most of the glass", async ({ page }) => {
+      // Below the editor floor the Play is a page, not a dialog over the field.
+      if (viewport.width < 668) return;
+      await page.goto("/");
+      if (viewport.width < 1024) {
+        await page.getByRole("button", { name: "Inspector" }).click();
+      }
+      const inspector = page.getByRole("complementary", {
+        name: "Play inspector",
+      });
+      await expect(inspector).toBeVisible();
+
+      await page.getByTitle("Browse formations — ⇧⌘F").click();
+      const formations = page.getByRole("dialog", { name: "Formations" });
+      await expect(formations).toBeVisible();
+      expect((await box(formations)).height).toBeGreaterThanOrEqual(
+        viewport.height * 0.8,
+      );
+      await page.keyboard.press("Escape");
+      await expect(formations).toHaveCount(0);
+
+      const library = inspector.getByRole("button", { name: /^Library/ });
+      if ((await library.getAttribute("aria-expanded")) === "false") {
+        await library.click();
+      }
+      await inspector.getByRole("button", { name: "Browse Playbook" }).click();
+      const playbook = page.getByRole("dialog", { name: "Playbook" });
+      await expect(playbook).toBeVisible();
+      expect((await box(playbook)).height).toBeGreaterThanOrEqual(
+        viewport.height * 0.8,
+      );
+      await noHorizontalOverflow(page);
+    });
   });
 }
