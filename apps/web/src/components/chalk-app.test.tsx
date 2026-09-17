@@ -2134,7 +2134,9 @@ describe("Chalk editor overlays", () => {
     const bar = screen.getByLabelText("Playback controls");
     expect(bar).toBeVisible();
     expect(within(bar).getByRole("button", { name: "Play" })).toBeVisible();
-    expect(within(bar).getByRole("button", { name: "Reset positions" })).toBeVisible();
+    expect(
+      within(bar).getByRole("button", { name: "Reset positions" }),
+    ).toBeVisible();
     expect(
       within(bar).getByRole("slider", { name: "Scrub the play" }),
     ).toBeVisible();

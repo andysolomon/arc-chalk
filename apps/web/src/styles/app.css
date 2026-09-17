@@ -377,6 +377,7 @@ button.play-type.open {
   width: 224px;
 }
 .topbar > .new-play,
+.topbar > .reset-positions,
 .topbar > .present {
   padding: 0 10px;
 }
@@ -3920,7 +3921,9 @@ button.library-dot.target.small {
 /* A header that cannot hold everything on one row breaks after the play's
    name and type, and the actions take a second row, right-aligned — rather
    than shedding Undo, Present or Help where a finger needs them most. */
-@media (max-width: 1023px), (max-width: 1100px) and (pointer: coarse) {
+/* Reset positions joined New play and Present; at 1180 with finger-sized
+   controls the row no longer fits, so the break moves up with them. */
+@media (max-width: 1023px), (max-width: 1240px) and (pointer: coarse) {
   .topbar {
     flex-wrap: wrap;
     height: auto;
@@ -3968,6 +3971,7 @@ button.library-dot.target.small {
 }
 @media (max-width: 667px) {
   .topbar > .new-play,
+  .topbar > .reset-positions,
   .topbar > .present,
   .topbar > .divider,
   .topbar .play-type {
