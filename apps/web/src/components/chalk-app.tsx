@@ -5494,6 +5494,23 @@ export function ChalkApp({
               <RailIcon glyph="snap" />
             </button>
             <button
+              aria-label="Delete selection — ⌫"
+              className="rail-trash"
+              disabled={
+                interaction.selection.length === 0 && !interaction.drawing
+              }
+              onClick={() => dispatchField({ type: "delete" })}
+              title="Delete selection — ⌫"
+              type="button"
+            >
+              <RailIcon glyph="trash" />
+              {railLabels ? (
+                <span className="rail-label" aria-hidden="true">
+                  Trash
+                </span>
+              ) : null}
+            </button>
+            <button
               className="rail-collapse"
               aria-label="Hide the tools"
               onClick={() => setRailOpen(false)}
