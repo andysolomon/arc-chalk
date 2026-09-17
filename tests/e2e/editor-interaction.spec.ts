@@ -433,6 +433,12 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
 test("copies a Player and pastes him as a new one", async ({ page }) => {
   await openEditor(page);
 
+  // Stick Thunder is already eleven deep; clear one so the paste has room.
+  const spare = await playerCenter(page, "y");
+  await page.mouse.click(spare.x, spare.y);
+  await page.keyboard.press("Backspace");
+  await expect(page.locator("[data-scene-player]")).toHaveCount(10);
+
   const start = await playerCenter(page, "q");
   await page.mouse.click(start.x, start.y);
   await expect(page.locator('[data-scene-player="q"]')).toHaveClass("selected");
@@ -440,7 +446,7 @@ test("copies a Player and pastes him as a new one", async ({ page }) => {
   await page.keyboard.press("ControlOrMeta+c");
   await page.keyboard.press("ControlOrMeta+v");
 
-  await expect(page.locator("[data-scene-player]")).toHaveCount(12);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
   // The original stayed where he was; the copy is selected, not him.
   await expect(page.locator('[data-scene-player="q"]')).not.toHaveClass(
     "selected",
@@ -450,7 +456,7 @@ test("copies a Player and pastes him as a new one", async ({ page }) => {
   const undo = page.getByRole("button", { name: "Undo" });
   await expect(undo).toHaveAttribute("title", "Undo Paste");
   await undo.click();
-  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(10);
 });
 
 test("mirrors the whole Play and back again from the More menu", async ({
@@ -1006,24 +1012,28 @@ test("puts the men in another set, carries their routes, and takes it all back a
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
 });
 
-test("brings on the man a set needs, and leaves the one it has no place for", async ({
+test("brings on the man a set needs once there is room on the side", async ({
   page,
 }) => {
   await openEditor(page);
 
-  // Gun Spread plays two slots where this Play has a slot and a tight end, so
-  // one man is brought on for the empty slot and the tight end stays where he
-  // is rather than being made into something he is not.
+  // Gun Spread wants a slot this Play does not have (A) and has no place for
+  // the tight end (Y). Eleven are already on, so clear Y first — that leaves
+  // room under the cap for the man the set brings on, without a twelfth.
+  const tightEnd = await playerCenter(page, "y");
+  await page.mouse.click(tightEnd.x, tightEnd.y);
+  await page.keyboard.press("Backspace");
+  await expect(page.locator("[data-scene-player]")).toHaveCount(10);
+
   await page.getByTitle("Browse formations — ⇧⌘F").click();
   const browser = page.getByRole("dialog", { name: "Formations" });
   await browser.getByRole("button", { name: "10", exact: true }).click();
   await expect(browser.getByText("Gun Trips Right")).toBeHidden();
   await browser.getByText("Gun Spread Right", { exact: true }).click();
 
-  await expect(page.locator("[data-scene-player]")).toHaveCount(12);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
   const toast = page.getByRole("status");
   await expect(toast).toContainText("1 added");
-  await expect(toast).toContainText("1 left in place");
 
   // A man brought on is the one thing the Coach did not draw himself, so the
   // set hands him over ready to adjust rather than leaving him to be found.
@@ -1034,7 +1044,7 @@ test("brings on the man a set needs, and leaves the one it has no place for", as
 
   // All of it — the move, the man brought on — is one step back.
   await page.keyboard.press("Control+z");
-  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(10);
 });
 
 test("names the set on the field, and shows where another one would put the men", async ({
