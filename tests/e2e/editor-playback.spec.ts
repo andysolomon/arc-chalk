@@ -61,7 +61,9 @@ test("plays the seeded Play and leaves it editable at a frozen frame", async ({
   await expect(page.getByText("Timing")).toBeVisible();
   await expect(page.getByLabel("Delay")).toBeEnabled();
 
-  await bar.getByRole("button", { name: "Reset", exact: true }).click();
+  await bar
+    .getByRole("button", { name: "Reset positions", exact: true })
+    .click();
   await expect(x).toHaveAttribute("transform", stance!);
 });
 
