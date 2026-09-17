@@ -1,5 +1,6 @@
 import {
   NEW_LABEL_DEFAULTS,
+  canAddPlayerToSide,
   type PlayCommand,
   type PlayDocument,
 } from "@chalk/domain";
@@ -213,6 +214,11 @@ function pointerDown(
   }
 
   if (context.tool === "player") {
+    // Eleven to a side: once this unit's side of the LOS is full, another
+    // click does not stack a twelfth man on top of the set.
+    if (!canAddPlayerToSide(context.document, context.document.unit)) {
+      return { model };
+    }
     // The original places the new man exactly where the Coach pressed.
     const createId = context.createId ?? ((prefix: string) => `${prefix}_new`);
     const id = createId("player");
