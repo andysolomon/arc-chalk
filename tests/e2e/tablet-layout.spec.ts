@@ -189,7 +189,7 @@ for (const [label, viewport] of VIEWPORTS) {
       const formations = page.getByRole("dialog", { name: "Formations" });
       await expect(formations).toBeVisible();
       expect((await box(formations)).height).toBeGreaterThanOrEqual(
-        viewport.height * 0.8,
+        viewport.height * 0.85,
       );
       await page.keyboard.press("Escape");
       await expect(formations).toHaveCount(0);
@@ -202,7 +202,7 @@ for (const [label, viewport] of VIEWPORTS) {
       const playbook = page.getByRole("dialog", { name: "Playbook" });
       await expect(playbook).toBeVisible();
       expect((await box(playbook)).height).toBeGreaterThanOrEqual(
-        viewport.height * 0.8,
+        viewport.height * 0.85,
       );
       await noHorizontalOverflow(page);
     });
