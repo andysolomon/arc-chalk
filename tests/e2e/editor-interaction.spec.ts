@@ -168,6 +168,31 @@ test("marquee selects the line and deletes it as one step", async ({
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
 });
 
+test("trashes the selection from the tool rail", async ({ page }) => {
+  await openEditor(page);
+
+  const rail = page.getByRole("navigation", { name: "Drawing tools" });
+  const trash = rail.getByRole("button", { name: "Delete selection — ⌫" });
+  await expect(trash).toBeDisabled();
+
+  const start = await playerCenter(page, "x");
+  await page.mouse.click(start.x, start.y);
+  await expect(page.locator('[data-scene-player="x"]')).toHaveClass(
+    /selected/,
+  );
+  await expect(trash).toBeEnabled();
+
+  await trash.click();
+  await expect(page.locator('[data-scene-player="x"]')).toHaveCount(0);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(10);
+  await expect(trash).toBeDisabled();
+
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", /Undo Delete/);
+  await undo.click();
+  await expect(page.locator('[data-scene-player="x"]')).toHaveCount(1);
+});
+
 test("Escape abandons a drag; arrows nudge as their keyboard alternative", async ({
   page,
 }) => {
