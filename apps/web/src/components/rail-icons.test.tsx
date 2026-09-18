@@ -18,7 +18,7 @@ const paths = (glyph: RailGlyph): string[] => {
 };
 
 describe("RailIcon", () => {
-  it("is the original's 18-unit artwork, including erase and snap below Text", () => {
+  it("is the original's 18-unit artwork, including erase, snap, and trash below Text", () => {
     expect(paths("select")).toEqual([
       "M4.5 2.5 L4.5 14.5 L8 11.6 L10 16 L12 15.1 L10 10.8 L14.5 10.5 Z",
     ]);
@@ -40,6 +40,13 @@ describe("RailIcon", () => {
       "M3 15.2 L15 15.2",
       "M6.4 15.2 L3.6 12.1 L10.2 3.6 L14 6.4 Z",
       "M7.2 9.1 L11.4 12.2",
+    ]);
+    expect(paths("trash")).toEqual([
+      "M4 5.5 L14 5.5",
+      "M7 5.5 L7 3.8 L11 3.8 L11 5.5",
+      "M5.5 5.5 L6.3 14.5 L11.7 14.5 L12.5 5.5",
+      "M8 8 L8 12",
+      "M10 8 L10 12",
     ]);
 
     const { container: text } = render(<RailIcon glyph="text" />);
