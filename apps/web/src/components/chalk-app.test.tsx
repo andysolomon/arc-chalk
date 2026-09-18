@@ -1330,14 +1330,16 @@ describe("Inspector progressive disclosure (issue #64)", () => {
       name: "Concepts and line calls",
     });
     // Opened from the concept row it shows concepts; All brings both back.
+    // Search stays unfocused so a click on Concept/Line does not steal typing.
+    const search = within(picker).getByLabelText(
+      "Search concepts and line calls",
+    );
+    expect(search).not.toHaveFocus();
     expect(within(picker).getByText("CONCEPTS")).toBeVisible();
     expect(within(picker).queryByText("LINE CALLS")).toBeNull();
     await user.click(within(picker).getByRole("button", { name: "All" }));
     expect(within(picker).getByText("LINE CALLS")).toBeVisible();
-    await user.type(
-      within(picker).getByLabelText("Search concepts and line calls"),
-      "smash",
-    );
+    await user.type(search, "smash");
     expect(within(picker).queryByText("LINE CALLS")).toBeNull();
     await user.keyboard("{Enter}");
 
