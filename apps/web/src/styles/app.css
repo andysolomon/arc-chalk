@@ -989,6 +989,14 @@ button.play-type.open {
 .tool-rail .snap-toggle[aria-pressed="false"] {
   color: #b4b4b4;
 }
+.tool-rail .rail-trash:disabled {
+  color: #c8c8c8;
+  cursor: default;
+}
+.tool-rail .rail-trash:disabled:hover {
+  background: transparent;
+  color: #c8c8c8;
+}
 .rail-spacer {
   flex: 1;
 }

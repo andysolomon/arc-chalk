@@ -24,7 +24,8 @@ export type RailGlyph =
   | "zone"
   | "text"
   | "snap"
-  | "erase";
+  | "erase"
+  | "trash";
 
 const icons: Record<RailGlyph, ReactNode> = {
   select: (
@@ -86,6 +87,15 @@ const icons: Record<RailGlyph, ReactNode> = {
       <path d="M3 15.2 L15 15.2" {...stroke} />
       <path d="M6.4 15.2 L3.6 12.1 L10.2 3.6 L14 6.4 Z" {...stroke} />
       <path d="M7.2 9.1 L11.4 12.2" {...stroke} />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M4 5.5 L14 5.5" {...stroke} />
+      <path d="M7 5.5 L7 3.8 L11 3.8 L11 5.5" {...stroke} />
+      <path d="M5.5 5.5 L6.3 14.5 L11.7 14.5 L12.5 5.5" {...stroke} />
+      <path d="M8 8 L8 12" {...stroke} />
+      <path d="M10 8 L10 12" {...stroke} />
     </>
   ),
 };
