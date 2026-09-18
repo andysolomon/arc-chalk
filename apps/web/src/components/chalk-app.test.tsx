@@ -263,6 +263,42 @@ describe("Chalk application shell", () => {
     expect(snap).toHaveAttribute("aria-pressed", "true");
     await user.keyboard("s");
     expect(snap).toHaveAttribute("aria-pressed", "false");
+
+    const trash = within(rail).getByRole("button", {
+      name: "Delete selection — ⌫",
+    });
+    expect(trash).toBeDisabled();
+    expect(trash.querySelectorAll("path")).toHaveLength(5);
+    expect(trash.querySelector("path")).toHaveAttribute("d", "M4 5.5 L14 5.5");
+    expect(trash.querySelector("g")).toBeNull();
+  });
+
+  it("trashes the selected object from the tool rail", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+    const rail = screen.getByRole("navigation", { name: "Drawing tools" });
+    const trash = within(rail).getByRole("button", {
+      name: "Delete selection — ⌫",
+    });
+    const fieldList = screen.getByRole("list", {
+      name: "Everything on the field",
+    });
+
+    expect(trash).toBeDisabled();
+    expect(
+      within(fieldList).getByRole("button", { name: "X route" }),
+    ).toBeVisible();
+
+    await user.click(
+      within(fieldList).getByRole("button", { name: "X route" }),
+    );
+    expect(trash).toBeEnabled();
+
+    await user.click(trash);
+    expect(
+      within(fieldList).queryByRole("button", { name: "X route" }),
+    ).toBeNull();
+    expect(trash).toBeDisabled();
   });
 
   it("drives the live camera controls and tells the truth about the idle formation", async () => {
