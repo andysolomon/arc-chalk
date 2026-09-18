@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 
 import { PRESET_GROUP_NAMES, type PresetChoice } from "./preset-choices";
 
@@ -123,10 +123,6 @@ export function PresetPicker({
   const [group, setGroup] = useState<PresetChoice["group"] | "all">(
     initialGroup ?? "all",
   );
-  const input = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    input.current?.focus();
-  }, []);
 
   const search = query.trim().toLowerCase();
   const matches = (choice: PresetChoice) =>
@@ -190,7 +186,6 @@ export function PresetPicker({
               }
             }}
             placeholder="Search — stick, slide, reach…"
-            ref={input}
             spellCheck={false}
             value={query}
           />
