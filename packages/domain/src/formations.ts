@@ -139,9 +139,57 @@ export function assignRoles(
   return roles;
 }
 
+/**
+ * Eleven men to a side of the ball — the rule every Play is drawn under.
+ * Offense (and special teams) share one side of the LOS; defense the other.
+ */
+export const MAX_PLAYERS_PER_SIDE = 11;
+
+/** Which side of the LOS a man's unit stands on. */
+export type PlayerSideOfBall = "offense" | "defense";
+
+export function sideOfBallForUnit(unit: Player["unit"]): PlayerSideOfBall {
+  return unit === "defense" ? "defense" : "offense";
+}
+
 /** The men a Formation is about: the ones playing the side it aligns. */
 export function offensivePlayers(play: PlayDocument): readonly Player[] {
   return play.players.filter((player) => player.unit !== "defense");
+}
+
+export function defensivePlayers(play: PlayDocument): readonly Player[] {
+  return play.players.filter((player) => player.unit === "defense");
+}
+
+export function playersOnSideOfBall(
+  play: PlayDocument,
+  side: PlayerSideOfBall,
+): readonly Player[] {
+  return side === "defense" ? defensivePlayers(play) : offensivePlayers(play);
+}
+
+/** Whether another man can still join this side of the LOS. */
+export function canAddPlayerToSide(
+  play: PlayDocument,
+  unit: Player["unit"],
+): boolean {
+  return (
+    playersOnSideOfBall(play, sideOfBallForUnit(unit)).length <
+    MAX_PLAYERS_PER_SIDE
+  );
+}
+
+/**
+ * How many more men of each side may still be added before hitting eleven.
+ * Used when pasting a mix of offense and defense in one gesture.
+ */
+export function remainingPlayerSlotsBySide(
+  play: PlayDocument,
+): Readonly<Record<PlayerSideOfBall, number>> {
+  return {
+    offense: Math.max(0, MAX_PLAYERS_PER_SIDE - offensivePlayers(play).length),
+    defense: Math.max(0, MAX_PLAYERS_PER_SIDE - defensivePlayers(play).length),
+  };
 }
 
 /**
@@ -386,10 +434,19 @@ export function applyFormation(
 
   const addedPlayerIds: string[] = [];
   const added: Player[] = [];
+  // Vacancies that would push a side past eleven are left empty — the set
+  // still realigns who is already on the field.
+  const filledVacancies: FormationSlot[] = [];
   if (options.addMissingPlayers !== false) {
+    let offenseOnField = offensivePlayers(play).length;
+    let defenseOnField = defensivePlayers(play).length;
     for (const slot of plan.vacancies) {
+      const side = sideOfBallForUnit(slot.unit);
+      const onField = side === "defense" ? defenseOnField : offenseOnField;
+      if (onField >= MAX_PLAYERS_PER_SIDE) continue;
       const id = createId("player");
       addedPlayerIds.push(id);
+      filledVacancies.push(slot);
       added.push({
         id,
         unit: slot.unit,
@@ -400,13 +457,15 @@ export function applyFormation(
         fill: slot.fill,
         color: slot.color,
       });
+      if (side === "defense") defenseOnField += 1;
+      else offenseOnField += 1;
     }
   }
 
   const bound = [
     ...plan.pairs.map(({ playerId, slot }) => ({ slotId: slot.id, playerId })),
     ...added.map((player, index) => ({
-      slotId: plan.vacancies[index]!.id,
+      slotId: filledVacancies[index]!.id,
       playerId: player.id,
     })),
   ];
