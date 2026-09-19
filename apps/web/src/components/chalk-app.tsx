@@ -255,7 +255,6 @@ import {
   ShortcutReference,
   type WristbandPicker,
 } from "./editor-overlays";
-import { emptyDefenseGuidance } from "./empty-defense-guidance";
 import {
   Disclosure,
   Hint,
@@ -3825,12 +3824,6 @@ export function ChalkApp({
     () => currentDefensiveCall(editor.document, stockDefensiveCalls),
     [editor.document],
   );
-  const defenseGuidance = emptyDefenseGuidance({
-    view: activeView,
-    overlayOpen: overlay !== null,
-    animating: showAnimation,
-    players: editor.document.players,
-  });
   /**
    * Putting a call on the field. Only one defense can be on at a time, so
    * this replaces rather than adds, and says what it cost him.
@@ -5620,18 +5613,6 @@ export function ChalkApp({
               onCamera={setCamera}
               players={editor.document.players}
             />
-            {defenseGuidance.show ? (
-              <button
-                aria-label="Add a defense"
-                className="empty-defense-cta"
-                onClick={() => setOverlay("defenses")}
-                title="Add a defense — ⇧⌘D"
-                type="button"
-              >
-                <span aria-hidden="true">Add a defense</span>
-                <kbd aria-hidden="true">⇧⌘D</kbd>
-              </button>
-            ) : null}
             {toast ? (
               <div className="toast" role="status">
                 <span>
