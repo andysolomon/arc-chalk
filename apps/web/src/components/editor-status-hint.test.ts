@@ -88,6 +88,17 @@ describe("what the status bar says on the left", () => {
       }),
     ).toBe(DEMO_STATUS_HINT);
   });
+  it("says when this side of the LOS already has eleven men", () => {
+    expect(
+      editorStatusHint({
+        view: "editor",
+        tool: "player",
+        atFit: true,
+        selectionCount: 0,
+        playerSideFull: true,
+      }),
+    ).toBe("11 players on this side of the LOS — delete one to place another");
+  });
 });
 
 describe("the first blank field (issue #65)", () => {

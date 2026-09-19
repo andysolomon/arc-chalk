@@ -458,7 +458,12 @@ describe("field interaction keyboard", () => {
 
 describe("field interaction tools", () => {
   it("places a new Player exactly where the Coach pressed", () => {
-    const context = contextFor(stickThunderPlay, {
+    // Stick Thunder is already eleven deep; clear one so there is room.
+    const room = applyPlayCommand(
+      stickThunderPlay,
+      deletePlayersCommand(stickThunderPlay, ["q"]),
+    );
+    const context = contextFor(room, {
       tool: "player",
       createId: (prefix) => `${prefix}_test`,
     });
@@ -467,11 +472,42 @@ describe("field interaction tools", () => {
     expect(session.commands).toHaveLength(1);
     expect(session.model.selection).toEqual([player("player_test")]);
 
-    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    const after = applyPlayCommand(room, session.commands[0]!);
     const added = after.players.find(({ id }) => id === "player_test")!;
     expect(added.position).toEqual(spot);
-    expect(added.unit).toBe(stickThunderPlay.unit);
+    expect(added.unit).toBe(room.unit);
     expect(added.symbol).toBe("circle");
+  });
+
+  it("refuses a twelfth Player on a side that already has eleven", () => {
+    // Stick Thunder is a full offensive eleven; the Player tool must not
+    // stack a twelfth man on that side of the LOS.
+    expect(
+      stickThunderPlay.players.filter(({ unit }) => unit !== "defense"),
+    ).toHaveLength(11);
+    const context = contextFor(stickThunderPlay, {
+      tool: "player",
+      createId: (prefix) => `${prefix}_overflow`,
+    });
+    const session = run(context, [down({ lateralYards: 25, depthYards: -12 })]);
+    expect(session.commands).toHaveLength(0);
+    expect(session.model.selection).toEqual([]);
+  });
+
+  it("places again once a man is cleared from a full side", () => {
+    const thinned = applyPlayCommand(
+      stickThunderPlay,
+      deletePlayersCommand(stickThunderPlay, ["q"]),
+    );
+    const context = contextFor(thinned, {
+      tool: "player",
+      createId: (prefix) => `${prefix}_room`,
+    });
+    const spot = { lateralYards: 2, depthYards: -6 };
+    const session = run(context, [down(spot)]);
+    expect(session.commands).toHaveLength(1);
+    const after = applyPlayCommand(thinned, session.commands[0]!);
+    expect(after.players).toHaveLength(thinned.players.length + 1);
   });
 
   it("moves an existing Player under the Player tool instead of stacking a new one", () => {
@@ -1570,9 +1606,16 @@ describe("field interaction labels", () => {
 });
 
 describe("field interaction copy, paste, and mirror", () => {
+  // Stick Thunder is a full eleven; paste and duplicate need room on that
+  // side of the LOS. Drop two unlabeled linemen so the tests still have the
+  // lettered men they copy (X, Q, H) while leaving slots to fill.
+  const pasteRoom = applyPlayCommand(
+    stickThunderPlay,
+    deletePlayersCommand(stickThunderPlay, ["ol0", "ol1"]),
+  );
   const clipContext = (overrides: Partial<FieldInteractionContext> = {}) => {
     let next = 0;
-    return contextFor(stickThunderPlay, {
+    return contextFor(pasteRoom, {
       snap: { enabled: false, grid: "off" },
       createId: (prefix) => `${prefix}_${(next += 1)}`,
       ...overrides,
@@ -1600,13 +1643,13 @@ describe("field interaction copy, paste, and mirror", () => {
       kind: "batch",
       label: "Paste",
     });
-    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
-    expect(after.players).toHaveLength(stickThunderPlay.players.length + 1);
-    expect(after.paths).toHaveLength(stickThunderPlay.paths.length + 1);
+    const after = applyPlayCommand(pasteRoom, session.commands[0]!);
+    expect(after.players).toHaveLength(pasteRoom.players.length + 1);
+    expect(after.paths).toHaveLength(pasteRoom.paths.length + 1);
 
     // The originals are untouched.
-    expect(positionOf(after, "x")).toEqual(positionOf(stickThunderPlay, "x"));
-    expect(pathOf(after, "rx")).toEqual(pathOf(stickThunderPlay, "rx"));
+    expect(positionOf(after, "x")).toEqual(positionOf(pasteRoom, "x"));
+    expect(pathOf(after, "rx")).toEqual(pathOf(pasteRoom, "rx"));
 
     // The copy is offset, and its route runs from the copied man.
     const copiedPlayer = after.players.at(-1)!;
@@ -1614,18 +1657,18 @@ describe("field interaction copy, paste, and mirror", () => {
     expect(copiedPlayer.id).not.toBe("x");
     expect(copiedPath.playerId).toBe(copiedPlayer.id);
     expect(copiedPlayer.position.lateralYards).toBeGreaterThan(
-      positionOf(stickThunderPlay, "x").lateralYards,
+      positionOf(pasteRoom, "x").lateralYards,
     );
     expect(copiedPlayer.position.depthYards).toBeLessThan(
-      positionOf(stickThunderPlay, "x").depthYards,
+      positionOf(pasteRoom, "x").depthYards,
     );
     // Everything the copy is made of moved by the same amount.
     const shift =
       copiedPlayer.position.lateralYards -
-      positionOf(stickThunderPlay, "x").lateralYards;
+      positionOf(pasteRoom, "x").lateralYards;
     copiedPath.points.forEach((point, index) => {
       expect(point.lateralYards).toBeCloseTo(
-        pathOf(stickThunderPlay, "rx").points[index]!.lateralYards + shift,
+        pathOf(pasteRoom, "rx").points[index]!.lateralYards + shift,
         6,
       );
     });
@@ -1635,17 +1678,27 @@ describe("field interaction copy, paste, and mirror", () => {
     ]);
   });
 
+  it("does not paste a twelfth Player onto a full side of the LOS", () => {
+    const context = clipContext({ document: stickThunderPlay });
+    const session = run(context, [{ type: "copy" }, { type: "paste" }], {
+      selection: [player("x"), path("rx")],
+      gesture: { kind: "idle" },
+    });
+    // The man is skipped; his route goes with him. Nothing lands.
+    expect(session.commands).toHaveLength(0);
+  });
+
   it("keeps a route attached to its man when he was left behind", () => {
     const context = clipContext();
     const session = run(context, [{ type: "copy" }, { type: "paste" }], {
       selection: [path("rx")],
       gesture: { kind: "idle" },
     });
-    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    const after = applyPlayCommand(pasteRoom, session.commands[0]!);
     // The schema has no way to say "attached to nobody", so the copy runs
     // from the same man rather than becoming an orphan.
     expect(after.paths.at(-1)!.playerId).toBe("x");
-    expect(after.players).toHaveLength(stickThunderPlay.players.length);
+    expect(after.players).toHaveLength(pasteRoom.players.length);
   });
 
   it("rebinds a copied note to the copied route, and frees one left behind", () => {
@@ -1694,7 +1747,7 @@ describe("field interaction copy, paste, and mirror", () => {
       gesture: { kind: "idle" },
     });
     const first = run(context, [{ type: "paste" }], copied.model);
-    const once = applyPlayCommand(stickThunderPlay, first.commands[0]!);
+    const once = applyPlayCommand(pasteRoom, first.commands[0]!);
     const second = run(
       contextFor(once, {
         snap: { enabled: false, grid: "off" },
@@ -1706,7 +1759,7 @@ describe("field interaction copy, paste, and mirror", () => {
         : first.model,
     );
     const twice = applyPlayCommand(once, second.commands[0]!);
-    expect(twice.players).toHaveLength(stickThunderPlay.players.length + 2);
+    expect(twice.players).toHaveLength(pasteRoom.players.length + 2);
     // Both copies come from the same clipboard, so they land together —
     // matching the original, which offsets from the source every time.
     expect(twice.players.at(-1)!.position).toEqual(
@@ -1724,7 +1777,7 @@ describe("field interaction copy, paste, and mirror", () => {
       ...copied.model,
       selection: [player("h")],
     });
-    const after = applyPlayCommand(stickThunderPlay, duplicated.commands[0]!);
+    const after = applyPlayCommand(pasteRoom, duplicated.commands[0]!);
     // H was duplicated, not the Quarterback that sits on the clipboard.
     expect(after.players.at(-1)!.label).toBe("H");
     expect(duplicated.model.clipboard).toEqual(copied.model.clipboard);
@@ -1735,14 +1788,14 @@ describe("field interaction copy, paste, and mirror", () => {
     const session = run(context, [{ type: "mirror" }]);
     expect(session.commands[0]).toEqual({ kind: "mirror-play" });
 
-    const mirrored = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    const mirrored = applyPlayCommand(pasteRoom, session.commands[0]!);
     expect(positionOf(mirrored, "z").lateralYards).toBeCloseTo(
-      -positionOf(stickThunderPlay, "z").lateralYards,
+      -positionOf(pasteRoom, "z").lateralYards,
       9,
     );
     // Mirroring twice is the Play exactly as it was (ADR 0034).
     const back = applyPlayCommand(mirrored, { kind: "mirror-play" });
-    expect(canonicalStringify(back)).toBe(canonicalStringify(stickThunderPlay));
+    expect(canonicalStringify(back)).toBe(canonicalStringify(pasteRoom));
   });
 
   it("mirrors only what is picked, carrying each man's routes with him", () => {
@@ -1753,18 +1806,18 @@ describe("field interaction copy, paste, and mirror", () => {
     });
     expect(session.commands[0]).toMatchObject({ label: "Mirror selection" });
 
-    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    const after = applyPlayCommand(pasteRoom, session.commands[0]!);
     expect(positionOf(after, "x").lateralYards).toBeCloseTo(
-      -positionOf(stickThunderPlay, "x").lateralYards,
+      -positionOf(pasteRoom, "x").lateralYards,
       9,
     );
     // X's route came with him; nobody else moved.
     expect(pathOf(after, "rx").points[2]!.lateralYards).toBeCloseTo(
-      -pathOf(stickThunderPlay, "rx").points[2]!.lateralYards,
+      -pathOf(pasteRoom, "rx").points[2]!.lateralYards,
       9,
     );
-    expect(positionOf(after, "z")).toEqual(positionOf(stickThunderPlay, "z"));
-    expect(pathOf(after, "rz")).toEqual(pathOf(stickThunderPlay, "rz"));
+    expect(positionOf(after, "z")).toEqual(positionOf(pasteRoom, "z"));
+    expect(pathOf(after, "rz")).toEqual(pathOf(pasteRoom, "rz"));
   });
 
   it("reflects a note's leader and a bound note's offset", () => {

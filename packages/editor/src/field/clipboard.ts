@@ -2,6 +2,8 @@ import {
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
   mirrorCoordinate,
+  remainingPlayerSlotsBySide,
+  sideOfBallForUnit,
   type Coordinate,
   type MovementPath,
   type PathPoint,
@@ -75,11 +77,17 @@ export function buildPasteCommand(
     ...(point.control === undefined ? {} : { control: shift(point.control) }),
   });
 
+  // Eleven to a side of the LOS: keep only as many pasted men as each side
+  // still has room for. Routes belonging to a skipped man are dropped with him.
+  const room = { ...remainingPlayerSlotsBySide(document) };
   const playerIdByOriginal = new Map<string, string>();
-  const players = clipboard.players.map((player) => {
+  const players = clipboard.players.flatMap((player) => {
+    const side = sideOfBallForUnit(player.unit);
+    if (room[side] <= 0) return [];
+    room[side] -= 1;
     const id = createId("player");
     playerIdByOriginal.set(player.id, id);
-    return { ...player, id, position: shift(player.position) };
+    return [{ ...player, id, position: shift(player.position) }];
   });
 
   const pathIdByOriginal = new Map<string, string>();
@@ -90,10 +98,12 @@ export function buildPasteCommand(
     const pastedPlayerId = playerIdByOriginal.get(path.playerId);
     const playerId = pastedPlayerId ?? path.playerId;
     // A Player pasted in this same batch will exist by the time the route
-    // is inserted; one left behind has to still be on the field.
+    // is inserted; one left behind has to still be on the field. A man we
+    // skipped for the eleven-man cap never arrives, so his route goes too.
     if (
       pastedPlayerId === undefined &&
-      !document.players.some(({ id }) => id === playerId)
+      (clipboard.players.some(({ id }) => id === path.playerId) ||
+        !document.players.some(({ id }) => id === playerId))
     ) {
       return [];
     }

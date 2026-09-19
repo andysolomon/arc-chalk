@@ -2,6 +2,7 @@ import {
   assignmentForPath,
   ballPosition,
   ballSpotNames,
+  canAddPlayerToSide,
   currentBallSpot,
   createStableId,
   currentDefensiveCall,
@@ -5274,6 +5275,9 @@ export function ChalkApp({
       playbook.snapshot.members.length === 0 &&
       editor.document.players.length === 0 &&
       editor.document.labels.length === 0,
+    playerSideFull:
+      activeTool === "player" &&
+      !canAddPlayerToSide(editor.document, editor.document.unit),
   });
 
   if (activeView === "Present") {
