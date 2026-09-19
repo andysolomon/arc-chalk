@@ -4582,6 +4582,37 @@ button.library-dot.target.small {
 .browser-grid.three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+/*
+ * Overlay books on a phone still used the desktop four- and three-column
+ * grids, so a 390 px sheet crushed the picture and truncated every name.
+ * Three columns on a short tablet, two on a phone — large enough to read
+ * and tap. Play thumbnails grow with the card. Nothing here applies at the
+ * parity viewport: no rule below 900 px or 667 px matches 1440 × 960.
+ */
+@media (max-width: 900px) {
+  .browser-overlay:not(.embedded) .browser-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 667px) {
+  .browser-overlay:not(.embedded) .browser-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .browser-card {
+    gap: 8px;
+    padding: 10px 10px 12px;
+  }
+  .browser-name,
+  .playbook-card strong {
+    font-size: 13px;
+    line-height: 1.25;
+    text-overflow: unset;
+    white-space: normal;
+  }
+  .playbook-thumb {
+    height: 148px;
+  }
+}
 .browser-foot {
   display: flex;
   align-items: center;

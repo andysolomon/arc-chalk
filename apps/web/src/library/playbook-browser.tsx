@@ -11,10 +11,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ChalkLibrary, LibraryBrowserState } from "../app/editor-runtime";
 import {
+  gridColumnsFor,
+  NARROW_BROWSER_QUERY,
+  playCardRowHeightFor,
+} from "./grid-columns";
+import {
   createPlaySearchClient,
   projectionsForHits,
 } from "./play-search-client";
-import { gridColumnsFor } from "./grid-columns";
 import { UNCLASSIFIED, typeChipsFor } from "./type-chips";
 import {
   createThumbnailScheduler,
@@ -22,7 +26,22 @@ import {
   type ThumbnailRequest,
 } from "./thumbnail-scheduler";
 
-const CARD_ROW_HEIGHT = 118;
+function useNarrowBrowser(): boolean {
+  const [narrow, setNarrow] = useState(
+    () =>
+      typeof globalThis.matchMedia === "function" &&
+      globalThis.matchMedia(NARROW_BROWSER_QUERY).matches,
+  );
+  useEffect(() => {
+    if (typeof globalThis.matchMedia !== "function") return;
+    const query = globalThis.matchMedia(NARROW_BROWSER_QUERY);
+    const read = () => setNarrow(query.matches);
+    read();
+    query.addEventListener("change", read);
+    return () => query.removeEventListener("change", read);
+  }, []);
+  return narrow;
+}
 
 const UNITS: readonly {
   readonly id: "all" | PlayUnit;
@@ -71,6 +90,8 @@ export function PlaybookBrowser({
   const [focusedPlayId, setFocusedPlayId] = useState(initial.focusedPlayId);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const restoredRef = useRef(false);
+  const narrow = useNarrowBrowser();
+  const rowHeight = playCardRowHeightFor(narrow);
   const [columns, setColumns] = useState(() =>
     gridColumnsFor(scrollerRef.current?.clientWidth ?? 0),
   );
@@ -148,9 +169,12 @@ export function PlaybookBrowser({
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollerRef.current,
-    estimateSize: () => CARD_ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: 6,
   });
+  useEffect(() => {
+    virtualizer.measure();
+  }, [rowHeight, virtualizer]);
 
   useEffect(() => {
     const node = scrollerRef.current;
@@ -294,6 +318,7 @@ export function PlaybookBrowser({
         </div>
         <div
           className="browser-body playbook-scroll"
+          data-card-row-height={rowHeight}
           data-grid-columns={columns}
           data-virtual-count={hits.length}
           onScroll={() => remember()}
