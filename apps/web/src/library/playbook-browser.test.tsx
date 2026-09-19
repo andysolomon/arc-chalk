@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { createMemoryLibrary } from "../app/editor-runtime";
+import { NARROW_PLAY_CARD_ROW_HEIGHT } from "./grid-columns";
 import { PlaybookBrowser } from "./playbook-browser";
 
 function member(
@@ -164,5 +165,59 @@ describe("the Playbook browser on a tablet (issue #68)", () => {
         ).toBeLessThanOrEqual(3);
       }
     });
+  });
+
+  it("uses one column and a taller row on a phone-width sheet", async () => {
+    observers.length = 0;
+    const original = globalThis.matchMedia;
+    globalThis.matchMedia = (query: string) =>
+      ({
+        matches: query.includes("max-width: 667px"),
+        media: query,
+        onchange: null,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        dispatchEvent: () => false,
+      }) as MediaQueryList;
+    try {
+      installObserver();
+      const members = Array.from({ length: 4 }, (_, index) => member(index));
+      render(
+        <PlaybookBrowser
+          currentPlayId="play_0"
+          focusSearch={false}
+          initial={{ scrollTop: 0, query: "" }}
+          library={createMemoryLibrary()}
+          members={members}
+          onClose={() => undefined}
+          onOpen={() => undefined}
+          onRemember={() => undefined}
+          playTypes={blankPlaybook().playTypes}
+        />,
+      );
+      act(() => {
+        for (const resize of observers) resize(300);
+      });
+      const scroller = document.querySelector(".playbook-scroll")!;
+      expect(scroller).toHaveAttribute("data-grid-columns", "1");
+      expect(scroller).toHaveAttribute(
+        "data-card-row-height",
+        String(NARROW_PLAY_CARD_ROW_HEIGHT),
+      );
+      await waitFor(() => {
+        const rows = [...document.querySelectorAll(".playbook-virtual-row")];
+        expect(rows.length).toBeGreaterThan(0);
+        for (const row of rows) {
+          expect((row as HTMLElement).style.gridTemplateColumns).toBe(
+            "repeat(1, minmax(0, 1fr))",
+          );
+          expect(row.querySelectorAll("[data-play-id]").length).toBe(1);
+        }
+      });
+    } finally {
+      globalThis.matchMedia = original;
+    }
   });
 });
