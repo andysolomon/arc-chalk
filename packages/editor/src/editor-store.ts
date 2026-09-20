@@ -80,6 +80,8 @@ export type LocalSaveState =
       readonly documentHash: string;
       readonly budgetMs: number;
       readonly durationMs: number;
+      /** What the repository said, so a failed write is never a mystery. */
+      readonly reason: string;
     };
 
 export interface EditorUndoState extends UndoAvailability {
@@ -200,6 +202,12 @@ export interface EditorStore {
 export interface CreateEditorStoreOptions {
   readonly initialDocument: PlayDocument;
   readonly initialDocumentHash: string;
+  /**
+   * Whether the initial document already sits in the repository. A blank
+   * boot edits a Play that was never written, so its first commit must not
+   * expect to find that hash on disk (issue #97).
+   */
+  readonly initialDocumentPersisted?: boolean;
   readonly persistence: EditorPersistence;
   /** A stored history that no longer parses is replaced with an empty one. */
   readonly initialUndoHistory?: unknown;
@@ -211,6 +219,11 @@ export interface CreateEditorStoreOptions {
   readonly wallClockNow?: () => number;
   readonly saveBudgetMs?: number;
   readonly coalesceWindowMs?: number;
+}
+
+function describeSaveFailure(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return String(error);
 }
 
 function defaultMutationId(): string {
@@ -243,6 +256,7 @@ export function localSaveMessage(localSave: LocalSaveState): string {
 export function createEditorStore({
   initialDocument,
   initialDocumentHash,
+  initialDocumentPersisted = true,
   persistence,
   initialUndoHistory,
   initialVersions = [],
@@ -266,7 +280,9 @@ export function createEditorStore({
     initialUndoHistory,
     wallClockNow(),
   );
-  let persistedDocumentHash: string | undefined = initialDocumentHash;
+  let persistedDocumentHash: string | undefined = initialDocumentPersisted
+    ? initialDocumentHash
+    : undefined;
   let latestSequence = 0;
   let saveTail: Promise<void> = Promise.resolve();
 
@@ -347,8 +363,11 @@ export function createEditorStore({
         durationMs,
         withinBudget,
       };
-    } catch {
+    } catch (error) {
       const durationMs = Math.max(0, monotonicNow() - requestedAtMs);
+      const reason = describeSaveFailure(error);
+      // The status bar shows two words; the console keeps the whole story.
+      console.error("Chalk could not save the Play on this device.", error);
       if (sequence === latestSequence) {
         state.setState((current) => ({
           ...current,
@@ -357,6 +376,7 @@ export function createEditorStore({
             documentHash: persistedDocumentHash ?? documentHash,
             budgetMs: saveBudgetMs,
             durationMs,
+            reason,
           },
         }));
       }
