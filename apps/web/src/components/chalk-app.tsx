@@ -5946,6 +5946,7 @@ export function ChalkApp({
           </div>
           <button
             aria-label="Fit to selection"
+            className="status-selection"
             onClick={showSelection}
             title="Fit to selection — ⌘2"
             type="button"
@@ -5961,8 +5962,8 @@ export function ChalkApp({
             BALL
           </button>
           <span data-formation-status>{formationStatus}</span>
-          <span>SNAP {snapEnabled ? "ON" : "OFF"}</span>
-          <span>
+          <span className="status-snap">SNAP {snapEnabled ? "ON" : "OFF"}</span>
+          <span className="status-count">
             {editor.document.players.length}P · {editor.document.paths.length}R
           </span>
           {saveStateButton}
