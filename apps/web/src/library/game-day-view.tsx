@@ -345,6 +345,13 @@ function Reader({
   const note = current ? (notes.notes[current.callId] ?? "") : "";
   const [noteDraft, setNoteDraft] = useState<string>();
   const layout: GameDayLayout = place.layout;
+  /**
+   * On a phone the call list folds away so the selected call has the glass
+   * (issue #93); picking a call folds it. Wider screens ignore this and
+   * show the list beside the call.
+   */
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const callCount = order.length;
 
   return (
     <main aria-label="Game Day" className="destination game-day reader">
@@ -448,13 +455,27 @@ function Reader({
           );
         })}
       </nav>
-      <div className="reader-body">
+      <button
+        aria-controls="reader-calls"
+        aria-expanded={pickerOpen}
+        className="reader-picker-toggle"
+        onClick={() => setPickerOpen((open) => !open)}
+        type="button"
+      >
+        {pickerOpen
+          ? "Hide the calls"
+          : `${callCount} ${callCount === 1 ? "call" : "calls"} — pick one`}
+      </button>
+      <div className="reader-body" data-picker={pickerOpen ? "open" : "closed"}>
         <CallList
           current={current?.callId}
           favorites={notes.favorites}
           layout={layout}
           marks={notes.marks}
-          onPick={(callId) => onPlace({ callId })}
+          onPick={(callId) => {
+            onPlace({ callId });
+            setPickerOpen(false);
+          }}
           onStar={(callId) => onNotes((n) => toggleFavorite(n, callId))}
           sections={shown}
         />
@@ -645,6 +666,7 @@ function CallList({
   return (
     <div
       className={`reader-list ${layout}`}
+      id="reader-calls"
       role="navigation"
       aria-label="Calls"
     >
