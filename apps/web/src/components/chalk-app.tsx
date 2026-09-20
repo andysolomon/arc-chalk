@@ -5104,6 +5104,33 @@ export function ChalkApp({
     />
   );
 
+  // The only report of a failed write, so every shell shows it — the reading
+  // shell included, where the draft a Coach could not save must stay
+  // recoverable (issue #97).
+  const saveStateButton = (
+    <button
+      aria-label={localSaveMessage(editor.localSave)}
+      className={`save-state ${editor.localSave.phase}`}
+      data-save-duration-ms={
+        "durationMs" in editor.localSave
+          ? editor.localSave.durationMs
+          : undefined
+      }
+      data-save-within-budget={
+        "withinBudget" in editor.localSave
+          ? editor.localSave.withinBudget
+          : undefined
+      }
+      disabled={editor.localSave.phase !== "error"}
+      onClick={retrySave}
+      title={
+        editor.localSave.phase === "error" ? editor.localSave.reason : undefined
+      }
+    >
+      {localSaveStatus(editor.localSave)}
+    </button>
+  );
+
   if (readsOnly && activeView === "Editor") {
     // A phone shows the Play and nothing that changes it. The field still
     // moves — a Coach on the sideline wants a closer look at one man — but
@@ -5132,6 +5159,12 @@ export function ChalkApp({
             </ul>
           </div>
         </main>
+        <div className="statusbar reading-statusbar">
+          <span>
+            {editor.document.players.length}P · {editor.document.paths.length}R
+          </span>
+          {saveStateButton}
+        </div>
         <p className="reading-note">
           This screen is below the editor's floor. Open the Play on a tablet or
           a computer to change it, or press Edit on this screen to work here
@@ -5932,24 +5965,7 @@ export function ChalkApp({
           <span>
             {editor.document.players.length}P · {editor.document.paths.length}R
           </span>
-          <button
-            aria-label={localSaveMessage(editor.localSave)}
-            className={`save-state ${editor.localSave.phase}`}
-            data-save-duration-ms={
-              "durationMs" in editor.localSave
-                ? editor.localSave.durationMs
-                : undefined
-            }
-            data-save-within-budget={
-              "withinBudget" in editor.localSave
-                ? editor.localSave.withinBudget
-                : undefined
-            }
-            disabled={editor.localSave.phase !== "error"}
-            onClick={retrySave}
-          >
-            {localSaveStatus(editor.localSave)}
-          </button>
+          {saveStateButton}
           {lifecycle ? <LifecycleIndicator lifecycle={lifecycle} /> : null}
           <button
             aria-label={syncStatusLabel(syncSnapshot)}

@@ -652,6 +652,7 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
   const editorStore = createEditorStore({
     initialDocument: initial.document,
     initialDocumentHash: initial.documentHash,
+    initialDocumentPersisted: initial.storedPlay !== undefined,
     initialUndoHistory: initial.storedPlay
       ? await repository.getUndoHistory(initial.storedPlay.id)
       : undefined,
