@@ -4,7 +4,6 @@ import {
   playbackShowsAnimation,
   revisionRows,
   revisionStatus,
-  unitName,
   type CallRow,
   type GamePlan,
   type GamePlanRevision,
@@ -30,6 +29,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ChalkLibrary, LibrarySnapshot } from "../app/editor-runtime";
+import { UnitBadge } from "../components/unit-badge";
 import { FieldDiagram } from "../components/field-diagram";
 import { PlaybackBar } from "../components/playback-bar";
 import { readPlaybackNow } from "../components/playback-now";
@@ -187,9 +187,10 @@ export function GameDayView({
                   >
                     <span className="game-day-name">{candidate.name}</span>
                     <span className="game-day-meta">
-                      {[gamePlanSubtitle(candidate), unitName(candidate.unit)]
-                        .filter(Boolean)
-                        .join(" · ")}
+                      <UnitBadge unit={candidate.unit} />
+                      {gamePlanSubtitle(candidate)
+                        ? ` · ${gamePlanSubtitle(candidate)}`
+                        : ""}
                     </span>
                   </button>
                 </li>
@@ -358,7 +359,7 @@ function Reader({
         </button>
         <div className="reader-title-block">
           <div className="game-day-title">
-            {`${unitName(revision.plan.unit)} · ${revision.plan.name}`}
+            <UnitBadge unit={revision.plan.unit} /> {revision.plan.name}
           </div>
           <div className="game-day-sub">
             {[gamePlanSubtitle(revision.plan), preparedStamp(revision)]

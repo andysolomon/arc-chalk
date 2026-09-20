@@ -171,13 +171,10 @@ import {
   type SvgRenderScene,
   defaultPresentation,
   fieldLayerCatalog,
-  pageKindCatalog,
   resolveTypeDensity,
   typePresetCatalog,
   type FieldLayerId,
-  type PageKindId,
   type Presentation,
-  type TypePresetId,
 } from "@chalk/render";
 import type { IdentityPort, SyncOrchestrator, SyncSnapshot } from "@chalk/sync";
 import { UnavailableIdentity } from "@chalk/sync";
@@ -213,9 +210,8 @@ import { defaultOutputSpec, type OutputSpec } from "../output/output-spec";
 import { OutputWorkspace } from "../output/output-workspace";
 import { usePlaybookLibrary } from "../library/use-playbook-library";
 import { AccountPanel } from "./account-panel";
-import { LifecycleNotices } from "./lifecycle-notices";
+import { LifecycleIndicator, LifecycleNotices } from "./lifecycle-notices";
 import { syncStatusLabel } from "./sync-status";
-import { agoStamp } from "./ago-stamp";
 import { ConflictInboxHost } from "./conflict-inbox";
 import {
   callSheetHtml,
@@ -269,6 +265,7 @@ import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { FieldDiagram } from "./field-diagram";
 import { SELECTION_BLUE, sceneColors, selectionKey } from "./field-marks";
 import { PlaybackBar } from "./playback-bar";
+import { SettingsOverlay } from "./settings-overlay";
 import {
   PlayClassificationControl,
   type AddPlayTypeOutcome,
@@ -304,6 +301,7 @@ type Overlay =
   | "game-plans"
   | "presets"
   | "conflicts"
+  | "settings"
   | null;
 type Tool = ToolId;
 
@@ -1913,18 +1911,14 @@ function Inspector({
   currentConcept,
   currentLineCall,
   defenderCount,
-  fieldProfile,
-  fieldProfileName,
   layersPopover,
   library,
   librarySummary,
   linemanCount,
   onCollapse,
   onOpenPresets,
-  onPageKind,
   onSpotBall,
   onToggle,
-  onTypePreset,
   open,
   formation,
   formationHint,
@@ -1933,13 +1927,7 @@ function Inspector({
   onOpenFormations,
   onOpenPalette,
   onOpenShortcuts,
-  onRestoreVersion,
-  pageKind,
-  playbookSettings,
-  typeHint,
-  typePreset,
   unit,
-  versions,
 }: {
   ballSpots: readonly {
     readonly spot: BallSpot;
@@ -1954,18 +1942,14 @@ function Inspector({
   currentConcept?: string;
   currentLineCall?: string;
   defenderCount: number;
-  fieldProfile?: React.ReactNode;
-  fieldProfileName: string;
   layersPopover?: React.ReactNode;
   library?: React.ReactNode;
   /** One line about the open Play's family, for the folded Library heading. */
   librarySummary: string;
   onCollapse: () => void;
   onOpenPresets: (group: "concept" | "line") => void;
-  onPageKind: (kind: PageKindId) => void;
   onSpotBall: (spot: BallSpot) => void;
   onToggle: (id: string) => void;
-  onTypePreset: (preset: TypePresetId) => void;
   /** Which folded sections the Coach has opened, remembered per device. */
   open: Readonly<Record<string, boolean>>;
   linemanCount: number;
@@ -1976,13 +1960,7 @@ function Inspector({
   onOpenFormations: () => void;
   onOpenPalette: () => void;
   onOpenShortcuts: () => void;
-  onRestoreVersion: (revisionId: string) => void;
-  pageKind: PageKindId;
-  playbookSettings?: React.ReactNode;
-  typeHint: string;
-  typePreset: TypePresetId;
   unit: PlayDocument["unit"];
-  versions: readonly EditorVersionSummary[];
 }) {
   const defense = unit === "defense";
   const bar = (
@@ -2100,10 +2078,6 @@ function Inspector({
       </Hint>
     </>
   );
-  const pageName =
-    pageKindCatalog.find(({ id }) => id === pageKind)?.name ?? pageKind;
-  const typeName =
-    typePresetCatalog.find(({ id }) => id === typePreset)?.name ?? typePreset;
   const opponentSummary = defense
     ? (formation?.name ?? "Custom alignment")
     : call
@@ -2140,66 +2114,6 @@ function Inspector({
       >
         {library}
       </Disclosure>
-      <Disclosure
-        id="field"
-        onToggle={onToggle}
-        open={open.field ?? false}
-        summary={fieldProfileName}
-        title="Field"
-      >
-        {fieldProfile}
-      </Disclosure>
-      <Disclosure
-        id="settings"
-        onToggle={onToggle}
-        open={open.settings ?? false}
-        summary="Field profiles · play types"
-        title="Playbook settings"
-      >
-        {playbookSettings}
-      </Disclosure>
-      <HistorySection onRestore={onRestoreVersion} versions={versions} />
-      <Disclosure
-        id="print"
-        onToggle={onToggle}
-        open={open.print ?? false}
-        summary={`${pageName} · ${typeName}`}
-        title="Print & export"
-      >
-        <div className="sub-heading">Page</div>
-        <div className="page-kinds">
-          {pageKindCatalog.map((kind) => (
-            <button
-              aria-pressed={pageKind === kind.id}
-              className={pageKind === kind.id ? "active" : undefined}
-              key={kind.id}
-              onClick={() => onPageKind(kind.id)}
-              type="button"
-            >
-              {kind.name}
-            </button>
-          ))}
-        </div>
-        <p>
-          Changes what prints under the play — the players and lines never move.
-        </p>
-        <div className="sub-heading">Type</div>
-        <div className="segments">
-          {typePresetCatalog.map((preset) => (
-            <button
-              aria-pressed={typePreset === preset.id}
-              className={typePreset === preset.id ? "active" : undefined}
-              key={preset.id}
-              onClick={() => onTypePreset(preset.id)}
-              title={preset.hint}
-              type="button"
-            >
-              {preset.name}
-            </button>
-          ))}
-        </div>
-        <p>{typeHint}</p>
-      </Disclosure>
       <InspectorSection title="Help">
         <div className="help-row">
           <button onClick={onOpenPalette} type="button">
@@ -2211,75 +2125,6 @@ function Inspector({
         </div>
       </InspectorSection>
     </aside>
-  );
-}
-
-function HistorySection({
-  onRestore,
-  versions,
-}: {
-  onRestore: (revisionId: string) => void;
-  versions: readonly EditorVersionSummary[];
-}) {
-  const [open, setOpen] = useState(false);
-  const count = versions.length;
-
-  return (
-    <section className="inspector-section">
-      <div className="section-heading history-heading">
-        <span>History{count ? ` ${count}` : ""}</span>
-        <button
-          aria-expanded={open}
-          onClick={() => setOpen((shown) => !shown)}
-          title="Earlier states of this play"
-          type="button"
-        >
-          {open ? "Hide" : "Show"}
-        </button>
-      </div>
-      {open ? (
-        <>
-          {count > 0 ? (
-            <div className="history-list">
-              {versions.map((version, index) => {
-                const label = version.label ?? "Unnamed version";
-                return (
-                  <div className="history-row" key={version.id}>
-                    <span className="history-ago">
-                      {agoStamp(version.createdAtMs)}
-                    </span>
-                    <span
-                      className={
-                        index === 0 ? "history-label current" : "history-label"
-                      }
-                      title={label}
-                    >
-                      {label}
-                    </span>
-                    <button
-                      onClick={() => onRestore(version.id)}
-                      title="Put this state back on the field — undo returns to now"
-                      type="button"
-                    >
-                      Restore
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="history-empty">
-              Nothing saved back yet. Name a Snapshot from Save when you want a
-              state you can come back to.
-            </p>
-          )}
-          <p>
-            Named snapshots of this play, kept across a closed tab. Restoring is
-            itself undoable.
-          </p>
-        </>
-      ) : null}
-    </section>
   );
 }
 
@@ -3352,11 +3197,14 @@ export function ChalkApp({
     // the gestures every drawing tool has trained into him. So does a finger,
     // once a Pencil has been out: the tip draws and the hand moves the field,
     // which is what ADR 0016 means by leaving touch the viewport. On a screen
-    // too small to work on, moving the field is all any pointer does.
+    // too small to work on, moving the field is all any pointer does. A
+    // middle-mouse drag does the same — the Figma way to pan without giving
+    // up the primary button or hunting for a modifier.
     if (
       readsOnly ||
       spaceHeldRef.current ||
       event.altKey ||
+      event.button === 1 ||
       touchNavigates(stylusRef.current, event.pointerType)
     ) {
       if (spaceHeldRef.current) spacePannedRef.current = true;
@@ -4321,6 +4169,10 @@ export function ChalkApp({
     toggleInspector: () => setInspectorOpen((shown) => !shown),
     toggleRail: () => setRailOpen((shown) => !shown),
     toggleZones: () => setZonesHidden((hidden) => !hidden),
+    settings: () => {
+      setOpenMenu(null);
+      setOverlay("settings");
+    },
     // Reflects what the Coach has picked, or the whole Play when he has
     // picked nothing — the same call either way.
     mirror: () => {
@@ -5025,6 +4877,40 @@ export function ChalkApp({
       })
       .catch(() => undefined);
   };
+  /**
+   * The Field profile section moved off the rail into Settings — the markings
+   * the Play is on, with the stale-profile / stale-formation offers the Coach
+   * gets to bring the diagram onto the latest revision.
+   */
+  const settingsFieldProfile = (
+    <FieldProfileSection
+      formations={allFormations}
+      onApplyProfile={(profile) => {
+        void editorStore
+          .applyCommand({
+            kind: "set-field-profile",
+            fieldProfile: profile,
+          })
+          .catch(() => undefined);
+      }}
+      onReapplyFormation={(formation) => applyFormationPick(formation.id)}
+      play={editor.document}
+      playbook={playbook.snapshot.playbook}
+    />
+  );
+  /**
+   * Playbook settings keeps the new-profile form — a profile is Playbook-wide
+   * — and the pointer to where Play types are managed from.
+   */
+  const settingsPlaybookSettings = (
+    <>
+      <NewProfileForm
+        current={editor.document.fieldProfile}
+        onCreate={createFieldProfile}
+      />
+      <p>Play types are managed from the Unit · Type pill in the header.</p>
+    </>
+  );
 
   /**
    * The Coach's own Type goes into the Playbook beside the built-ins, then
@@ -5516,7 +5402,16 @@ export function ChalkApp({
               ‹
             </button>
           </nav>
-        ) : null}
+        ) : (
+          <button
+            className="rail-stub"
+            onClick={() => setRailOpen(true)}
+            title="Show the tools — ⌥2"
+            type="button"
+          >
+            Tools
+          </button>
+        )}
         <main className="editor-stage">
           {lifecycle ? (
             <LifecycleNotices
@@ -5918,7 +5813,6 @@ export function ChalkApp({
             scopeBadge={playbook.scopeBadge}
             currentConcept={currentConcept}
             currentLineCall={currentLineCall}
-            fieldProfileName={editor.document.fieldProfile.name}
             layersPopover={layersPopover}
             librarySummary={librarySummary}
             onCollapse={() => setInspectorOpen(false)}
@@ -5926,36 +5820,6 @@ export function ChalkApp({
             onToggle={toggleDisclosure}
             open={chrome.open}
             unit={editor.document.unit}
-            playbookSettings={
-              <>
-                <NewProfileForm
-                  current={editor.document.fieldProfile}
-                  onCreate={createFieldProfile}
-                />
-                <p>
-                  Play types are managed from the Unit · Type pill in the
-                  header.
-                </p>
-              </>
-            }
-            fieldProfile={
-              <FieldProfileSection
-                formations={allFormations}
-                onApplyProfile={(profile) => {
-                  void editorStore
-                    .applyCommand({
-                      kind: "set-field-profile",
-                      fieldProfile: profile,
-                    })
-                    .catch(() => undefined);
-                }}
-                onReapplyFormation={(formation) =>
-                  applyFormationPick(formation.id)
-                }
-                play={editor.document}
-                playbook={playbook.snapshot.playbook}
-              />
-            }
             library={
               <LibraryPanel
                 currentPlayId={editor.document.id}
@@ -5999,20 +5863,6 @@ export function ChalkApp({
             onOpenFormations={() => setOverlay("formations")}
             onOpenPalette={() => setOverlay("palette")}
             onOpenShortcuts={() => setOverlay("shortcuts")}
-            onRestoreVersion={restoreVersion}
-            onPageKind={(pageKind) =>
-              setPresentation((current) => ({ ...current, pageKind }))
-            }
-            onTypePreset={(typePreset) =>
-              setPresentation((current) => ({ ...current, typePreset }))
-            }
-            pageKind={presentation.pageKind}
-            typePreset={presentation.typePreset}
-            typeHint={
-              typePresetCatalog.find(({ id }) => id === presentation.typePreset)
-                ?.hint ?? typePresetCatalog[0]!.hint
-            }
-            versions={editor.versions}
           />
         ) : (
           <button
@@ -6100,6 +5950,7 @@ export function ChalkApp({
           >
             {localSaveStatus(editor.localSave)}
           </button>
+          {lifecycle ? <LifecycleIndicator lifecycle={lifecycle} /> : null}
           <button
             aria-label={syncStatusLabel(syncSnapshot)}
             className={`sync-state ${syncSnapshot.status}`}
@@ -6204,6 +6055,28 @@ export function ChalkApp({
       ) : null}
       {overlay === "conflicts" && sync ? (
         <ConflictInboxHost onClose={() => setOverlay(null)} sync={sync} />
+      ) : null}
+      {overlay === "settings" ? (
+        <SettingsOverlay
+          fieldProfile={settingsFieldProfile}
+          fieldProfileName={editor.document.fieldProfile.name}
+          onClose={() => setOverlay(null)}
+          onPageKind={(pageKind) =>
+            setPresentation((current) => ({ ...current, pageKind }))
+          }
+          onRestoreVersion={restoreVersion}
+          onTypePreset={(typePreset) =>
+            setPresentation((current) => ({ ...current, typePreset }))
+          }
+          pageKind={presentation.pageKind}
+          playbookSettings={settingsPlaybookSettings}
+          typeHint={
+            typePresetCatalog.find(({ id }) => id === presentation.typePreset)
+              ?.hint ?? typePresetCatalog[0]!.hint
+          }
+          typePreset={presentation.typePreset}
+          versions={editor.versions}
+        />
       ) : null}
       <ContextMenu
         actions={actions}

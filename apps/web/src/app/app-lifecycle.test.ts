@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createAppLifecycle,
+  type Acknowledgement,
   type InstallPromptLike,
   type LifecyclePorts,
   type ShellRegistrationEvents,
@@ -14,6 +15,9 @@ function fakePorts() {
     ((prompt: InstallPromptLike | undefined) => void) | undefined;
   let events: ShellRegistrationEvents | undefined;
   let record: number | undefined;
+  let controlled = false;
+  const controlListeners = new Set<() => void>();
+  let acknowledged: readonly Acknowledgement[] = [];
   const activate = vi.fn(() => Promise.resolve());
   const cache = {
     clearShellCaches: vi.fn(() => Promise.resolve()),
@@ -46,11 +50,29 @@ function fakePorts() {
         record = v;
       },
     },
+    shellStatus: {
+      isControlled: () => controlled,
+      subscribe: (listener) => {
+        controlListeners.add(listener);
+        return () => controlListeners.delete(listener);
+      },
+    },
+    acknowledgements: {
+      read: () => acknowledged,
+      write: (next) => {
+        acknowledged = next;
+      },
+    },
   };
   return {
     ports,
     activate,
     cache,
+    acknowledged: () => acknowledged,
+    setControlled(next: boolean) {
+      controlled = next;
+      for (const l of controlListeners) l();
+    },
     events: () => events!,
     setOnline(next: boolean) {
       online = next;
@@ -75,6 +97,7 @@ describe("app lifecycle", () => {
       update: "current",
       install: "unavailable",
       offlineReady: false,
+      acknowledged: new Set(),
     });
     expect(fake.record()).toBe(3);
   });
@@ -157,13 +180,52 @@ describe("app lifecycle", () => {
     expect(lifecycle.getSnapshot().fault).toBe("register-failed");
   });
 
-  it("marks the shell offline-ready and lets the Coach dismiss it", () => {
+  it("marks the shell offline-ready and remembers that the Coach has read it", () => {
     const fake = fakePorts();
     const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
     fake.events().onOfflineReady();
     expect(lifecycle.getSnapshot().offlineReady).toBe(true);
+    expect(lifecycle.getSnapshot().acknowledged.has("offline-ready")).toBe(
+      false,
+    );
     lifecycle.dismissOfflineReady();
-    expect(lifecycle.getSnapshot().offlineReady).toBe(false);
+    // The fact stays; only the note is set aside, on this device for good.
+    expect(lifecycle.getSnapshot().offlineReady).toBe(true);
+    expect(lifecycle.getSnapshot().acknowledged.has("offline-ready")).toBe(
+      true,
+    );
+    expect(fake.acknowledged()).toEqual(["offline-ready"]);
+    const next = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
+    expect(next.getSnapshot().acknowledged.has("offline-ready")).toBe(true);
+  });
+
+  it("is offline-ready on a later start when the cached shell already serves the page", () => {
+    const fake = fakePorts();
+    expect(
+      createAppLifecycle({ ports: fake.ports, dataVersion: 1 }).getSnapshot()
+        .offlineReady,
+    ).toBe(false);
+    fake.setControlled(true);
+    expect(
+      createAppLifecycle({ ports: fake.ports, dataVersion: 1 }).getSnapshot()
+        .offlineReady,
+    ).toBe(true);
+  });
+
+  it("sets the install offer aside without losing the prompt", async () => {
+    const fake = fakePorts();
+    const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
+    const prompt: InstallPromptLike = {
+      prompt: vi.fn(() => Promise.resolve()),
+      userChoice: Promise.resolve({ outcome: "accepted" as const }),
+    };
+    fake.offerInstall(prompt);
+    lifecycle.dismissInstall();
+    expect(lifecycle.getSnapshot().install).toBe("available");
+    expect(lifecycle.getSnapshot().acknowledged.has("install")).toBe(true);
+    await lifecycle.install();
+    expect(prompt.prompt).toHaveBeenCalledTimes(1);
+    expect(lifecycle.getSnapshot().install).toBe("installed");
   });
 
   it("offers install when the browser does and finishes on acceptance", async () => {

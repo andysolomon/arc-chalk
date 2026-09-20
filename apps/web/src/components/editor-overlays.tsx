@@ -128,6 +128,14 @@ export function MoreMenu({
       title:
         "Flip the play and its terminology — swaps X/Z, LEFT/RIGHT, STRONG/WEAK",
     },
+    // Field profile, Playbook settings, History and Print & export used to sit
+    // on the right rail as folded disclosures; moved into a Settings overlay
+    // the Coach opens from here.
+    {
+      id: "settings",
+      label: "Settings…",
+      title: "Field profile, Playbook settings, History and Print & export",
+    },
     {
       id: "newPlay",
       label: "New play",

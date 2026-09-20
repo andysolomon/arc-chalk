@@ -282,24 +282,33 @@ test("changes the markings and the words from the inspector without moving the P
   await page.goto("/");
   const inspector = page.getByRole("complementary", { name: "Play inspector" });
 
-  // Page and type fold under Print & export; the layers sit in the bar's
-  // Layers popover (issue #64).
-  await inspector.getByRole("button", { name: /^Print & export/ }).click();
-  await expect(inspector.getByText("Page", { exact: true })).toBeVisible();
+  // Page and type moved into the Settings overlay (along with Field,
+  // Playbook settings and History). The layers stay in the bar's Layers
+  // popover (issue #64).
+  await page
+    .getByRole("banner")
+    .getByRole("button", { name: "More actions" })
+    .click();
+  await page.getByRole("button", { name: "Settings…" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(settings.getByText("Page", { exact: true })).toBeVisible();
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
   await expect(page.locator("[data-scene-label]")).toHaveCount(12);
   await expect(page.locator("[data-field-yard-line]")).toHaveCount(9);
 
-  await inspector.getByRole("button", { name: "Half field" }).click();
+  await settings.getByRole("button", { name: "Half field" }).click();
   await expect(page.locator("[data-field-yard-line]")).toHaveCount(7);
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
 
-  await inspector.getByRole("button", { name: "Blank" }).click();
+  await settings.getByRole("button", { name: "Blank" }).click();
   await expect(page.locator("[data-field-yard-line]")).toHaveCount(0);
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
 
-  await inspector.getByRole("button", { name: "Full field" }).click();
+  await settings.getByRole("button", { name: "Full field" }).click();
   await expect(page.locator("[data-field-yard-line]")).toHaveCount(9);
+  // The overlay sits over the inspector; put it away before using the bar.
+  await settings.getByRole("button", { name: "Close" }).click();
+  await expect(settings).toHaveCount(0);
 
   await inspector.getByRole("button", { name: /^Layers/ }).click();
   await inspector.getByRole("button", { name: "Text" }).click();
@@ -588,11 +597,17 @@ test("names a version and restores it after a reload", async ({ page }) => {
   await page.getByRole("button", { name: "Snapshot" }).click();
   await expect(page.getByText("Install week")).toBeVisible();
 
-  const inspector = page.getByRole("complementary", { name: "Play inspector" });
-  await inspector.getByRole("button", { name: "Show", exact: true }).click();
-  await expect(inspector.getByText("Install week")).toBeVisible();
-  await expect(inspector.getByText("just now")).toBeVisible();
-  await inspector.getByRole("button", { name: "Hide", exact: true }).click();
+  // History lives in the Settings overlay now, with the same words.
+  await page
+    .getByRole("banner")
+    .getByRole("button", { name: "More actions" })
+    .click();
+  await page.getByRole("button", { name: "Settings…" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(settings.getByText("Install week")).toBeVisible();
+  await expect(settings.getByText("just now")).toBeVisible();
+  await settings.getByRole("button", { name: "Close" }).click();
+  await expect(settings).toHaveCount(0);
 
   await playName.fill("Thursday rewrite");
   await playName.press("Enter");

@@ -2,6 +2,7 @@ import { registerSW } from "virtual:pwa-register";
 
 import {
   createAppLifecycle,
+  type Acknowledgement,
   type AppLifecycle,
   type InstallPromptLike,
   type LifecyclePorts,
@@ -17,6 +18,11 @@ import {
 export const SHELL_DATA_VERSION = 2;
 
 const SHELL_RECORD_KEY = "chalk.shell.dataVersion";
+const ACKNOWLEDGED_KEY = "chalk.shell.acknowledged";
+const ACKNOWLEDGEMENTS: readonly Acknowledgement[] = [
+  "offline-ready",
+  "install",
+];
 
 type BeforeInstallPromptEvent = Event & InstallPromptLike;
 
@@ -89,6 +95,35 @@ export const browserLifecyclePorts: LifecyclePorts = {
       await Promise.all(registrations.map((r) => r.unregister()));
     },
     reload: () => window.location.reload(),
+  },
+  shellStatus: {
+    isControlled: () => Boolean(navigator.serviceWorker?.controller),
+    subscribe(listener) {
+      const worker = navigator.serviceWorker;
+      if (!worker) return () => undefined;
+      worker.addEventListener("controllerchange", listener);
+      return () => worker.removeEventListener("controllerchange", listener);
+    },
+  },
+  acknowledgements: {
+    read() {
+      try {
+        const raw = localStorage.getItem(ACKNOWLEDGED_KEY);
+        const parsed: unknown = raw === null ? [] : JSON.parse(raw);
+        return Array.isArray(parsed)
+          ? ACKNOWLEDGEMENTS.filter((key) => parsed.includes(key))
+          : [];
+      } catch {
+        return [];
+      }
+    },
+    write(acknowledged) {
+      try {
+        localStorage.setItem(ACKNOWLEDGED_KEY, JSON.stringify(acknowledged));
+      } catch {
+        // Without storage the note simply comes back next time.
+      }
+    },
   },
   shellRecord: {
     read() {

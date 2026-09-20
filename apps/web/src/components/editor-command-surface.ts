@@ -20,6 +20,7 @@ export type ActionId =
   | "focus"
   | "showPanels"
   | "toggleZones"
+  | "settings"
   | "mirror"
   | "flipStrength"
   | "newPlay"
@@ -351,6 +352,7 @@ export function paletteCommands(
     { id: "toolZone", label: "Zone drop tool", shortcut: "Z" },
     { id: "toolText", label: "Text tool", shortcut: "T" },
     { id: "focus", label: "Focus mode", shortcut: "F" },
+    { id: "settings", label: "Settings" },
     { id: "toggleInspector", label: "Inspector on / off", shortcut: "⌥1" },
     { id: "toggleRail", label: "Tools on / off", shortcut: "⌥2" },
     { id: "present", label: "Present the play" },

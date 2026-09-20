@@ -46,7 +46,7 @@ test.describe("Game Day on a tablet", () => {
       .tap();
     const reader = page.getByRole("main", { name: "Game Day" });
     await reader.getByRole("button", { name: /Week 3/ }).tap();
-    await expect(reader.getByText("Offense · Week 3")).toBeVisible();
+    await expect(reader.getByText("Offense Week 3")).toBeVisible();
     await expect(reader.getByText(/Ready offline · 2 calls/)).toBeVisible();
 
     const calls = reader.getByRole("navigation", { name: "Calls" });
@@ -78,9 +78,7 @@ test.describe("Game Day on a tablet", () => {
 
     await page.reload();
     await expect(
-      page
-        .getByRole("main", { name: "Game Day" })
-        .getByText("Offense · Week 3"),
+      page.getByRole("main", { name: "Game Day" }).getByText("Offense Week 3"),
     ).toBeVisible();
     await expect(
       page.getByRole("region", { name: "Selected call" }).getByText("7", {
