@@ -2232,6 +2232,8 @@ button.play-type.open {
   place-items: center;
   overflow: hidden;
   background: var(--canvas);
+  /* The field measures itself against this box, in both directions. */
+  container-type: size;
 }
 .minimap {
   position: absolute;
@@ -2256,8 +2258,14 @@ button.play-type.open {
   opacity: 1;
   pointer-events: auto;
 }
+/*
+ * The drawing is as wide as the stage — unless the stage is shallower than
+ * that width wants, as a phone held sideways is, in which case it is as tall
+ * as the stage and no wider (issue #99). The SVG box is the camera's frame
+ * either way, which is what the pointer math and the minimap assume.
+ */
 .field-diagram {
-  width: 100%;
+  width: min(100%, calc(100cqh * 1000 / 620));
   aspect-ratio: 1000 / 620;
   overflow: visible;
   touch-action: none;
@@ -2447,6 +2455,11 @@ button.play-type.open {
 }
 .status-controls {
   gap: 12px;
+  /* Never wider than the bar: a row that outgrows it scrolls within it
+     rather than being pushed off the left edge (issue #98). */
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 .status-zoom {
   gap: 2px;
@@ -3937,8 +3950,8 @@ button.library-dot.target.small {
   .statusbar:has(.status-controls) > span:first-child {
     display: none;
   }
-  .statusbar:has(.status-controls) {
-    justify-content: flex-end;
+  .status-controls {
+    margin-left: auto;
   }
 }
 
@@ -4124,6 +4137,14 @@ button.library-dot.target.small {
   .topbar > .present,
   .topbar > .divider,
   .topbar .play-type {
+    display: none;
+  }
+  /* A phone's status bar keeps what changes the view and what reports the
+     save; the readouts a wider bar carries go (issue #98). */
+  .status-controls > .status-selection,
+  .status-controls > [data-formation-status],
+  .status-controls > .status-snap,
+  .status-controls > .status-count {
     display: none;
   }
 }
