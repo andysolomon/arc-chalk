@@ -171,13 +171,10 @@ import {
   type SvgRenderScene,
   defaultPresentation,
   fieldLayerCatalog,
-  pageKindCatalog,
   resolveTypeDensity,
   typePresetCatalog,
   type FieldLayerId,
-  type PageKindId,
   type Presentation,
-  type TypePresetId,
 } from "@chalk/render";
 import type { IdentityPort, SyncOrchestrator, SyncSnapshot } from "@chalk/sync";
 import { UnavailableIdentity } from "@chalk/sync";
