@@ -312,9 +312,13 @@ describe("Chalk application shell", () => {
     expect(trash).toBeEnabled();
 
     await user.click(trash);
-    expect(
-      within(fieldList).queryByRole("button", { name: "X route" }),
-    ).toBeNull();
+    // Deleting goes through the editor store's queue, so the list loses the
+    // route a tick after the click rather than inside it.
+    await waitFor(() =>
+      expect(
+        within(fieldList).queryByRole("button", { name: "X route" }),
+      ).toBeNull(),
+    );
     expect(trash).toBeDisabled();
   });
 
