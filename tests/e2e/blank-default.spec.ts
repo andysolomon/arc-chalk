@@ -64,3 +64,54 @@ test("opens a blank canvas with no starter Plays or Playbooks", async ({
       plays: 0,
     });
 });
+
+test("saves the first formation-based play and keeps it after reload", async ({
+  page,
+}) => {
+  const failures: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") failures.push(message.text());
+  });
+  // A fresh context is already an unseeded device; openBlankEditor's init
+  // script would wipe the database again on the reload below.
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Untitled play",
+    { timeout: 30_000 },
+  );
+
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  await page
+    .getByRole("dialog", { name: "Formations" })
+    .getByText("Gun Doubles Right", { exact: true })
+    .click();
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+
+  const name = page.getByRole("textbox", { name: "Play name" });
+  await name.fill("Mobile audit — Doubles");
+  await name.press("Enter");
+
+  await expect(
+    page.getByRole("button", { name: "Saved on this device" }),
+  ).toBeVisible();
+  expect(failures).toEqual([]);
+  await expect
+    .poll(async () => storedCounts(page))
+    .toEqual({
+      playbooks: 1,
+      plays: 1,
+    });
+
+  await page.reload();
+  await expect(name).toHaveValue("Mobile audit — Doubles", {
+    timeout: 30_000,
+  });
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await page.getByRole("button", { name: /^Library/ }).click();
+  await page.getByRole("button", { name: "Browse Playbook" }).click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Playbook" })
+      .getByText("Mobile audit — Doubles", { exact: true }),
+  ).toBeVisible();
+});

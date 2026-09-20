@@ -5003,6 +5003,14 @@ button.library-dot.target.small {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+/* The reading shell keeps the one report of a failed write (issue #97). */
+.reading-statusbar {
+  justify-content: space-between;
+  box-shadow: 0 -1px 0 var(--line);
+}
+.reading-statusbar .save-state {
+  flex: none;
+}
 .reading-note {
   flex: none;
   padding: 11px 16px calc(11px + env(safe-area-inset-bottom));
