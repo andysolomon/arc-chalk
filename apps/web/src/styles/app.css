@@ -2118,14 +2118,116 @@ button.play-type.open {
   color: var(--muted);
   font-size: 13px;
 }
+/* The call picker's fold is a phone thing; wider screens never see it. */
+.reader-picker-toggle {
+  display: none;
+}
+/*
+ * A phone gives the selected call the glass (issue #93): the list folds
+ * behind one button, the search takes its own row, the code and name have
+ * the head to themselves with the section under them, and Previous / Next
+ * share a row that stays in reach at the bottom of the scrolling stage.
+ */
 @media (max-width: 767px) {
+  .reader-head {
+    gap: 8px;
+  }
+  .reader-search {
+    width: auto;
+    flex: 1 1 100%;
+    order: 2;
+  }
+  /* The title keeps one line; List / Grid is a tablet's choice. */
+  .reader-head > .reader-layout {
+    display: none;
+  }
+  .reader-title-block {
+    flex: 1 1 0;
+  }
+  .reader-title-block .game-day-title,
+  .reader-title-block .game-day-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .reader-ready {
+    max-width: 40%;
+  }
+  .reader-picker-toggle {
+    display: flex;
+    flex: none;
+    align-items: center;
+    min-height: 44px;
+    margin-bottom: 8px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--paper);
+    box-shadow: 0 0 0 1px var(--line);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .reader-picker-toggle[aria-expanded="true"] {
+    background: var(--ink);
+    box-shadow: 0 0 0 1px var(--ink);
+    color: #fff;
+  }
   .reader-body {
     flex-direction: column;
   }
   .reader-list,
   .reader-list.grid {
     width: auto;
-    max-height: 38%;
+    max-height: 50%;
+  }
+  .reader-body[data-picker="closed"] .reader-list {
+    display: none;
+  }
+  .reader-call-head {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+  .reader-name {
+    flex: 1 1 0;
+    white-space: normal;
+    font-size: 17px;
+    line-height: 1.25;
+  }
+  .reader-section-name {
+    flex: 1 1 100%;
+    order: 3;
+  }
+  .reader-nav {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 0;
+    background: var(--canvas);
+  }
+  .reader-step {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 10px;
+  }
+  .reader-position {
+    flex: none;
+    order: 1;
+  }
+  .reader-nav .reader-step:last-child {
+    order: 2;
+  }
+  .reader-back {
+    flex: 1 1 100%;
+    order: 3;
+    min-height: 40px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 .game-day h1 {
@@ -5930,5 +6032,141 @@ button.shell-quiet:hover {
   }
   .game-plan-details {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* A phone held sideways keeps the list beside the call but has no depth;
+   Previous / Next stay in reach while the diagram scrolls. */
+@media (max-height: 439px) {
+  .reader-nav {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    padding: 8px 0;
+    background: var(--canvas);
+  }
+}
+
+/*
+ * Game-plan forms and browser heads on a phone (issue #94): one column,
+ * actions that wrap rather than crush, and a search box with the row to
+ * itself.
+ */
+@media (max-width: 667px) {
+  .game-plan-form {
+    grid-template-columns: 1fr;
+  }
+  .game-plan-form .segments,
+  .game-plan-details,
+  .game-plan-outputs,
+  .game-plan-prepare {
+    flex-wrap: wrap;
+  }
+  .game-plan-details {
+    grid-template-columns: 1fr;
+  }
+  .game-plan-prepare .menu-primary {
+    flex: 1 1 auto;
+  }
+  .game-plan-status {
+    flex: 1 1 100%;
+  }
+  .game-plan-outputs button {
+    flex: 1 1 auto;
+  }
+  .browser-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .browser-head > input {
+    order: 1;
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  .browser-head > .browser-tabs {
+    order: 2;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .browser-head > .browser-close {
+    margin-left: auto;
+  }
+  .browser-head > .game-plans-count {
+    order: 3;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .browser-head > .game-plan-title {
+    order: 0;
+    flex: 1 1 120px;
+    width: auto;
+  }
+}
+
+/*
+ * Touch targets the first pass left out (issue #95): back and close, stars
+ * and removes, the reader's tabs and marks, and the plan's reorder, output
+ * and row actions all stand 44 px in their own boxes with room between
+ * them. Later in the sheet than the rules they override, on purpose.
+ */
+@media (pointer: coarse) {
+  .menu-back,
+  .back-button,
+  .browser-close,
+  .browser-star,
+  .browser-remove,
+  .reader-star,
+  .browser-link,
+  .game-plans-new {
+    width: auto;
+    min-width: 44px;
+    height: auto;
+    min-height: 44px;
+  }
+  .back-button {
+    margin-left: 0;
+  }
+  .reader-tabs button,
+  .reader-play-toggle,
+  .reader-back,
+  .reader-called,
+  .reader-clear,
+  .reader-results button,
+  .reader-layout button {
+    height: auto;
+    min-height: 44px;
+    border-radius: 22px;
+  }
+  .reader-results button,
+  .reader-layout button {
+    border-radius: 6px;
+  }
+  .game-plan-outputs button,
+  .game-plan-inline button,
+  .game-plan-pick-tools button,
+  .game-plan-saved button,
+  .game-plan-row-actions button:not(.library-remove),
+  .game-plan-row-actions .library-remove,
+  .game-plan-section-actions button:not(.library-remove),
+  .game-plan-section-actions .library-remove,
+  .game-plan-call-actions button:not(.library-remove),
+  .game-plan-call-actions .library-remove,
+  .library-delete-ask button {
+    height: auto;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 10px;
+  }
+  .game-plan-row-actions,
+  .game-plan-section-actions,
+  .game-plan-call-actions,
+  .game-plan-outputs,
+  .library-delete-ask {
+    gap: 6px;
+  }
+  .game-plan-section-actions,
+  .game-plan-call-actions {
+    flex-wrap: wrap;
   }
 }
