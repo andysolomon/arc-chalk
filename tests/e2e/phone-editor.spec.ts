@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { type Page, test as blankTest } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
 
@@ -457,4 +457,81 @@ test.describe("reading shell at 400×496", () => {
       page.getByRole("button", { name: "Saved on this device" }),
     ).toBeVisible();
   });
+});
+
+/**
+ * The first launch on a phone (issue #96): no seed, no fixture — a blank
+ * device, a formation, a name, a route, a save, a reload, and the Play is
+ * there to read.
+ */
+blankTest.describe("first launch on a phone at 390×844", () => {
+  blankTest.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+    deviceScaleFactor: 2,
+  });
+
+  blankTest(
+    "saves the first play by touch and finds it after a reload",
+    async ({ page }) => {
+      const failures: string[] = [];
+      page.on("console", (message) => {
+        if (message.type() === "error") failures.push(message.text());
+      });
+      await page.goto("/");
+      await expect(page.getByText("Read only")).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(page.locator(".reading-name")).toHaveText("Untitled play");
+      await expect(page.locator("[data-scene-player]")).toHaveCount(0);
+
+      await page.getByRole("button", { name: "Edit on this screen" }).tap();
+      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
+      await page.getByTitle("Browse formations — ⇧⌘F").tap();
+      await page
+        .getByRole("dialog", { name: "Formations" })
+        .getByText("Gun Doubles Right", { exact: true })
+        .tap();
+      await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+      await page.getByRole("button", { name: "Hide the inspector" }).tap();
+
+      const name = page.getByRole("textbox", { name: "Play name" });
+      await name.fill("First play on a phone");
+      await name.press("Enter");
+      await expect(
+        page.getByRole("button", { name: "Saved on this device" }),
+      ).toBeVisible();
+
+      await page.getByRole("button", { name: "Route — R" }).tap();
+      const symbol = page
+        .locator("[data-scene-player]")
+        .first()
+        .locator("circle, rect, path")
+        .first();
+      const at = (await symbol.boundingBox())!;
+      const start = { x: at.x + at.width / 2, y: at.y + at.height / 2 };
+      await page.touchscreen.tap(start.x, start.y);
+      await page.touchscreen.tap(start.x, start.y - 40);
+      await page.getByRole("button", { name: "Finish the route — ⏎" }).tap();
+      await expect(page.locator("[data-scene-path]")).toHaveCount(1);
+      await expect(
+        page.getByRole("button", { name: "Saved on this device" }),
+      ).toBeVisible();
+      expect(failures).toEqual([]);
+
+      await page.reload();
+      await expect(page.getByText("Read only")).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(page.locator(".reading-name")).toHaveText(
+        "First play on a phone",
+      );
+      await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+      await expect(page.locator("[data-scene-path]")).toHaveCount(1);
+      await expect(
+        page.getByRole("button", { name: "Saved on this device" }),
+      ).toBeVisible();
+    },
+  );
 });
