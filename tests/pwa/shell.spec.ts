@@ -180,7 +180,9 @@ test("reopens a prepared game plan in Game Day after an offline restart", async 
   await context.setOffline(true);
   await page.reload();
   const reader = page.getByRole("main", { name: "Game Day" });
-  await expect(reader.getByText("Offense · Week 3")).toBeVisible();
+  // The Unit is a badge beside the plan's name now, not a "·" prefix
+  // (ADR 0051), so the title reads "Offense Week 3".
+  await expect(reader.getByText("Offense Week 3")).toBeVisible();
   await expect(reader.getByText(/Ready offline · 1 call$/)).toBeVisible();
   await reader
     .getByRole("navigation", { name: "Calls" })
