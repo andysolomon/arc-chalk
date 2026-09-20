@@ -1556,9 +1556,7 @@ describe("Chalk device durability surfaces", () => {
         "Named snapshots of this play, kept across a closed tab. Restoring is itself undoable.",
       ),
     ).toBeVisible();
-    await user.click(
-      within(settings).getByRole("button", { name: "Restore" }),
-    );
+    await user.click(within(settings).getByRole("button", { name: "Restore" }));
     expect(restored).toEqual(["revision_1", "revision_1"]);
   });
 
@@ -2076,9 +2074,7 @@ describe("Chalk editor overlays", () => {
       "player",
     );
 
-    await user.click(
-      within(settings).getByRole("button", { name: /^Print$/ }),
-    );
+    await user.click(within(settings).getByRole("button", { name: /^Print$/ }));
     expect(
       within(settings).getByText(
         "Pure black, no color fills — survives a copier.",

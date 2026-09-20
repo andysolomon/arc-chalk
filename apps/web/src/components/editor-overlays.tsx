@@ -134,8 +134,7 @@ export function MoreMenu({
     {
       id: "settings",
       label: "Settings…",
-      title:
-        "Field profile, Playbook settings, History and Print & export",
+      title: "Field profile, Playbook settings, History and Print & export",
     },
     {
       id: "newPlay",
