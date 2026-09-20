@@ -1042,6 +1042,7 @@ button.play-type.open {
 }
 .notice {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -1069,9 +1070,15 @@ button.play-type.open {
 .lifecycle-notices .notice.offline-ready {
   background: var(--ready-tint);
 }
+/* A notice too narrow for its words and its action on one line keeps the
+   action whole on the next, at the right (issue #92). */
+.notice > button,
+.notice > .notice-actions {
+  flex: none;
+  margin-left: auto;
+}
 .lifecycle-notices .notice-actions {
   display: flex;
-  flex: none;
   align-items: center;
   gap: 8px;
 }
@@ -4986,8 +4993,41 @@ button.library-dot.target.small {
   min-width: 0;
 }
 .reading-topbar {
-  gap: 8px;
-  padding: 0 12px;
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 0;
+  gap: 4px 8px;
+  padding: 4px 12px;
+}
+.reading-topbar .reading-edit {
+  margin-left: auto;
+}
+/* The destinations and the way in share the first row, and the mark is
+   decorative — at 400 px the two of them plus the mark leave three pixels,
+   which one engine's wider text turns into a third row (issue #92). */
+@media (max-width: 667px) {
+  .reading-topbar > .chalk-mark {
+    display: none;
+  }
+  .reading-topbar .reading-edit {
+    padding: 0 8px;
+    font-size: 12px;
+  }
+}
+.reading-topbar .top-break {
+  display: block;
+  flex-basis: 100%;
+  height: 0;
+}
+/* Wide and shallow — a phone held sideways — has the width for one row. */
+@media (min-width: 668px) {
+  .reading-topbar .top-break {
+    display: none;
+  }
+  .reading-topbar .reading-edit {
+    order: 1;
+    margin-left: 0;
+  }
 }
 .reading-name {
   overflow: hidden;
@@ -5034,14 +5074,218 @@ button.library-dot.target.small {
 }
 .reading-note {
   flex: none;
-  padding: 11px 16px calc(11px + env(safe-area-inset-bottom));
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
   margin: 0;
   background: var(--canvas);
   box-shadow: 0 -1px 0 var(--line);
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.4;
   text-align: center;
+}
+/* A shallow screen has no depth to spare for the explanation; the chip and
+   the button say it. */
+@media (max-height: 439px) {
+  .reading-note {
+    display: none;
+  }
+}
+
+/*
+ * Editing on a screen below the floor (issue #92). A Coach who pressed Edit
+ * on this screen gets the editor laid out for a phone rather than the
+ * desktop editor squeezed into one: a two-row header, the tools in a tray
+ * along the bottom, the inspector as a sheet over the field. Everything the
+ * header sheds is in the More menu.
+ */
+.phone-workspace .topbar {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 0;
+  gap: 4px 3px;
+  padding: 4px 8px;
+}
+.phone-workspace .topbar > .chalk-mark,
+.phone-workspace .topbar > .brand,
+.phone-workspace .topbar > .slash,
+.phone-workspace .topbar > .divider,
+.phone-workspace .topbar > .new-play,
+.phone-workspace .topbar > .reset-positions,
+.phone-workspace .topbar > .present,
+.phone-workspace .topbar > .menu-help,
+.phone-workspace .topbar > .menu-export {
+  display: none;
+}
+/* The second row is tight at 360 px: a point smaller, and the type pill
+   gives way before the actions do. */
+.phone-workspace .topbar > button,
+.phone-workspace .topbar .play-type select,
+.phone-workspace .topbar .menu > button {
+  font-size: 12px;
+}
+.phone-workspace .topbar > button.quiet {
+  padding: 0 8px;
+}
+/* The actions row is the tight one: the type pill, Undo, Redo, Read only
+   and Save have to share 360 px with room to spare, because a wider text
+   engine turns a few missing pixels into a third row (issue #92). The pill
+   is the one that can give — its words are in the panel it opens. */
+.phone-workspace .topbar > .classify-menu {
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 76px;
+}
+.phone-workspace .topbar > .top-spacer {
+  display: none;
+}
+.phone-workspace .topbar > .reading-edit,
+.phone-workspace .topbar > .menu-save > button {
+  padding: 0 8px;
+}
+.phone-workspace .topbar .play-type {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 8px;
+}
+.phone-workspace .topbar .play-type select {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.phone-workspace .topbar .view-tabs {
+  margin-left: 0;
+}
+.phone-workspace .topbar .view-tabs button {
+  padding: 0 8px;
+}
+.phone-workspace .topbar .play-name {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 60px;
+}
+.phone-workspace .topbar > .menu-more {
+  order: 1;
+}
+.phone-workspace .topbar > .top-break {
+  order: 2;
+  display: block;
+  flex-basis: 100%;
+  height: 0;
+}
+.phone-workspace .topbar > .classify-menu,
+.phone-workspace .topbar > button.quiet {
+  order: 3;
+}
+.phone-workspace .topbar .play-type {
+  display: flex;
+}
+/* Wide and shallow has the width for one row, and needs the depth. */
+@media (min-width: 668px) {
+  .phone-workspace .topbar > .top-break {
+    display: none;
+  }
+  .phone-workspace .topbar > .menu-more {
+    order: 5;
+  }
+}
+.phone-workspace .topbar > .top-spacer {
+  order: 4;
+}
+.phone-workspace .topbar > .reading-edit,
+.phone-workspace .topbar > .menu-save {
+  order: 5;
+}
+.phone-workspace .workspace {
+  flex-direction: column;
+}
+.phone-workspace .tool-rail {
+  order: 1;
+  width: auto;
+  height: 56px;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 0 max(8px, env(safe-area-inset-right)) 0
+    max(8px, env(safe-area-inset-left));
+  overflow-x: auto;
+  scrollbar-width: none;
+  box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.06);
+}
+.phone-workspace .tool-rail.labeled {
+  width: auto;
+}
+.phone-workspace .tool-rail > button {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  grid-template-columns: none;
+  justify-items: center;
+  column-gap: 0;
+  padding: 0;
+}
+.phone-workspace .tool-rail .rail-label,
+.phone-workspace .tool-rail .rail-collapse,
+.phone-workspace .tool-rail .rail-names {
+  display: none;
+}
+.phone-workspace .tool-rail .rail-finish {
+  width: auto;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+.phone-workspace .rail-stub {
+  order: 1;
+  width: auto;
+  height: 36px;
+  box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.06);
+  writing-mode: horizontal-tb;
+}
+.phone-workspace .inspector {
+  position: absolute;
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 8;
+  width: auto;
+  max-height: 72%;
+  border-radius: 14px 14px 0 0;
+  box-shadow:
+    0 -1px 0 var(--line),
+    0 -12px 28px -12px rgba(0, 0, 0, 0.25);
+}
+.phone-workspace .inspector-collapse {
+  transform: rotate(90deg);
+}
+/* The way to the inspector floats in the field's bottom corner: a fitted
+   field leaves that canvas empty on a phone in either orientation. */
+.phone-workspace .field-wrap > .inspector-stub {
+  position: absolute;
+  top: auto;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  width: auto;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--line);
+  font-size: 11px;
+  writing-mode: horizontal-tb;
+}
+.phone-workspace .minimap {
+  bottom: 60px;
+}
+.phone-workspace .statusbar {
+  height: auto;
+  min-height: 44px;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .sync-state {

@@ -141,6 +141,13 @@ export function MoreMenu({
       label: "New play",
       title: "Clear the field and start over",
     },
+    // The header's Present button is off a phone's header (issue #92); the
+    // menu carries it the way it carries New play.
+    {
+      id: "present",
+      label: "Present",
+      title: "Present the play full-window — esc returns",
+    },
     // An additive production extension (ADR 0042): the Coach's Game Plans.
     {
       id: "gamePlans",
@@ -150,7 +157,7 @@ export function MoreMenu({
   ];
 
   return (
-    <div className="menu">
+    <div className="menu menu-more">
       <button
         aria-expanded={open}
         // The original labels this button only with its tooltip; a screen
@@ -267,7 +274,7 @@ export function HelpMenu({
   );
   const references = rest.slice(helpTutorialRange.end - 1);
   return (
-    <div className="menu">
+    <div className="menu menu-help">
       <button
         aria-expanded={open}
         className={`help${open ? " open" : ""}`}
@@ -336,7 +343,7 @@ export function ExportMenu({
   wristband: WristbandPicker;
 }) {
   return (
-    <div className="menu">
+    <div className="menu menu-export">
       <button
         aria-expanded={open}
         className={`export${open ? " open" : ""}`}
@@ -535,7 +542,7 @@ export function SaveMenu({
   saveLabel: string;
 }) {
   return (
-    <div className="menu">
+    <div className="menu menu-save">
       <button
         aria-expanded={open}
         className={`save${saveLabel === "Saved" ? " saved" : ""}`}
