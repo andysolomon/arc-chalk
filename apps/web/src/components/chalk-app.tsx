@@ -2388,6 +2388,12 @@ export function ChalkApp({
   const [editAnyway, setEditAnyway] = useState(false);
   const readsOnly = reading && !editAnyway;
   /**
+   * Editing on a screen below the floor (issue #92): the same editor, laid
+   * out for a phone — a two-row header, the tools in a tray along the
+   * bottom, the inspector as a sheet over the field.
+   */
+  const phoneWorkspace = reading && editAnyway;
+  /**
    * Below the docked inspector's floor the inspector is a drawer over the
    * field (issue #68). Watched, because a tablet turns over.
    */
@@ -4993,8 +4999,6 @@ export function ChalkApp({
           </button>
         ))}
       </nav>
-      <span className="reading-name">{editor.document.name}</span>
-      <span className="reading-chip">Read only</span>
       <button
         className="reading-edit"
         onClick={() => setEditAnyway(true)}
@@ -5003,6 +5007,11 @@ export function ChalkApp({
       >
         Edit on this screen
       </button>
+      {/* A phone's reading header is two deliberate rows: the destinations
+          and the way in, then the name (issue #92). */}
+      <span className="top-break" aria-hidden="true" />
+      <span className="reading-name">{editor.document.name}</span>
+      <span className="reading-chip">Read only</span>
     </header>
   );
   /** Whether an image a prepared Play references is on this device. */
@@ -5104,6 +5113,19 @@ export function ChalkApp({
     />
   );
 
+  // The handle that brings the inspector back. Beside the field on a tablet;
+  // on a phone it floats in the field's bottom corner, where the canvas is
+  // empty around a fitted field (issue #92).
+  const inspectorStub = (
+    <button
+      className="inspector-stub"
+      onClick={() => setInspectorOpen(true)}
+      title="Show the inspector — ⌥1"
+      type="button"
+    >
+      Inspector
+    </button>
+  );
   // The only report of a failed write, so every shell shows it — the reading
   // shell included, where the draft a Coach could not save must stay
   // recoverable (issue #97).
@@ -5357,7 +5379,7 @@ export function ChalkApp({
   }
 
   return (
-    <div className="chalk-shell">
+    <div className={`chalk-shell${phoneWorkspace ? " phone-workspace" : ""}`}>
       {header}
       <div className="workspace">
         {railOpen ? (
@@ -5384,6 +5406,19 @@ export function ChalkApp({
                 </button>
               );
             })}
+            {phoneWorkspace && interaction.drawing ? (
+              // A route on a phone ends here; there is no Enter key and a
+              // double tap is not a thing a Coach should have to know.
+              <button
+                aria-label="Finish the route — ⏎"
+                className="rail-finish"
+                onClick={() => dispatchField({ type: "finish-drawing" })}
+                title="Finish the route — ⏎"
+                type="button"
+              >
+                Done
+              </button>
+            ) : null}
             <span className="rail-spacer" />
             <button
               aria-label="Tool names"
@@ -5558,6 +5593,7 @@ export function ChalkApp({
                 </button>
               </div>
             ) : null}
+            {phoneWorkspace && !inspectorOpen ? inspectorStub : null}
           </div>
           {animationPlan.items.length > 0 ? (
             <div ref={timelineRef}>
@@ -5897,15 +5933,8 @@ export function ChalkApp({
             onOpenPalette={() => setOverlay("palette")}
             onOpenShortcuts={() => setOverlay("shortcuts")}
           />
-        ) : (
-          <button
-            className="inspector-stub"
-            onClick={() => setInspectorOpen(true)}
-            title="Show the inspector — ⌥1"
-            type="button"
-          >
-            Inspector
-          </button>
+        ) : phoneWorkspace ? null : (
+          inspectorStub
         )}
       </div>
       <div className="statusbar">
