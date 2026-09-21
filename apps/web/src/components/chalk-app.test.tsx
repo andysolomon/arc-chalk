@@ -2594,6 +2594,105 @@ describe("Tablet and narrow screens (issue #68)", () => {
     }
   });
 
+  it("offers a picked man his routes in a tray above the tools on a phone, and a chosen one closes the sheet", async () => {
+    const restore = screenWhere((query) => !query.includes("min-width"));
+    try {
+      const user = userEvent.setup();
+      render(<ChalkApp runtime={createTestRuntime()} />);
+      await user.click(
+        screen.getByRole("button", { name: "Edit on this screen" }),
+      );
+      const fieldList = screen.getByRole("list", {
+        name: "Everything on the field",
+      });
+      // Nothing picked, no tray: the field keeps the glass.
+      expect(
+        screen.queryByRole("navigation", { name: "Quick calls" }),
+      ).toBeNull();
+
+      // A man with nothing on him gets the route tree, and one tap draws it.
+      await user.click(
+        within(fieldList).getByRole("button", { name: "Q offense player" }),
+      );
+      const tray = screen.getByRole("navigation", { name: "Quick calls" });
+      expect(within(tray).getByText("Q · Routes")).toBeVisible();
+      expect(
+        within(fieldList).queryByRole("button", { name: "Q route" }),
+      ).toBeNull();
+      await user.click(within(tray).getByRole("button", { name: "Slant" }));
+      await waitFor(() =>
+        expect(
+          within(fieldList).getByRole("button", { name: "Q route" }),
+        ).toBeVisible(),
+      );
+      expect(
+        within(tray).getByRole("button", { name: "Slant" }),
+      ).toHaveAttribute("aria-pressed", "true");
+
+      // The sheet was open; choosing from the tray is the answer, so it goes.
+      await user.click(screen.getByRole("button", { name: "Inspector" }));
+      expect(
+        screen.getByRole("complementary", { name: "Play inspector" }),
+      ).toBeVisible();
+      await user.click(within(tray).getByRole("button", { name: "Curl" }));
+      expect(
+        screen.queryByRole("complementary", { name: "Play inspector" }),
+      ).toBeNull();
+      await waitFor(() =>
+        expect(
+          within(tray).getByRole("button", { name: "Curl" }),
+        ).toHaveAttribute("aria-pressed", "true"),
+      );
+
+      // A quick route chosen inside the sheet closes it the same way.
+      await user.click(screen.getByRole("button", { name: "Inspector" }));
+      const sheet = screen.getByRole("complementary", {
+        name: "Play inspector",
+      });
+      await user.click(within(sheet).getByRole("button", { name: "Post" }));
+      expect(
+        screen.queryByRole("complementary", { name: "Play inspector" }),
+      ).toBeNull();
+
+      // A picked line is offered the calls it can be redrawn as, and the tray
+      // says which one it is.
+      await user.click(
+        within(fieldList).getByRole("button", { name: "Q route" }),
+      );
+      expect(within(tray).getByText("Q · Redraw")).toBeVisible();
+      expect(
+        within(tray).getByRole("button", { name: "Post" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      await user.click(within(tray).getByRole("button", { name: "Out" }));
+      await waitFor(() =>
+        expect(
+          within(tray).getByRole("button", { name: "Out" }),
+        ).toHaveAttribute("aria-pressed", "true"),
+      );
+
+      // Escape drops the pick, and the tray with it.
+      await user.keyboard("{Escape}");
+      expect(
+        screen.queryByRole("navigation", { name: "Quick calls" }),
+      ).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it("keeps the quick tray off a screen above the floor, where the inspector is docked", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+    await user.click(
+      within(
+        screen.getByRole("list", { name: "Everything on the field" }),
+      ).getByRole("button", { name: "Q offense player" }),
+    );
+    expect(
+      screen.queryByRole("navigation", { name: "Quick calls" }),
+    ).toBeNull();
+  });
+
   it("puts the drawer away on a tap past it and on the pick it was opened for", async () => {
     const restore = screenWhere(
       (query) =>

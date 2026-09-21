@@ -1323,6 +1323,50 @@ function QuickCallGrid({
 }
 
 /**
+ * The phone's quick tray: a row above the tools that offers what the Coach
+ * could give the thing he has picked out, so a route is one tap on the glass
+ * rather than a trip into the inspector sheet. It follows the editor — a man
+ * gets the calls his kind can run, a line gets the calls it can be redrawn
+ * as — and it is not there at all when nothing is picked, so the field keeps
+ * the glass.
+ */
+function QuickTray({
+  calls,
+  heading,
+  onApply,
+  running,
+  title,
+}: {
+  calls: readonly { readonly key: string; readonly name: string }[];
+  /** What the row offers, said short: Routes, Blocks, Assignments. */
+  heading: string;
+  onApply: (presetKey: string) => void;
+  /** The calls already on him, or the one this line was drawn as. */
+  running: ReadonlySet<string>;
+  /** Whom or what the row is for, said the way the Coach would. */
+  title: string;
+}) {
+  return (
+    <nav aria-label="Quick calls" className="quick-tray">
+      <span className="quick-tray-heading" title={title}>
+        {heading}
+      </span>
+      {calls.map(({ key, name }) => (
+        <button
+          aria-pressed={running.has(key)}
+          key={key}
+          onClick={() => onApply(key)}
+          title={`${name} — ${title}`}
+          type="button"
+        >
+          {name}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/**
  * The original's Player panel: the man himself, then every line he has and the
  * button that gives him another one. Which of those it offers follows what he
  * is — a lineman blocks and has no route to run, a defender is given a call.
@@ -2913,6 +2957,10 @@ export function ChalkApp({
       (item) => item.kind === "player",
     )?.id;
     if (playerId === undefined) return;
+    // Over the field a chosen call is the answer: the sheet or drawer that
+    // was covering it goes, and on a phone the quick tray is there for the
+    // next one.
+    if (inspectorFloats) setInspectorOpen(false);
     runPanelCommand(
       kind === "route"
         ? applyPlayerRoutePresetCommand(document, playerId, presetKey, () =>
@@ -2925,6 +2973,36 @@ export function ChalkApp({
             createStableId,
           ),
       {
+        selectedNodeIndex: undefined,
+        selectedBranchIndex: undefined,
+        selectedSegmentIndex: undefined,
+      },
+    );
+  };
+  /**
+   * A call off a catalogue put on a line the Coach has picked out. A route is
+   * reshaped in place, keeping its forks and everything the Coach wrote on
+   * it. A block or a drop is a whole call rather than a shape, so it replaces
+   * what the man was doing — which is what the original does, and why the two
+   * go through different commands.
+   */
+  const runLinePreset = (pathId: string, presetKey: string): void => {
+    const document = editorStore.getSnapshot().document;
+    const line = document.paths.find(({ id }) => id === pathId);
+    if (inspectorFloats) setInspectorOpen(false);
+    runPanelCommand(
+      line?.kind === "route"
+        ? applyRoutePresetCommand(document, pathId, presetKey)
+        : applyLinePresetCommand(
+            document,
+            line ? [line.playerId] : [],
+            presetKey,
+            createStableId,
+          ),
+      {
+        ...(line?.kind === "route"
+          ? { selection: [{ kind: "path", id: pathId }] }
+          : {}),
         selectedNodeIndex: undefined,
         selectedBranchIndex: undefined,
         selectedSegmentIndex: undefined,
@@ -5205,6 +5283,74 @@ export function ChalkApp({
       Inspector
     </button>
   );
+  /**
+   * What the phone's quick tray offers right now, or nothing. A line being
+   * drawn has the Done button in the tools and nothing to be given yet; a
+   * motion or a ball flight has no catalogue of its own, so they get no row
+   * rather than somebody else's.
+   */
+  const quickTray = (() => {
+    if (!phoneWorkspace || interaction.drawing) return null;
+    if (selectedPath) {
+      const calls =
+        selectedPath.kind === "route"
+          ? routePresetNames
+          : selectedPath.kind === "block"
+            ? quickBlockCalls
+            : defensiveLineKinds.has(selectedPath.kind)
+              ? quickAssignmentCalls
+              : [];
+      if (calls.length === 0) return null;
+      const who = editor.document.players.find(
+        ({ id }) => id === selectedPath.playerId,
+      );
+      return (
+        <QuickTray
+          calls={calls}
+          heading={
+            who?.label.trim() ? `${who.label.trim()} · Redraw` : "Redraw"
+          }
+          onApply={(presetKey) => runLinePreset(selectedPath.id, presetKey)}
+          running={
+            new Set(
+              selectedPath.preset === undefined ? [] : [selectedPath.preset],
+            )
+          }
+          title="Redraw this line as one of the calls it can be"
+        />
+      );
+    }
+    if (selectedPlayer) {
+      const defense = selectedPlayer.unit === "defense";
+      const lineman = isLineman(selectedPlayer);
+      const what = defense ? "Assignments" : lineman ? "Blocks" : "Routes";
+      const name = selectedPlayer.label.trim();
+      return (
+        <QuickTray
+          calls={
+            defense
+              ? quickAssignmentCalls
+              : lineman
+                ? quickBlockCalls
+                : routePresetNames
+          }
+          heading={name ? `${name} · ${what}` : what}
+          onApply={(presetKey) =>
+            runQuickCall(presetKey, defense || lineman ? "line" : "route")
+          }
+          running={playerPresets(selectedPlayer)}
+          title={
+            defense
+              ? "Give him this call — it replaces what he was doing"
+              : lineman
+                ? "Give him this block — the one he has takes it off"
+                : "Run this route — drawn from his own stance"
+          }
+        />
+      );
+    }
+    return null;
+  })();
   // The only report of a failed write, so every shell shows it — the reading
   // shell included, where the draft a Coach could not save must stay
   // recoverable (issue #97).
@@ -5461,6 +5607,7 @@ export function ChalkApp({
     <div className={`chalk-shell${phoneWorkspace ? " phone-workspace" : ""}`}>
       {header}
       <div className="workspace">
+        {quickTray}
         {railOpen ? (
           <nav
             className={`tool-rail${railLabels ? " labeled" : ""}`}
@@ -5797,38 +5944,7 @@ export function ChalkApp({
                   activePresets={playerPresets(selectedPlayer)}
                   scopeBadge={playbook.scopeBadge}
                   lines={playerLines(selectedPlayer)}
-                  onApplyPreset={(pathId, presetKey) => {
-                    const line = editor.document.paths.find(
-                      ({ id }) => id === pathId,
-                    );
-                    // A route is reshaped in place, keeping its forks and
-                    // everything the Coach wrote on it. A block or a drop is
-                    // a whole call rather than a shape, so it replaces what
-                    // the man was doing — which is what the original does,
-                    // and why the two go through different commands.
-                    runPanelCommand(
-                      line?.kind === "route"
-                        ? applyRoutePresetCommand(
-                            editor.document,
-                            pathId,
-                            presetKey,
-                          )
-                        : applyLinePresetCommand(
-                            editor.document,
-                            line ? [line.playerId] : [],
-                            presetKey,
-                            createStableId,
-                          ),
-                      {
-                        ...(line?.kind === "route"
-                          ? { selection: [{ kind: "path", id: pathId }] }
-                          : {}),
-                        selectedNodeIndex: undefined,
-                        selectedBranchIndex: undefined,
-                        selectedSegmentIndex: undefined,
-                      },
-                    );
-                  }}
+                  onApplyPreset={runLinePreset}
                   onAddAlternate={() => {
                     const id = createStableId("path");
                     runPanelCommand(
