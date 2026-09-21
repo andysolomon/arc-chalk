@@ -284,17 +284,51 @@ export function PresetPicker({
  * a popover the Coach opens when he means to change what is drawn. They
  * still change exports too, as they did.
  */
+/** One field layer the Coach can show or hide: reads, assignments, notes, text. */
+export interface FieldLayerToggle {
+  readonly id: string;
+  readonly name: string;
+  readonly on: boolean;
+}
+
+/** The layer switches themselves — in the bar's popover, or laid into a sheet. */
+export function LayerToggles({
+  layers,
+  onToggle,
+}: {
+  layers: readonly FieldLayerToggle[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div className="layer-toggles">
+      {layers.map((layer) => (
+        <button
+          aria-pressed={layer.on}
+          className={layer.on ? "active" : undefined}
+          key={layer.id}
+          onClick={() => onToggle(layer.id)}
+          title={
+            layer.on
+              ? `Hide ${layer.name.toLowerCase()} everywhere, exports included`
+              : `Show ${layer.name.toLowerCase()} again`
+          }
+          type="button"
+        >
+          <span className="layer-dot" />
+          {layer.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function LayersPopover({
   layers,
   onToggle,
   open,
   onOpenChange,
 }: {
-  layers: readonly {
-    readonly id: string;
-    readonly name: string;
-    readonly on: boolean;
-  }[];
+  layers: readonly FieldLayerToggle[];
   onToggle: (id: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -319,25 +353,7 @@ export function LayersPopover({
           role="group"
         >
           <div className="menu-head">SHOW ON THE FIELD</div>
-          <div className="layer-toggles">
-            {layers.map((layer) => (
-              <button
-                aria-pressed={layer.on}
-                className={layer.on ? "active" : undefined}
-                key={layer.id}
-                onClick={() => onToggle(layer.id)}
-                title={
-                  layer.on
-                    ? `Hide ${layer.name.toLowerCase()} everywhere, exports included`
-                    : `Show ${layer.name.toLowerCase()} again`
-                }
-                type="button"
-              >
-                <span className="layer-dot" />
-                {layer.name}
-              </button>
-            ))}
-          </div>
+          <LayerToggles layers={layers} onToggle={onToggle} />
         </div>
       ) : null}
     </div>
