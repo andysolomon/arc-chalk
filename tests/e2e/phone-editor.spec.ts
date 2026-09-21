@@ -140,7 +140,7 @@ for (const viewport of VIEWPORTS) {
         .getByText("Gun Doubles Right", { exact: true })
         .click();
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
-      await page.getByRole("button", { name: "Hide the inspector" }).click();
+      // The pick was the errand: the sheet puts itself away.
       await expect(
         page.getByRole("complementary", { name: "Play inspector" }),
       ).toHaveCount(0);
@@ -309,10 +309,15 @@ for (const viewport of WORKSPACES) {
         .getByText("Gun Doubles Right", { exact: true })
         .tap();
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+      // The pick was the errand: the sheet puts itself away.
+      await expect(sheet).toHaveCount(0);
 
-      // A draft name survives the sheet closing and the phone turning over.
+      // A draft name survives the sheet coming and going and the phone
+      // turning over. Its whole top row is the handle that puts it away.
       const name = page.getByRole("textbox", { name: "Play name" });
       await name.fill("Phone draft");
+      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
+      await expect(sheet).toBeVisible();
       await page.getByRole("button", { name: "Hide the inspector" }).tap();
       await expect(sheet).toHaveCount(0);
       await expect(name).toHaveValue("Phone draft");
@@ -494,7 +499,9 @@ blankTest.describe("first launch on a phone at 390×844", () => {
         .getByText("Gun Doubles Right", { exact: true })
         .tap();
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
-      await page.getByRole("button", { name: "Hide the inspector" }).tap();
+      await expect(
+        page.getByRole("complementary", { name: "Play inspector" }),
+      ).toHaveCount(0);
 
       const name = page.getByRole("textbox", { name: "Play name" });
       await name.fill("First play on a phone");

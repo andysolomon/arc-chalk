@@ -2593,6 +2593,91 @@ describe("Tablet and narrow screens (issue #68)", () => {
       restore();
     }
   });
+
+  it("puts the drawer away on a tap past it and on the pick it was opened for", async () => {
+    const restore = screenWhere(
+      (query) =>
+        query.includes("max-width: 1023px") ||
+        query.includes("pointer: coarse") ||
+        query.includes("min-width"),
+    );
+    try {
+      const user = userEvent.setup();
+      render(<ChalkApp runtime={createTestRuntime()} />);
+      const inspectorOf = () =>
+        screen.queryByRole("complementary", { name: "Play inspector" });
+
+      // A tap on the field, past the drawer, closes it.
+      await user.click(screen.getByRole("button", { name: "Inspector" }));
+      expect(inspectorOf()).toBeVisible();
+      await user.click(screen.getByRole("main"));
+      expect(inspectorOf()).toBeNull();
+
+      // Its own popover is not "past it".
+      await user.click(screen.getByRole("button", { name: "Inspector" }));
+      await user.click(screen.getByRole("button", { name: /^Layers/ }));
+      await user.click(screen.getByRole("button", { name: "Text" }));
+      expect(inspectorOf()).toBeVisible();
+
+      // Nor is the browser it opened; but choosing a set is the errand done.
+      await user.click(screen.getByTitle("Browse formations — ⇧⌘F"));
+      const book = screen.getByRole("dialog", { name: "Formations" });
+      await user.click(
+        within(book).getByRole("textbox", { name: "Search formations" }),
+      );
+      expect(inspectorOf()).toBeVisible();
+      await user.click(
+        within(book).getByRole("button", { name: "Gun Trips Right" }),
+      );
+      expect(screen.queryByRole("dialog", { name: "Formations" })).toBeNull();
+      expect(inspectorOf()).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it("makes the phone sheet's whole top row its handle and folds the layers into it", async () => {
+    const restore = screenWhere(
+      (query) =>
+        query.includes("max-width: 1023px") ||
+        query.includes("pointer: coarse"),
+    );
+    try {
+      const user = userEvent.setup();
+      const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
+      await user.click(
+        screen.getByRole("button", { name: "Edit on this screen" }),
+      );
+      await user.click(screen.getByRole("button", { name: "Inspector" }));
+      const sheet = screen.getByRole("complementary", {
+        name: "Play inspector",
+      });
+      // The bar no longer holds a Layers popover; the switches fold inside.
+      expect(
+        within(sheet).queryByRole("button", { name: /^Layers/ }),
+      ).toBeNull();
+      await user.click(
+        within(sheet).getByRole("button", { name: /^Show on the field/ }),
+      );
+      await user.click(within(sheet).getByRole("button", { name: "Text" }));
+      expect(container.querySelector("[data-scene-label]")).toBeNull();
+      // Folded again, the section says what it is showing.
+      await user.click(
+        within(sheet).getByRole("button", { name: /^Show on the field/ }),
+      );
+      expect(within(sheet).getByText("3 of 4")).toBeVisible();
+
+      // A tap anywhere along the top row puts the sheet away.
+      await user.click(
+        within(sheet).getByRole("button", { name: "Hide the inspector" }),
+      );
+      expect(
+        screen.queryByRole("complementary", { name: "Play inspector" }),
+      ).toBeNull();
+    } finally {
+      restore();
+    }
+  });
 });
 
 describe("Present for a thumb (issue #67)", () => {

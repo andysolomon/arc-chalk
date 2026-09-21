@@ -5362,7 +5362,34 @@ button.library-dot.target.small {
     0 -1px 0 var(--line),
     0 -12px 28px -12px rgba(0, 0, 0, 0.25);
 }
-.phone-workspace .inspector-collapse {
+/* The sheet's handle: its whole top row, which a tap anywhere along puts
+   away. The layer switches it displaces fold into the sheet below. */
+.phone-workspace .inspector-bar {
+  padding: 0;
+}
+.inspector-sheet-handle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  align-self: stretch;
+  padding: 0 14px 0 16px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.inspector-sheet-handle:active {
+  background: #f2f2f2;
+}
+.inspector-sheet-caret {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
   transform: rotate(90deg);
 }
 /* The way to the inspector floats in the field's bottom corner: a fitted
