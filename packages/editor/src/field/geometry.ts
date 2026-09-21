@@ -301,16 +301,25 @@ export function nearestSegmentIndex(
 // ---------------------------------------------------------------------------
 
 /**
+ * What holds a thing on the field: the sidelines, which the Play's own Field
+ * Profile sets, and the drawn frame's depth, which only the shell knows.
+ */
+export type FieldBounds = Pick<
+  FieldInteractionContext,
+  "document" | "depthWindow"
+>;
+
+/**
  * The original clamps to the sidelines and the drawn frame's depth. Rounding
  * happens first and clamping last, because rounding a clamped value can carry
  * it back across the boundary it was just held inside.
  */
 export function clampToField(
   point: Coordinate,
-  context: FieldInteractionContext,
+  bounds: FieldBounds,
 ): Coordinate {
-  const halfWidth = context.document.fieldProfile.widthYards / 2;
-  const depthWindow = context.depthWindow;
+  const halfWidth = bounds.document.fieldProfile.widthYards / 2;
+  const depthWindow = bounds.depthWindow;
   const rough = coordinate(point.lateralYards, point.depthYards);
   return {
     lateralYards: Math.max(-halfWidth, Math.min(halfWidth, rough.lateralYards)),
@@ -318,6 +327,63 @@ export function clampToField(
       ? Math.max(
           depthWindow.minDepthYards,
           Math.min(depthWindow.maxDepthYards, rough.depthYards),
+        )
+      : rough.depthYards,
+  };
+}
+
+/**
+ * How far a set of points may shift on one axis before its outermost one
+ * crosses an edge. Something already past an edge is only ever brought back:
+ * the shift toward the field stays open and the one further out is closed.
+ * A set wider than the field itself may slide until one edge is on its line.
+ */
+function heldShift(
+  shift: number,
+  values: readonly number[],
+  min: number,
+  max: number,
+): number {
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const floor = min - low;
+  const ceiling = max - high;
+  return Math.max(
+    Math.min(floor, ceiling),
+    Math.min(Math.max(floor, ceiling), shift),
+  );
+}
+
+/**
+ * Holds a move so that nothing it carries leaves the field. Everything that
+ * moves together — a man, his routes, the notes with him — is measured as
+ * one, and the shift is cut back on each axis where the outermost point
+ * would cross a sideline or the edge of the drawn frame. That is what keeps a
+ * route on the paint when its man is dragged toward the sideline: he stops
+ * where the far end of his route touches it.
+ */
+export function clampTranslationToField(
+  points: readonly Coordinate[],
+  translation: Coordinate,
+  bounds: FieldBounds,
+): Coordinate {
+  const rough = coordinate(translation.lateralYards, translation.depthYards);
+  if (points.length === 0) return rough;
+  const halfWidth = bounds.document.fieldProfile.widthYards / 2;
+  const depthWindow = bounds.depthWindow;
+  return {
+    lateralYards: heldShift(
+      rough.lateralYards,
+      points.map(({ lateralYards }) => lateralYards),
+      -halfWidth,
+      halfWidth,
+    ),
+    depthYards: depthWindow
+      ? heldShift(
+          rough.depthYards,
+          points.map(({ depthYards }) => depthYards),
+          depthWindow.minDepthYards,
+          depthWindow.maxDepthYards,
         )
       : rough.depthYards,
   };

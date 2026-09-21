@@ -3002,3 +3002,312 @@ describe("which of them draws on top", () => {
     expect(order(after)).toEqual(seeded);
   });
 });
+
+describe("holding everything on the field", () => {
+  // The drawn frame as the shell reports it: a little past the seeded window
+  // at either end, so a break can still be put on the last yard line.
+  const depthWindow = { minDepthYards: -15, maxDepthYards: 35 };
+  const halfWidth = stickThunderPlay.fieldProfile.widthYards / 2;
+  const boundsContext = (overrides: Partial<FieldInteractionContext> = {}) =>
+    contextFor(stickThunderPlay, {
+      snap: { enabled: false, grid: "off" },
+      depthWindow,
+      createId: (prefix) => `${prefix}_new`,
+      ...overrides,
+    });
+  const pathOf = (document: PlayDocument, id: string) =>
+    document.paths.find((candidate) => candidate.id === id)!;
+  const drag = (from: Coordinate, to: Coordinate): FieldInteractionEvent[] => [
+    down(from),
+    move(to),
+    up(to),
+  ];
+  const dragged = (session: Session, id: string): Coordinate =>
+    positionOf(applyPlayCommand(stickThunderPlay, session.commands[0]!), id);
+
+  it("stops a dragged Player at the sideline", () => {
+    const context = boundsContext();
+    const q = positionOf(stickThunderPlay, "q");
+    const far = { lateralYards: 90, depthYards: q.depthYards };
+
+    const session = run(context, [down(q), move(far)]);
+    expect(session.model.gesture.kind).toBe("moving");
+    const preview = gesturePreviewCommand(session.model, stickThunderPlay)!;
+    const previewed = positionOf(
+      applyPlayCommand(stickThunderPlay, preview),
+      "q",
+    );
+    expect(previewed.lateralYards).toBeCloseTo(halfWidth, 6);
+
+    const released = run(context, [up(far)], session.model);
+    expect(released.commands).toHaveLength(1);
+    const landed = positionOf(
+      applyPlayCommand(stickThunderPlay, released.commands[0]!),
+      "q",
+    );
+    expect(landed.lateralYards).toBeCloseTo(halfWidth, 6);
+    expect(landed.depthYards).toBeCloseTo(q.depthYards, 6);
+  });
+
+  it("stops a dragged Player at the edge of the drawn frame", () => {
+    const context = boundsContext();
+    const q = positionOf(stickThunderPlay, "q");
+
+    const below = run(
+      context,
+      drag(q, { lateralYards: q.lateralYards, depthYards: -60 }),
+    );
+    expect(dragged(below, "q").depthYards).toBeCloseTo(
+      depthWindow.minDepthYards,
+      6,
+    );
+
+    const above = run(
+      context,
+      drag(q, { lateralYards: q.lateralYards, depthYards: 80 }),
+    );
+    expect(dragged(above, "q").depthYards).toBeCloseTo(
+      depthWindow.maxDepthYards,
+      6,
+    );
+  });
+
+  it("leaves the frame alone when the shell has not drawn one", () => {
+    const context = boundsContext({ depthWindow: undefined });
+    const q = positionOf(stickThunderPlay, "q");
+    const session = run(
+      context,
+      drag(q, { lateralYards: q.lateralYards, depthYards: -60 }),
+    );
+    expect(dragged(session, "q").depthYards).toBeCloseTo(-60, 6);
+  });
+
+  it("stops a Player where the far end of his route touches the sideline", () => {
+    const context = boundsContext();
+    const z = positionOf(stickThunderPlay, "z");
+    const route = pathOf(stickThunderPlay, "rz");
+    const reach = Math.max(
+      ...[...route.points, ...route.branches.flatMap((b) => b.points)].map(
+        ({ lateralYards }) => lateralYards,
+      ),
+    );
+    expect(reach).toBeGreaterThan(z.lateralYards);
+
+    const session = run(
+      context,
+      drag(z, { lateralYards: z.lateralYards + 20, depthYards: z.depthYards }),
+    );
+    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    const moved = pathOf(after, "rz");
+    const tips = [
+      ...moved.points,
+      ...moved.branches.flatMap((b) => b.points),
+    ].map(({ lateralYards }) => lateralYards);
+    expect(Math.max(...tips)).toBeCloseTo(halfWidth, 6);
+    // He and his route moved together, by exactly what the route allowed.
+    expect(positionOf(after, "z").lateralYards).toBeCloseTo(
+      z.lateralYards + (halfWidth - reach),
+      6,
+    );
+  });
+
+  it("holds a snapped Player on the field too", () => {
+    const context = boundsContext({ snap: { enabled: true, grid: "off" } });
+    const q = positionOf(stickThunderPlay, "q");
+    const session = run(context, [
+      down(q),
+      move({ lateralYards: 90, depthYards: q.depthYards }),
+    ]);
+    const gesture = session.model.gesture;
+    expect(gesture.kind).toBe("moving");
+    if (gesture.kind !== "moving") return;
+    expect(q.lateralYards + gesture.translation.lateralYards).toBeCloseTo(
+      halfWidth,
+      6,
+    );
+    expect(gesture.readout!.position.lateralYards).toBeCloseTo(halfWidth, 6);
+  });
+
+  it("holds a group by its outermost point", () => {
+    const context = boundsContext();
+    const x = positionOf(stickThunderPlay, "x");
+    const q = positionOf(stickThunderPlay, "q");
+    const routeX = pathOf(stickThunderPlay, "rx");
+    const leftmost = Math.min(
+      ...routeX.points.map(({ lateralYards }) => lateralYards),
+    );
+
+    const session = run(context, [
+      down(q, { shiftKey: true }),
+      up(q),
+      down(x, { shiftKey: true }),
+      up(x),
+      ...drag(x, {
+        lateralYards: x.lateralYards - 40,
+        depthYards: x.depthYards,
+      }),
+    ]);
+    expect(session.commands).toHaveLength(1);
+    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    const tips = pathOf(after, "rx").points.map(
+      ({ lateralYards }) => lateralYards,
+    );
+    expect(Math.min(...tips)).toBeCloseTo(-halfWidth, 6);
+    // The group kept its shape: Q moved by the same held amount as X.
+    const shift = positionOf(after, "x").lateralYards - x.lateralYards;
+    expect(shift).toBeCloseTo(-halfWidth - leftmost, 6);
+    expect(positionOf(after, "q").lateralYards).toBeCloseTo(
+      q.lateralYards + shift,
+      6,
+    );
+  });
+
+  it("does not nudge a Player past the sideline", () => {
+    const context = boundsContext();
+    const q = positionOf(stickThunderPlay, "q");
+    const onSideline = run(
+      context,
+      drag(q, { lateralYards: 90, depthYards: q.depthYards }),
+    );
+    const document = applyPlayCommand(
+      stickThunderPlay,
+      onSideline.commands[0]!,
+    );
+    const session = run(
+      boundsContext({ document, scene: buildRenderScene(document) }),
+      [{ type: "nudge", lateralYards: 0.5, depthYards: 0 }],
+      { selection: [player("q")], gesture: { kind: "idle" } },
+    );
+    // Nothing to move by, so nothing to undo either.
+    expect(session.commands).toHaveLength(0);
+
+    const back = run(
+      boundsContext({ document, scene: buildRenderScene(document) }),
+      [{ type: "nudge", lateralYards: -0.5, depthYards: 0 }],
+      { selection: [player("q")], gesture: { kind: "idle" } },
+    );
+    expect(back.commands).toHaveLength(1);
+    expect(
+      positionOf(applyPlayCommand(document, back.commands[0]!), "q")
+        .lateralYards,
+    ).toBeCloseTo(halfWidth - 0.5, 6);
+  });
+
+  it("brings a Player already off the frame back onto it", () => {
+    const stranded = applyPlayCommand(stickThunderPlay, {
+      kind: "move-players",
+      moves: [
+        { playerId: "q", position: { lateralYards: 0, depthYards: -30 } },
+      ],
+    });
+    const context = boundsContext({
+      document: stranded,
+      scene: buildRenderScene(stranded),
+    });
+    const session = run(
+      context,
+      drag(
+        { lateralYards: 0, depthYards: -30 },
+        { lateralYards: 0, depthYards: -31 },
+      ),
+    );
+    expect(session.commands).toHaveLength(1);
+    const landed = positionOf(
+      applyPlayCommand(stranded, session.commands[0]!),
+      "q",
+    );
+    expect(landed.depthYards).toBeCloseTo(depthWindow.minDepthYards, 6);
+  });
+
+  it("keeps a bent segment inside the sidelines", () => {
+    const context = boundsContext();
+    const session = run(context, [
+      {
+        type: "handle-down",
+        handle: { kind: "control", pathId: "rz", pointIndex: 1 },
+        input: { point: { lateralYards: 21, depthYards: 5 }, pointerId: 1 },
+      },
+      move({ lateralYards: 60, depthYards: 5 }),
+      up({ lateralYards: 60, depthYards: 5 }),
+    ]);
+    expect(session.commands).toHaveLength(1);
+    const bent = pathOf(
+      applyPlayCommand(stickThunderPlay, session.commands[0]!),
+      "rz",
+    );
+    expect(bent.points[1]!.control!.lateralYards).toBeLessThanOrEqual(
+      halfWidth,
+    );
+  });
+
+  it("keeps a segment bent while drawing inside the sidelines", () => {
+    const context = boundsContext({ tool: "route" });
+    const z = positionOf(stickThunderPlay, "z");
+    const first = {
+      lateralYards: z.lateralYards,
+      depthYards: z.depthYards + 8,
+    };
+    const session = run(context, [
+      down(z),
+      move(first),
+      down(first),
+      move({ lateralYards: 70, depthYards: first.depthYards - 4 }),
+    ]);
+    const control = session.model.drawing!.points.at(-1)!.control!;
+    expect(control.lateralYards).toBeLessThanOrEqual(halfWidth);
+  });
+
+  it("puts a new Player pressed past the sideline on it", () => {
+    const room = applyPlayCommand(
+      stickThunderPlay,
+      deletePlayersCommand(stickThunderPlay, ["ol0"]),
+    );
+    const context = boundsContext({
+      document: room,
+      scene: buildRenderScene(room),
+      tool: "player",
+    });
+    const session = run(context, [
+      down({ lateralYards: -40, depthYards: -20 }),
+    ]);
+    expect(session.commands).toHaveLength(1);
+    const placed = positionOf(
+      applyPlayCommand(room, session.commands[0]!),
+      "player_new",
+    );
+    expect(placed.lateralYards).toBeCloseTo(-halfWidth, 6);
+    expect(placed.depthYards).toBeCloseTo(depthWindow.minDepthYards, 6);
+  });
+
+  it("pastes against the sideline rather than past it", () => {
+    const room = applyPlayCommand(
+      stickThunderPlay,
+      deletePlayersCommand(stickThunderPlay, ["ol0", "ol1"]),
+    );
+    const bySideline = applyPlayCommand(room, {
+      kind: "move-players",
+      moves: [
+        {
+          playerId: "q",
+          position: { lateralYards: halfWidth - 0.5, depthYards: -4 },
+        },
+      ],
+    });
+    let next = 0;
+    const context = boundsContext({
+      document: bySideline,
+      scene: buildRenderScene(bySideline),
+      createId: (prefix) => `${prefix}_${(next += 1)}`,
+    });
+    const session = run(context, [{ type: "copy" }, { type: "paste" }], {
+      selection: [player("q")],
+      gesture: { kind: "idle" },
+    });
+    expect(session.commands).toHaveLength(1);
+    const after = applyPlayCommand(bySideline, session.commands[0]!);
+    const copy = after.players.at(-1)!;
+    expect(copy.position.lateralYards).toBeCloseTo(halfWidth, 6);
+    // Only the held axis gave: the copy still lands clear of the original.
+    expect(copy.position.depthYards).toBeLessThan(-4);
+  });
+});

@@ -230,11 +230,17 @@ function dragControl(
     delete straight.control;
     points[pointIndex] = straight;
   } else {
+    // The bend is held on the field with its breaks: a curve stays inside
+    // the triangle its control makes with them, so a control kept inside
+    // the sidelines keeps the whole arc off the grass.
     points[pointIndex] = {
       ...end,
-      control: coordinate(
-        2 * point.lateralYards - midpoint.lateralYards,
-        2 * point.depthYards - midpoint.depthYards,
+      control: clampToField(
+        coordinate(
+          2 * point.lateralYards - midpoint.lateralYards,
+          2 * point.depthYards - midpoint.depthYards,
+        ),
+        context,
       ),
     };
   }

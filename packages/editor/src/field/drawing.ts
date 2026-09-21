@@ -81,10 +81,13 @@ export function addDrawPoint(
  * Holding the pointer after placing a break and pulling away bends the
  * segment through the pointer: the control point is the pointer's reflection
  * across the chord's midpoint, so the curve passes under the Coach's finger.
+ * The control is held on the field like the breaks are, which keeps the
+ * whole arc inside the sidelines however far past them the finger goes.
  */
 export function bendLastSegment(
   drawing: FieldDrawingState,
   point: Coordinate,
+  context: FieldInteractionContext,
 ): FieldDrawingState {
   const points = [...drawing.points];
   const end = points.at(-1)!;
@@ -93,9 +96,12 @@ export function bendLastSegment(
   const midDepth = (start.depthYards + end.depthYards) / 2;
   points[points.length - 1] = {
     ...end,
-    control: coordinate(
-      2 * point.lateralYards - midLateral,
-      2 * point.depthYards - midDepth,
+    control: clampToField(
+      coordinate(
+        2 * point.lateralYards - midLateral,
+        2 * point.depthYards - midDepth,
+      ),
+      context,
     ),
   };
   return { ...drawing, points };

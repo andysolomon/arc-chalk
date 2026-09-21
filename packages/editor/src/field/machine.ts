@@ -8,6 +8,7 @@ import {
 import {
   buildDeleteCommand,
   buildMoveCommand,
+  clampMoveToField,
   expandSelectionToGroups,
   movePreview,
 } from "./commands";
@@ -194,10 +195,9 @@ function pointerDown(
                 index: context.document.labels.length,
                 item: {
                   id,
-                  position: coordinate(
-                    input.point.lateralYards,
-                    input.point.depthYards,
-                  ),
+                  // A note pressed in the grass outside the paint lands on
+                  // its edge, like anything else put down there.
+                  position: clampToField(input.point, context),
                   ...NEW_LABEL_DEFAULTS,
                   ...(selectedPlayer?.unit === "defense"
                     ? { unit: "defense" as const }
@@ -219,7 +219,8 @@ function pointerDown(
     if (!canAddPlayerToSide(context.document, context.document.unit)) {
       return { model };
     }
-    // The original places the new man exactly where the Coach pressed.
+    // The original places the new man exactly where the Coach pressed —
+    // held on the paint, so a press past the sideline puts him on it.
     const createId = context.createId ?? ((prefix: string) => `${prefix}_new`);
     const id = createId("player");
     return {
@@ -236,10 +237,7 @@ function pointerDown(
                 item: {
                   id,
                   unit: context.document.unit,
-                  position: coordinate(
-                    input.point.lateralYards,
-                    input.point.depthYards,
-                  ),
+                  position: clampToField(input.point, context),
                   symbol: "circle",
                   label: "",
                   sublabel: "",
@@ -286,7 +284,10 @@ function pointerMove(
         DRAW_CURVE_THRESHOLD_PX
     ) {
       return {
-        model: { ...model, drawing: bendLastSegment(drawing, input.point) },
+        model: {
+          ...model,
+          drawing: bendLastSegment(drawing, input.point, context),
+        },
       };
     }
     return {
@@ -591,7 +592,11 @@ export function fieldInteraction(
       const command = buildMoveCommand(
         context.document,
         model.selection,
-        coordinate(event.lateralYards, event.depthYards),
+        clampMoveToField(
+          context,
+          model.selection,
+          coordinate(event.lateralYards, event.depthYards),
+        ),
       );
       return { model, ...(command === undefined ? {} : { command }) };
     }
@@ -713,7 +718,12 @@ export function fieldInteraction(
       if (!source) return { model };
       const createId =
         context.createId ?? ((prefix: string) => `${prefix}_new`);
-      const pasted = buildPasteCommand(context.document, source, createId);
+      const pasted = buildPasteCommand(
+        context.document,
+        source,
+        createId,
+        context.depthWindow,
+      );
       if (!pasted) return { model };
       return {
         model: {
