@@ -253,8 +253,10 @@ import {
 } from "./editor-overlays";
 import {
   Disclosure,
+  type FieldLayerToggle,
   Hint,
   LayersPopover,
+  LayerToggles,
   PresetPicker,
 } from "./inspector-sections";
 import type { PresetChoice } from "./preset-choices";
@@ -1911,6 +1913,7 @@ function Inspector({
   currentConcept,
   currentLineCall,
   defenderCount,
+  layers,
   layersPopover,
   library,
   librarySummary,
@@ -1919,6 +1922,7 @@ function Inspector({
   onOpenPresets,
   onSpotBall,
   onToggle,
+  onToggleLayer,
   open,
   formation,
   formationHint,
@@ -1927,6 +1931,7 @@ function Inspector({
   onOpenFormations,
   onOpenPalette,
   onOpenShortcuts,
+  sheet = false,
   unit,
 }: {
   ballSpots: readonly {
@@ -1942,6 +1947,8 @@ function Inspector({
   currentConcept?: string;
   currentLineCall?: string;
   defenderCount: number;
+  /** The field layers, for the sheet's own "Show on the field" fold. */
+  layers: readonly FieldLayerToggle[];
   layersPopover?: React.ReactNode;
   library?: React.ReactNode;
   /** One line about the open Play's family, for the folded Library heading. */
@@ -1950,6 +1957,7 @@ function Inspector({
   onOpenPresets: (group: "concept" | "line") => void;
   onSpotBall: (spot: BallSpot) => void;
   onToggle: (id: string) => void;
+  onToggleLayer: (id: string) => void;
   /** Which folded sections the Coach has opened, remembered per device. */
   open: Readonly<Record<string, boolean>>;
   linemanCount: number;
@@ -1960,10 +1968,32 @@ function Inspector({
   onOpenFormations: () => void;
   onOpenPalette: () => void;
   onOpenShortcuts: () => void;
+  /**
+   * A sheet over a phone's field (issue #92): the bar is the sheet's handle,
+   * and a tap anywhere along it puts the sheet away. The layer switches then
+   * fold into the sheet itself, since the bar no longer holds them.
+   */
+  sheet?: boolean;
   unit: PlayDocument["unit"];
 }) {
   const defense = unit === "defense";
-  const bar = (
+  const layersShown = layers.filter(({ on }) => on).length;
+  const bar = sheet ? (
+    <div className="inspector-bar">
+      <button
+        aria-label="Hide the inspector"
+        className="inspector-sheet-handle"
+        onClick={onCollapse}
+        title="Hide the inspector"
+        type="button"
+      >
+        <span>Inspector</span>
+        <span aria-hidden="true" className="inspector-sheet-caret">
+          ›
+        </span>
+      </button>
+    </div>
+  ) : (
     <div className="inspector-bar">
       {layersPopover}
       <span className="top-spacer" />
@@ -2114,6 +2144,21 @@ function Inspector({
       >
         {library}
       </Disclosure>
+      {sheet ? (
+        <Disclosure
+          id="layers"
+          onToggle={onToggle}
+          open={open.layers ?? false}
+          summary={
+            layersShown < layers.length
+              ? `${layersShown} of ${layers.length}`
+              : "All shown"
+          }
+          title="Show on the field"
+        >
+          <LayerToggles layers={layers} onToggle={onToggleLayer} />
+        </Disclosure>
+      ) : null}
       <InspectorSection title="Help">
         <div className="help-row">
           <button onClick={onOpenPalette} type="button">
@@ -2398,6 +2443,13 @@ export function ChalkApp({
    * field (issue #68). Watched, because a tablet turns over.
    */
   const compactRef = useRef(false);
+  const [compact, setCompact] = useState(false);
+  /**
+   * The inspector stands over the field rather than beside it: a drawer on
+   * a tablet, a sheet on a phone. Either goes away when the Coach is done
+   * with it — a tap past it, or the pick he opened it for.
+   */
+  const inspectorFloats = compact || phoneWorkspace;
   /** Whether space is down, which turns any drag into a pan. */
   const spaceHeldRef = useRef(false);
   /** A space-drag consumed the key, so keyup must not also play. */
@@ -3689,6 +3741,7 @@ export function ChalkApp({
     if (!call) return;
     setOverlay(null);
     setPreviewFormationId(undefined);
+    if (inspectorFloats) setInspectorOpen(false);
     const { command, result } = applyDefensiveCallCommand(
       editor.document,
       call,
@@ -3852,6 +3905,8 @@ export function ChalkApp({
     if (!formation) return;
     setOverlay(null);
     setPreviewFormationId(undefined);
+    // The set was the errand; over a phone's field the sheet has done its job.
+    if (inspectorFloats) setInspectorOpen(false);
     const { command, result } = applyFormationCommand(
       editor.document,
       formation,
@@ -4379,6 +4434,7 @@ export function ChalkApp({
     const read = () => {
       const was = compactRef.current;
       compactRef.current = query.matches;
+      setCompact(query.matches);
       if (query.matches && !was) setInspectorOpen(false);
     };
     read();
@@ -4745,6 +4801,26 @@ export function ChalkApp({
     return () => globalThis.removeEventListener("pointerdown", onPointerDown);
   }, [openMenu]);
 
+  // A drawer or sheet over the field goes away on a tap past it — the field,
+  // the tools, the top bar. What it opened itself (a browser, a menu, its own
+  // handle) is not past it.
+  useEffect(() => {
+    if (!inspectorOpen || !inspectorFloats) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (
+        target?.closest(
+          ".inspector, .inspector-stub, .overlay, .menu-panel, .context-backdrop, .toast",
+        )
+      ) {
+        return;
+      }
+      setInspectorOpen(false);
+    };
+    globalThis.addEventListener("pointerdown", onPointerDown);
+    return () => globalThis.removeEventListener("pointerdown", onPointerDown);
+  }, [inspectorOpen, inspectorFloats]);
+
   useEffect(() => {
     let cancelled = false;
     void runtime.library.loadChrome().then((state) => {
@@ -4836,23 +4912,26 @@ export function ChalkApp({
         ? chromeRef.current.favoritePresets.filter((id) => id !== key)
         : [...chromeRef.current.favoritePresets, key],
     });
+  const fieldLayers: readonly FieldLayerToggle[] = fieldLayerCatalog.map(
+    (layer) => ({
+      id: layer.id,
+      name: layer.name,
+      on: presentation.layers[layer.id],
+    }),
+  );
+  const toggleFieldLayer = (id: string) =>
+    setPresentation((current) => ({
+      ...current,
+      layers: {
+        ...current.layers,
+        [id]: !current.layers[id as FieldLayerId],
+      },
+    }));
   const layersPopover = (
     <LayersPopover
-      layers={fieldLayerCatalog.map((layer) => ({
-        id: layer.id,
-        name: layer.name,
-        on: presentation.layers[layer.id],
-      }))}
+      layers={fieldLayers}
       onOpenChange={(shown) => setOpenMenu(shown ? "layers" : null)}
-      onToggle={(id) =>
-        setPresentation((current) => ({
-          ...current,
-          layers: {
-            ...current.layers,
-            [id]: !current.layers[id as FieldLayerId],
-          },
-        }))
-      }
+      onToggle={toggleFieldLayer}
       open={openMenu === "layers"}
     />
   );
@@ -5882,11 +5961,14 @@ export function ChalkApp({
             scopeBadge={playbook.scopeBadge}
             currentConcept={currentConcept}
             currentLineCall={currentLineCall}
+            layers={fieldLayers}
             layersPopover={layersPopover}
             librarySummary={librarySummary}
             onCollapse={() => setInspectorOpen(false)}
+            sheet={phoneWorkspace}
             onOpenPresets={openPresets}
             onToggle={toggleDisclosure}
+            onToggleLayer={toggleFieldLayer}
             open={chrome.open}
             unit={editor.document.unit}
             library={
