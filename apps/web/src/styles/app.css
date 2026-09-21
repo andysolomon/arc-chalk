@@ -5341,6 +5341,63 @@ button.library-dot.target.small {
   font-size: 12px;
   font-weight: 600;
 }
+/* The quick tray (a row above the tools): what the picked man or line can be
+   given, as pills a thumb can hit, scrolling sideways when the tree is longer
+   than the glass is wide. Not there when nothing is picked. */
+.phone-workspace .quick-tray {
+  position: relative;
+  z-index: 2;
+  order: 1;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 56px;
+  padding: 0 max(8px, env(safe-area-inset-right)) 0
+    max(8px, env(safe-area-inset-left));
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--canvas);
+  box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.06);
+}
+.phone-workspace .quick-tray::-webkit-scrollbar {
+  display: none;
+}
+.phone-workspace .quick-tray-heading {
+  flex: none;
+  padding: 0 6px 0 2px;
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.phone-workspace .quick-tray > button {
+  flex: none;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: #4d4d4d;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.phone-workspace .quick-tray > button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.phone-workspace .quick-tray > button[aria-pressed="true"] {
+  background: var(--ink);
+  box-shadow: none;
+  color: #fff;
+}
 .phone-workspace .rail-stub {
   order: 1;
   width: auto;

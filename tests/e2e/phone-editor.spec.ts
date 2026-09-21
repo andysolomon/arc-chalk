@@ -391,6 +391,60 @@ for (const viewport of WORKSPACES) {
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
     });
 
+    test("gives a picked man his routes from a tray above the tools", async ({
+      page,
+    }) => {
+      await enterEditor(page);
+      const tray = page.getByRole("navigation", { name: "Quick calls" });
+      await expect(tray).toHaveCount(0);
+
+      // Tap the quarterback, who carries no route in the seeded Play.
+      const routes = await page.locator("[data-scene-path]").count();
+      const symbol = page
+        .locator("[data-scene-player='q']")
+        .locator("circle, rect, path")
+        .first();
+      const at = (await symbol.boundingBox())!;
+      await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
+      await expect(tray).toBeVisible();
+      await expect(tray.getByText("Q · Routes")).toBeVisible();
+
+      // The tray is a row on the glass, above the tools, with thumb-sized
+      // pills — the first ones without a scroll.
+      const trayBox = await insideViewport(page, tray, viewport);
+      const toolsBox = await insideViewport(
+        page,
+        page.getByRole("navigation", { name: "Drawing tools" }),
+        viewport,
+      );
+      expect(trayBox.y + trayBox.height).toBeLessThanOrEqual(toolsBox.y + 1);
+      const slant = tray.getByRole("button", { name: "Slant" });
+      const slantBox = await insideViewport(page, slant, viewport);
+      expect(slantBox.height).toBeGreaterThanOrEqual(44);
+      expect(slantBox.width).toBeGreaterThanOrEqual(44);
+
+      // One tap draws the route and marks the pill as his.
+      await slant.tap();
+      await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+      await expect(slant).toHaveAttribute("aria-pressed", "true");
+      await expect(
+        page.getByRole("button", { name: "Saved on this device" }),
+      ).toBeVisible();
+
+      // A quick route chosen in the sheet closes the sheet: the field is the
+      // answer, and the tray is there for the next one.
+      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
+      const sheet = page.getByRole("complementary", { name: "Play inspector" });
+      await expect(sheet).toBeVisible();
+      await sheet.getByRole("button", { name: "Curl" }).tap();
+      await expect(sheet).toHaveCount(0);
+      await expect(tray.getByRole("button", { name: "Curl" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+    });
+
     test("keeps an update notice's action whole inside the width", async ({
       page,
     }) => {
