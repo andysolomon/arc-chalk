@@ -17,6 +17,9 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.semantic.outputs.released }}
+      version: ${{ steps.semantic.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -37,6 +40,72 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Create semantic release
+        id: semantic
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run release
+        run: |
+          set -euo pipefail
+          bun run release
+          tag="$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          if [ -n "$tag" ]; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "version=$tag" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "version=" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy-production:
+    name: Deploy production
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: Production
+      url: https://arc-chalk.vercel.app
+    permissions:
+      contents: read
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.14.0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.19
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@59.24.0
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production
+
+      - name: Build production bundle
+        run: vercel build --prod
+
+      - name: Deploy to Vercel production
+        id: deploy
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN}" ]; then
+            echo "Add a Vercel token as the Production environment secret VERCEL_TOKEN."
+            exit 1
+          fi
+          url="$(vercel deploy --prebuilt --prod --yes | tail -n 1)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Deploy Result"
+            echo "- **URL**: $url"
+            echo "- **Target**: production"
+            echo "- **Release**: ${{ needs.release.outputs.version }}"
+            echo "- **Commit**: ${GITHUB_SHA}"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -56,6 +56,8 @@ feat!: replace an incompatible document contract
 
 `fix` releases a patch, `feat` releases a minor, and a `BREAKING CHANGE` or `!` releases a major version. semantic-release analyzes commits on `main`, creates the authoritative Git tag and GitHub Release notes, and does not publish this private workspace to npm or write release commits back to protected `main`.
 
+When that publish creates a version, the release workflow deploys the same commit to Vercel production at `https://arc-chalk.vercel.app`. Vercel's Git production branch stays `production`, and this workflow is the production promotion.
+
 Validate release calculation without publishing:
 
 ```sh
