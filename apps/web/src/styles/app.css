@@ -5470,7 +5470,75 @@ button.library-dot.target.small {
 .phone-workspace .statusbar {
   height: auto;
   min-height: 44px;
-  padding-bottom: env(safe-area-inset-bottom);
+  gap: 8px;
+  padding: 0 max(10px, env(safe-area-inset-right)) env(safe-area-inset-bottom)
+    max(10px, env(safe-area-inset-left));
+}
+/* A phone's status bar is one row: the zoom at the left and the play's
+   timeline across the rest of it. The hint, the readouts, the ball, the
+   sync word and the lifecycle word go; the save state and the sync state
+   stay only while they report trouble — a failed write, a conflict. */
+.phone-workspace .statusbar > span:first-child,
+.phone-workspace .status-controls > .status-selection,
+.phone-workspace .status-controls > .status-ball,
+.phone-workspace .status-controls > [data-formation-status],
+.phone-workspace .status-controls > .status-snap,
+.phone-workspace .status-controls > .status-count,
+.phone-workspace .status-controls > .save-state:not(.error),
+.phone-workspace .status-controls > .shell-quiet,
+.phone-workspace .status-controls > .sync-state:not(.conflict) {
+  display: none;
+}
+.phone-workspace .status-controls {
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 8px;
+  margin-left: 0;
+  overflow: visible;
+}
+.phone-workspace .status-zoom {
+  gap: 2px;
+}
+.phone-workspace .status-zoom .zoom-percentage {
+  min-width: 36px;
+  padding: 0 2px;
+}
+.phone-workspace .status-controls > .timeline-dock {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.phone-workspace .timeline {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.phone-workspace .timeline button {
+  padding: 0 5px;
+}
+.phone-workspace .timeline code {
+  flex: none;
+  font-size: 10px;
+}
+/* The scrubber stands as tall as the buttons beside it, so a thumb lands on
+   it, and keeps enough of the row to drag. */
+.phone-workspace .scrubber {
+  min-width: 72px;
+  height: 32px;
+}
+.phone-workspace .scrubber-track,
+.phone-workspace .scrubber-fill {
+  top: 14.5px;
+}
+.phone-workspace .scrubber-snap {
+  top: 9px;
+}
+.phone-workspace .scrubber i {
+  top: 10px;
 }
 
 .sync-state {
