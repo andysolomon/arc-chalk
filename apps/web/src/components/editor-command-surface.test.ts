@@ -49,7 +49,14 @@ describe("the command palette catalogue", () => {
     // A browser opener named Formations is not in that list — ⇧⌘F is.
     expect(labels).not.toContain("Formations");
     expect(labels).not.toContain("Defenses");
-    expect(after("New play")).toBeLessThan(after("Keyboard shortcuts"));
+    // There is no plain New play: a play starts as one unit (ADR 0053).
+    expect(labels).not.toContain("New play");
+    expect(after("New offensive play")).toBeLessThan(
+      after("New defensive play"),
+    );
+    expect(after("New defensive play")).toBeLessThan(
+      after("Keyboard shortcuts"),
+    );
     expect(after("Keyboard shortcuts")).toBeLessThan(first("Export:"));
     expect(first("Export:")).toBeLessThan(first("Formation:"));
     expect(first("Formation:")).toBeLessThan(first("Defense:"));

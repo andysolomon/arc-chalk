@@ -9,9 +9,13 @@ import {
   formatClassification,
   migrateLegacyPlay,
   migratePlayDocument,
+  opposingUnit,
   playTypeName,
   playTypesForUnit,
+  playUnitSchema,
+  playUnits,
   playbookEnvelopeSchema,
+  playbookSchema,
   reclassifyPlay,
   starterPlaybookEnvelope,
   stickThunderConcept,
@@ -39,9 +43,12 @@ describe("Play classification vocabulary", () => {
         playType: { id: coverage.id, name: coverage.name },
       }),
     ).toBe("Defense · Coverage");
-    expect(formatClassification({ unit: "special-teams" })).toBe(
-      "Special teams",
-    );
+    // The special-teams unit is set aside (ADR 0053): anything stored with it
+    // reads as offense, so an older backup still loads and files sensibly.
+    expect(playUnitSchema.parse("special-teams")).toBe("offense");
+    expect(playUnits.map(({ id }) => id)).toEqual(["offense", "defense"]);
+    expect(opposingUnit("offense")).toBe("defense");
+    expect(opposingUnit("defense")).toBe("offense");
     expect(unitName("offense")).toBe("Offense");
     expect(playTypeName({ unit: "offense" })).toBe("Unclassified");
   });
@@ -54,11 +61,34 @@ describe("Play classification vocabulary", () => {
     expect(
       playTypesForUnit(trimmed.playTypes, "defense").map(({ name }) => name),
     ).toEqual(["Pressure"]);
+    // Return, Punt and Field Goal are no longer seeded (ADR 0053).
     expect(
-      playTypesForUnit(playbook.playTypes, "special-teams").map(
-        ({ name }) => name,
-      ),
-    ).toEqual(["Return", "Punt", "Field Goal"]);
+      playbook.playTypes
+        .map(({ name }) => name)
+        .filter((name) => ["Return", "Punt", "Field Goal"].includes(name)),
+    ).toEqual([]);
+  });
+
+  it("keeps a stored special-teams Type for the plays that carry it, archived under offense", () => {
+    const kept = playbookSchema.parse({
+      ...playbook,
+      playTypes: [
+        ...playbook.playTypes,
+        {
+          id: "play_type_punt",
+          name: "Punt",
+          unit: "special-teams",
+          builtInKey: "punt",
+          order: 7,
+          archived: false,
+        },
+      ],
+    });
+    const punt = kept.playTypes.find(({ id }) => id === "play_type_punt")!;
+    expect(punt).toMatchObject({ unit: "offense", archived: true });
+    expect(
+      playTypesForUnit(kept.playTypes, "offense").map(({ name }) => name),
+    ).not.toContain("Punt");
   });
 
   it("lets the Coach define a Type of his own inside a Unit", () => {
@@ -94,7 +124,7 @@ describe("Play classification vocabulary", () => {
 
     const elsewhere = addCoachPlayType(added.playbook, {
       name: "Sim pressure",
-      unit: "special-teams",
+      unit: "offense",
     });
     expect(elsewhere.ok).toBe(true);
     expect(
@@ -278,8 +308,11 @@ describe("Classification of older Plays", () => {
       paths: [],
       labels: [],
     });
+    // A released special-teams play reads as an unclassified offensive play
+    // now that the unit is set aside (ADR 0053).
+    expect(specialV2.unit).toBe("offense");
     expect(specialV2.playType).toBeUndefined();
-    expect(formatClassification(specialV2)).toBe("Special teams");
+    expect(formatClassification(specialV2)).toBe("Offense");
   });
 
   it("seeds the starter Playbook's defensive example at its Unit, not as Pass", () => {

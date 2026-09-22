@@ -4,7 +4,7 @@ import type { PlayUnit } from "@chalk/domain";
  * One accent and one tint per Unit — the only colour Chalk adds for
  * classification (ADR 0051). The accent paints a dot or a hairline, the tint
  * a chip's ground; ink stays the text colour, so every badge reads by its
- * word first and its colour second. The three were chosen apart from the
+ * word first and its colour second. The two were chosen apart from the
  * field's own semantics — route blue, blitz red, stunt orange, route green,
  * yellow, and the coverage fills — and checked against protan, deutan and
  * tritan simulation (`packages/render/src/unit-palette.test.ts`).
@@ -20,7 +20,6 @@ export const unitPalette: Readonly<Record<PlayUnit, UnitColors>> =
   Object.freeze({
     offense: { accent: "#2e6bb0", tint: "#e6eff9" },
     defense: { accent: "#7a2e5a", tint: "#f6e6ef" },
-    "special-teams": { accent: "#8a6a12", tint: "#f7f0dc" },
   });
 
 /**

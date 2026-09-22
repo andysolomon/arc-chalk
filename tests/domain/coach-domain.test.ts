@@ -39,9 +39,6 @@ describe("Coach-owned Playbook domain", () => {
       "Screen",
       "Coverage",
       "Pressure",
-      "Return",
-      "Punt",
-      "Field Goal",
     ]);
 
     expect(

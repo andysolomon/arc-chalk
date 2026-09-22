@@ -28,6 +28,10 @@ _Avoid_: Drawing, concept variation, canvas document
 A reusable, role-aware alignment template that a Coach copies into a Play. A Play remembers its source Formation, but later Formation changes affect it only through an explicit previewed reapplication.
 _Avoid_: Live template, player preset
 
+**Shadow**:
+The other unit's men, lines and notes drawn on a Play that is not theirs — the defense under an offensive play, the offense under a defensive one. A Coach shows or hides it; it never changes what the Play is.
+_Avoid_: Opponent, scout team, the other play
+
 **Play Type**:
 An optional Coach-managed classification within a Play's Unit, seeded with useful football types but open to custom definitions. A Play never requires classification below Unit.
 _Avoid_: Category, Unit, mandatory hierarchy

@@ -50,7 +50,7 @@ const fixture = {
     },
     {
       id: "player-triangle",
-      unit: "special-teams",
+      unit: "offense",
       position: { lateralYards: 4, depthYards: 0 },
       symbol: "triangle",
       label: "T",

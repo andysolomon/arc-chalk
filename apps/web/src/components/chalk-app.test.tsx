@@ -496,7 +496,7 @@ describe("Chalk application shell", () => {
     await unfold(
       user,
       screen.getByRole("complementary", { name: "Play inspector" }),
-      "Opponent look",
+      "Shadow defense",
     );
     await user.click(screen.getByTitle("Browse defenses — ⇧⌘D"));
     const book = screen.getByRole("dialog", { name: "Defenses" });
@@ -1181,46 +1181,23 @@ describe("Play classification (issue #63)", () => {
     expect(pill()).not.toHaveTextContent("Pass");
   });
 
-  it("names what a unit change drops, waits for the Coach, and keeps the diagram", async () => {
+  it("offers the play's own types and no way to the other unit (ADR 0053)", async () => {
     const user = userEvent.setup();
     const editorStore = await createHashedEditorStore();
-    const { container } = render(
-      <ChalkApp runtime={createTestRuntime({ editorStore })} />,
-    );
-    const before = editorStore.getSnapshot().document;
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
 
     await user.click(pill());
-    await user.click(screen.getByRole("button", { name: "Defense" }));
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent(
-      "Moving to Defense drops the Pass type. The diagram stays.",
-    );
-    // Nothing has moved yet.
+    const panel = screen.getByRole("group", { name: "Play classification" });
+    expect(within(panel).getByText("OFFENSE TYPE")).toBeVisible();
+    expect(within(panel).queryByRole("group", { name: "Unit" })).toBeNull();
+    expect(within(panel).queryByRole("button", { name: "Defense" })).toBeNull();
+    expect(
+      within(panel).queryByRole("button", { name: /^Move to/ }),
+    ).toBeNull();
+    expect(
+      within(panel).getByText(/An offensive play stays one/),
+    ).toBeVisible();
     expect(editorStore.getSnapshot().document.unit).toBe("offense");
-    await user.click(screen.getByRole("button", { name: "Keep Offense" }));
-    expect(screen.queryByRole("alert")).toBeNull();
-    expect(editorStore.getSnapshot().document.unit).toBe("offense");
-
-    await user.click(screen.getByRole("button", { name: "Defense" }));
-    await user.click(screen.getByRole("button", { name: "Move to Defense" }));
-    await waitFor(() => {
-      expect(editorStore.getSnapshot().document.unit).toBe("defense");
-    });
-    const after = editorStore.getSnapshot().document;
-    expect(after.playType).toBeUndefined();
-    expect(after.players).toEqual(before.players);
-    expect(after.paths).toEqual(before.paths);
-    expect(after.labels).toEqual(before.labels);
-    expect(container.querySelectorAll("[data-scene-player]")).toHaveLength(11);
-    expect(pill()).toHaveTextContent("Defense");
-
-    // One undo puts the unit and the type back together.
-    await user.click(screen.getByRole("button", { name: "Undo" }));
-    await waitFor(() => {
-      expect(editorStore.getSnapshot().document.unit).toBe("offense");
-    });
-    expect(editorStore.getSnapshot().document.playType?.name).toBe("Pass");
-    expect(pill()).toHaveTextContent("Offense · Pass");
   });
 
   it("adds a Coach-defined type to the Playbook and files the play under it", async () => {
@@ -1410,9 +1387,10 @@ describe("Inspector progressive disclosure (issue #64)", () => {
       within(inspector).queryByRole("button", { name: /^No concept yet/ }),
     ).toBeNull();
     expect(within(inspector).queryByText(/linemen/)).toBeNull();
+    // On a defensive play the offense is the shadow (ADR 0053).
     expect(
       within(inspector).getByRole("button", {
-        name: /^Opponent look/,
+        name: /^Shadow offense/,
         expanded: false,
       }),
     ).toBeVisible();
@@ -1840,21 +1818,25 @@ describe("Chalk editor overlays", () => {
     const { rerender } = render(
       <CommandPalette
         actions={{}}
-        commands={[{ id: "newPlay", label: "New play" }]}
+        commands={[{ id: "newOffensivePlay", label: "New offensive play" }]}
         onClose={onClose}
       />,
     );
-    expect(screen.getByRole("button", { name: "New play" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "New offensive play" }),
+    ).toBeDisabled();
 
-    const newPlay = vi.fn();
+    const newOffensivePlay = vi.fn();
     rerender(
       <CommandPalette
-        actions={{ newPlay }}
-        commands={[{ id: "newPlay", label: "New play" }]}
+        actions={{ newOffensivePlay }}
+        commands={[{ id: "newOffensivePlay", label: "New offensive play" }]}
         onClose={onClose}
       />,
     );
-    expect(screen.getByRole("button", { name: "New play" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "New offensive play" }),
+    ).toBeEnabled();
   });
 
   it("prints an install page from Export with the assignment table", async () => {
@@ -2083,7 +2065,7 @@ describe("Chalk editor overlays", () => {
       within(inspector).getByRole("button", { name: "Text" }),
     ).toHaveAttribute("aria-pressed", "false");
     expect(
-      within(inspector).getByRole("button", { name: /^Layers 3\/4/ }),
+      within(inspector).getByRole("button", { name: /^Layers 4\/5/ }),
     ).toBeVisible();
   });
 
@@ -2356,13 +2338,29 @@ describe("Navigation (issue #65)", () => {
       within(page).getByRole("region", { name: "Game plans" }),
     ).toBeVisible();
 
+    // New play is a choice of unit, never a plain blank (ADR 0053).
     await user.click(within(page).getByRole("button", { name: "New play" }));
+    await user.click(
+      within(screen.getByRole("group", { name: "New play" })).getByRole(
+        "button",
+        { name: /^New defensive play/ },
+      ),
+    );
     expect(
       screen.getByRole("navigation", { name: "Drawing tools" }),
     ).toBeVisible();
     await waitFor(() => {
       expect(editorStore.getSnapshot().document.players).toHaveLength(0);
     });
+    expect(editorStore.getSnapshot().document.unit).toBe("defense");
+    expect(screen.getByRole("button", { name: "Play type" })).toHaveTextContent(
+      "Defense",
+    );
+    expect(
+      within(
+        screen.getByRole("complementary", { name: "Play inspector" }),
+      ).getByText("Defensive call"),
+    ).toBeVisible();
 
     await user.click(within(nav()).getByRole("button", { name: "Playbooks" }));
     await user.keyboard("{Escape}");
@@ -2793,7 +2791,7 @@ describe("Tablet and narrow screens (issue #68)", () => {
       await user.click(
         within(sheet).getByRole("button", { name: /^Show on the field/ }),
       );
-      expect(within(sheet).getByText("3 of 4")).toBeVisible();
+      expect(within(sheet).getByText("4 of 5")).toBeVisible();
 
       // A tap anywhere along the top row puts the sheet away.
       await user.click(
@@ -2874,5 +2872,71 @@ describe("Present for a thumb (issue #67)", () => {
     expect(
       screen.getByRole("navigation", { name: "Drawing tools" }),
     ).toBeVisible();
+  });
+});
+
+describe("the other unit's shadow (ADR 0053)", () => {
+  const inspector = () =>
+    screen.getByRole("complementary", { name: "Play inspector" });
+
+  it("takes the shadow defense off the field and brings it back, without touching the play", async () => {
+    const user = userEvent.setup();
+    const editorStore = createTestEditorStore(
+      undefined,
+      playerLabelPrimitivePlay,
+    );
+    const { container } = render(
+      <ChalkApp runtime={createTestRuntime({ editorStore })} />,
+    );
+    const drawn = () => container.querySelectorAll("[data-scene-player]");
+    expect(drawn()).toHaveLength(6);
+
+    await unfold(user, inspector(), "Shadow defense");
+    const shown = within(inspector()).getByRole("button", { name: "Shown" });
+    const hidden = within(inspector()).getByRole("button", { name: "Hidden" });
+    expect(shown).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(hidden);
+    expect(drawn()).toHaveLength(4);
+    expect(
+      container.querySelector("[data-scene-player='player-x']"),
+    ).toBeNull();
+    expect(hidden).toHaveAttribute("aria-pressed", "true");
+    // The men are still in the play; only the picture changed.
+    expect(editorStore.getSnapshot().document.players).toHaveLength(6);
+    // The layers popover says the same, and counts the shadow with the rest.
+    expect(screen.getByRole("button", { name: /^Layers/ })).toHaveTextContent(
+      "Layers 4/5",
+    );
+    // Folded, the section says the look and that it is off the field.
+    await user.click(
+      within(inspector()).getByRole("button", { name: /^Shadow defense/ }),
+    );
+    expect(within(inspector()).getByText(/· hidden$/)).toBeVisible();
+
+    await unfold(user, inspector(), "Shadow defense");
+    await user.click(
+      within(inspector()).getByRole("button", { name: "Shown" }),
+    );
+    expect(drawn()).toHaveLength(6);
+  });
+
+  it("calls the shadow by the other unit's name on a defensive play", async () => {
+    const user = userEvent.setup();
+    const editorStore = createTestEditorStore(undefined, {
+      ...playerLabelPrimitivePlay,
+      unit: "defense",
+      playType: undefined,
+    });
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
+    expect(
+      within(inspector()).getByRole("button", { name: /^Shadow offense/ }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /^Layers/ }));
+    expect(
+      within(
+        screen.getByRole("group", { name: "Show on the field" }),
+      ).getByRole("button", { name: "Shadow offense" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 });

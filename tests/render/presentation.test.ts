@@ -7,6 +7,7 @@ import {
   labelFontSize,
   pageKindSpec,
   resolveTypeDensity,
+  withoutShadow,
   type Presentation,
 } from "@chalk/render";
 import {
@@ -231,5 +232,69 @@ describe("annotation layers", () => {
     };
     expect(player.layers.notes).toBe(true);
     expect(effectiveLayers(player).notes).toBe(false);
+  });
+});
+
+describe("the other unit's shadow (ADR 0053)", () => {
+  const shadowed = {
+    ...playerLabelPrimitivePlay,
+    paths: [
+      ...playerLabelPrimitivePlay.paths,
+      {
+        id: "drop-x",
+        kind: "zone" as const,
+        playerId: "player-x",
+        points: [
+          { lateralYards: 8, depthYards: 4 },
+          { lateralYards: 12, depthYards: 10 },
+        ],
+        branches: [],
+        style: {
+          line: "dashed" as const,
+          ending: "bubble" as const,
+          color: "blue" as const,
+        },
+      },
+    ],
+    labels: [
+      ...playerLabelPrimitivePlay.labels,
+      {
+        ...playerLabelPrimitivePlay.labels[0]!,
+        id: "label-shadow",
+        unit: "defense" as const,
+      },
+    ],
+  };
+
+  it("draws the shadow unless asked not to, and never edits the play", () => {
+    const whole = buildRenderScene(shadowed);
+    expect(whole.players.map(({ unit }) => unit)).toContain("defense");
+    expect(whole.paths.map(({ id }) => id)).toContain("drop-x");
+    expect(whole.labels.map(({ id }) => id)).toContain("label-shadow");
+
+    const alone = buildRenderScene(shadowed, {
+      presentation: { ...defaultPresentation, hideShadow: true },
+    });
+    expect(alone.players.map(({ unit }) => unit)).not.toContain("defense");
+    expect(alone.players).toHaveLength(4);
+    expect(alone.paths.map(({ id }) => id)).not.toContain("drop-x");
+    expect(alone.paths.map(({ id }) => id)).toContain("binding-path");
+    expect(alone.labels.map(({ id }) => id)).not.toContain("label-shadow");
+    expect(alone.labels).toHaveLength(playerLabelPrimitivePlay.labels.length);
+    expect(shadowed.players).toHaveLength(6);
+  });
+
+  it("shadows the offense on a defensive play", () => {
+    const defensive = { ...shadowed, unit: "defense" as const };
+    const alone = buildRenderScene(defensive, {
+      presentation: { ...defaultPresentation, hideShadow: true },
+    });
+    expect(alone.players.map(({ unit }) => unit)).toEqual([
+      "defense",
+      "defense",
+    ]);
+    expect(alone.paths.map(({ id }) => id)).toEqual(["drop-x"]);
+    expect(alone.labels.map(({ id }) => id)).toEqual(["label-shadow"]);
+    expect(withoutShadow(defensive).players).toHaveLength(2);
   });
 });
