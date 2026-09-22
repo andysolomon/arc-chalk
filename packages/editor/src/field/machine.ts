@@ -514,15 +514,17 @@ export function fieldInteraction(
       };
     }
     case "select-all":
+      // Everything on the field — what is drawn, the way a marquee sees it,
+      // so a hidden shadow or a hidden layer is not swept up unseen.
       return {
         model: withSelection(model, [
-          ...context.document.players.map(
+          ...context.scene.players.map(
             ({ id }) => ({ kind: "player", id }) as const,
           ),
-          ...context.document.paths.map(
-            ({ id }) => ({ kind: "path", id }) as const,
-          ),
-          ...context.document.labels.map(
+          ...context.scene.paths
+            .filter(({ trail }) => trail !== true)
+            .map(({ id }) => ({ kind: "path", id }) as const),
+          ...context.scene.labels.map(
             ({ id }) => ({ kind: "label", id }) as const,
           ),
         ]),

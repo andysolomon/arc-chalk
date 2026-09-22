@@ -61,6 +61,7 @@ import {
   type BallSpot,
   type PlayCommand,
   type PlayDocument,
+  type PlayUnit,
   type PlayErasure,
   type TextLabel,
 } from "@chalk/domain";
@@ -172,6 +173,7 @@ import {
   type SvgRenderScene,
   defaultPresentation,
   fieldLayerCatalog,
+  shadowShown,
   resolveTypeDensity,
   typePresetCatalog,
   type FieldLayerId,
@@ -248,6 +250,7 @@ import {
   FormationBrowser,
   HelpMenu,
   MoreMenu,
+  NewPlayMenu,
   SaveMenu,
   ShortcutReference,
   type WristbandPicker,
@@ -299,7 +302,17 @@ export { FieldDiagram };
  * an action, and Print is the preview behind Print & export.
  */
 type View = "Editor" | "Playbooks" | "GameDay" | "Demo" | "Present" | "Print";
-type Menu = "more" | "export" | "save" | "help" | "classify" | "layers" | null;
+type Menu =
+  | "more"
+  | "export"
+  | "save"
+  | "help"
+  | "classify"
+  | "layers"
+  | "new"
+  /** The Playbooks page's own New play, apart from the header's. */
+  | "newPage"
+  | null;
 type Overlay =
   | "palette"
   | "shortcuts"
@@ -1709,7 +1722,8 @@ function RouteInspector({
   path: MovementPath;
   segmentIndex?: number;
   timing: Readonly<Record<RouteTimingField, string>>;
-  unit: "offense" | "defense" | "special-teams";
+  /** The unit of the man running the line — a shadow defender's drop is still a drop. */
+  unit: PlayUnit;
 }) {
   // With no break picked, a choice forks off the end, which is where the
   // original puts it too.
@@ -2000,6 +2014,8 @@ function Inspector({
   onOpenPalette,
   onOpenShortcuts,
   sheet = false,
+  shadowOn,
+  onToggleShadow,
   unit,
 }: {
   ballSpots: readonly {
@@ -2043,8 +2059,12 @@ function Inspector({
    */
   sheet?: boolean;
   unit: PlayDocument["unit"];
+  /** Whether the other unit's shadow is on the field (ADR 0053). */
+  shadowOn: boolean;
+  onToggleShadow: () => void;
 }) {
   const defense = unit === "defense";
+  const shadowName = defense ? "Shadow offense" : "Shadow defense";
   const layersShown = layers.filter(({ on }) => on).length;
   const bar = sheet ? (
     <div className="inspector-bar">
@@ -2176,13 +2196,14 @@ function Inspector({
       </Hint>
     </>
   );
-  const opponentSummary = defense
+  const shadowLook = defense
     ? (formation?.name ?? "Custom alignment")
     : call
       ? call.formation.name
       : defenderCount > 0
         ? "Custom front"
         : "No defense yet";
+  const shadowSummary = shadowOn ? shadowLook : `${shadowLook} · hidden`;
   return (
     <aside className="inspector" aria-label="Play inspector">
       {bar}
@@ -2197,10 +2218,42 @@ function Inspector({
         id="opponent"
         onToggle={onToggle}
         open={open.opponent ?? false}
-        summary={opponentSummary}
-        title="Opponent look"
+        summary={shadowSummary}
+        title={shadowName}
       >
+        <div className="segment-row shadow-row">
+          <span>{shadowName}</span>
+          <div className="segments">
+            <button
+              aria-pressed={shadowOn}
+              className={shadowOn ? "active" : undefined}
+              onClick={() => {
+                if (!shadowOn) onToggleShadow();
+              }}
+              title={`Draw the ${shadowName.toLowerCase()} under the play`}
+              type="button"
+            >
+              Shown
+            </button>
+            <button
+              aria-pressed={!shadowOn}
+              className={shadowOn ? undefined : "active"}
+              onClick={() => {
+                if (shadowOn) onToggleShadow();
+              }}
+              title={`Take the ${shadowName.toLowerCase()} off the field — it stays in the play`}
+              type="button"
+            >
+              Hidden
+            </button>
+          </div>
+        </div>
         {defense ? formationPicker : defensePicker}
+        <Hint about="the shadow">
+          {defense
+            ? "The offense here is a look to draw the call against, not the play. Hide it to read the call alone; it stays in the play, off the field."
+            : "The defense here is a look to draw against, not the play. Hide it to read the concept alone; it stays in the play, off the field."}
+        </Hint>
       </Disclosure>
       <Disclosure
         badge={scopeBadge}
@@ -3860,6 +3913,10 @@ export function ChalkApp({
    * Putting a call on the field. Only one defense can be on at a time, so
    * this replaces rather than adds, and says what it cost him.
    */
+  const showShadow = () =>
+    setPresentation((current) =>
+      current.hideShadow ? { ...current, hideShadow: false } : current,
+    );
   const applyCallPick = (callId: string): void => {
     const call = stockDefensiveCalls.find(
       ({ formation }) => formation.id === callId,
@@ -3868,6 +3925,9 @@ export function ChalkApp({
     setOverlay(null);
     setPreviewFormationId(undefined);
     if (inspectorFloats) setInspectorOpen(false);
+    // On an offensive play the call is the shadow: a hidden shadow he just
+    // chose a look for comes back, or the pick would land unseen.
+    if (editor.document.unit !== "defense") showShadow();
     const { command, result } = applyDefensiveCallCommand(
       editor.document,
       call,
@@ -4033,6 +4093,8 @@ export function ChalkApp({
     setPreviewFormationId(undefined);
     // The set was the errand; over a phone's field the sheet has done its job.
     if (inspectorFloats) setInspectorOpen(false);
+    // On a defensive play the formation is the shadow (ADR 0053).
+    if (editor.document.unit === "defense") showShadow();
     const { command, result } = applyFormationCommand(
       editor.document,
       formation,
@@ -4343,6 +4405,23 @@ export function ChalkApp({
    * deliberately absent so the menus show it as unavailable rather than
    * accepting a click and doing nothing.
    */
+  /**
+   * A blank Play of one unit, drawn in the editor wherever it was asked for.
+   * The unit is settled here for good (ADR 0053); the shadow of the other
+   * side starts shown so the first call or formation he picks is seen.
+   */
+  const startPlay = (unit: PlayUnit) => {
+    if (interactionRef.current.drawing) {
+      dispatchFieldRef.current({ type: "escape" });
+    }
+    playbook.newPlay(unit);
+    setPresentation((current) =>
+      current.hideShadow ? { ...current, hideShadow: false } : current,
+    );
+    setOpenMenu(null);
+    goToView("Editor");
+  };
+
   const actions: ActionMap = {
     toolSelect: () => selectTool("select"),
     toolText: () => selectTool("text"),
@@ -4460,14 +4539,8 @@ export function ChalkApp({
       playbook.startVariation();
       setOpenMenu(null);
     },
-    newPlay: () => {
-      if (interactionRef.current.drawing) {
-        dispatchFieldRef.current({ type: "escape" });
-      }
-      playbook.newPlay();
-      // A blank play is drawn in the editor, wherever it was asked for.
-      goToView("Editor");
-    },
+    newOffensivePlay: () => startPlay("offense"),
+    newDefensivePlay: () => startPlay("defense"),
     clearRoutesOffense: clearAction("offensive-lines"),
     clearRoutesDefense: clearAction("defensive-lines"),
     clearAllLines: clearAction("lines"),
@@ -5039,14 +5112,34 @@ export function ChalkApp({
         ? chromeRef.current.favoritePresets.filter((id) => id !== key)
         : [...chromeRef.current.favoritePresets, key],
     });
-  const fieldLayers: readonly FieldLayerToggle[] = fieldLayerCatalog.map(
-    (layer) => ({
+  const shadowOnField = shadowShown(presentation);
+  const fieldLayers: readonly FieldLayerToggle[] = [
+    ...fieldLayerCatalog.map((layer) => ({
       id: layer.id,
       name: layer.name,
       on: presentation.layers[layer.id],
-    }),
-  );
-  const toggleFieldLayer = (id: string) =>
+    })),
+    // The other unit's shadow is listed with the layers (ADR 0053): the one
+    // drawn thing on the field that is not the Play's own.
+    {
+      id: "shadow",
+      name:
+        editor.document.unit === "defense"
+          ? "Shadow offense"
+          : "Shadow defense",
+      on: shadowOnField,
+    },
+  ];
+  const toggleShadow = () =>
+    setPresentation((current) => ({
+      ...current,
+      hideShadow: shadowShown(current),
+    }));
+  const toggleFieldLayer = (id: string) => {
+    if (id === "shadow") {
+      toggleShadow();
+      return;
+    }
     setPresentation((current) => ({
       ...current,
       layers: {
@@ -5054,6 +5147,7 @@ export function ChalkApp({
         [id]: !current.layers[id as FieldLayerId],
       },
     }));
+  };
   const layersPopover = (
     <LayersPopover
       layers={fieldLayers}
@@ -5609,14 +5703,17 @@ export function ChalkApp({
               Game plans
             </button>
             <span className="top-spacer" />
-            <button
-              className="destination-new"
-              onClick={actions.newPlay}
-              title="Start a blank play in the editor"
-              type="button"
-            >
-              New play
-            </button>
+            <NewPlayMenu
+              actions={actions}
+              buttonClassName="destination-new"
+              onDismiss={() => setOpenMenu(null)}
+              onToggle={() =>
+                setOpenMenu((current) =>
+                  current === "newPage" ? null : "newPage",
+                )
+              }
+              open={openMenu === "newPage"}
+            />
           </nav>
           {playbooksTab === "plays" ? (
             <PlaybookBrowser
@@ -5954,7 +6051,11 @@ export function ChalkApp({
                   path={selectedPath}
                   segmentIndex={interaction.selectedSegmentIndex}
                   timing={routeTiming(selectedPath)}
-                  unit={editor.document.unit}
+                  unit={
+                    editor.document.players.find(
+                      ({ id }) => id === selectedPath.playerId,
+                    )?.unit ?? editor.document.unit
+                  }
                 />
               ) : selectedPlayer ? (
                 <PlayerInspector
@@ -6105,7 +6206,9 @@ export function ChalkApp({
             onOpenPresets={openPresets}
             onToggle={toggleDisclosure}
             onToggleLayer={toggleFieldLayer}
+            onToggleShadow={toggleShadow}
             open={chrome.open}
+            shadowOn={shadowOnField}
             unit={editor.document.unit}
             library={
               <LibraryPanel
@@ -6913,7 +7016,7 @@ function Header({
   focused: boolean;
   onCloseMenu: () => void;
   onCreateVersion: (label: string) => void;
-  onMenu: (menu: "more" | "export" | "save" | "help") => void;
+  onMenu: (menu: "more" | "export" | "save" | "help" | "new") => void;
   onRedo: () => void;
   onResetPositions: () => void;
   onRestoreVersion: (revisionId: string) => void;
@@ -7011,15 +7114,12 @@ function Header({
               Read only
             </button>
           ) : null}
-          <button
-            className="quiet new-play"
-            disabled={!actions.newPlay}
-            onClick={actions.newPlay}
-            title="Clear the field and start over"
-            type="button"
-          >
-            New play
-          </button>
+          <NewPlayMenu
+            actions={actions}
+            onDismiss={onCloseMenu}
+            onToggle={() => onMenu("new")}
+            open={openMenu === "new"}
+          />
           <button
             className="quiet reset-positions"
             disabled={!canResetPositions}

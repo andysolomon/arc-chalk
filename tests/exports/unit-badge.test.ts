@@ -18,8 +18,8 @@ const defense = plays.find((play) => play.unit === "defense")!;
 
 describe("unit badges on paper (issue #73)", () => {
   it("prints the Unit as a labeled badge in its own accent, and the Type as text", () => {
-    expect(unitBadgeHtml("special-teams")).toBe(
-      '<span class="ub" data-unit="special-teams">Special teams</span>',
+    expect(unitBadgeHtml("offense")).toBe(
+      '<span class="ub" data-unit="offense">Offense</span>',
     );
     expect(classificationHtml(offense)).toBe(
       `<span class="ub" data-unit="offense">Offense</span> · ${offense.playType!.name}`,

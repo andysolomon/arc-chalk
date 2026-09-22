@@ -91,7 +91,7 @@ const dialog = () => screen.getByRole("dialog", { name: "Game plans" });
 async function createPlan(
   user: ReturnType<typeof userEvent.setup>,
   name: string,
-  unit: "Offense" | "Defense" | "Special teams",
+  unit: "Offense" | "Defense",
 ) {
   await user.click(within(dialog()).getByRole("button", { name: "New plan" }));
   await user.type(screen.getByLabelText("Plan name"), name);

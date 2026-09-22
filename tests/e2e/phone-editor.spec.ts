@@ -325,13 +325,16 @@ for (const viewport of WORKSPACES) {
         viewport,
       );
 
-      // New play and Present ride in the More menu.
+      // The two new plays and Present ride in the More menu (ADR 0053).
       await page
         .getByRole("button", { name: "More actions", exact: true })
         .tap();
       const more = page.locator(".more-panel");
       await expect(
-        more.getByRole("button", { name: /^New play/ }),
+        more.getByRole("button", { name: /^New offensive play/ }),
+      ).toBeVisible();
+      await expect(
+        more.getByRole("button", { name: /^New defensive play/ }),
       ).toBeVisible();
       await expect(
         more.getByRole("button", { name: /^Present/ }),

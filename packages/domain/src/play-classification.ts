@@ -28,12 +28,20 @@ export interface PlayUnitChoice {
   readonly name: string;
 }
 
-/** The three units, in the order the original listed them. */
+/**
+ * The two units, in the order the original listed them. A Play is one or
+ * the other from the moment it is started and never moves (ADR 0053); the
+ * special-teams play the original also offered is set aside for now.
+ */
 export const playUnits: readonly PlayUnitChoice[] = Object.freeze([
   { id: "offense", name: "Offense" },
   { id: "defense", name: "Defense" },
-  { id: "special-teams", name: "Special teams" },
 ]);
+
+/** The unit whose men stand across the ball from this one. */
+export function opposingUnit(unit: PlayUnit): PlayUnit {
+  return unit === "defense" ? "offense" : "defense";
+}
 
 /** A Play may stay at its Unit; this is what that reads as. */
 export const UNCLASSIFIED_PLAY_TYPE_NAME = "Unclassified";
@@ -198,6 +206,11 @@ export interface ReclassifyPlan {
  * moves — the Playbook envelope refuses the mismatch — so the plan clears
  * exactly those pointers, names each one, and leaves every man, line and
  * label on the field. Undo restores all of it in one step.
+ *
+ * The editor no longer offers a Unit change (ADR 0053): a Play is started as
+ * offense or defense and stays so. The Unit half of this remains for the
+ * places that reconcile two versions of one Play — restoring a version,
+ * pushing a family — and for a Playbook read from elsewhere.
  *
  * Returns undefined when nothing would change.
  */

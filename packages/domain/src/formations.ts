@@ -141,15 +141,20 @@ export function assignRoles(
 
 /**
  * Eleven men to a side of the ball — the rule every Play is drawn under.
- * Offense (and special teams) share one side of the LOS; defense the other.
+ * Offense on one side of the LOS; defense on the other.
  */
 export const MAX_PLAYERS_PER_SIDE = 11;
 
 /** Which side of the LOS a man's unit stands on. */
 export type PlayerSideOfBall = "offense" | "defense";
 
+/**
+ * A man's unit is his side of the ball. The function stays so a caller that
+ * thinks in sides — the eleven-man rule, a paste of both sides at once —
+ * reads as it did when a special-teams man also stood on the offensive side.
+ */
 export function sideOfBallForUnit(unit: Player["unit"]): PlayerSideOfBall {
-  return unit === "defense" ? "defense" : "offense";
+  return unit;
 }
 
 /** The men a Formation is about: the ones playing the side it aligns. */

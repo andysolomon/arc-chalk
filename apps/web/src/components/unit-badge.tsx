@@ -1,7 +1,7 @@
 import { unitName, type PlayUnit } from "@chalk/domain";
 
 /**
- * The Unit as a small labeled chip — Offense, Defense, Special teams — in
+ * The Unit as a small labeled chip — Offense or Defense — in
  * its accent on its tint, the same on a library card, a game plan, the
  * Game Day reader and a printed page (ADR 0051). The word is always there;
  * the colour and the dot only make it quicker to pick out, so a grayscale

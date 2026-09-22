@@ -1232,17 +1232,16 @@ const erasureLabels: Record<PlayErasure, string> = {
 
 /**
  * Which side of the ball a line belongs to. The man running it decides,
- * because that is what a Coach sees when he looks at the field. A
- * special-teams man plays both sides inside one Play, so there the drawing
- * itself has to answer: a drop, a blitz, or a stunt is the call, and
- * everything else is the concept.
+ * because that is what a Coach sees when he looks at the field. A line with
+ * no man left on it is read off the drawing: a drop, a blitz, or a stunt is
+ * the call, and everything else is the concept.
  */
-function lineSide(
+export function lineSideOfBall(
   play: PlayDocument,
   path: PlayDocument["paths"][number],
 ): "offense" | "defense" {
   const owner = play.players.find(({ id }) => id === path.playerId);
-  if (owner && owner.unit !== "special-teams") return owner.unit;
+  if (owner) return owner.unit;
   return defensiveLineKinds.has(path.kind) ? "defense" : "offense";
 }
 
@@ -1251,9 +1250,9 @@ function lineSide(
  * concept is what a Coach annotates without thinking about it, and the
  * defensive notes are the ones he marks deliberately.
  */
-function labelSide(
+export function labelSideOfBall(
   label: PlayDocument["labels"][number],
-): "offense" | "defense" | "special-teams" {
+): "offense" | "defense" {
   return label.unit ?? "offense";
 }
 
@@ -1283,9 +1282,9 @@ function erasureTargets(
   const players = (unit: "offense" | "defense"): ReadonlySet<string> =>
     idsOf(play.players.filter((player) => player.unit === unit));
   const lines = (side: "offense" | "defense"): ReadonlySet<string> =>
-    idsOf(play.paths.filter((path) => lineSide(play, path) === side));
+    idsOf(play.paths.filter((path) => lineSideOfBall(play, path) === side));
   const labels = (side: "offense" | "defense"): ReadonlySet<string> =>
-    idsOf(play.labels.filter((label) => labelSide(label) === side));
+    idsOf(play.labels.filter((label) => labelSideOfBall(label) === side));
 
   switch (erasure) {
     case "offensive-lines":
