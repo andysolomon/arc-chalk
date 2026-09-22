@@ -20,6 +20,8 @@ export type ActionId =
   | "focus"
   | "showPanels"
   | "toggleZones"
+  /** The other unit's shadow on or off the field (ADR 0053); H on the rail. */
+  | "toggleShadow"
   | "settings"
   | "mirror"
   | "flipStrength"
@@ -399,6 +401,13 @@ export function paletteCommands(
     { id: "print", label: "Print preview" },
     { id: "fitToSelection", label: "Fit to selection", shortcut: "⌘2" },
     { id: "toggleSnapping", label: "Toggle snapping", shortcut: "S" },
+    {
+      id: "toggleShadow",
+      label: "Shadow on / off",
+      shortcut: "H",
+      title:
+        "Show or hide the other unit under the play — it stays in the play",
+    },
     { id: "fitField", label: "Fit field", shortcut: "⌘0" },
     { id: "zoomToSelection", label: "Zoom to selection" },
     { id: "centerBall", label: "Center on the ball" },
@@ -503,4 +512,5 @@ export const shortcutRows: readonly (readonly [string, string])[] = [
   ["Cancel", "Esc"],
   ["Remove last point", "⌫ while drawing"],
   ["Delete selection", "⌫"],
+  ["Shadow on / off", "H"],
 ];
