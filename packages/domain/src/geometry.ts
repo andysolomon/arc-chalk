@@ -1,5 +1,6 @@
 import type {
   Coordinate,
+  FieldProfile,
   MovementPath,
   PathPoint,
   PlayDocument,
@@ -144,6 +145,80 @@ export function mirrorPlayGeometry(play: PlayDocument): PlayDocument {
         : {}),
     })),
   };
+}
+
+/**
+ * Held between the sidelines. The two sidelines are the one boundary a line
+ * on a Play never crosses, wherever the point came from — a finger, a spotted
+ * ball, a reapplied set, a route propagated from its Concept, or a Play
+ * stored before the boundary was held. Depth is left alone: the drawn frame
+ * follows the camera, and only the shell knows where its edges are.
+ */
+export function holdInsideSidelines(
+  profile: Pick<FieldProfile, "widthYards">,
+  point: Coordinate,
+): Coordinate {
+  const half = profile.widthYards / 2;
+  const lateralYards = Math.max(-half, Math.min(half, point.lateralYards));
+  return lateralYards === point.lateralYards
+    ? point
+    : { ...point, lateralYards };
+}
+
+function holdPathPointInsideSidelines(
+  profile: Pick<FieldProfile, "widthYards">,
+  point: PathPoint,
+): PathPoint {
+  const held = holdInsideSidelines(profile, point);
+  const control = point.control
+    ? holdInsideSidelines(profile, point.control)
+    : undefined;
+  if (held === point && control === point.control) return point;
+  return {
+    ...point,
+    lateralYards: held.lateralYards,
+    ...(control ? { control } : {}),
+  };
+}
+
+function holdEach<T>(items: T[], hold: (item: T) => T): T[] {
+  let changed = false;
+  const held = items.map((item) => {
+    const next = hold(item);
+    if (next !== item) changed = true;
+    return next;
+  });
+  return changed ? held : items;
+}
+
+/**
+ * One line held between the sidelines: every break and bend on its stem and
+ * on each of its branches. A line already inside comes back as it was, so
+ * nothing downstream sees a change where there is none.
+ */
+export function holdPathInsideSidelines<
+  P extends Pick<MovementPath, "points" | "branches">,
+>(profile: Pick<FieldProfile, "widthYards">, path: P): P {
+  const holdPoint = (point: PathPoint) =>
+    holdPathPointInsideSidelines(profile, point);
+  const points = holdEach(path.points, holdPoint);
+  const branches = holdEach(path.branches, (branch) => {
+    const held = holdEach(branch.points, holdPoint);
+    return held === branch.points ? branch : { ...branch, points: held };
+  });
+  if (points === path.points && branches === path.branches) return path;
+  return { ...path, points, branches };
+}
+
+/**
+ * Every line on the Play held between its own Field Profile's sidelines. The
+ * Play itself comes back when nothing had to move.
+ */
+export function holdPathsInsideSidelines(play: PlayDocument): PlayDocument {
+  const paths = holdEach(play.paths, (path) =>
+    holdPathInsideSidelines(play.fieldProfile, path),
+  );
+  return paths === play.paths ? play : { ...play, paths };
 }
 
 export function distance(left: Coordinate, right: Coordinate): number {

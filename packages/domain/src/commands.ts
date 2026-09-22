@@ -3,7 +3,7 @@ import * as z from "zod/mini";
 import { canonicalStringify } from "./canonical";
 import { defensiveLineKinds } from "./classifications";
 import { filmReferenceSchema, playAttachmentSchema } from "./assets";
-import { mirrorPlayGeometry } from "./geometry";
+import { holdPathsInsideSidelines, mirrorPlayGeometry } from "./geometry";
 import {
   assignmentSchema,
   conceptSourceSchema,
@@ -661,6 +661,11 @@ export interface PlayCommandStep {
  * Applies one command and returns the inverse computed against the Play as it
  * stood before the edit, so a single traversal produces both undo directions.
  * Intermediate batch states are not validated; only the finished Play is.
+ *
+ * The finished Play is also held between the sidelines: whatever a command
+ * did to a line — spotted the ball, reapplied a set, propagated a route,
+ * narrowed the field — no break or bend on it is left past the paint. The
+ * inverse restores the Play as it stood, which was already held.
  */
 export function applyPlayCommandWithInverse(
   play: PlayDocument,
@@ -669,7 +674,9 @@ export function applyPlayCommandWithInverse(
   if (command.kind !== "batch") {
     const step = applyPrimitive(play, command);
     return {
-      document: playDocumentSchema.parse(step.document),
+      document: playDocumentSchema.parse(
+        holdPathsInsideSidelines(step.document),
+      ),
       inverse: step.inverse,
     };
   }
@@ -682,7 +689,7 @@ export function applyPlayCommandWithInverse(
     inverses.unshift(step.inverse);
   }
   return {
-    document: playDocumentSchema.parse(document),
+    document: playDocumentSchema.parse(holdPathsInsideSidelines(document)),
     inverse: {
       kind: "batch",
       ...(command.label === undefined ? {} : { label: command.label }),

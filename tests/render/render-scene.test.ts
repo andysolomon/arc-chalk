@@ -60,6 +60,49 @@ describe("RenderScene", () => {
     ).toBe(430);
   });
 
+  it("draws a stored line that runs past the paint on the sideline instead", () => {
+    // A Play saved before the sidelines held its lines may still carry a
+    // break past the paint. It is drawn on the paint, so nothing bleeds over
+    // the boundary, and the line inside the paint is exactly as drawn.
+    const half = stickThunderPlay.fieldProfile.widthYards / 2;
+    const stored = {
+      ...stickThunderPlay,
+      paths: stickThunderPlay.paths.map((path, index) =>
+        index === 0
+          ? {
+              ...path,
+              points: path.points.map((point, pi) =>
+                pi === path.points.length - 1
+                  ? { ...point, lateralYards: -half - 8 }
+                  : point,
+              ),
+            }
+          : path,
+      ),
+    };
+    const scene = buildRenderScene(stored);
+    const rendered = buildSvgRenderScene(scene);
+    const [left, right] = rendered.field.sidelines.map(({ x1 }) => x1);
+    const held = scene.paths[0]!.points.at(-1)!;
+    expect(held.lateralYards).toBe(-half);
+    expect(held.depthYards).toBe(
+      stickThunderPlay.paths[0]!.points.at(-1)!.depthYards,
+    );
+    // Every coordinate pair in every stroke's path data lands between the
+    // two drawn sidelines.
+    for (const path of rendered.paths) {
+      for (const stroke of path.strokes) {
+        const numbers = stroke.d.match(/-?\d+(?:\.\d+)?/g) ?? [];
+        expect(numbers.length % 2).toBe(0);
+        for (let index = 0; index < numbers.length; index += 2) {
+          const x = Number(numbers[index]);
+          expect(x).toBeGreaterThanOrEqual(left!);
+          expect(x).toBeLessThanOrEqual(right!);
+        }
+      }
+    }
+  });
+
   it("projects every original football path primitive behind one interface", () => {
     const first = buildSvgRenderScene(
       buildRenderScene(footballPathPrimitivePlay),
