@@ -64,6 +64,17 @@ const stageRect = (page: Page) =>
     };
   });
 
+/**
+ * On a phone the status bar's row is the zoom and the timeline (issue #98);
+ * the save state is out of it while there is nothing to report, so a good
+ * write is read from the button itself. A failed one shows.
+ */
+const expectSavedOnThisDevice = (page: Page) =>
+  expect(page.locator("button.save-state")).toHaveAttribute(
+    "aria-label",
+    "Saved on this device",
+  );
+
 const enterEditor = async (page: Page) => {
   await page.goto("/");
   // Every viewport here is below the editor's floor, so the reading shell is
@@ -107,10 +118,9 @@ for (const viewport of VIEWPORTS) {
         expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
       }
 
-      // The one report of a failed write stays in view at every width.
-      await expect(
-        page.getByRole("button", { name: "Saved on this device" }),
-      ).toBeVisible();
+      // The save state is out of the row while it has nothing to report;
+      // the one report of a failed write would stand here at every width.
+      await expectSavedOnThisDevice(page);
 
       await page.getByRole("button", { name: "Zoom in" }).tap();
       await expect(
@@ -126,6 +136,53 @@ for (const viewport of VIEWPORTS) {
       await expect(
         page.getByRole("button", { name: "Fit the field — 80% zoom" }),
       ).toBeVisible();
+    });
+
+    test("keeps the play's timeline in the status row beside the zoom", async ({
+      page,
+    }) => {
+      await enterEditor(page);
+      const statusbar = page.locator(".statusbar");
+      const bar = statusbar.getByLabel("Playback controls");
+      await expect(bar).toBeVisible();
+      await expect(page.getByLabel("Playback controls")).toHaveCount(1);
+
+      // The scrubber shares the row with the zoom and keeps room to drag.
+      const scrubber = await insideViewport(
+        page,
+        page.getByRole("slider", { name: "Scrub the play" }),
+        viewport,
+      );
+      const zoomIn = await insideViewport(
+        page,
+        page.getByRole("button", { name: "Zoom in" }),
+        viewport,
+      );
+      expect(
+        Math.abs(
+          scrubber.y + scrubber.height / 2 - (zoomIn.y + zoomIn.height / 2),
+        ),
+      ).toBeLessThan(8);
+      expect(scrubber.width).toBeGreaterThanOrEqual(72);
+      for (const name of ["Play", "Reset positions"]) {
+        await insideViewport(page, bar.getByRole("button", { name }), viewport);
+      }
+
+      // The readouts a wider bar carries are gone from the row.
+      await expect(statusbar.getByText("saved", { exact: true })).toBeHidden();
+      await expect(
+        page.getByRole("button", { name: "Center on the ball" }),
+      ).toBeHidden();
+      await expect(
+        page.getByRole("button", { name: "Fit to selection" }),
+      ).toBeHidden();
+
+      // The speed is one button that steps through the rates.
+      await bar.getByRole("button", { name: "Speed 1× — next 2×" }).tap();
+      await expect(
+        bar.getByRole("button", { name: "Speed 2× — next 0.5×" }),
+      ).toBeVisible();
+      await expect(bar).toHaveAttribute("data-playback-rate", "2");
     });
 
     test("fits the whole field inside the stage", async ({ page }) => {
@@ -341,9 +398,7 @@ for (const viewport of WORKSPACES) {
         height: viewport.height,
       });
       await name.press("Enter");
-      await expect(
-        page.getByRole("button", { name: "Saved on this device" }),
-      ).toBeVisible();
+      await expectSavedOnThisDevice(page);
 
       // A line by taps: the man, Draw in his inspector sheet, two breaks,
       // Done (ADR 0052). The seeded Play already carries lines; one more
@@ -373,9 +428,7 @@ for (const viewport of WORKSPACES) {
       await page.getByRole("button", { name: "Finish the route — ⏎" }).tap();
       await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
-      await expect(
-        page.getByRole("button", { name: "Saved on this device" }),
-      ).toBeVisible();
+      await expectSavedOnThisDevice(page);
 
       await page
         .locator("header.topbar")
@@ -387,9 +440,7 @@ for (const viewport of WORKSPACES) {
         .getByRole("button", { name: "Redo", exact: true })
         .tap();
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
-      await expect(
-        page.getByRole("button", { name: "Saved on this device" }),
-      ).toBeVisible();
+      await expectSavedOnThisDevice(page);
 
       // Back to reading: nothing on the field moves, and the Play is there
       // again after a reload.
@@ -442,9 +493,7 @@ for (const viewport of WORKSPACES) {
       await slant.tap();
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
       await expect(slant).toHaveAttribute("aria-pressed", "true");
-      await expect(
-        page.getByRole("button", { name: "Saved on this device" }),
-      ).toBeVisible();
+      await expectSavedOnThisDevice(page);
 
       // A quick route chosen in the sheet closes the sheet: the field is the
       // answer, and the tray is there for the next one.
@@ -570,9 +619,7 @@ blankTest.describe("first launch on a phone at 390×844", () => {
       const name = page.getByRole("textbox", { name: "Play name" });
       await name.fill("First play on a phone");
       await name.press("Enter");
-      await expect(
-        page.getByRole("button", { name: "Saved on this device" }),
-      ).toBeVisible();
+      await expectSavedOnThisDevice(page);
 
       const symbol = page
         .locator("[data-scene-player]")
@@ -594,9 +641,7 @@ blankTest.describe("first launch on a phone at 390×844", () => {
       await page.touchscreen.tap(start.x, start.y - 40);
       await page.getByRole("button", { name: "Finish the route — ⏎" }).tap();
       await expect(page.locator("[data-scene-path]")).toHaveCount(1);
-      await expect(
-        page.getByRole("button", { name: "Saved on this device" }),
-      ).toBeVisible();
+      await expectSavedOnThisDevice(page);
       expect(failures).toEqual([]);
 
       await page.reload();

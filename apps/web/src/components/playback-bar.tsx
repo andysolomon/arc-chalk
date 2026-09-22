@@ -10,8 +10,12 @@ import {
 } from "@chalk/editor";
 import type { PointerEvent } from "react";
 
+const rateLabel = (rate: PlaybackRate) =>
+  rate === 0.5 ? "0.5×" : rate === 1 ? "1×" : "2×";
+
 export function PlaybackBar({
   clock,
+  compact = false,
   onPlay,
   onRate,
   onReset,
@@ -19,6 +23,12 @@ export function PlaybackBar({
   plan,
 }: {
   readonly clock: PlaybackClock;
+  /**
+   * A phone's row (issue #98): the clock reads the elapsed time alone and
+   * the speed is one button that steps through the rates, so the scrubber
+   * keeps enough of the width to drag.
+   */
+  readonly compact?: boolean;
   readonly onPlay: () => void;
   readonly onRate: (rate: PlaybackRate) => void;
   readonly onReset: () => void;
@@ -26,6 +36,10 @@ export function PlaybackBar({
   readonly plan: PlayAnimationPlan;
 }) {
   const span = Math.max(1, plan.endMs - plan.startMs);
+  const nextRate =
+    PLAYBACK_RATES[
+      (PLAYBACK_RATES.indexOf(clock.rate) + 1) % PLAYBACK_RATES.length
+    ] ?? PLAYBACK_RATES[0];
   const progress = Math.min(
     1,
     Math.max(0, (clock.timeMs - plan.startMs) / span),
@@ -48,6 +62,7 @@ export function PlaybackBar({
     <div
       aria-label="Playback controls"
       className="timeline"
+      data-playback-compact={compact ? "true" : undefined}
       data-playback-playing={clock.playing ? "true" : "false"}
       data-playback-rate={clock.rate}
       data-playback-time={clock.timeMs}
@@ -115,22 +130,35 @@ export function PlaybackBar({
         )}
         <i style={{ left: `calc(${progress * 100}% - 6px)` }} />
       </div>
-      <code>
-        {formatPlaybackClock(clock.timeMs)} /{" "}
-        {formatPlaybackDuration(plan.endMs)}
+      <code data-clock={compact ? "elapsed" : "full"}>
+        {compact
+          ? formatPlaybackClock(clock.timeMs)
+          : `${formatPlaybackClock(clock.timeMs)} / ${formatPlaybackDuration(plan.endMs)}`}
       </code>
       <span className="speed">
-        {PLAYBACK_RATES.map((rate) => (
+        {compact ? (
           <button
-            aria-pressed={clock.rate === rate}
-            className={clock.rate === rate ? "active" : undefined}
-            key={rate}
-            onClick={() => onRate(rate)}
+            aria-label={`Speed ${rateLabel(clock.rate)} — next ${rateLabel(nextRate)}`}
+            className="active"
+            onClick={() => onRate(nextRate)}
+            title={`Speed ${rateLabel(clock.rate)} — tap for ${rateLabel(nextRate)}`}
             type="button"
           >
-            {rate === 0.5 ? "0.5×" : rate === 1 ? "1×" : "2×"}
+            {rateLabel(clock.rate)}
           </button>
-        ))}
+        ) : (
+          PLAYBACK_RATES.map((rate) => (
+            <button
+              aria-pressed={clock.rate === rate}
+              className={clock.rate === rate ? "active" : undefined}
+              key={rate}
+              onClick={() => onRate(rate)}
+              type="button"
+            >
+              {rateLabel(rate)}
+            </button>
+          ))
+        )}
       </span>
       <button
         aria-label="Reset positions"
