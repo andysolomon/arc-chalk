@@ -1,4 +1,9 @@
-import type { Coordinate, MovementPath, PathPoint } from "@chalk/domain";
+import {
+  DEFAULT_ZONE_COVERAGE_RADII,
+  type Coordinate,
+  type MovementPath,
+  type PathPoint,
+} from "@chalk/domain";
 import type { RenderScene } from "@chalk/render";
 
 import type { SnapScreenScale } from "../smart-snapping";
@@ -301,23 +306,149 @@ export function nearestSegmentIndex(
 // ---------------------------------------------------------------------------
 
 /**
+ * What holds a thing on the field: the sidelines, which the Play's own Field
+ * Profile sets, and the drawn frame's depth, which only the shell knows.
+ */
+export type FieldBounds = Pick<
+  FieldInteractionContext,
+  "document" | "depthWindow"
+>;
+
+/**
  * The original clamps to the sidelines and the drawn frame's depth. Rounding
  * happens first and clamping last, because rounding a clamped value can carry
  * it back across the boundary it was just held inside.
  */
 export function clampToField(
   point: Coordinate,
-  context: FieldInteractionContext,
+  bounds: FieldBounds,
+  /** Room to keep from each edge: what a bubble around the point needs. */
+  inset: { readonly lateralYards: number; readonly depthYards: number } = {
+    lateralYards: 0,
+    depthYards: 0,
+  },
 ): Coordinate {
-  const halfWidth = context.document.fieldProfile.widthYards / 2;
-  const depthWindow = context.depthWindow;
+  const halfWidth = bounds.document.fieldProfile.widthYards / 2;
+  const depthWindow = bounds.depthWindow;
   const rough = coordinate(point.lateralYards, point.depthYards);
+  // An inset wider than the field itself leaves only the middle to stand on.
+  const lateralReach = Math.max(0, halfWidth - inset.lateralYards);
+  const lateralYards = Math.max(
+    -lateralReach,
+    Math.min(lateralReach, rough.lateralYards),
+  );
+  if (!depthWindow) return { lateralYards, depthYards: rough.depthYards };
+  const middle = (depthWindow.minDepthYards + depthWindow.maxDepthYards) / 2;
+  const floor = Math.min(depthWindow.minDepthYards + inset.depthYards, middle);
+  const ceiling = Math.max(
+    depthWindow.maxDepthYards - inset.depthYards,
+    middle,
+  );
   return {
-    lateralYards: Math.max(-halfWidth, Math.min(halfWidth, rough.lateralYards)),
+    lateralYards,
+    depthYards: Math.max(floor, Math.min(ceiling, rough.depthYards)),
+  };
+}
+
+/**
+ * The bubble a zone drop draws around its end, if it draws one: the area the
+ * Coach sized, or the default one drawn until he does. Anything holding the
+ * drop on the field has to hold the bubble too, since that is what he sees.
+ */
+export function zoneBubbleOf(
+  path: Pick<MovementPath, "kind" | "style" | "coverageArea">,
+): { readonly lateralYards: number; readonly depthYards: number } | undefined {
+  if (path.kind !== "zone" || path.style.ending !== "bubble") return undefined;
+  const area = path.coverageArea ?? DEFAULT_ZONE_COVERAGE_RADII;
+  return {
+    lateralYards: area.radiusLateralYards,
+    depthYards: area.radiusDepthYards,
+  };
+}
+
+/**
+ * Every point that says where a line is: its breaks and bends on every one
+ * of its lines, and the four edges of the bubble a zone drop draws.
+ */
+export function pathExtentPoints(
+  path: Pick<
+    MovementPath,
+    "kind" | "style" | "coverageArea" | "points" | "branches"
+  >,
+): Coordinate[] {
+  const points: Coordinate[] = [];
+  for (const line of [path.points, ...path.branches.map((b) => b.points)]) {
+    for (const point of line) {
+      points.push(point);
+      if (point.control) points.push(point.control);
+    }
+  }
+  const bubble = zoneBubbleOf(path);
+  const center = path.points.at(-1);
+  if (bubble && center) {
+    const { lateralYards, depthYards } = center;
+    points.push(
+      { lateralYards: lateralYards - bubble.lateralYards, depthYards },
+      { lateralYards: lateralYards + bubble.lateralYards, depthYards },
+      { lateralYards, depthYards: depthYards - bubble.depthYards },
+      { lateralYards, depthYards: depthYards + bubble.depthYards },
+    );
+  }
+  return points;
+}
+
+/**
+ * How far a set of points may shift on one axis before its outermost one
+ * crosses an edge. Something already past an edge is only ever brought back:
+ * the shift toward the field stays open and the one further out is closed.
+ * A set wider than the field itself may slide until one edge is on its line.
+ */
+function heldShift(
+  shift: number,
+  values: readonly number[],
+  min: number,
+  max: number,
+): number {
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const floor = min - low;
+  const ceiling = max - high;
+  return Math.max(
+    Math.min(floor, ceiling),
+    Math.min(Math.max(floor, ceiling), shift),
+  );
+}
+
+/**
+ * Holds a move so that nothing it carries leaves the field. Everything that
+ * moves together — a man, his routes, the notes with him — is measured as
+ * one, and the shift is cut back on each axis where the outermost point
+ * would cross a sideline or the edge of the drawn frame. That is what keeps a
+ * route on the paint when its man is dragged toward the sideline: he stops
+ * where the far end of his route touches it.
+ */
+export function clampTranslationToField(
+  points: readonly Coordinate[],
+  translation: Coordinate,
+  bounds: FieldBounds,
+): Coordinate {
+  const rough = coordinate(translation.lateralYards, translation.depthYards);
+  if (points.length === 0) return rough;
+  const halfWidth = bounds.document.fieldProfile.widthYards / 2;
+  const depthWindow = bounds.depthWindow;
+  return {
+    lateralYards: heldShift(
+      rough.lateralYards,
+      points.map(({ lateralYards }) => lateralYards),
+      -halfWidth,
+      halfWidth,
+    ),
     depthYards: depthWindow
-      ? Math.max(
+      ? heldShift(
+          rough.depthYards,
+          points.map(({ depthYards }) => depthYards),
           depthWindow.minDepthYards,
-          Math.min(depthWindow.maxDepthYards, rough.depthYards),
+          depthWindow.maxDepthYards,
         )
       : rough.depthYards,
   };

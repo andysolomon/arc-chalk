@@ -7,6 +7,7 @@ import {
 import {
   buildDeleteCommand,
   buildMoveCommand,
+  clampMoveToField,
   expandSelectionToGroups,
   movePreview,
 } from "./commands";
@@ -21,6 +22,7 @@ import {
   buildDrawCommand,
   clearDrawing,
   drawTarget,
+  holdDrawPoint,
   startDrawing,
 } from "./drawing";
 import {
@@ -178,10 +180,9 @@ function pointerDown(
                 index: context.document.labels.length,
                 item: {
                   id,
-                  position: coordinate(
-                    input.point.lateralYards,
-                    input.point.depthYards,
-                  ),
+                  // A note pressed in the grass outside the paint lands on
+                  // its edge, like anything else put down there.
+                  position: clampToField(input.point, context),
                   ...NEW_LABEL_DEFAULTS,
                   ...(selectedPlayer?.unit === "defense"
                     ? { unit: "defense" as const }
@@ -229,7 +230,10 @@ function pointerMove(
         DRAW_CURVE_THRESHOLD_PX
     ) {
       return {
-        model: { ...model, drawing: bendLastSegment(drawing, input.point) },
+        model: {
+          ...model,
+          drawing: bendLastSegment(drawing, input.point, context),
+        },
       };
     }
     return {
@@ -536,7 +540,11 @@ export function fieldInteraction(
       const command = buildMoveCommand(
         context.document,
         model.selection,
-        coordinate(event.lateralYards, event.depthYards),
+        clampMoveToField(
+          context,
+          model.selection,
+          coordinate(event.lateralYards, event.depthYards),
+        ),
       );
       return { model, ...(command === undefined ? {} : { command }) };
     }
@@ -666,7 +674,12 @@ export function fieldInteraction(
       if (!source) return { model };
       const createId =
         context.createId ?? ((prefix: string) => `${prefix}_new`);
-      const pasted = buildPasteCommand(context.document, source, createId);
+      const pasted = buildPasteCommand(
+        context.document,
+        source,
+        createId,
+        context.depthWindow,
+      );
       if (!pasted) return { model };
       return {
         model: {
@@ -694,7 +707,8 @@ export function fieldInteraction(
             depthBuffer,
             cursor: Number.isNaN(typed)
               ? drawing.cursor
-              : clampToField(
+              : holdDrawPoint(
+                  drawing,
                   coordinate(drawing.cursor.lateralYards, typed),
                   context,
                 ),

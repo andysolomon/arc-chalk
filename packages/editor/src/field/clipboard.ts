@@ -14,8 +14,16 @@ import {
   type TextLabel,
 } from "@chalk/domain";
 
-import { coordinate } from "./geometry";
-import type { FieldClipboard, FieldItemRef } from "./model";
+import {
+  clampTranslationToField,
+  coordinate,
+  pathExtentPoints,
+} from "./geometry";
+import type {
+  FieldClipboard,
+  FieldInteractionContext,
+  FieldItemRef,
+} from "./model";
 
 /** Copying, pasting, and reflecting what the Coach has picked. */
 
@@ -60,24 +68,16 @@ interface PasteResult {
  * Pasting makes new Players, routes, and notes rather than second references
  * to the old ones. A route follows its Player when both were copied; a note
  * bound to a copied route rebinds to the copy, and one bound to a route left
- * behind keeps its words but is placed by hand.
+ * behind keeps its words but is placed by hand. The copies land offset from
+ * the originals but held on the field: a route copied by the sideline is put
+ * down against it rather than past it.
  */
 export function buildPasteCommand(
   document: PlayDocument,
   clipboard: FieldClipboard,
   createId: (prefix: string) => string,
+  depthWindow?: FieldInteractionContext["depthWindow"],
 ): PasteResult | undefined {
-  const shift = (point: Coordinate): Coordinate =>
-    coordinate(
-      point.lateralYards + PASTE_OFFSET.lateralYards,
-      point.depthYards + PASTE_OFFSET.depthYards,
-    );
-  const shiftPathPoint = (point: PathPoint): PathPoint => ({
-    ...point,
-    ...shift(point),
-    ...(point.control === undefined ? {} : { control: shift(point.control) }),
-  });
-
   // Eleven to a side of the LOS: keep only as many pasted men as each side
   // still has room for. Routes belonging to a skipped man are dropped with him.
   const room = { ...remainingPlayerSlotsBySide(document) };
@@ -88,15 +88,7 @@ export function buildPasteCommand(
     room[side] -= 1;
     const id = createId("player");
     playerIdByOriginal.set(player.id, id);
-    // The paste offset runs toward the backfield; a defender on the line
-    // would land across the ball, so he is held on his side of it.
-    return [
-      {
-        ...player,
-        id,
-        position: clampToSideOfBall(player.unit, shift(player.position)),
-      },
-    ];
+    return [{ ...player, id }];
   });
 
   const pathIdByOriginal = new Map<string, string>();
@@ -118,18 +110,7 @@ export function buildPasteCommand(
     }
     const id = createId("path");
     pathIdByOriginal.set(path.id, id);
-    return [
-      {
-        ...path,
-        id,
-        playerId,
-        points: path.points.map(shiftPathPoint),
-        branches: path.branches.map((branch) => ({
-          ...branch,
-          points: branch.points.map(shiftPathPoint),
-        })),
-      },
-    ];
+    return [{ ...path, id, playerId }];
   });
 
   const labels = clipboard.labels.map((label) => {
@@ -146,34 +127,73 @@ export function buildPasteCommand(
     }
     // The key is dropped rather than cleared so the copy hashes like a note
     // that was never bound.
-    const free = { ...label, id, position: shift(label.position) };
+    const free = { ...label, id };
     delete free.binding;
     return free;
   });
 
+  // The offset is cut back to what keeps every copy on the paint, measured
+  // over the whole of what is pasted so it lands as one piece.
+  const landing: Coordinate[] = [
+    ...players.map(({ position }) => position),
+    ...paths.flatMap(pathExtentPoints),
+    ...labels.flatMap((label) => (label.binding ? [] : [label.position])),
+  ];
+  const offset = clampTranslationToField(landing, PASTE_OFFSET, {
+    document,
+    ...(depthWindow ? { depthWindow } : {}),
+  });
+  const shift = (point: Coordinate): Coordinate =>
+    coordinate(
+      point.lateralYards + offset.lateralYards,
+      point.depthYards + offset.depthYards,
+    );
+  const shiftPathPoint = (point: PathPoint): PathPoint => ({
+    ...point,
+    ...shift(point),
+    ...(point.control === undefined ? {} : { control: shift(point.control) }),
+  });
+  const shiftLabel = (label: TextLabel): TextLabel =>
+    label.binding ? label : { ...label, position: shift(label.position) };
+  const pastedPlayers = players.map((player) => ({
+    ...player,
+    // The paste offset runs toward the backfield; a defender on the line
+    // would land across the ball, so he is held on his side of it.
+    position: clampToSideOfBall(player.unit, shift(player.position)),
+  }));
+  const pastedPaths = paths.map((path) => ({
+    ...path,
+    points: path.points.map(shiftPathPoint),
+    branches: path.branches.map((branch) => ({
+      ...branch,
+      points: branch.points.map(shiftPathPoint),
+    })),
+  }));
+  const pastedLabels = labels.map(shiftLabel);
+
   const commands: PrimitivePlayCommand[] = [];
-  if (players.length > 0) {
+  if (pastedPlayers.length > 0) {
     commands.push({
       kind: "insert-players",
-      players: players.map((item, index) => ({
+      players: pastedPlayers.map((item, index) => ({
         index: document.players.length + index,
         item,
       })),
     });
   }
-  if (paths.length > 0) {
+  if (pastedPaths.length > 0) {
     commands.push({
       kind: "insert-paths",
-      paths: paths.map((item, index) => ({
+      paths: pastedPaths.map((item, index) => ({
         index: document.paths.length + index,
         item,
       })),
     });
   }
-  if (labels.length > 0) {
+  if (pastedLabels.length > 0) {
     commands.push({
       kind: "insert-labels",
-      labels: labels.map((item, index) => ({
+      labels: pastedLabels.map((item, index) => ({
         index: document.labels.length + index,
         item,
       })),

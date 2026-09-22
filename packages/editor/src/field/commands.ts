@@ -49,7 +49,12 @@ import {
 } from "@chalk/domain";
 
 import { snapPosition, type AxisSnapGuide } from "../smart-snapping";
-import { coordinate, rounded } from "./geometry";
+import {
+  clampTranslationToField,
+  coordinate,
+  pathExtentPoints,
+  rounded,
+} from "./geometry";
 import type {
   FieldInteractionContext,
   FieldItemRef,
@@ -297,6 +302,57 @@ function formatYards(value: number): string {
   return `${Math.round(value * 10) / 10}`;
 }
 
+/**
+ * Every point a move carries: the men picked, every line that travels with
+ * them — picked itself or attached to a picked man, bubble included — and
+ * the notes, where they are drawn, with their leader lines. It is what
+ * `buildMoveCommand` translates, gathered so the whole of it can be held on
+ * the field as one.
+ */
+function movingPoints(
+  context: FieldInteractionContext,
+  items: readonly FieldItemRef[],
+): Coordinate[] {
+  const ids = (kind: FieldItemRef["kind"]) =>
+    new Set(items.filter((item) => item.kind === kind).map(({ id }) => id));
+  const playerIds = ids("player");
+  const pathIds = ids("path");
+  const labelIds = ids("label");
+  const points: Coordinate[] = [];
+  for (const player of context.document.players) {
+    if (playerIds.has(player.id)) points.push(player.position);
+  }
+  for (const path of context.document.paths) {
+    if (!playerIds.has(path.playerId) && !pathIds.has(path.id)) continue;
+    points.push(...pathExtentPoints(path));
+  }
+  for (const label of context.document.labels) {
+    if (!labelIds.has(label.id)) continue;
+    // A bound note is drawn where its route puts it, not at its own anchor.
+    const drawn = context.scene.labels.find(({ id }) => id === label.id);
+    points.push(drawn?.position ?? label.position);
+    if (label.leader) points.push(label.leader.endpoint);
+  }
+  return points;
+}
+
+/**
+ * Cuts a move back to what keeps everything it carries on the field. A drag
+ * and a keyboard nudge go through the same hold, so neither can put a man or
+ * a route past the sideline or off the drawn frame.
+ */
+export function clampMoveToField(
+  context: FieldInteractionContext,
+  items: readonly FieldItemRef[],
+  translation: Coordinate,
+): Coordinate {
+  return clampTranslationToField(
+    movingPoints(context, items),
+    translation,
+    context,
+  );
+}
+
 export interface MovePreview {
   readonly translation: Coordinate;
   readonly guides: readonly AxisSnapGuide[];
@@ -317,10 +373,12 @@ export function movePreview(
     point.lateralYards - start.lateralYards,
     point.depthYards - start.depthYards,
   );
+  const held = (translation: Coordinate): Coordinate =>
+    clampMoveToField(context, items, translation);
   const only = items.length === 1 ? items[0] : undefined;
-  if (only?.kind !== "player") return { translation: raw, guides: [] };
+  if (only?.kind !== "player") return { translation: held(raw), guides: [] };
   const player = context.document.players.find(({ id }) => id === only.id);
-  if (!player) return { translation: raw, guides: [] };
+  if (!player) return { translation: held(raw), guides: [] };
 
   const result = snapPosition({
     point: coordinate(
@@ -339,15 +397,29 @@ export function movePreview(
     screenScale: context.screenScale,
     settings: context.snap,
   });
+  const snapped = coordinate(
+    result.point.lateralYards - player.position.lateralYards,
+    result.point.depthYards - player.position.depthYards,
+  );
+  // The field holds him after the landmarks have claimed him, so a landmark
+  // past the sideline cannot pull him off it. A hold that moved him leaves
+  // the guides behind: they pointed at where he is no longer going.
+  const translation = held(snapped);
+  const stopped =
+    translation.lateralYards !== snapped.lateralYards ||
+    translation.depthYards !== snapped.depthYards;
+  const landed = stopped
+    ? coordinate(
+        player.position.lateralYards + translation.lateralYards,
+        player.position.depthYards + translation.depthYards,
+      )
+    : result.point;
   return {
-    translation: coordinate(
-      result.point.lateralYards - player.position.lateralYards,
-      result.point.depthYards - player.position.depthYards,
-    ),
-    guides: result.guides,
+    translation,
+    guides: stopped ? [] : result.guides,
     readout: {
-      position: result.point,
-      text: `${formatYards(result.point.depthYards)} yds`,
+      position: landed,
+      text: `${formatYards(landed.depthYards)} yds`,
     },
   };
 }

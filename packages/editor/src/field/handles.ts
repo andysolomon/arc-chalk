@@ -14,7 +14,12 @@ import {
   snapRouteEndpoint,
   type AxisSnapGuide,
 } from "../smart-snapping";
-import { clampToField, coordinate, screenDistancePx } from "./geometry";
+import {
+  clampToField,
+  coordinate,
+  screenDistancePx,
+  zoneBubbleOf,
+} from "./geometry";
 import type {
   FieldHandleRef,
   FieldInteractionContext,
@@ -164,7 +169,13 @@ function dragNode(
     screenScale: context.screenScale,
     settings: context.snap,
   });
-  const landed = clampToField(snapped.point, context);
+  // The end of a zone drop carries its bubble, which has to stay on the
+  // paint with it: the break stops a radius short of the edge.
+  const bubble =
+    branchIndex === undefined && pointIndex === line.length - 1
+      ? zoneBubbleOf(path)
+      : undefined;
+  const landed = clampToField(snapped.point, context, bubble);
   const shift = coordinate(
     landed.lateralYards - original.lateralYards,
     landed.depthYards - original.depthYards,
@@ -230,11 +241,17 @@ function dragControl(
     delete straight.control;
     points[pointIndex] = straight;
   } else {
+    // The bend is held on the field with its breaks: a curve stays inside
+    // the triangle its control makes with them, so a control kept inside
+    // the sidelines keeps the whole arc off the grass.
     points[pointIndex] = {
       ...end,
-      control: coordinate(
-        2 * point.lateralYards - midpoint.lateralYards,
-        2 * point.depthYards - midpoint.depthYards,
+      control: clampToField(
+        coordinate(
+          2 * point.lateralYards - midpoint.lateralYards,
+          2 * point.depthYards - midpoint.depthYards,
+        ),
+        context,
       ),
     };
   }
@@ -244,22 +261,53 @@ function dragControl(
   };
 }
 
-/** The zone corner sizes the area a defender owns, within the original's bounds. */
-function dragZone(path: MovementPath, point: Coordinate): HandleEdit {
+/** A bubble must keep an area, whatever the field leaves it. */
+const ZONE_FLOOR_YARDS = 0.01;
+
+/**
+ * The zone corner sizes the area a defender owns, within the original's
+ * bounds and within the field: a bubble grows until it touches a sideline or
+ * the edge of the drawn frame, and no further.
+ */
+function dragZone(
+  context: FieldInteractionContext,
+  path: MovementPath,
+  point: Coordinate,
+): HandleEdit {
   const center = path.points.at(-1);
   if (!center) return { update: updatePath(path), guides: [] };
-  const radiusLateralYards = Math.min(
-    ZONE_LATERAL_YARDS.max,
-    Math.max(
-      ZONE_LATERAL_YARDS.min,
-      Math.abs(point.lateralYards - center.lateralYards),
+  const halfWidth = context.document.fieldProfile.widthYards / 2;
+  const lateralRoom = Math.min(
+    halfWidth - center.lateralYards,
+    halfWidth + center.lateralYards,
+  );
+  const depthWindow = context.depthWindow;
+  const depthRoom = depthWindow
+    ? Math.min(
+        depthWindow.maxDepthYards - center.depthYards,
+        center.depthYards - depthWindow.minDepthYards,
+      )
+    : Number.POSITIVE_INFINITY;
+  const radiusLateralYards = Math.max(
+    ZONE_FLOOR_YARDS,
+    Math.min(
+      ZONE_LATERAL_YARDS.max,
+      lateralRoom,
+      Math.max(
+        ZONE_LATERAL_YARDS.min,
+        Math.abs(point.lateralYards - center.lateralYards),
+      ),
     ),
   );
-  const radiusDepthYards = Math.min(
-    ZONE_DEPTH_YARDS.max,
-    Math.max(
-      ZONE_DEPTH_YARDS.min,
-      Math.abs(point.depthYards - center.depthYards),
+  const radiusDepthYards = Math.max(
+    ZONE_FLOOR_YARDS,
+    Math.min(
+      ZONE_DEPTH_YARDS.max,
+      depthRoom,
+      Math.max(
+        ZONE_DEPTH_YARDS.min,
+        Math.abs(point.depthYards - center.depthYards),
+      ),
     ),
   );
   return {
@@ -336,7 +384,7 @@ export function editHandle(
         point,
       );
     case "zone":
-      return dragZone(path, point);
+      return dragZone(context, path, point);
   }
 }
 
