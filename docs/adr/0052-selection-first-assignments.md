@@ -43,6 +43,15 @@ at the line, and the whole selection is held with him so a dragged group keeps i
 shape; only the way toward the ball is held, so a man somehow already across it may
 always come back. A pasted man lands on his side.
 
+## Amendment (2026-09-22)
+
+Two actions join Text and Trash on the rail; neither draws from a tool, so the decision
+stands. **Clear every line** wipes every route, motion, block, drop and blitz with the men
+left standing — the same erasure More → Clear… and the palette reach — and sits disabled
+with nothing to wipe. **Shadow** shows or hides the other unit under the play (ADR 0053),
+named for that unit, pressed while it is on the field, with H as its key; the Layers list
+and the inspector's Shadow section are the same switch.
+
 ## Consequences
 
 - Guided tours under Help still replay the original's seven-tool rail as they were
