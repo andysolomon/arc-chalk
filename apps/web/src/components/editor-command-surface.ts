@@ -23,7 +23,9 @@ export type ActionId =
   | "settings"
   | "mirror"
   | "flipStrength"
-  | "newPlay"
+  /** A Play is started as one unit or the other, never switched (ADR 0053). */
+  | "newOffensivePlay"
+  | "newDefensivePlay"
   /** The Playbooks workspace — Game Plans (issue #66). */
   | "gamePlans"
   /** The three destinations in the header: Editor, Playbooks, Game Day (issue #65). */
@@ -115,6 +117,24 @@ export interface MenuEntry {
   readonly shortcut?: string;
   readonly title?: string;
 }
+
+/**
+ * The two ways a Play begins. There is no plain "new play": a Coach draws an
+ * offensive play or a defensive one, and the field, the inspector and the
+ * pill are that unit's from the first man (ADR 0053).
+ */
+export const newPlayEntries: readonly MenuEntry[] = [
+  {
+    id: "newOffensivePlay",
+    label: "New offensive play",
+    title: "A blank field for an offensive play — the defense is its shadow",
+  },
+  {
+    id: "newDefensivePlay",
+    label: "New defensive play",
+    title: "A blank field for a defensive play — the offense is its shadow",
+  },
+];
 
 /**
  * The Clear menu on the tool rail. The palette reaches the same seven
@@ -416,7 +436,8 @@ export function paletteCommands(
     { id: "sendBackward", label: "Send backward", shortcut: "⌘[" },
     { id: "reverseRoute", label: "Reverse route" },
     { id: "addDepthLabel", label: "Add depth label to segment" },
-    { id: "newPlay", label: "New play" },
+    { id: "newOffensivePlay", label: "New offensive play" },
+    { id: "newDefensivePlay", label: "New defensive play" },
     { id: "shortcuts", label: "Keyboard shortcuts", shortcut: "?" },
     ...exportGroups.flatMap((group) =>
       group.items

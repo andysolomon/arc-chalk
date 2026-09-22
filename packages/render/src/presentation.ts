@@ -40,6 +40,12 @@ export interface Presentation {
    * original applies this on top of whichever preset is selected.
    */
   readonly present?: boolean;
+  /**
+   * The shadow — the other unit's men, their lines and their notes on a
+   * Play that is not theirs (ADR 0053) — taken off the field. Absent, the
+   * shadow shows, which is how every Play opens.
+   */
+  readonly hideShadow?: boolean;
 }
 
 /** What the original draws for one page kind: lines, light lines, or none. */
@@ -205,6 +211,13 @@ export function labelFontSize(
   typeLabel: number = resolveTypeDensity().label,
 ): number {
   return Math.max(9, Math.round(size * (typeLabel / 12)));
+}
+
+/** Whether the other unit's shadow is drawn under this presentation. */
+export function shadowShown(
+  presentation: Presentation = defaultPresentation,
+): boolean {
+  return presentation.hideShadow !== true;
 }
 
 /**

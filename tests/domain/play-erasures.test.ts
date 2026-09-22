@@ -12,9 +12,10 @@ import {
 import { describe, expect, it } from "vitest";
 
 /**
- * A Play with both sides of the ball on the field, a special-teams man who
- * draws one line of each, and labels sided every way the schema allows —
- * everything the Clear menu has to tell apart.
+ * A Play with both sides of the ball on the field, a gunner on the offensive
+ * side who draws one line of each kind, and labels sided every way the
+ * schema allows — everything the Clear menu has to tell apart. The man
+ * decides which side a line is on, whatever kind of line it is.
  */
 const mixedPlay: PlayDocument = playDocumentSchema.parse({
   schemaVersion: 3,
@@ -58,7 +59,7 @@ const mixedPlay: PlayDocument = playDocumentSchema.parse({
     },
     {
       id: "gunner",
-      unit: "special-teams",
+      unit: "offense",
       position: { lateralYards: 20, depthYards: 0 },
       symbol: "triangle",
       label: "G",
@@ -116,7 +117,7 @@ const mixedPlay: PlayDocument = playDocumentSchema.parse({
       style: { line: "dotted", ending: "arrow", color: "gray" },
     },
     {
-      // The gunner's release is the concept; his zone turn is the call.
+      // The gunner's release and his zone turn are both his — both offense.
       id: "release_gunner",
       kind: "route",
       playerId: "gunner",
@@ -225,13 +226,12 @@ describe("clearing part of a Play", () => {
   it("takes the concept off and leaves the players standing", () => {
     const left = survivors(mixedPlay, "offensive-lines");
 
-    // The gunner's release goes with the concept; his zone turn stays. The
-    // corner's return is his because he drew it, whatever kind of line it is.
+    // Both of the gunner's lines go with the concept — the man decides, not
+    // the kind of line — and the corner's return is his because he drew it.
     expect(left.paths).toEqual([
       "drop_corner_third",
       "blitz_corner_edge",
       "return_corner_pick",
-      "drop_gunner_flat",
     ]);
     expect(left.players).toHaveLength(mixedPlay.players.length);
   });
@@ -239,7 +239,11 @@ describe("clearing part of a Play", () => {
   it("takes the call off and leaves the defenders standing", () => {
     const left = survivors(mixedPlay, "defensive-lines");
 
-    expect(left.paths).toEqual(["route_x_slant", "release_gunner"]);
+    expect(left.paths).toEqual([
+      "route_x_slant",
+      "release_gunner",
+      "drop_gunner_flat",
+    ]);
     expect(left.players).toHaveLength(mixedPlay.players.length);
   });
 
@@ -254,14 +258,11 @@ describe("clearing part of a Play", () => {
   it("removes the offense with its lines, its notes, and its Assignments", () => {
     const left = survivors(mixedPlay, "offense");
 
-    expect(left.players).toEqual(["corner", "gunner"]);
-    // The special-teams man keeps both of his lines: he is neither side.
+    expect(left.players).toEqual(["corner"]);
     expect(left.paths).toEqual([
       "drop_corner_third",
       "blitz_corner_edge",
       "return_corner_pick",
-      "release_gunner",
-      "drop_gunner_flat",
     ]);
     // An unmarked note counts as the Coach's own concept and goes with it.
     expect(left.labels).toEqual(["label_defense"]);

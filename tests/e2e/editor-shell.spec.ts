@@ -58,9 +58,9 @@ const unfoldLibrary = async (page: import("@playwright/test").Page) => {
   }
 };
 
-/** Opens the folded Opponent look section on an offensive play (issue #64). */
+/** Opens the folded Shadow defense section on an offensive play (issue #64, ADR 0053). */
 const unfoldOpponentLook = async (page: import("@playwright/test").Page) => {
-  const toggle = page.getByRole("button", { name: /^Opponent look/ });
+  const toggle = page.getByRole("button", { name: /^Shadow defense/ });
   if ((await toggle.getAttribute("aria-expanded")) === "false") {
     await toggle.click();
   }

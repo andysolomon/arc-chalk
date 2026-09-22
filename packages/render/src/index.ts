@@ -13,6 +13,9 @@ import {
   buildFieldLandmarks,
   evaluatePlayAt,
   GHOST_TRAIL_OPACITY,
+  labelSideOfBall,
+  lineSideOfBall,
+  opposingUnit,
   playbackShowsAnimation,
   planPlay,
 } from "@chalk/domain";
@@ -22,6 +25,7 @@ import {
   effectiveLayers,
   pageKindSpec,
   resolveTypeDensity,
+  shadowShown,
   type FieldMarkingStyle,
   type Presentation,
   type TypeDensity,
@@ -177,13 +181,30 @@ function resolveLabelPosition(
   };
 }
 
+/**
+ * The Play without its shadow: the other unit's men, the lines they run and
+ * the notes marked as theirs come off, and the Play's own side stays exactly
+ * as drawn. What is hidden is still in the document; only the picture
+ * changes (ADR 0053).
+ */
+export function withoutShadow(play: PlayDocument): PlayDocument {
+  const shadow = opposingUnit(play.unit);
+  return {
+    ...play,
+    players: play.players.filter((player) => player.unit !== shadow),
+    paths: play.paths.filter((path) => lineSideOfBall(play, path) !== shadow),
+    labels: play.labels.filter((label) => labelSideOfBall(label) !== shadow),
+  };
+}
+
 export function buildRenderScene(
-  play: PlayDocument,
+  source: PlayDocument,
   options: RenderSceneOptions = {},
 ): RenderScene {
   const presentation = options.presentation ?? defaultPresentation;
   const page = pageKindSpec(presentation.pageKind);
   const layers = effectiveLayers(presentation);
+  const play = shadowShown(presentation) ? source : withoutShadow(source);
   const plan = options.atMs === undefined ? undefined : planPlay(play);
   const animated =
     plan !== undefined &&

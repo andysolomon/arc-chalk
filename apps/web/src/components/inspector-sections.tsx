@@ -280,11 +280,12 @@ export function PresetPicker({
 }
 
 /**
- * Show on the field — the four layer toggles, moved off the idle panel into
- * a popover the Coach opens when he means to change what is drawn. They
- * still change exports too, as they did.
+ * Show on the field — the layer toggles, moved off the idle panel into a
+ * popover the Coach opens when he means to change what is drawn. They still
+ * change exports too, as they did. The other unit's shadow is listed with
+ * them (ADR 0053): it is the one drawn thing that is not the Play's own.
  */
-/** One field layer the Coach can show or hide: reads, assignments, notes, text. */
+/** One field layer the Coach can show or hide: reads, assignments, notes, text, shadow. */
 export interface FieldLayerToggle {
   readonly id: string;
   readonly name: string;
@@ -341,7 +342,7 @@ export function LayersPopover({
         aria-haspopup="true"
         className={`inspector-bar-button${open ? " open" : ""}`}
         onClick={() => onOpenChange(!open)}
-        title="Show on the field — reads, assignments, notes, text"
+        title="Show on the field — reads, assignments, notes, text, the shadow"
         type="button"
       >
         Layers{shown < layers.length ? ` ${shown}/${layers.length}` : ""}

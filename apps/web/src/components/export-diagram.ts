@@ -25,6 +25,8 @@ export function createDiagramRenderer(
       pageKind: options.pageKind ?? base.pageKind,
       typePreset: options.typePreset ?? base.typePreset,
       layers: { ...base.layers, ...options.layers },
+      // A shadow the Coach took off the field stays off the page too.
+      ...(base.hideShadow ? { hideShadow: true } : {}),
     };
     const scene = buildRenderScene(play, {
       presentation,
