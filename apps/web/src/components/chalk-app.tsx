@@ -4508,6 +4508,16 @@ export function ChalkApp({
     goToView("Editor");
   };
 
+  /**
+   * The other unit's shadow on or off the field (ADR 0053). One toggle serves
+   * the rail button, the H key, the palette and the Layers list; it changes
+   * how the Play is shown, never what the Play is.
+   */
+  const toggleShadow = () =>
+    setPresentation((current) => ({
+      ...current,
+      hideShadow: shadowShown(current),
+    }));
   const actions: ActionMap = {
     toolSelect: () => selectTool("select"),
     toolText: () => selectTool("text"),
@@ -4520,6 +4530,7 @@ export function ChalkApp({
     toggleInspector: () => setInspectorOpen((shown) => !shown),
     toggleRail: () => setRailOpen((shown) => !shown),
     toggleZones: () => setZonesHidden((hidden) => !hidden),
+    toggleShadow,
     settings: () => {
       setOpenMenu(null);
       setOverlay("settings");
@@ -5041,6 +5052,14 @@ export function ChalkApp({
         return;
       }
       if (key === "s") setSnapEnabled((enabled) => !enabled);
+      if (key === "h") {
+        // H takes the other unit's shadow off the field and puts it back;
+        // the rail's Shadow button does the same (ADR 0053).
+        setPresentation((current) => ({
+          ...current,
+          hideShadow: shadowShown(current),
+        }));
+      }
     };
 
     const onKeyUp = (event: KeyboardEvent) => {
@@ -5199,6 +5218,9 @@ export function ChalkApp({
         : [...chromeRef.current.favoritePresets, key],
     });
   const shadowOnField = shadowShown(presentation);
+  /** The shadow by the other unit's name, as the rail and the layers call it. */
+  const shadowLayerName =
+    editor.document.unit === "defense" ? "Shadow offense" : "Shadow defense";
   const fieldLayers: readonly FieldLayerToggle[] = [
     ...fieldLayerCatalog.map((layer) => ({
       id: layer.id,
@@ -5209,18 +5231,10 @@ export function ChalkApp({
     // drawn thing on the field that is not the Play's own.
     {
       id: "shadow",
-      name:
-        editor.document.unit === "defense"
-          ? "Shadow offense"
-          : "Shadow defense",
+      name: shadowLayerName,
       on: shadowOnField,
     },
   ];
-  const toggleShadow = () =>
-    setPresentation((current) => ({
-      ...current,
-      hideShadow: shadowShown(current),
-    }));
   const toggleFieldLayer = (id: string) => {
     if (id === "shadow") {
       toggleShadow();
@@ -5887,6 +5901,32 @@ export function ChalkApp({
                 Done
               </button>
             ) : null}
+            <button
+              // Every line off the field at once — routes, motions, blocks,
+              // drops and blitzes — with the men left standing, so the next
+              // concept is drawn from the same formation. Nothing to wipe
+              // leaves it disabled; ⌘Z brings the lines back.
+              aria-label="Clear every line"
+              className="rail-clear"
+              disabled={!erasures.lines}
+              onClick={clearAction("lines")}
+              title="Clear every line — the men stay where they are"
+              type="button"
+            >
+              <RailIcon glyph="erase" />
+            </button>
+            <button
+              // The other unit under the play, shown or hidden (ADR 0053).
+              // Pressed means it is on the field; it stays in the play either way.
+              aria-label={`${shadowLayerName} — H`}
+              aria-pressed={shadowOnField}
+              className="rail-shadow"
+              onClick={toggleShadow}
+              title={`${shadowLayerName} on / off — H`}
+              type="button"
+            >
+              <RailIcon glyph="shadow" />
+            </button>
             <span className="rail-spacer" />
             <button
               aria-label="Delete selection — ⌫"

@@ -58,9 +58,15 @@ const unfoldLibrary = async (page: import("@playwright/test").Page) => {
   }
 };
 
-/** Opens the folded Shadow defense section on an offensive play (issue #64, ADR 0053). */
+/**
+ * Opens the folded Shadow defense section on an offensive play (issue #64,
+ * ADR 0053). Scoped to the inspector: the rail's Shadow button answers to the
+ * same name.
+ */
 const unfoldOpponentLook = async (page: import("@playwright/test").Page) => {
-  const toggle = page.getByRole("button", { name: /^Shadow defense/ });
+  const toggle = page
+    .getByRole("complementary", { name: "Play inspector" })
+    .getByRole("button", { name: /^Shadow defense/ });
   if ((await toggle.getAttribute("aria-expanded")) === "false") {
     await toggle.click();
   }
@@ -725,4 +731,50 @@ test("shows a defensive play's real unit in the header and keeps a chosen type a
   await expect(page.getByRole("button", { name: "Play type" })).toHaveText(
     "Defense · Coverage",
   );
+});
+
+test("keeps undo and redo inside the Play after saving it and starting a new one", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const playName = page.getByRole("textbox", { name: "Play name" });
+  const undo = page.getByRole("button", { name: "Undo" });
+  const redo = page.getByRole("button", { name: "Redo" });
+  const header = page.getByRole("banner");
+
+  await playName.fill("Mesh — Alert");
+  await playName.press("Enter");
+  await expect(
+    page.getByRole("button", { name: "Saved on this device" }),
+  ).toBeVisible();
+  await expect(undo).toHaveAttribute("title", "Undo Rename Play");
+
+  await header.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: /^Save ⌘S/ }).click();
+  await header.getByRole("button", { name: "New play" }).click();
+  await page
+    .getByRole("group", { name: "New play" })
+    .getByRole("button", { name: /^New offensive play/ })
+    .click();
+  await expect(playName).toHaveValue("Untitled play");
+
+  // The new Play has nothing to undo, and nothing here leads back to the
+  // saved one or on to another (ADR 0038).
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+  await page.keyboard.press("ControlOrMeta+z");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(playName).toHaveValue("Untitled play");
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+
+  // The saved Play kept its own history for when it is opened again.
+  await unfoldLibrary(page);
+  await page.getByRole("button", { name: "Browse Playbook" }).click();
+  const book = page.getByRole("dialog", { name: "Playbook" });
+  await book.getByRole("button", { name: /Mesh — Alert/ }).click();
+  await expect(playName).toHaveValue("Mesh — Alert");
+  await expect(undo).toBeEnabled();
+  await expect(undo).toHaveAttribute("title", "Undo Rename Play");
 });

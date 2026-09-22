@@ -262,8 +262,12 @@ test.describe("production editor overlays against the canonical original", () =>
 
   test("Defenses browser matches the original", async ({ page }) => {
     // The defensive call on an offensive Play sits under the folded Shadow
-    // defense section (issue #64, ADR 0043, ADR 0053).
-    await page.getByRole("button", { name: /^Shadow defense/ }).click();
+    // defense section (issue #64, ADR 0043, ADR 0053); the rail's Shadow
+    // button answers to the same name, so the click is scoped to the inspector.
+    await page
+      .getByRole("complementary", { name: "Play inspector" })
+      .getByRole("button", { name: /^Shadow defense/ })
+      .click();
     await page.getByTitle("Browse defenses — ⇧⌘D").click();
     await expect(
       page.getByPlaceholder("Search — cover 3, nickel, blitz…"),
