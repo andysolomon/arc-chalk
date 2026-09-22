@@ -317,15 +317,17 @@ test("changes the markings and the words from the inspector without moving the P
   await expect(page.locator("[data-scene-label]")).toHaveCount(12);
 });
 
-test("drives the snap rail toggle and live status-bar camera controls", async ({
+test("drives the snap key and live status-bar camera controls", async ({
   page,
 }) => {
   await page.goto("/");
 
-  const snap = page.getByRole("button", {
-    name: "Angle snap 45 degrees — S",
-  });
-  await expect(snap).toHaveAttribute("aria-pressed", "true");
+  // Snap has no rail button any more (ADR 0052); S is its switch and the
+  // status bar reads it back.
+  await expect(
+    page.getByRole("button", { name: "Angle snap 45 degrees — S" }),
+  ).toHaveCount(0);
+  await expect(page.locator(".status-controls")).not.toContainText("SNAP OFF");
   await expect(page.locator("[data-formation-status]")).toHaveText(
     "CUSTOM ALIGNMENT",
   );
@@ -333,14 +335,10 @@ test("drives the snap rail toggle and live status-bar camera controls", async ({
     page.getByRole("button", { name: "Fit the field — 100% zoom" }),
   ).toBeVisible();
 
-  await snap.click();
-  await expect(snap).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".status-controls")).toContainText("SNAP OFF");
-  await snap.focus();
-  await page.keyboard.press("Enter");
-  await expect(snap).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("s");
-  await expect(snap).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".status-controls")).toContainText("SNAP OFF");
+  await page.keyboard.press("s");
+  await expect(page.locator(".status-controls")).not.toContainText("SNAP OFF");
 
   const fit = await cameraOf(page);
 

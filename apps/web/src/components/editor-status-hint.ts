@@ -1,7 +1,7 @@
-import { DEMO_STATUS_HINT, MAX_PLAYERS_PER_SIDE } from "@chalk/domain";
+import { DEMO_STATUS_HINT } from "@chalk/domain";
 
-export type StatusHintTool =
-  "select" | "player" | "route" | "motion" | "block" | "zone" | "text";
+/** Select and Text are the field's two modes (ADR 0052). */
+export type StatusHintTool = "select" | "text";
 
 export interface EditorStatusHintInput {
   readonly view: "editor" | "demo" | "print";
@@ -16,11 +16,6 @@ export interface EditorStatusHintInput {
    * points him at Help → Demo before the tool hints (issue #65).
    */
   readonly firstUse?: boolean;
-  /**
-   * The Player tool's side of the LOS already has eleven men — further
-   * clicks will not place another.
-   */
-  readonly playerSideFull?: boolean;
 }
 
 export const FIRST_USE_HINT =
@@ -29,16 +24,8 @@ export const FIRST_USE_HINT =
 const toolHint: Record<StatusHintTool, (atFit: boolean) => string> = {
   select: (atFit) =>
     atFit
-      ? "drag the blue dot above a player to draw his route — double-click a line to add a node · ⌫ delete"
+      ? "select a player to give him his assignment on the right, or drag the blue dot above a player to draw his route — double-click a line to add a node · ⌫ delete"
       : "drag the grass to move the view · shift-drag: marquee select · double-click a line to add a node · ⌫ delete",
-  zone: () =>
-    "click a defender to drop him into a zone — dashed line, open bubble ending",
-  player: () =>
-    "click the field to place a player — pick a symbol on the right",
-  route: () =>
-    "click a player (or the field) to start a route — click an existing route to edit it",
-  motion: () => "click to start a motion path — dashed by default",
-  block: () => "click to start a blocking assignment — T ending",
   text: () => "click the field to drop a text label",
 };
 
@@ -65,9 +52,6 @@ export function editorStatusHint(input: EditorStatusHintInput): string {
     return "drag any selected item to move the group · shift-click: add/remove · ⌫ delete · ⌘D duplicate";
   }
   if (input.firstUse && input.tool === "select") return FIRST_USE_HINT;
-  if (input.tool === "player" && input.playerSideFull) {
-    return `${MAX_PLAYERS_PER_SIDE} players on this side of the LOS — delete one to place another`;
-  }
   const hint = toolHint[input.tool](input.atFit);
   return input.labelsTooSmall ? `labels hidden — zoom in   ·   ${hint}` : hint;
 }

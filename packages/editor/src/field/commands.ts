@@ -5,12 +5,12 @@ import {
   assignRoles,
   assignmentForPath,
   ballSpotNames,
+  depthLimitForUnit,
   flippedPlayerLabels,
   flipStrengthWords,
   canonicalStringify,
   defensiveLineKinds,
   deletePathsCommand,
-  deletePlayersCommand,
   diffPlayDocuments,
   handednessOf,
   isLineman,
@@ -152,6 +152,32 @@ function selectionLabel(verb: string, items: readonly FieldItemRef[]): string {
 }
 
 /**
+ * Nobody crosses the ball: a move that would carry a man over the line of
+ * scrimmage is held at the line instead, and the whole selection with him,
+ * so a dragged group keeps its shape. Only the way toward the ball is held;
+ * a man somehow already across it may always come back.
+ */
+function holdDepthOnSideOfBall(
+  players: readonly Player[],
+  depthYards: number,
+): number {
+  let held = depthYards;
+  for (const player of players) {
+    const limit = depthLimitForUnit(player.unit);
+    const downfield = Math.max(
+      0,
+      limit.maxDepthYards - player.position.depthYards,
+    );
+    const backfield = Math.max(
+      0,
+      player.position.depthYards - limit.minDepthYards,
+    );
+    held = Math.max(-backfield, Math.min(downfield, held));
+  }
+  return held;
+}
+
+/**
  * One completed move — however many items it carried — becomes one batch.
  * Routes attached to a moving Player travel with him, the way the original
  * dragged them as a unit.
@@ -159,17 +185,22 @@ function selectionLabel(verb: string, items: readonly FieldItemRef[]): string {
 export function buildMoveCommand(
   document: PlayDocument,
   items: readonly FieldItemRef[],
-  translation: Coordinate,
+  requested: Coordinate,
 ): PlayCommand | undefined {
+  const playerIds = new Set(
+    items.filter(({ kind }) => kind === "player").map(({ id }) => id),
+  );
+  const moving = document.players.filter(({ id }) => playerIds.has(id));
+  const translation = coordinate(
+    requested.lateralYards,
+    holdDepthOnSideOfBall(moving, requested.depthYards),
+  );
   if (
     rounded(translation.lateralYards) === 0 &&
     rounded(translation.depthYards) === 0
   ) {
     return undefined;
   }
-  const playerIds = new Set(
-    items.filter(({ kind }) => kind === "player").map(({ id }) => id),
-  );
   const pathIds = new Set(
     items.filter(({ kind }) => kind === "path").map(({ id }) => id),
   );
@@ -178,15 +209,13 @@ export function buildMoveCommand(
   );
 
   const commands: PrimitivePlayCommand[] = [];
-  const moves = document.players
-    .filter(({ id }) => playerIds.has(id))
-    .map(({ id, position }) => ({
-      playerId: id,
-      position: coordinate(
-        position.lateralYards + translation.lateralYards,
-        position.depthYards + translation.depthYards,
-      ),
-    }));
+  const moves = moving.map(({ id, position }) => ({
+    playerId: id,
+    position: coordinate(
+      position.lateralYards + translation.lateralYards,
+      position.depthYards + translation.depthYards,
+    ),
+  }));
   if (moves.length > 0) commands.push({ kind: "move-players", moves });
 
   for (const path of document.paths) {
@@ -216,32 +245,33 @@ export function buildMoveCommand(
 }
 
 /**
- * Deleting a mixed selection composes the domain's dependent cleanup: Players
- * take their routes and bound labels, routes take theirs, and what remains is
- * removed directly — one batch, one undo step.
+ * Deleting a mixed selection composes the domain's dependent cleanup: routes
+ * take their bound labels and Assignment actions, and what remains is removed
+ * directly — one batch, one undo step. Eleven a side is the roster, so a man
+ * is never deleted from the field (ADR 0052): deleting him clears what he was
+ * given — every line drawn from his stance — and he stays where he stood.
  */
 export function buildDeleteCommand(
   document: PlayDocument,
   selection: readonly FieldItemRef[],
 ): PlayCommand | undefined {
-  const playerIds = selection
-    .filter(({ kind }) => kind === "player")
-    .map(({ id }) => id)
-    .filter((id) => document.players.some((player) => player.id === id));
-  const pathIds = selection
-    .filter(({ kind }) => kind === "path")
-    .map(({ id }) => id);
+  const playerIds = new Set(
+    selection.filter(({ kind }) => kind === "player").map(({ id }) => id),
+  );
+  const pathIds = [
+    ...new Set([
+      ...selection.filter(({ kind }) => kind === "path").map(({ id }) => id),
+      ...document.paths
+        .filter(({ playerId }) => playerIds.has(playerId))
+        .map(({ id }) => id),
+    ]),
+  ];
   const labelIds = selection
     .filter(({ kind }) => kind === "label")
     .map(({ id }) => id);
 
   const commands: PrimitivePlayCommand[] = [];
   let working = document;
-  if (playerIds.length > 0) {
-    const batch = deletePlayersCommand(working, playerIds);
-    commands.push(...batch.commands);
-    working = applyPlayCommand(working, batch);
-  }
   const remainingPaths = pathIds.filter((id) =>
     working.paths.some((path) => path.id === id),
   );
@@ -257,9 +287,13 @@ export function buildDeleteCommand(
     commands.push({ kind: "remove-labels", labelIds: remainingLabels });
   }
   if (commands.length === 0) return undefined;
+  const men = selection.filter(({ kind }) => kind === "player").length;
   return {
     kind: "batch",
-    label: selectionLabel("Delete", selection),
+    label:
+      men === selection.length
+        ? plural(men, "Clear his lines", "Clear their lines")
+        : selectionLabel("Delete", selection),
     commands,
   };
 }

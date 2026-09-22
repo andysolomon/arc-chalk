@@ -3,6 +3,7 @@ import {
   legacyLateralSpanToYards,
   mirrorCoordinate,
   remainingPlayerSlotsBySide,
+  clampToSideOfBall,
   sideOfBallForUnit,
   type Coordinate,
   type MovementPath,
@@ -156,7 +157,9 @@ export function buildPasteCommand(
     label.binding ? label : { ...label, position: shift(label.position) };
   const pastedPlayers = players.map((player) => ({
     ...player,
-    position: shift(player.position),
+    // The paste offset runs toward the backfield; a defender on the line
+    // would land across the ball, so he is held on his side of it.
+    position: clampToSideOfBall(player.unit, shift(player.position)),
   }));
   const pastedPaths = paths.map((path) => ({
     ...path,

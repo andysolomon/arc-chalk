@@ -832,6 +832,47 @@ button.play-type.open {
   background: #f5f5f5;
   color: var(--ink);
 }
+/* The Player panel's Draw row (ADR 0052): a line by hand starts here, from
+   his stance, with the key that does the same beside each name. */
+.draw-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.draw-row .section-heading {
+  width: 100%;
+  margin: 0;
+}
+.draw-row button {
+  display: inline-flex;
+  min-width: 0;
+  height: 30px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: #4d4d4d;
+  font-size: 12px;
+  cursor: pointer;
+}
+.draw-row button:hover {
+  background: #f5f5f5;
+  color: var(--ink);
+}
+.draw-row kbd {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #f0f0f0;
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+}
 .inspector-stub {
   width: 28px;
   flex: none;
@@ -1173,36 +1214,6 @@ button.play-type.open {
   color: #b4b4b4;
   font-size: 12px;
   line-height: 1;
-}
-/* Tool names beside the glyphs (issue #65): the rail widens, the glyph keeps
-   its 18 px at the same left edge, and the name sits in the same row. */
-.tool-rail .rail-names {
-  height: 22px;
-  padding: 0;
-  color: #b4b4b4;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1;
-}
-.tool-rail .rail-names[aria-pressed="true"] {
-  color: var(--ink);
-}
-.tool-rail.labeled {
-  width: 108px;
-}
-.tool-rail.labeled > button:not(.rail-collapse):not(.rail-names) {
-  width: 96px;
-  grid-template-columns: 18px minmax(0, 1fr);
-  justify-items: start;
-  column-gap: 9px;
-  padding: 0 0 0 11px;
-}
-.tool-rail.labeled .rail-label {
-  overflow: hidden;
-  font-size: 11px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* The Playbooks and Game Day destinations (issue #65): a page in the
@@ -4096,14 +4107,7 @@ button.library-dot.target.small {
     width: 44px;
     height: 44px;
   }
-  .tool-rail.labeled {
-    width: 116px;
-  }
-  .tool-rail.labeled > button:not(.rail-collapse):not(.rail-names) {
-    width: 104px;
-  }
-  .tool-rail .rail-collapse,
-  .tool-rail .rail-names {
+  .tool-rail .rail-collapse {
     height: 32px;
   }
   .inspector-stub {
@@ -5314,9 +5318,6 @@ button.library-dot.target.small {
   scrollbar-width: none;
   box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.06);
 }
-.phone-workspace .tool-rail.labeled {
-  width: auto;
-}
 .phone-workspace .tool-rail > button {
   width: 44px;
   height: 44px;
@@ -5326,9 +5327,7 @@ button.library-dot.target.small {
   column-gap: 0;
   padding: 0;
 }
-.phone-workspace .tool-rail .rail-label,
-.phone-workspace .tool-rail .rail-collapse,
-.phone-workspace .tool-rail .rail-names {
+.phone-workspace .tool-rail .rail-collapse {
   display: none;
 }
 .phone-workspace .tool-rail .rail-finish {

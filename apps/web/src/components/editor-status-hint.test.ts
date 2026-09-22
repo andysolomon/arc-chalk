@@ -11,6 +11,7 @@ describe("what the status bar says on the left", () => {
       atFit: true,
       selectionCount: 0,
     });
+    expect(atFit).toContain("select a player to give him his assignment");
     expect(atFit).toContain("drag the blue dot above a player");
     expect(atFit).not.toContain("drag the grass");
 
@@ -28,7 +29,7 @@ describe("what the status bar says on the left", () => {
     expect(
       editorStatusHint({
         view: "editor",
-        tool: "route",
+        tool: "select",
         atFit: true,
         selectionCount: 0,
         drawing: { depthBuffer: "" },
@@ -37,7 +38,7 @@ describe("what the status bar says on the left", () => {
     expect(
       editorStatusHint({
         view: "editor",
-        tool: "route",
+        tool: "select",
         atFit: true,
         selectionCount: 0,
         drawing: { depthBuffer: "12" },
@@ -88,17 +89,6 @@ describe("what the status bar says on the left", () => {
       }),
     ).toBe(DEMO_STATUS_HINT);
   });
-  it("says when this side of the LOS already has eleven men", () => {
-    expect(
-      editorStatusHint({
-        view: "editor",
-        tool: "player",
-        atFit: true,
-        selectionCount: 0,
-        playerSideFull: true,
-      }),
-    ).toBe("11 players on this side of the LOS — delete one to place another");
-  });
 });
 
 describe("the first blank field (issue #65)", () => {
@@ -115,11 +105,11 @@ describe("the first blank field (issue #65)", () => {
     expect(
       editorStatusHint({
         view: "editor",
-        tool: "player",
+        tool: "text",
         atFit: true,
         selectionCount: 0,
         firstUse: true,
       }),
-    ).toContain("click the field to place a player");
+    ).toBe("click the field to drop a text label");
   });
 });

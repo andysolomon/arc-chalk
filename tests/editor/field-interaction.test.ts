@@ -111,6 +111,11 @@ const move = (point: Coordinate, pointerId = 1): FieldInteractionEvent => ({
   type: "pointer-move",
   input: { point, pointerId },
 });
+/** The inspector's Draw button, or the R M B Z keys, for one man. */
+const start = (
+  kind: "route" | "motion" | "block" | "zone",
+  playerId: string,
+): FieldInteractionEvent => ({ type: "start-drawing", kind, playerId });
 const up = (point: Coordinate, pointerId = 1): FieldInteractionEvent => ({
   type: "pointer-up",
   input: { point, pointerId },
@@ -197,9 +202,11 @@ describe("field interaction dragging", () => {
       snap: { enabled: false, grid: "off" },
     });
     const x = positionOf(stickThunderPlay, "x");
+    // Back and across: away from the ball, since the line of scrimmage
+    // holds a man who is dragged toward it (ADR 0052).
     const target = {
       lateralYards: x.lateralYards + 2,
-      depthYards: x.depthYards + 3,
+      depthYards: x.depthYards - 3,
     };
 
     const session = run(context, [down(x), move(target), up(target)]);
@@ -210,14 +217,14 @@ describe("field interaction dragging", () => {
     const moved = applyPlayCommand(stickThunderPlay, command);
     const after = positionOf(moved, "x");
     expect(after.lateralYards).toBeCloseTo(x.lateralYards + 2, 6);
-    expect(after.depthYards).toBeCloseTo(x.depthYards + 3, 6);
+    expect(after.depthYards).toBeCloseTo(x.depthYards - 3, 6);
 
     const route = (document: PlayDocument) =>
       document.paths.find(({ id }) => id === "rx")!;
     route(stickThunderPlay).points.forEach((point, index) => {
       const movedPoint = route(moved).points[index]!;
       expect(movedPoint.lateralYards).toBeCloseTo(point.lateralYards + 2, 6);
-      expect(movedPoint.depthYards).toBeCloseTo(point.depthYards + 3, 6);
+      expect(movedPoint.depthYards).toBeCloseTo(point.depthYards - 3, 6);
     });
   });
 
@@ -411,7 +418,7 @@ describe("field interaction marquee", () => {
 });
 
 describe("field interaction keyboard", () => {
-  it("deletes a mixed selection with its dependents as one batch", () => {
+  it("deletes a mixed selection with its dependents as one batch, keeping the man", () => {
     const context = contextFor(stickThunderPlay);
     const session = run(context, [{ type: "delete" }], {
       selection: [player("x"), label("l1")],
@@ -421,11 +428,32 @@ describe("field interaction keyboard", () => {
     expect(session.model.selection).toEqual([]);
 
     const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
-    expect(after.players.some(({ id }) => id === "x")).toBe(false);
-    // X's route leaves with him even though it was never selected.
+    // Eleven a side is the roster (ADR 0052): X stays in his stance, and
+    // what he was given — his route, never itself selected — is cleared.
+    expect(after.players.some(({ id }) => id === "x")).toBe(true);
     expect(after.paths.some(({ id }) => id === "rx")).toBe(false);
     expect(after.labels.some(({ id }) => id === "l1")).toBe(false);
-    expect(after.players).toHaveLength(stickThunderPlay.players.length - 1);
+    expect(after.players).toHaveLength(stickThunderPlay.players.length);
+  });
+
+  it("clears a selected man's lines rather than deleting him", () => {
+    const context = contextFor(stickThunderPlay);
+    const session = run(context, [{ type: "delete" }], {
+      selection: [player("x")],
+      gesture: { kind: "idle" },
+    });
+    expect(session.commands).toHaveLength(1);
+    expect(session.commands[0]).toMatchObject({ label: "Clear his lines" });
+    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
+    expect(after.players).toHaveLength(stickThunderPlay.players.length);
+    expect(after.paths.some(({ playerId }) => playerId === "x")).toBe(false);
+
+    // A man with nothing to clear is nothing to do.
+    const quiet = run(context, [{ type: "delete" }], {
+      selection: [player("q")],
+      gesture: { kind: "idle" },
+    });
+    expect(quiet.commands).toHaveLength(0);
   });
 
   it("nudges the selection by the requested step, one command per press", () => {
@@ -458,72 +486,77 @@ describe("field interaction keyboard", () => {
 });
 
 describe("field interaction tools", () => {
-  it("places a new Player exactly where the Coach pressed", () => {
-    // Stick Thunder is already eleven deep; clear one so there is room.
-    const room = applyPlayCommand(
-      stickThunderPlay,
-      deletePlayersCommand(stickThunderPlay, ["q"]),
-    );
-    const context = contextFor(room, {
-      tool: "player",
-      createId: (prefix) => `${prefix}_test`,
-    });
-    const spot = { lateralYards: 5, depthYards: 5 };
-    const session = run(context, [down(spot)]);
-    expect(session.commands).toHaveLength(1);
-    expect(session.model.selection).toEqual([player("player_test")]);
-
-    const after = applyPlayCommand(room, session.commands[0]!);
-    const added = after.players.find(({ id }) => id === "player_test")!;
-    expect(added.position).toEqual(spot);
-    expect(added.unit).toBe(room.unit);
-    expect(added.symbol).toBe("circle");
+  /** A defender on the seeded offensive Play, for the lines only he draws. */
+  const withMike = applyPlayCommand(stickThunderPlay, {
+    kind: "batch",
+    label: "Add Player",
+    commands: [
+      {
+        kind: "insert-players",
+        players: [
+          {
+            index: stickThunderPlay.players.length,
+            item: {
+              id: "mike",
+              unit: "defense",
+              position: { lateralYards: 0, depthYards: 5 },
+              symbol: "circle",
+              label: "M",
+              sublabel: "",
+              fill: "none",
+              color: "ink",
+            },
+          },
+        ],
+      },
+    ],
   });
 
-  it("refuses a twelfth Player on a side that already has eleven", () => {
-    // Stick Thunder is a full offensive eleven; the Player tool must not
-    // stack a twelfth man on that side of the LOS.
-    expect(
-      stickThunderPlay.players.filter(({ unit }) => unit !== "defense"),
-    ).toHaveLength(11);
-    const context = contextFor(stickThunderPlay, {
-      tool: "player",
-      createId: (prefix) => `${prefix}_overflow`,
+  it("never places a man from a press on the grass — eleven a side is the roster", () => {
+    // There is no Player tool (ADR 0052): the grass under Select starts a
+    // marquee, never a twelfth man.
+    const select = run(
+      contextFor(stickThunderPlay, { createId: (prefix) => `${prefix}_new` }),
+      [down({ lateralYards: 5, depthYards: 5 })],
+    );
+    expect(select.commands).toHaveLength(0);
+    expect(select.model.gesture.kind).toBe("marquee");
+  });
+
+  it("starts a line of the asked kind from the man the inspector named", () => {
+    const context = contextFor(stickThunderPlay);
+    const y = positionOf(stickThunderPlay, "y");
+    const session = run(context, [start("motion", "y")]);
+    expect(session.model.drawing).toMatchObject({
+      kind: "motion",
+      playerId: "y",
+      points: [{ lateralYards: y.lateralYards, depthYards: y.depthYards }],
     });
-    const session = run(context, [down({ lateralYards: 25, depthYards: -12 })]);
-    expect(session.commands).toHaveLength(0);
     expect(session.model.selection).toEqual([]);
+    expect(session.commands).toHaveLength(0);
   });
 
-  it("places again once a man is cleared from a full side", () => {
-    const thinned = applyPlayCommand(
-      stickThunderPlay,
-      deletePlayersCommand(stickThunderPlay, ["q"]),
-    );
-    const context = contextFor(thinned, {
-      tool: "player",
-      createId: (prefix) => `${prefix}_room`,
+  it("draws a blitz path from a defender asked for a block, and a zone drop", () => {
+    const context = contextFor(withMike);
+    expect(run(context, [start("block", "mike")]).model.drawing).toMatchObject({
+      kind: "blitz",
+      playerId: "mike",
     });
-    const spot = { lateralYards: 2, depthYards: -6 };
-    const session = run(context, [down(spot)]);
-    expect(session.commands).toHaveLength(1);
-    const after = applyPlayCommand(thinned, session.commands[0]!);
-    expect(after.players).toHaveLength(thinned.players.length + 1);
+    expect(run(context, [start("zone", "mike")]).model.drawing).toMatchObject({
+      kind: "zone",
+    });
+    expect(run(context, [start("block", "y")]).model.drawing).toMatchObject({
+      kind: "block",
+    });
   });
 
-  it("moves an existing Player under the Player tool instead of stacking a new one", () => {
-    const context = contextFor(stickThunderPlay, {
-      tool: "player",
-      snap: { enabled: false, grid: "off" },
-    });
-    const q = positionOf(stickThunderPlay, "q");
-    const target = {
-      lateralYards: q.lateralYards + 3,
-      depthYards: q.depthYards,
-    };
-    const session = run(context, [down(q), move(target), up(target)]);
-    expect(session.commands).toHaveLength(1);
-    expect(session.commands[0]).toMatchObject({ label: "Move Player" });
+  it("ignores a start for a man who is not there, or while a line is in hand", () => {
+    const context = contextFor(stickThunderPlay);
+    expect(
+      run(context, [start("route", "nobody")]).model.drawing,
+    ).toBeUndefined();
+    const busy = run(context, [start("route", "y"), start("motion", "z")]);
+    expect(busy.model.drawing).toMatchObject({ kind: "route", playerId: "y" });
   });
 });
 
@@ -683,22 +716,77 @@ describe("move command builder", () => {
       }),
     ).toBeUndefined();
   });
+
+  it("holds a man at the line of scrimmage instead of carrying him across", () => {
+    // Offense stands at negative depth and keeps a yard clear of the ball
+    // (ADR 0052): a drag downfield stops there.
+    const q = positionOf(stickThunderPlay, "q");
+    const command = buildMoveCommand(stickThunderPlay, [player("q")], {
+      lateralYards: 0,
+      depthYards: 40,
+    });
+    const after = applyPlayCommand(stickThunderPlay, command!);
+    expect(positionOf(after, "q").depthYards).toBe(-1);
+    expect(positionOf(after, "q").lateralYards).toBe(q.lateralYards);
+
+    const lineman = positionOf(stickThunderPlay, "ol2");
+    expect(lineman.depthYards).toBeLessThan(0);
+    const held = applyPlayCommand(
+      stickThunderPlay,
+      buildMoveCommand(stickThunderPlay, [player("ol2")], {
+        lateralYards: 0,
+        depthYards: 1 - lineman.depthYards,
+      })!,
+    );
+    expect(positionOf(held, "ol2").depthYards).toBe(-1);
+  });
+
+  it("holds a dragged group together at the line, and lets men back away from it", () => {
+    const q = positionOf(stickThunderPlay, "q");
+    const ol2 = positionOf(stickThunderPlay, "ol2");
+    const command = buildMoveCommand(
+      stickThunderPlay,
+      [player("q"), player("ol2")],
+      { lateralYards: 2, depthYards: 40 },
+    );
+    const after = applyPlayCommand(stickThunderPlay, command!);
+    // The lineman reaches the line first and the group stops with him, so
+    // the Quarterback keeps his distance behind the line.
+    expect(positionOf(after, "ol2").depthYards).toBe(-1);
+    expect(positionOf(after, "q").depthYards).toBeCloseTo(
+      q.depthYards + (-1 - ol2.depthYards),
+      6,
+    );
+    expect(positionOf(after, "q").lateralYards).toBeCloseTo(
+      q.lateralYards + 2,
+      6,
+    );
+
+    // Away from the ball is always open.
+    const back = applyPlayCommand(
+      stickThunderPlay,
+      buildMoveCommand(stickThunderPlay, [player("q")], {
+        lateralYards: 0,
+        depthYards: -3,
+      })!,
+    );
+    expect(positionOf(back, "q").depthYards).toBeCloseTo(q.depthYards - 3, 6);
+  });
 });
 
 describe("field interaction drawing", () => {
   const drawingContext = (overrides: Partial<FieldInteractionContext> = {}) =>
     contextFor(stickThunderPlay, {
-      tool: "route",
       snap: { enabled: false, grid: "off" },
       createId: (prefix) => `${prefix}_drawn`,
       ...overrides,
     });
 
-  it("starts a route on the Player it was pressed on, not on the grass", () => {
+  it("starts a route at the man's stance, and a press on the grass draws nothing", () => {
     const context = drawingContext();
     const y = positionOf(stickThunderPlay, "y");
 
-    const started = run(context, [down(y)]);
+    const started = run(context, [start("route", "y")]);
     expect(started.model.drawing).toMatchObject({
       kind: "route",
       playerId: "y",
@@ -706,7 +794,7 @@ describe("field interaction drawing", () => {
     });
     expect(started.commands).toHaveLength(0);
 
-    // The schema requires a Player on every path, so grass draws nothing.
+    // Every line belongs to a man (ADR 0052): the grass starts none.
     const onGrass = run(context, [down({ lateralYards: 18, depthYards: 14 })]);
     expect(onGrass.model.drawing).toBeUndefined();
     expect(onGrass.commands).toHaveLength(0);
@@ -725,7 +813,7 @@ describe("field interaction drawing", () => {
     };
 
     const session = run(context, [
-      down(y),
+      start("route", "y"),
       move(first),
       down(first),
       up(first),
@@ -768,8 +856,8 @@ describe("field interaction drawing", () => {
       depthYards: y.depthYards + 4,
     };
     const drawWith = (kind: "route" | "motion" | "block" | "zone") => {
-      const session = run(drawingContext({ tool: kind }), [
-        down(y),
+      const session = run(drawingContext(), [
+        start(kind, "y"),
         move(breakPoint),
         down(breakPoint),
         up(breakPoint),
@@ -805,7 +893,7 @@ describe("field interaction drawing", () => {
       depthYards: q.depthYards - 4,
     };
     const qSession = run(drawingContext(), [
-      down(q),
+      start("route", "q"),
       move(qBreak),
       down(qBreak),
       up(qBreak),
@@ -827,8 +915,8 @@ describe("field interaction drawing", () => {
       depthYards: y.depthYards + 8,
     };
 
-    const snapped = run(contextFor(stickThunderPlay, { tool: "route" }), [
-      down(y),
+    const snapped = run(contextFor(stickThunderPlay), [
+      start("route", "y"),
       move(loose),
     ]);
     const cursor = snapped.model.drawing!.cursor;
@@ -836,8 +924,8 @@ describe("field interaction drawing", () => {
     expect(cursor.lateralYards).toBeCloseTo(y.lateralYards, 6);
     expect(cursor.depthYards).toBeGreaterThan(y.depthYards);
 
-    const free = run(contextFor(stickThunderPlay, { tool: "route" }), [
-      down(y),
+    const free = run(contextFor(stickThunderPlay), [
+      start("route", "y"),
       {
         type: "pointer-move",
         input: { point: loose, pointerId: 1, shiftKey: true },
@@ -860,7 +948,11 @@ describe("field interaction drawing", () => {
       lateralYards: y.lateralYards + 1 / screenScale.lateralPixelsPerYard,
       depthYards: y.depthYards,
     };
-    const session = run(context, [down(y), move(nudge), down(nudge)]);
+    const session = run(context, [
+      start("route", "y"),
+      move(nudge),
+      down(nudge),
+    ]);
     expect(session.model.drawing!.points).toHaveLength(1);
   });
 
@@ -877,7 +969,7 @@ describe("field interaction drawing", () => {
     };
 
     const session = run(context, [
-      down(y),
+      start("route", "y"),
       move(breakPoint),
       down(breakPoint),
       move(pull),
@@ -907,7 +999,7 @@ describe("field interaction drawing", () => {
     };
 
     const typed = run(context, [
-      down(y),
+      start("route", "y"),
       move(loose),
       { type: "depth-digit", digit: "1" },
       { type: "depth-digit", digit: "2" },
@@ -928,11 +1020,10 @@ describe("field interaction drawing", () => {
     const context = drawingContext({
       depthWindow: { minDepthYards: -15, maxDepthYards: 30 },
     });
-    const y = positionOf(stickThunderPlay, "y");
     const halfWidth = stickThunderPlay.fieldProfile.widthYards / 2;
 
     const session = run(context, [
-      down(y),
+      start("route", "y"),
       move({ lateralYards: 90, depthYards: 90 }),
     ]);
     const cursor = session.model.drawing!.cursor;
@@ -946,7 +1037,7 @@ describe("field interaction drawing", () => {
     const one = { lateralYards: y.lateralYards, depthYards: y.depthYards + 5 };
     const two = { lateralYards: y.lateralYards, depthYards: y.depthYards + 10 };
     const twoBreaks = run(context, [
-      down(y),
+      start("route", "y"),
       move(one),
       down(one),
       up(one),
@@ -967,8 +1058,10 @@ describe("field interaction drawing", () => {
 
   it("commits nothing for a route that never left its Player", () => {
     const context = drawingContext();
-    const y = positionOf(stickThunderPlay, "y");
-    const session = run(context, [down(y), { type: "finish-drawing" }]);
+    const session = run(context, [
+      start("route", "y"),
+      { type: "finish-drawing" },
+    ]);
     expect(session.commands).toHaveLength(0);
     expect(session.model.drawing).toBeUndefined();
   });
@@ -983,7 +1076,7 @@ describe("field interaction drawing", () => {
     let model = idleFieldInteraction;
     let requestedTool: string | undefined;
     for (const event of [
-      down(y),
+      start("route", "y"),
       move(breakPoint),
       down(breakPoint),
       up(breakPoint),
@@ -996,7 +1089,7 @@ describe("field interaction drawing", () => {
     expect(requestedTool).toBe("select");
   });
 
-  it("starts a route from the blue dot without the route tool", () => {
+  it("starts a route from the blue dot as well", () => {
     const context = contextFor(stickThunderPlay, {
       createId: (prefix) => `${prefix}_drawn`,
     });
@@ -1010,8 +1103,7 @@ describe("field interaction drawing", () => {
 
   it("abandons a drawing whose Player an undo removed", () => {
     const context = drawingContext();
-    const y = positionOf(stickThunderPlay, "y");
-    const started = run(context, [down(y)]);
+    const started = run(context, [start("route", "y")]);
     const without = applyPlayCommand(
       stickThunderPlay,
       deletePlayersCommand(stickThunderPlay, ["y"]),
@@ -1393,9 +1485,9 @@ describe("field interaction route handles", () => {
   });
 
   it("ignores a handle press while a route is being drawn", () => {
-    const context = handleContext({ tool: "route" });
+    const context = handleContext();
     const y = positionOf(stickThunderPlay, "y");
-    const drawing = run(context, [down(y)]);
+    const drawing = run(context, [start("route", "y")]);
     const session = run(
       context,
       [handleDown({ kind: "node", pathId: "rx", pointIndex: 1 }, y)],
@@ -2910,9 +3002,9 @@ describe("asking what can be done to one thing", () => {
   });
 
   it("abandons a route being drawn — he has stopped to look", () => {
-    const context = contextFor(stickThunderPlay, { tool: "route" });
+    const context = contextFor(stickThunderPlay);
     const { model } = run(context, [
-      down(positionOf(stickThunderPlay, "z")),
+      start("route", "z"),
       { type: "point-at", item: player("z") },
     ]);
 
@@ -3051,11 +3143,9 @@ describe("holding everything on the field", () => {
   });
 
   it("stops a dragged Player at the edge of the drawn frame", () => {
-    const context = boundsContext();
     const q = positionOf(stickThunderPlay, "q");
-
     const below = run(
-      context,
+      boundsContext(),
       drag(q, { lateralYards: q.lateralYards, depthYards: -60 }),
     );
     expect(dragged(below, "q").depthYards).toBeCloseTo(
@@ -3063,14 +3153,40 @@ describe("holding everything on the field", () => {
       6,
     );
 
+    // Downfield the ball stops an offensive man long before the frame does
+    // (ADR 0052), so the frame's ceiling is read on a defender, who has the
+    // whole of it to run in.
+    const stance = { lateralYards: 0, depthYards: 12 };
+    const withSafety = applyPlayCommand(stickThunderPlay, {
+      kind: "insert-players",
+      players: [
+        {
+          index: stickThunderPlay.players.length,
+          item: {
+            id: "safety",
+            unit: "defense" as const,
+            position: stance,
+            symbol: "circle" as const,
+            label: "S",
+            sublabel: "",
+            fill: "none" as const,
+            color: "ink" as const,
+          },
+        },
+      ],
+    });
     const above = run(
-      context,
-      drag(q, { lateralYards: q.lateralYards, depthYards: 80 }),
+      boundsContext({
+        document: withSafety,
+        scene: buildRenderScene(withSafety),
+      }),
+      drag(stance, { lateralYards: 0, depthYards: 80 }),
     );
-    expect(dragged(above, "q").depthYards).toBeCloseTo(
-      depthWindow.maxDepthYards,
-      6,
-    );
+    expect(above.commands).toHaveLength(1);
+    expect(
+      positionOf(applyPlayCommand(withSafety, above.commands[0]!), "safety")
+        .depthYards,
+    ).toBeCloseTo(depthWindow.maxDepthYards, 6);
   });
 
   it("leaves the frame alone when the shell has not drawn one", () => {
@@ -3242,42 +3358,20 @@ describe("holding everything on the field", () => {
   });
 
   it("keeps a segment bent while drawing inside the sidelines", () => {
-    const context = boundsContext({ tool: "route" });
+    const context = boundsContext();
     const z = positionOf(stickThunderPlay, "z");
     const first = {
       lateralYards: z.lateralYards,
       depthYards: z.depthYards + 8,
     };
     const session = run(context, [
-      down(z),
+      start("route", "z"),
       move(first),
       down(first),
       move({ lateralYards: 70, depthYards: first.depthYards - 4 }),
     ]);
     const control = session.model.drawing!.points.at(-1)!.control!;
     expect(control.lateralYards).toBeLessThanOrEqual(halfWidth);
-  });
-
-  it("puts a new Player pressed past the sideline on it", () => {
-    const room = applyPlayCommand(
-      stickThunderPlay,
-      deletePlayersCommand(stickThunderPlay, ["ol0"]),
-    );
-    const context = boundsContext({
-      document: room,
-      scene: buildRenderScene(room),
-      tool: "player",
-    });
-    const session = run(context, [
-      down({ lateralYards: -40, depthYards: -20 }),
-    ]);
-    expect(session.commands).toHaveLength(1);
-    const placed = positionOf(
-      applyPlayCommand(room, session.commands[0]!),
-      "player_new",
-    );
-    expect(placed.lateralYards).toBeCloseTo(-halfWidth, 6);
-    expect(placed.depthYards).toBeCloseTo(depthWindow.minDepthYards, 6);
   });
 
   it("pastes against the sideline rather than past it", () => {
@@ -3411,10 +3505,9 @@ describe("holding a zone bubble on the field", () => {
   });
 
   it("draws a drop no nearer the sideline than its default bubble allows", () => {
-    const context = zoneContext(stickThunderPlay, { tool: "zone" });
-    const q = positionOf(stickThunderPlay, "q");
+    const context = zoneContext(stickThunderPlay);
     const session = run(context, [
-      down(q),
+      start("zone", "q"),
       move({ lateralYards: 90, depthYards: 8 }),
     ]);
     expect(session.model.drawing!.kind).toBe("zone");

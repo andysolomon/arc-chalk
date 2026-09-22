@@ -35,12 +35,12 @@ export type ActionId =
   | `demo:${DemoTourId}`
   | "palette"
   | "toolSelect"
-  | "toolPlayer"
-  | "toolRoute"
-  | "toolMotion"
-  | "toolBlock"
-  | "toolZone"
   | "toolText"
+  /** Lines by hand start from the selected man (ADR 0052). */
+  | "drawRoute"
+  | "drawMotion"
+  | "drawBlock"
+  | "drawZone"
   | "toggleInspector"
   | "toggleRail"
   | "present"
@@ -345,12 +345,32 @@ export function paletteCommands(
     }));
   return [
     { id: "toolSelect", label: "Select tool", shortcut: "V" },
-    { id: "toolPlayer", label: "Player tool", shortcut: "P" },
-    { id: "toolRoute", label: "Route tool", shortcut: "R" },
-    { id: "toolMotion", label: "Motion tool", shortcut: "M" },
-    { id: "toolBlock", label: "Block tool", shortcut: "B" },
-    { id: "toolZone", label: "Zone drop tool", shortcut: "Z" },
     { id: "toolText", label: "Text tool", shortcut: "T" },
+    {
+      id: "drawRoute",
+      label: "Draw his route",
+      shortcut: "R",
+      title: "With one man selected: a route by hand from his stance",
+    },
+    {
+      id: "drawMotion",
+      label: "Draw his motion",
+      shortcut: "M",
+      title: "With one man selected: a motion path by hand from his stance",
+    },
+    {
+      id: "drawBlock",
+      label: "Draw his block or blitz",
+      shortcut: "B",
+      title:
+        "With one man selected: a block by hand, or a blitz path from a defender",
+    },
+    {
+      id: "drawZone",
+      label: "Draw his zone drop",
+      shortcut: "Z",
+      title: "With one defender selected: a zone drop by hand from his stance",
+    },
     { id: "focus", label: "Focus mode", shortcut: "F" },
     { id: "settings", label: "Settings" },
     { id: "toggleInspector", label: "Inspector on / off", shortcut: "⌥1" },

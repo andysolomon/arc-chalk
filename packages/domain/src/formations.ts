@@ -180,6 +180,45 @@ export function canAddPlayerToSide(
 }
 
 /**
+ * How close to the line of scrimmage a man's centre may stand: a yard, about
+ * the radius of his own symbol, so the mark never sits across the ball.
+ * Offense (and special teams) live at negative depth, defense at positive,
+ * and nobody crosses — a Play is drawn from the ball, not through it.
+ */
+export const LINE_OF_SCRIMMAGE_CLEARANCE_YARDS = 1;
+
+/** The depths a man of this unit may stand at without crossing the ball. */
+export function depthLimitForUnit(unit: Player["unit"]): {
+  readonly minDepthYards: number;
+  readonly maxDepthYards: number;
+} {
+  return sideOfBallForUnit(unit) === "defense"
+    ? {
+        minDepthYards: LINE_OF_SCRIMMAGE_CLEARANCE_YARDS,
+        maxDepthYards: Infinity,
+      }
+    : {
+        minDepthYards: -Infinity,
+        maxDepthYards: -LINE_OF_SCRIMMAGE_CLEARANCE_YARDS,
+      };
+}
+
+/** The same spot, held back onto this unit's side of the ball. */
+export function clampToSideOfBall(
+  unit: Player["unit"],
+  position: Coordinate,
+): Coordinate {
+  const limit = depthLimitForUnit(unit);
+  return {
+    lateralYards: position.lateralYards,
+    depthYards: Math.max(
+      limit.minDepthYards,
+      Math.min(limit.maxDepthYards, position.depthYards),
+    ),
+  };
+}
+
+/**
  * How many more men of each side may still be added before hitting eleven.
  * Used when pasting a mix of offense and defense in one gesture.
  */
