@@ -2,7 +2,6 @@ import {
   assignmentForPath,
   ballPosition,
   ballSpotNames,
-  canAddPlayerToSide,
   currentBallSpot,
   createStableId,
   currentDefensiveCall,
@@ -16,6 +15,7 @@ import {
   demoPanelRowOn,
   demoPlayLabel,
   demoPulses,
+  demoToolIds,
   demoToolShortcuts,
   demoTour,
   demoTours,
@@ -144,6 +144,7 @@ import {
   type StylusState,
   type EditorUndoState,
   type EditorVersionSummary,
+  type FieldDrawingKind,
   type FieldDrawingState,
   type FieldGesture,
   lineOf,
@@ -261,7 +262,12 @@ import {
 } from "./inspector-sections";
 import type { PresetChoice } from "./preset-choices";
 import { editorStatusHint } from "./editor-status-hint";
-import { toolLabelFor, tools, type ToolId } from "./tool-labels";
+import {
+  drawChoicesFor,
+  drawKindForKey,
+  tools,
+  type ToolId,
+} from "./tool-labels";
 import { FieldMinimap } from "./field-minimap";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { FieldDiagram } from "./field-diagram";
@@ -1381,6 +1387,7 @@ function PlayerInspector({
   onApplyPreset,
   onAppearance,
   onDeselect,
+  onDraw,
   onFlip,
   onQuickCall,
   onRemoveLine,
@@ -1394,6 +1401,8 @@ function PlayerInspector({
 }: {
   /** Every call he is already running, so a button can say so. */
   activePresets: ReadonlySet<string>;
+  /** Start a line of this kind by hand from his stance (ADR 0052). */
+  onDraw: (kind: FieldDrawingKind) => void;
   lines: readonly {
     readonly id: string;
     readonly name: string;
@@ -1429,10 +1438,11 @@ function PlayerInspector({
       ? "Blocking"
       : "Routes & alternates";
   const nothingYet = defense
-    ? "No assignment yet. Pick one below, or press Z for a zone drop and B for a blitz path."
+    ? "No assignment yet. Pick one below, or draw his zone drop or blitz path from here."
     : lineman
-      ? "No block yet. Pick one below, or press B and click him to draw one."
-      : "No route yet. Pick one below, or press R and click this player to draw one.";
+      ? "No block yet. Pick one below, or draw one from here."
+      : "No route yet. Pick one below, or draw one from here.";
+  const drawChoices = drawChoicesFor(player);
   const symbolName =
     playerSymbolChoices.find(({ symbol }) => symbol === player.symbol)?.name ??
     player.symbol;
@@ -1513,6 +1523,20 @@ function PlayerInspector({
           ))}
         </div>
       )}
+      <div className="draw-row" role="group" aria-label="Draw by hand">
+        <span className="section-heading">Draw</span>
+        {drawChoices.map((choice) => (
+          <button
+            key={choice.kind}
+            onClick={() => onDraw(choice.kind)}
+            title={`Draw his ${choice.label.toLowerCase()} from his stance — ${choice.shortcut}, then click the field for each break; Enter finishes`}
+            type="button"
+          >
+            {choice.label}
+            <kbd aria-hidden="true">{choice.shortcut}</kbd>
+          </button>
+        ))}
+      </div>
       {lines.length > 0 && (
         <div className="help-row">
           <button
@@ -3168,10 +3192,31 @@ export function ChalkApp({
     setActiveTool(tool);
   };
   const selectToolRef = useRef(selectTool);
+  /**
+   * A line by hand begins at the man's stance and takes its breaks from the
+   * field (ADR 0052). The Text tool is put down first: a line is drawn under
+   * Select, and a sheet or drawer over the field goes so the field is there
+   * to draw on.
+   */
+  const startDrawingFrom = (playerId: string, kind: FieldDrawingKind): void => {
+    if (interactionRef.current.drawing) return;
+    setActiveTool("select");
+    if (inspectorFloats) setInspectorOpen(false);
+    dispatchField({ type: "start-drawing", kind, playerId });
+  };
+  const startDrawingFromSelection = (kind: FieldDrawingKind): void => {
+    const men = interactionRef.current.selection.filter(
+      (item) => item.kind === "player",
+    );
+    if (men.length !== 1) return;
+    startDrawingFrom(men[0]!.id, kind);
+  };
+  const startDrawingFromSelectionRef = useRef(startDrawingFromSelection);
   useEffect(() => {
     dispatchFieldRef.current = dispatchField;
     drawingRef.current = interaction.drawing;
     selectToolRef.current = selectTool;
+    startDrawingFromSelectionRef.current = startDrawingFromSelection;
     publishLiveVisualsRef.current = publishLiveVisuals;
   });
   useEffect(() => () => paintLoop.cancel(), [paintLoop]);
@@ -4297,12 +4342,11 @@ export function ChalkApp({
    */
   const actions: ActionMap = {
     toolSelect: () => selectTool("select"),
-    toolPlayer: () => selectTool("player"),
-    toolRoute: () => selectTool("route"),
-    toolMotion: () => selectTool("motion"),
-    toolBlock: () => selectTool("block"),
-    toolZone: () => selectTool("zone"),
     toolText: () => selectTool("text"),
+    drawRoute: () => startDrawingFromSelection("route"),
+    drawMotion: () => startDrawingFromSelection("motion"),
+    drawBlock: () => startDrawingFromSelection("block"),
+    drawZone: () => startDrawingFromSelection("zone"),
     focus: () => setPanels(false),
     showPanels: () => setPanels(true),
     toggleInspector: () => setInspectorOpen((shown) => !shown),
@@ -4818,18 +4862,20 @@ export function ChalkApp({
         return;
       }
       if (event.shiftKey) return;
-      const toolKeys: Record<string, Tool> = {
-        v: "select",
-        p: "player",
-        r: "route",
-        m: "motion",
-        b: "block",
-        z: "zone",
-        t: "text",
-      };
-      const tool = toolKeys[key];
-      if (tool) {
-        selectToolRef.current(tool);
+      if (key === "t") {
+        selectToolRef.current("text");
+        return;
+      }
+      if (key === "v") {
+        selectToolRef.current("select");
+        return;
+      }
+      const drawKind = drawKindForKey(key);
+      if (drawKind) {
+        // A line by key starts from the one man picked out, as the Draw
+        // buttons in his inspector do (ADR 0052); with nobody picked, or
+        // several, the key has nobody to start from.
+        startDrawingFromSelectionRef.current(drawKind);
         return;
       }
       if (key === "s") setSnapEnabled((enabled) => !enabled);
@@ -5131,7 +5177,6 @@ export function ChalkApp({
    * the rail keeps the original's footprint; the Aa control that asks is a
    * tap away, and the answer is remembered per device.
    */
-  const railLabels = chrome.railLabels ?? false;
 
   /**
    * Below the editor's floor the header is the three destinations, the
@@ -5441,9 +5486,6 @@ export function ChalkApp({
       playbook.snapshot.members.length === 0 &&
       editor.document.players.length === 0 &&
       editor.document.labels.length === 0,
-    playerSideFull:
-      activeTool === "player" &&
-      !canAddPlayerToSide(editor.document, editor.document.unit),
   });
 
   if (activeView === "Present") {
@@ -5609,29 +5651,24 @@ export function ChalkApp({
       <div className="workspace">
         {quickTray}
         {railOpen ? (
-          <nav
-            className={`tool-rail${railLabels ? " labeled" : ""}`}
-            aria-label="Drawing tools"
-          >
-            {tools.map((tool) => {
-              const label = toolLabelFor(tool.id, selectedPlayer);
-              return (
-                <button
-                  className={activeTool === tool.id ? "active" : ""}
-                  key={tool.id}
-                  onClick={() => selectTool(tool.id)}
-                  title={`${label} — ${tool.shortcut}`}
-                  aria-label={`${label} — ${tool.shortcut}`}
-                >
-                  <RailIcon glyph={tool.id} />
-                  {railLabels ? (
-                    <span className="rail-label" aria-hidden="true">
-                      {label}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
+          <nav className="tool-rail" aria-label="Drawing tools">
+            {tools.map((tool) => (
+              // Text is the one tool left here (ADR 0052): a note goes on
+              // the grass, so it needs a tool; a line goes on a man, so it
+              // starts from him. A second press puts the tool down again.
+              <button
+                className={activeTool === tool.id ? "active" : ""}
+                key={tool.id}
+                onClick={() =>
+                  selectTool(activeTool === tool.id ? "select" : tool.id)
+                }
+                title={`${tool.label} — ${tool.shortcut}`}
+                aria-label={`${tool.label} — ${tool.shortcut}`}
+                aria-pressed={activeTool === tool.id}
+              >
+                <RailIcon glyph={tool.id} />
+              </button>
+            ))}
             {phoneWorkspace && interaction.drawing ? (
               // A route on a phone ends here; there is no Enter key and a
               // double tap is not a thing a Coach should have to know.
@@ -5647,30 +5684,6 @@ export function ChalkApp({
             ) : null}
             <span className="rail-spacer" />
             <button
-              aria-label="Tool names"
-              aria-pressed={railLabels}
-              className="rail-names"
-              onClick={() => rememberChrome({ railLabels: !railLabels })}
-              title={
-                railLabels
-                  ? "Hide the tool names"
-                  : "Show each tool's name and key beside it"
-              }
-              type="button"
-            >
-              Aa
-            </button>
-            <button
-              aria-label="Angle snap 45 degrees — S"
-              aria-pressed={snapEnabled}
-              className="snap-toggle"
-              onClick={() => setSnapEnabled((enabled) => !enabled)}
-              title="Angle snap 45° — S (hold Shift to toggle while drawing)"
-              type="button"
-            >
-              <RailIcon glyph="snap" />
-            </button>
-            <button
               aria-label="Delete selection — ⌫"
               className="rail-trash"
               disabled={
@@ -5681,11 +5694,6 @@ export function ChalkApp({
               type="button"
             >
               <RailIcon glyph="trash" />
-              {railLabels ? (
-                <span className="rail-label" aria-hidden="true">
-                  Trash
-                </span>
-              ) : null}
             </button>
             <button
               className="rail-collapse"
@@ -5972,6 +5980,7 @@ export function ChalkApp({
                     )
                   }
                   onDeselect={() => dispatchField({ type: "escape" })}
+                  onDraw={(kind) => startDrawingFrom(selectedPlayer.id, kind)}
                   onFlip={() =>
                     runLabelCommand(
                       flipPlayerLinesCommand(
@@ -6635,12 +6644,14 @@ function DemoMode({
   return (
     <div aria-label="Demo" className="demo-mode" role="region">
       <nav aria-label="Drawing tools" className="demo-rail">
-        {tools.map((tool) => {
-          const active = step.tool === tool.id;
+        {demoToolIds.map((tool) => {
+          // The tour replays the original's rail as it was filmed; the
+          // editor's own rail has since kept only Text (ADR 0052).
+          const active = step.tool === tool;
           return (
-            <div className={active ? "active" : undefined} key={tool.id}>
-              <RailIcon glyph={tool.id} />
-              <span>{demoToolShortcuts[tool.id]}</span>
+            <div className={active ? "active" : undefined} key={tool}>
+              <RailIcon glyph={tool} />
+              <span>{demoToolShortcuts[tool]}</span>
             </div>
           );
         })}

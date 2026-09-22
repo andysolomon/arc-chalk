@@ -89,12 +89,18 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(rail).toBeVisible();
       // Primary touch actions are at least 44 px and never share a box.
       const rects = [];
+      const tools = [];
       for (const button of await rail.getByRole("button").all()) {
         const rect = await box(button);
         rects.push(rect);
         expect(rect.width).toBeGreaterThanOrEqual(44);
+        // Text and Trash are the rail's tools (ADR 0052); the collapse
+        // control beneath them is chrome, not a primary action.
+        if ((await button.getAttribute("aria-label")) !== "Hide the tools") {
+          tools.push(rect);
+        }
       }
-      const tools = rects.slice(0, 7);
+      expect(tools.length).toBeGreaterThanOrEqual(2);
       for (const rect of tools) expect(rect.height).toBeGreaterThanOrEqual(44);
       for (let i = 0; i < rects.length; i += 1) {
         for (let j = i + 1; j < rects.length; j += 1) {
