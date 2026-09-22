@@ -1,4 +1,5 @@
 import {
+  DEFAULT_ZONE_COVERAGE_RADII,
   routeKindStyle,
   type Coordinate,
   type PathStyle,
@@ -22,6 +23,28 @@ import {
  * the segment behind it, and the one insert a finished route commits.
  */
 
+/**
+ * Where a break being drawn may land. A zone drop's end will carry the
+ * default bubble the moment it is finished, so it stops a radius short of
+ * the edge and the bubble lands on the paint with it.
+ */
+export function holdDrawPoint(
+  drawing: Pick<FieldDrawingState, "kind">,
+  point: Coordinate,
+  context: FieldInteractionContext,
+): Coordinate {
+  return clampToField(
+    point,
+    context,
+    drawing.kind === "zone"
+      ? {
+          lateralYards: DEFAULT_ZONE_COVERAGE_RADII.radiusLateralYards,
+          depthYards: DEFAULT_ZONE_COVERAGE_RADII.radiusDepthYards,
+        }
+      : undefined,
+  );
+}
+
 export /**
  * Where the next break would land: constrained to grass-true 45° increments
  * from the last one while snap is on (Shift inverts), then clamped, then
@@ -43,10 +66,14 @@ function drawTarget(
         screenScale: context.screenScale,
       }).point
     : point;
-  const clamped = clampToField(snapped, context);
+  const clamped = holdDrawPoint(drawing, snapped, context);
   const typedDepth = Number.parseFloat(drawing.depthBuffer);
   if (drawing.depthBuffer !== "" && !Number.isNaN(typedDepth)) {
-    return clampToField(coordinate(clamped.lateralYards, typedDepth), context);
+    return holdDrawPoint(
+      drawing,
+      coordinate(clamped.lateralYards, typedDepth),
+      context,
+    );
   }
   return clamped;
 }

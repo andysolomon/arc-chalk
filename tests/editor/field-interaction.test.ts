@@ -3,6 +3,7 @@ import {
   assignmentForPath,
   canonicalStringify,
   clearPlayLayerCommand,
+  DEFAULT_ZONE_COVERAGE_RADII,
   deletePlayersCommand,
   playCommandCoalesceKey,
   type Coordinate,
@@ -3309,5 +3310,117 @@ describe("holding everything on the field", () => {
     expect(copy.position.lateralYards).toBeCloseTo(halfWidth, 6);
     // Only the held axis gave: the copy still lands clear of the original.
     expect(copy.position.depthYards).toBeLessThan(-4);
+  });
+});
+
+describe("holding a zone bubble on the field", () => {
+  const depthWindow = { minDepthYards: -15, maxDepthYards: 35 };
+  const halfWidth = stickThunderPlay.fieldProfile.widthYards / 2;
+  const dropAt = (
+    lateralYards: number,
+    coverageArea?: { radiusLateralYards: number; radiusDepthYards: number },
+  ): PlayDocument => ({
+    ...stickThunderPlay,
+    players: stickThunderPlay.players.map((man) =>
+      man.id === "q"
+        ? { ...man, position: { lateralYards, depthYards: -4 } }
+        : man,
+    ),
+    paths: [
+      {
+        id: "drop",
+        kind: "zone" as const,
+        playerId: "q",
+        points: [
+          { lateralYards, depthYards: -4 },
+          { lateralYards, depthYards: 10 },
+        ],
+        branches: [],
+        style: {
+          line: "dashed" as const,
+          ending: "bubble" as const,
+          color: "blue" as const,
+        },
+        ...(coverageArea
+          ? { coverageArea: { type: "hook" as const, ...coverageArea } }
+          : {}),
+      },
+    ],
+  });
+  const zoneContext = (
+    document: PlayDocument,
+    overrides: Partial<FieldInteractionContext> = {},
+  ) =>
+    contextFor(document, {
+      snap: { enabled: false, grid: "off" },
+      depthWindow,
+      createId: (prefix) => `${prefix}_new`,
+      ...overrides,
+    });
+  const dropOf = (document: PlayDocument) =>
+    document.paths.find(({ id }) => id === "drop")!;
+
+  it("grows a bubble only until it touches the sideline", () => {
+    const document = dropAt(20);
+    const session = run(zoneContext(document), [
+      {
+        type: "handle-down",
+        handle: { kind: "zone", pathId: "drop" },
+        input: { point: { lateralYards: 21, depthYards: 11 }, pointerId: 1 },
+      },
+      move({ lateralYards: 45, depthYards: 14 }),
+      up({ lateralYards: 45, depthYards: 14 }),
+    ]);
+    expect(session.commands).toHaveLength(1);
+    const sized = dropOf(applyPlayCommand(document, session.commands[0]!));
+    expect(sized.coverageArea!.radiusLateralYards).toBeCloseTo(
+      halfWidth - 20,
+      6,
+    );
+    expect(sized.coverageArea!.radiusDepthYards).toBeCloseTo(4, 6);
+  });
+
+  it("stops the end of a drop a bubble's width short of the sideline", () => {
+    const document = dropAt(0, { radiusLateralYards: 5, radiusDepthYards: 4 });
+    const session = run(zoneContext(document), [
+      {
+        type: "handle-down",
+        handle: { kind: "node", pathId: "drop", pointIndex: 1 },
+        input: { point: { lateralYards: 0, depthYards: 10 }, pointerId: 1 },
+      },
+      move({ lateralYards: 60, depthYards: 10 }),
+      up({ lateralYards: 60, depthYards: 10 }),
+    ]);
+    expect(session.commands).toHaveLength(1);
+    const moved = dropOf(applyPlayCommand(document, session.commands[0]!));
+    expect(moved.points[1]!.lateralYards).toBeCloseTo(halfWidth - 5, 6);
+  });
+
+  it("stops a dragged defender where his bubble touches the sideline", () => {
+    const document = dropAt(0, { radiusLateralYards: 5, radiusDepthYards: 4 });
+    const q = positionOf(document, "q");
+    const session = run(zoneContext(document), [
+      down(q),
+      move({ lateralYards: 50, depthYards: q.depthYards }),
+      up({ lateralYards: 50, depthYards: q.depthYards }),
+    ]);
+    expect(session.commands).toHaveLength(1);
+    const after = applyPlayCommand(document, session.commands[0]!);
+    expect(dropOf(after).points[1]!.lateralYards + 5).toBeCloseTo(halfWidth, 6);
+    expect(positionOf(after, "q").lateralYards).toBeCloseTo(halfWidth - 5, 6);
+  });
+
+  it("draws a drop no nearer the sideline than its default bubble allows", () => {
+    const context = zoneContext(stickThunderPlay, { tool: "zone" });
+    const q = positionOf(stickThunderPlay, "q");
+    const session = run(context, [
+      down(q),
+      move({ lateralYards: 90, depthYards: 8 }),
+    ]);
+    expect(session.model.drawing!.kind).toBe("zone");
+    expect(session.model.drawing!.cursor.lateralYards).toBeCloseTo(
+      halfWidth - DEFAULT_ZONE_COVERAGE_RADII.radiusLateralYards,
+      6,
+    );
   });
 });

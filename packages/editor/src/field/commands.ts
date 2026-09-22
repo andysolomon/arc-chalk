@@ -49,7 +49,12 @@ import {
 } from "@chalk/domain";
 
 import { snapPosition, type AxisSnapGuide } from "../smart-snapping";
-import { clampTranslationToField, coordinate, rounded } from "./geometry";
+import {
+  clampTranslationToField,
+  coordinate,
+  pathExtentPoints,
+  rounded,
+} from "./geometry";
 import type {
   FieldInteractionContext,
   FieldItemRef,
@@ -265,9 +270,10 @@ function formatYards(value: number): string {
 
 /**
  * Every point a move carries: the men picked, every line that travels with
- * them — picked itself or attached to a picked man — and the notes, where
- * they are drawn, with their leader lines. It is what `buildMoveCommand`
- * translates, gathered so the whole of it can be held on the field as one.
+ * them — picked itself or attached to a picked man, bubble included — and
+ * the notes, where they are drawn, with their leader lines. It is what
+ * `buildMoveCommand` translates, gathered so the whole of it can be held on
+ * the field as one.
  */
 function movingPoints(
   context: FieldInteractionContext,
@@ -284,12 +290,7 @@ function movingPoints(
   }
   for (const path of context.document.paths) {
     if (!playerIds.has(path.playerId) && !pathIds.has(path.id)) continue;
-    for (const line of [path.points, ...path.branches.map((b) => b.points)]) {
-      for (const point of line) {
-        points.push(point);
-        if (point.control) points.push(point.control);
-      }
-    }
+    points.push(...pathExtentPoints(path));
   }
   for (const label of context.document.labels) {
     if (!labelIds.has(label.id)) continue;

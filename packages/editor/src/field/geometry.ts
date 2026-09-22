@@ -1,4 +1,9 @@
-import type { Coordinate, MovementPath, PathPoint } from "@chalk/domain";
+import {
+  DEFAULT_ZONE_COVERAGE_RADII,
+  type Coordinate,
+  type MovementPath,
+  type PathPoint,
+} from "@chalk/domain";
 import type { RenderScene } from "@chalk/render";
 
 import type { SnapScreenScale } from "../smart-snapping";
@@ -317,19 +322,79 @@ export type FieldBounds = Pick<
 export function clampToField(
   point: Coordinate,
   bounds: FieldBounds,
+  /** Room to keep from each edge: what a bubble around the point needs. */
+  inset: { readonly lateralYards: number; readonly depthYards: number } = {
+    lateralYards: 0,
+    depthYards: 0,
+  },
 ): Coordinate {
   const halfWidth = bounds.document.fieldProfile.widthYards / 2;
   const depthWindow = bounds.depthWindow;
   const rough = coordinate(point.lateralYards, point.depthYards);
+  // An inset wider than the field itself leaves only the middle to stand on.
+  const lateralReach = Math.max(0, halfWidth - inset.lateralYards);
+  const lateralYards = Math.max(
+    -lateralReach,
+    Math.min(lateralReach, rough.lateralYards),
+  );
+  if (!depthWindow) return { lateralYards, depthYards: rough.depthYards };
+  const middle = (depthWindow.minDepthYards + depthWindow.maxDepthYards) / 2;
+  const floor = Math.min(depthWindow.minDepthYards + inset.depthYards, middle);
+  const ceiling = Math.max(
+    depthWindow.maxDepthYards - inset.depthYards,
+    middle,
+  );
   return {
-    lateralYards: Math.max(-halfWidth, Math.min(halfWidth, rough.lateralYards)),
-    depthYards: depthWindow
-      ? Math.max(
-          depthWindow.minDepthYards,
-          Math.min(depthWindow.maxDepthYards, rough.depthYards),
-        )
-      : rough.depthYards,
+    lateralYards,
+    depthYards: Math.max(floor, Math.min(ceiling, rough.depthYards)),
   };
+}
+
+/**
+ * The bubble a zone drop draws around its end, if it draws one: the area the
+ * Coach sized, or the default one drawn until he does. Anything holding the
+ * drop on the field has to hold the bubble too, since that is what he sees.
+ */
+export function zoneBubbleOf(
+  path: Pick<MovementPath, "kind" | "style" | "coverageArea">,
+): { readonly lateralYards: number; readonly depthYards: number } | undefined {
+  if (path.kind !== "zone" || path.style.ending !== "bubble") return undefined;
+  const area = path.coverageArea ?? DEFAULT_ZONE_COVERAGE_RADII;
+  return {
+    lateralYards: area.radiusLateralYards,
+    depthYards: area.radiusDepthYards,
+  };
+}
+
+/**
+ * Every point that says where a line is: its breaks and bends on every one
+ * of its lines, and the four edges of the bubble a zone drop draws.
+ */
+export function pathExtentPoints(
+  path: Pick<
+    MovementPath,
+    "kind" | "style" | "coverageArea" | "points" | "branches"
+  >,
+): Coordinate[] {
+  const points: Coordinate[] = [];
+  for (const line of [path.points, ...path.branches.map((b) => b.points)]) {
+    for (const point of line) {
+      points.push(point);
+      if (point.control) points.push(point.control);
+    }
+  }
+  const bubble = zoneBubbleOf(path);
+  const center = path.points.at(-1);
+  if (bubble && center) {
+    const { lateralYards, depthYards } = center;
+    points.push(
+      { lateralYards: lateralYards - bubble.lateralYards, depthYards },
+      { lateralYards: lateralYards + bubble.lateralYards, depthYards },
+      { lateralYards, depthYards: depthYards - bubble.depthYards },
+      { lateralYards, depthYards: depthYards + bubble.depthYards },
+    );
+  }
+  return points;
 }
 
 /**

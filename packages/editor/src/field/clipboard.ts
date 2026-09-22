@@ -13,7 +13,11 @@ import {
   type TextLabel,
 } from "@chalk/domain";
 
-import { clampTranslationToField, coordinate } from "./geometry";
+import {
+  clampTranslationToField,
+  coordinate,
+  pathExtentPoints,
+} from "./geometry";
 import type {
   FieldClipboard,
   FieldInteractionContext,
@@ -131,14 +135,7 @@ export function buildPasteCommand(
   // over the whole of what is pasted so it lands as one piece.
   const landing: Coordinate[] = [
     ...players.map(({ position }) => position),
-    ...paths.flatMap((path) =>
-      [path.points, ...path.branches.map((branch) => branch.points)].flatMap(
-        (line) =>
-          line.flatMap((point) =>
-            point.control ? [point, point.control] : [point],
-          ),
-      ),
-    ),
+    ...paths.flatMap(pathExtentPoints),
     ...labels.flatMap((label) => (label.binding ? [] : [label.position])),
   ];
   const offset = clampTranslationToField(landing, PASTE_OFFSET, {

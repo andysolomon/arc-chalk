@@ -23,6 +23,7 @@ import {
   buildDrawCommand,
   clearDrawing,
   drawTarget,
+  holdDrawPoint,
   startDrawing,
 } from "./drawing";
 import {
@@ -751,7 +752,8 @@ export function fieldInteraction(
             depthBuffer,
             cursor: Number.isNaN(typed)
               ? drawing.cursor
-              : clampToField(
+              : holdDrawPoint(
+                  drawing,
                   coordinate(drawing.cursor.lateralYards, typed),
                   context,
                 ),
