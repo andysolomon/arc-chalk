@@ -2,6 +2,7 @@ import {
   hashPlayDocument,
   demoHandoffPlay,
   demoTour,
+  emptyPlayDocument,
   stickThunderPlay,
   type PlayDocument,
 } from "@chalk/domain";
@@ -368,6 +369,54 @@ describe("EditorStore undo and redo", () => {
         .document.players.slice(0, 3)
         .map((p) => p.position),
     ).toEqual(moved.map((player) => player.position));
+  });
+
+  it("keeps undo and redo inside the Play in front of the Coach", async () => {
+    const { store, commits } = await harness();
+
+    store.setPlayNameDraft("Stick — Alert");
+    await store.commitPlayName();
+    await store.undo();
+    expect(store.getSnapshot().undo).toEqual(
+      expect.objectContaining({ canUndo: false, canRedo: true }),
+    );
+
+    // Saving and starting a new Play leaves the first one's history with it
+    // (ADR 0038): nothing here undoes back to it or redoes on to another.
+    const fresh = emptyPlayDocument({
+      id: "play_fresh",
+      playbookId: stickThunderPlay.playbookId,
+      fieldProfile: stickThunderPlay.fieldProfile,
+      unit: "offense",
+    });
+    await store.adoptPlay(fresh);
+    expect(store.getSnapshot().document.id).toBe("play_fresh");
+    expect(store.getSnapshot().undo).toEqual(
+      expect.objectContaining({
+        canUndo: false,
+        canRedo: false,
+        undoDepth: 0,
+        redoDepth: 0,
+      }),
+    );
+    await expect(store.undo()).resolves.toEqual({ status: "empty" });
+    await expect(store.redo()).resolves.toEqual({ status: "empty" });
+    expect(store.getSnapshot().document.id).toBe("play_fresh");
+    expect(store.getSnapshot().document.name).toBe("Untitled play");
+
+    // The first Play's stored history is still its own to step through.
+    const lastFirstPlayCommit = commits
+      .filter((commit) => commit.play.id === stickThunderPlay.id)
+      .at(-1);
+    expect(lastFirstPlayCommit).toBeDefined();
+    await store.openStoredPlay({
+      document: stickThunderPlay,
+      documentHash: await hashPlayDocument(stickThunderPlay),
+      undoHistory: lastFirstPlayCommit?.undoHistory,
+    });
+    expect(store.getSnapshot().undo).toEqual(
+      expect.objectContaining({ canRedo: true, redoLabel: "Rename Play" }),
+    );
   });
 
   it("reports an empty history instead of offering a step", async () => {
