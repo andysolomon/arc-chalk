@@ -58,9 +58,15 @@ const unfoldLibrary = async (page: import("@playwright/test").Page) => {
   }
 };
 
-/** Opens the folded Shadow defense section on an offensive play (issue #64, ADR 0053). */
+/**
+ * Opens the folded Shadow defense section on an offensive play (issue #64,
+ * ADR 0053). Scoped to the inspector: the rail's Shadow button answers to the
+ * same name.
+ */
 const unfoldOpponentLook = async (page: import("@playwright/test").Page) => {
-  const toggle = page.getByRole("button", { name: /^Shadow defense/ });
+  const toggle = page
+    .getByRole("complementary", { name: "Play inspector" })
+    .getByRole("button", { name: /^Shadow defense/ });
   if ((await toggle.getAttribute("aria-expanded")) === "false") {
     await toggle.click();
   }
