@@ -1,7 +1,9 @@
 import {
+  applyPlayCommand,
   ballPosition,
   ballSpotMapping,
   currentBallSpot,
+  diffPlayDocuments,
   hashSpots,
   highSchoolFieldProfile,
   playDocumentSchema,
@@ -239,18 +241,33 @@ describe("moving the ball, and the Play with it", () => {
     }
   });
 
-  it("lets a line keep its length past the paint rather than cutting it there", () => {
+  it("carries a line past the paint as a shape, and the applied command holds it on the paint", () => {
     const half = stickThunderPlay.fieldProfile.widthYards / 2;
     const { play } = spotBall(stickThunderPlay, "left");
     const outOfBounds = play.paths.flatMap((path) =>
       path.points.filter((point) => point.lateralYards < -half),
     );
     // The X's route already reaches the boundary; taken to the left hash it
-    // runs past the paint, and it is left running past the paint rather than
-    // being cut short there. The original cuts it, and then has to remember
-    // the shape so that moving back gives the length again; nothing is lost
-    // here, so there is nothing to remember.
+    // runs past the paint. The move itself keeps the shape, so a round trip
+    // loses nothing — but nothing the Coach sees ever bleeds over a sideline,
+    // so the Play the command lands as is held on the paint.
     expect(outOfBounds.length).toBeGreaterThan(0);
+
+    const command = diffPlayDocuments(stickThunderPlay, play, "left");
+    const landed = applyPlayCommand(stickThunderPlay, command);
+    for (const path of landed.paths) {
+      for (const point of [
+        ...path.points,
+        ...path.branches.flatMap((branch) => branch.points),
+      ]) {
+        expect(point.lateralYards).toBeGreaterThanOrEqual(-half);
+        expect(point.lateralYards).toBeLessThanOrEqual(half);
+        if (point.control) {
+          expect(point.control.lateralYards).toBeGreaterThanOrEqual(-half);
+          expect(point.control.lateralYards).toBeLessThanOrEqual(half);
+        }
+      }
+    }
   });
 
   it("gives a Play back exactly when the move needed no squeezing", () => {
