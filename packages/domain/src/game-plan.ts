@@ -277,7 +277,6 @@ export const defaultGamePlanSections: Readonly<
 > = Object.freeze({
   offense: ["Openers", "1st & 10", "3rd down", "Red zone", "Two minute"],
   defense: ["Base", "3rd down", "Red zone", "Pressure", "Two minute"],
-  "special-teams": ["Kickoff", "Punt", "Field goal", "Return"],
 });
 
 export function renameGamePlan(

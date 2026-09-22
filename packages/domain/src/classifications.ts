@@ -249,27 +249,9 @@ export const builtInPlayTypeDefinitions = Object.freeze([
     builtInKey: "pressure",
     order: 5,
   }),
-  definition({
-    id: "play_type_return",
-    name: "Return",
-    unit: "special-teams",
-    builtInKey: "return",
-    order: 6,
-  }),
-  definition({
-    id: "play_type_punt",
-    name: "Punt",
-    unit: "special-teams",
-    builtInKey: "punt",
-    order: 7,
-  }),
-  definition({
-    id: "play_type_field_goal",
-    name: "Field Goal",
-    unit: "special-teams",
-    builtInKey: "field-goal",
-    order: 8,
-  }),
+  // Return, Punt and Field Goal went with the special-teams unit (ADR 0053).
+  // A Playbook that already holds them keeps them, archived, for the plays
+  // that carry them; a new Playbook is not seeded with them.
 ]);
 
 const builtInByLegacyName = new Map(

@@ -5,7 +5,18 @@ import { stockFormations } from "./formation-catalogue";
 
 export const entityIdSchema = z.string().check(z.minLength(1));
 export const nameSchema = z.string().check(z.minLength(1));
-export const playUnitSchema = z.enum(["offense", "defense", "special-teams"]);
+/**
+ * The two units a Play can be: a Coach draws an offensive play or a
+ * defensive one, never something that could be either, and never switches a
+ * play between them (ADR 0053). `special-teams` was a third choice until
+ * the special-teams play was set aside; anything stored with it reads as
+ * offense — a kicking team lines up on the offensive side of the ball — so
+ * an older device, backup or replica still loads without a migration.
+ */
+export const playUnitSchema = z.pipe(
+  z.enum(["offense", "defense", "special-teams"]),
+  z.transform((unit) => (unit === "special-teams" ? "offense" : unit)),
+);
 
 /** The released prototype-era category vocabulary retained for v1/v2 reads. */
 export const legacyPlayTypeSchema = z.enum([
@@ -29,6 +40,8 @@ export const builtInPlayTypeKeySchema = z.enum([
   "screen",
   "coverage",
   "pressure",
+  // Return, Punt and Field Goal shipped with the special-teams unit; a
+  // Playbook that still holds them reads them as archived offensive types.
   "return",
   "punt",
   "field-goal",
@@ -592,7 +605,23 @@ const playbookStructureSchema = z.object({
   name: nameSchema,
   defaultFieldProfileId: entityIdSchema,
   fieldProfiles: z.array(fieldProfileSchema).check(z.minLength(1)),
-  playTypes: z.array(playTypeDefinitionSchema),
+  playTypes: z.pipe(
+    z.pipe(
+      z.array(z.unknown()),
+      // A special-teams Type on file keeps its name for the plays that carry
+      // it, folds to offense with them, and is no longer offered.
+      z.transform((definitions) =>
+        definitions.map((definition) =>
+          definition !== null &&
+          typeof definition === "object" &&
+          (definition as { unit?: unknown }).unit === "special-teams"
+            ? { ...definition, archived: true }
+            : definition,
+        ),
+      ),
+    ),
+    z.array(playTypeDefinitionSchema),
+  ),
   createdAtMs: z.number().check(z.int(), z.nonnegative()),
   updatedAtMs: z.number().check(z.int(), z.nonnegative()),
 });

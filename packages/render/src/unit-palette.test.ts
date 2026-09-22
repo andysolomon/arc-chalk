@@ -71,7 +71,7 @@ describe("unit palette (ADR 0051)", () => {
     }
   });
 
-  it("keeps the three units apart for protan, deutan and tritan vision", () => {
+  it("keeps the units apart for protan, deutan and tritan vision", () => {
     const accents = units.map(({ accent }) => accent);
     for (let i = 0; i < accents.length; i += 1) {
       for (let j = i + 1; j < accents.length; j += 1) {

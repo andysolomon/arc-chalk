@@ -23,6 +23,7 @@ import {
   saveItems,
   shortcutRows,
   type ActionMap,
+  newPlayEntries,
   type MenuEntry,
 } from "./editor-command-surface";
 import { formationThumbnail } from "./formation-thumbnail";
@@ -136,13 +137,9 @@ export function MoreMenu({
       label: "Settings…",
       title: "Field profile, Playbook settings, History and Print & export",
     },
-    {
-      id: "newPlay",
-      label: "New play",
-      title: "Clear the field and start over",
-    },
+    ...newPlayEntries,
     // The header's Present button is off a phone's header (issue #92); the
-    // menu carries it the way it carries New play.
+    // menu carries it the way it carries the two new plays.
     {
       id: "present",
       label: "Present",
@@ -256,6 +253,59 @@ function ClearPage({
  * the play, and the two references the inspector already carried. The first
  * entry is the first-day route — the tools walked on a real play.
  */
+/**
+ * New play, as a choice rather than a button: an offensive play or a
+ * defensive one. The header carries it beside Reset positions; the
+ * Playbooks page carries the same menu at the end of its tabs.
+ */
+export function NewPlayMenu({
+  actions,
+  buttonClassName = "quiet",
+  onDismiss,
+  onToggle,
+  open,
+}: {
+  actions: ActionMap;
+  buttonClassName?: string;
+  onDismiss: () => void;
+  onToggle: () => void;
+  open: boolean;
+}) {
+  const enabled = newPlayEntries.some(({ id }) => actions[id] !== undefined);
+  return (
+    <div className="menu menu-new">
+      <button
+        aria-expanded={open}
+        aria-haspopup="true"
+        className={`${buttonClassName} new-play${open ? " open" : ""}`}
+        disabled={!enabled}
+        onClick={onToggle}
+        title="Start a blank offensive or defensive play"
+        type="button"
+      >
+        New play
+      </button>
+      {open ? (
+        <div
+          aria-label="New play"
+          className="menu-panel new-play-panel"
+          role="group"
+        >
+          <div className="menu-head">START</div>
+          {newPlayEntries.map((entry) => (
+            <MenuItem
+              actions={actions}
+              entry={entry}
+              key={entry.id}
+              onDismiss={onDismiss}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function HelpMenu({
   actions,
   onDismiss,

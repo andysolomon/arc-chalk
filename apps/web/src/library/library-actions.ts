@@ -15,6 +15,7 @@ import {
   type LibraryEditScope,
   type PlayCommand,
   type PlayDocument,
+  type PlayUnit,
 } from "@chalk/domain";
 import type { EditorStore } from "@chalk/editor";
 import type { PlaySearchProjection } from "@chalk/local-db";
@@ -38,14 +39,20 @@ export async function openLibraryPlay(
   return true;
 }
 
+/**
+ * A blank Play of one unit. The unit is chosen here and nowhere later: an
+ * offensive play never becomes a defensive one (ADR 0053).
+ */
 export async function createUntitledPlay(
   library: ChalkLibrary,
   editorStore: EditorStore,
+  unit: PlayUnit = "offense",
   playbookDefaultProfile = editorStore.getSnapshot().document.fieldProfile,
 ): Promise<PlayDocument> {
   const play = emptyPlayDocument({
     playbookId: library.playbookId,
     fieldProfile: playbookDefaultProfile,
+    unit,
   });
   await editorStore.adoptPlay(play);
   return play;

@@ -21,7 +21,7 @@ import { unitBadgeHtml } from "./unit-badge";
  * stand beside the code and the name, how dense, and on one side or two.
  * Every call wears the same stable code the wristband and Game Day use.
  */
-export type CallSheetTemplateId = "oc" | "dc" | "st";
+export type CallSheetTemplateId = "oc" | "dc";
 
 /**
  * A column is either read off the Play — personnel, formation, type, tags,
@@ -155,13 +155,7 @@ export const callSheetTemplates: readonly CallSheetTemplate[] = Object.freeze([
     columns: ["formation", "tags", "check"],
     hint: "Fronts, coverages and pressures by look, down and distance, red zone, backed up, two-minute",
   },
-  {
-    id: "st",
-    name: "Special teams",
-    unit: "special-teams",
-    columns: ["type", "note"],
-    hint: "Kick, punt and return calls on their own sheet",
-  },
+  // The special-teams sheet went with the special-teams unit (ADR 0053).
 ]);
 
 export function callSheetTemplate(id: CallSheetTemplateId): CallSheetTemplate {

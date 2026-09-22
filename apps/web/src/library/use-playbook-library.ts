@@ -8,6 +8,7 @@ import {
   presentVariationLine,
   type LibraryEditScope,
   type PlayCommand,
+  type PlayUnit,
 } from "@chalk/domain";
 import type { EditorStore } from "@chalk/editor";
 import {
@@ -168,9 +169,12 @@ export function usePlaybookLibrary(
     });
   }, [editorStore, library, refresh, variationDraft]);
 
-  const newPlay = useCallback(() => {
-    void createUntitledPlay(library, editorStore).then(() => refresh());
-  }, [editorStore, library, refresh]);
+  const newPlay = useCallback(
+    (unit: PlayUnit) => {
+      void createUntitledPlay(library, editorStore, unit).then(() => refresh());
+    },
+    [editorStore, library, refresh],
+  );
 
   const detach = useCallback(
     (playId: string) => {

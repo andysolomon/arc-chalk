@@ -24,8 +24,6 @@
   --unit-offense-tint: #e6eff9;
   --unit-defense: #7a2e5a;
   --unit-defense-tint: #f6e6ef;
-  --unit-special: #8a6a12;
-  --unit-special-tint: #f7f0dc;
   /* Interactive state: the selection blue for what is current, a ring of the
      same blue for where the keyboard is, and a lighter gray than muted text
      for what cannot be pressed. */
@@ -50,10 +48,6 @@
 [data-unit="defense"] {
   --unit-accent: var(--unit-defense);
   --unit-tint: var(--unit-defense-tint);
-}
-[data-unit="special-teams"] {
-  --unit-accent: var(--unit-special);
-  --unit-tint: var(--unit-special-tint);
 }
 
 * {
@@ -425,9 +419,13 @@ button.play-type.open {
   width: 224px;
 }
 .topbar > .new-play,
+.topbar > .menu-new > button,
 .topbar > .reset-positions,
 .topbar > .present {
   padding: 0 10px;
+}
+.new-play-panel {
+  width: 200px;
 }
 .menu-heading {
   margin-bottom: 10px;
@@ -1252,7 +1250,7 @@ button.play-type.open {
   color: var(--ink);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
-.destination-tabs > .destination-new {
+.destination-tabs .destination-new {
   color: var(--ink);
   box-shadow: 0 0 0 1px var(--line);
 }
@@ -4246,6 +4244,7 @@ button.library-dot.target.small {
 }
 @media (max-width: 667px) {
   .topbar > .new-play,
+  .topbar > .menu-new,
   .topbar > .reset-positions,
   .topbar > .present,
   .topbar > .divider,
@@ -5216,6 +5215,7 @@ button.library-dot.target.small {
 .phone-workspace .topbar > .slash,
 .phone-workspace .topbar > .divider,
 .phone-workspace .topbar > .new-play,
+.phone-workspace .topbar > .menu-new,
 .phone-workspace .topbar > .reset-positions,
 .phone-workspace .topbar > .present,
 .phone-workspace .topbar > .menu-help,

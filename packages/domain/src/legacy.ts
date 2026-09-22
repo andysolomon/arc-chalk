@@ -152,12 +152,11 @@ const ending = (value = "arrow"): PathEnding => {
       return "arrow";
   }
 };
-const unitFor = (category: string): "offense" | "defense" | "special-teams" =>
-  category === "Defense"
-    ? "defense"
-    : category === "Special"
-      ? "special-teams"
-      : "offense";
+// The original's Special category drew the kicking team, which lines up on
+// the offensive side of the ball; with the special-teams play set aside
+// (ADR 0053) it reads as an offensive play.
+const unitFor = (category: string): "offense" | "defense" =>
+  category === "Defense" ? "defense" : "offense";
 const point = (value: LegacyPoint) => ({
   ...legacyCanvasToYards(value),
   ...(value.cx === undefined || value.cy === undefined
