@@ -1937,6 +1937,54 @@ test("hands the field to the finger once the Pencil is out", async ({
   await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
 });
 
+test("moves the field under one finger on the grass, and still picks a man up", async ({
+  page,
+}) => {
+  await openEditor(page);
+  // Zoomed in, so there is somewhere for the field to go.
+  await page.keyboard.press("Control+Equal");
+  await expect
+    .poll(async () => (await cameraOf(page)).width)
+    .toBeLessThan(VIEWBOX_WIDTH);
+  const looking = await cameraOf(page);
+  const qBefore = await playerAt(page, "q");
+
+  // A finger on open grass moves the field — no Pencil has been out, no
+  // second finger is needed, and no man or note is under it.
+  const finger = contact(page, "touch", 41);
+  const grass = await fieldPoint(page, 400, 150);
+  await finger.down(grass);
+  await finger.move({ x: grass.x - 60, y: grass.y - 40 });
+  await finger.move({ x: grass.x - 120, y: grass.y - 80 });
+  await expect
+    .poll(async () => (await cameraOf(page)).x)
+    .toBeGreaterThan(looking.x);
+  await finger.up({ x: grass.x - 120, y: grass.y - 80 });
+  const moved = await cameraOf(page);
+  expect(moved.y).toBeGreaterThan(looking.y);
+  // And nothing on the field was drawn into a selection box on the way.
+  await expect(page.locator("[data-scene-player].selected")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+  // The same finger on a man still picks him up and moves him, not the view.
+  const q = await playerCenter(page, "q");
+  await finger.down(q);
+  await finger.move({ x: q.x + 40, y: q.y });
+  await finger.up({ x: q.x + 40, y: q.y });
+  await expect
+    .poll(async () => (await playerAt(page, "q")).x)
+    .toBeGreaterThan(qBefore.x);
+  expect(await cameraOf(page)).toEqual(moved);
+  await expect(page.locator('[data-scene-player="q"].selected')).toHaveCount(1);
+
+  // A tap on the grass is still the tap it always was: it clears what was
+  // picked and leaves the view where it is.
+  const open = await fieldPoint(page, 400, 150);
+  await finger.tap(open);
+  await expect(page.locator("[data-scene-player].selected")).toHaveCount(0);
+  expect(await cameraOf(page)).toEqual(moved);
+});
+
 /**
  * A phone shows the Play and nothing that changes it (Phase 4.5). These run
  * at a phone's own size on whichever browser the project names, because what

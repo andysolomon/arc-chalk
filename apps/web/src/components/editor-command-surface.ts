@@ -487,7 +487,7 @@ export const shortcutRows: readonly (readonly [string, string])[] = [
   ["Fit field", "⌘0"],
   ["Zoom in / out", "⌘= / ⌘-"],
   ["Play / pause", "space"],
-  ["Pan the field", "space-drag, alt-drag or two fingers"],
+  ["Pan the field", "space-drag, alt-drag or a finger on the grass"],
   ["Zoom to cursor", "scroll or pinch"],
   ["Pan sideways", "shift-scroll"],
   ["Menu on a player or route", "right-click or long-press"],
