@@ -2879,7 +2879,10 @@ export function ChalkApp({
       );
       const clockNode = timeline.querySelector("code");
       if (clockNode) {
-        clockNode.textContent = `${formatPlaybackClock(clock.timeMs)} / ${(bounds.endMs / 1000).toFixed(1)}s`;
+        clockNode.textContent =
+          clockNode.getAttribute("data-clock") === "elapsed"
+            ? formatPlaybackClock(clock.timeMs)
+            : `${formatPlaybackClock(clock.timeMs)} / ${(bounds.endMs / 1000).toFixed(1)}s`;
       }
       const fill = timeline.querySelector<HTMLElement>(".scrubber-fill");
       if (fill) fill.style.width = `${progress * 100}%`;
@@ -5561,6 +5564,25 @@ export function ChalkApp({
   }
 
   const labelDensity = resolveTypeDensity(presentation).label;
+  /**
+   * The play's timeline: under the field where there is room for it, and on
+   * a phone in the status bar's one row beside the zoom, where the readouts
+   * a wider bar carries have gone.
+   */
+  const playbackBar =
+    animationPlan.items.length > 0 ? (
+      <div className="timeline-dock" ref={timelineRef}>
+        <PlaybackBar
+          clock={visibleClock}
+          compact={phoneWorkspace}
+          onPlay={togglePlay}
+          onRate={changeRate}
+          onReset={resetPlay}
+          onSeek={seekPlay}
+          plan={animationPlan}
+        />
+      </div>
+    ) : null;
   const statusHint = editorStatusHint({
     view:
       activeView === "Print"
@@ -5926,18 +5948,7 @@ export function ChalkApp({
             ) : null}
             {phoneWorkspace && !inspectorOpen ? inspectorStub : null}
           </div>
-          {animationPlan.items.length > 0 ? (
-            <div ref={timelineRef}>
-              <PlaybackBar
-                clock={visibleClock}
-                onPlay={togglePlay}
-                onRate={changeRate}
-                onReset={resetPlay}
-                onSeek={seekPlay}
-                plan={animationPlan}
-              />
-            </div>
-          ) : null}
+          {phoneWorkspace ? null : playbackBar}
         </main>
         {inspectorOpen ? (
           <Inspector
@@ -6283,6 +6294,7 @@ export function ChalkApp({
               +
             </button>
           </div>
+          {phoneWorkspace ? playbackBar : null}
           <button
             aria-label="Fit to selection"
             className="status-selection"
@@ -6294,6 +6306,7 @@ export function ChalkApp({
           </button>
           <button
             aria-label="Center on the ball"
+            className="status-ball"
             onClick={showTheBall}
             title="Center on the ball"
             type="button"
