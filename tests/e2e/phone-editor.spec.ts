@@ -233,7 +233,8 @@ for (const viewport of WORKSPACES) {
 
       const tools = page.locator('nav[aria-label="Drawing tools"] > button');
       const toolCount = await tools.count();
-      expect(toolCount).toBeGreaterThanOrEqual(9);
+      // Text, Trash and the (hidden) collapse control (ADR 0052).
+      expect(toolCount).toBeGreaterThanOrEqual(3);
       for (let index = 0; index < toolCount; index += 1) {
         const tool = tools.nth(index);
         if (!(await tool.isVisible())) continue;
@@ -344,10 +345,10 @@ for (const viewport of WORKSPACES) {
         page.getByRole("button", { name: "Saved on this device" }),
       ).toBeVisible();
 
-      // A route by taps: the tool, the man, two breaks, Done. The seeded Play
-      // already carries routes; one more is the measure.
+      // A line by taps: the man, Draw in his inspector sheet, two breaks,
+      // Done (ADR 0052). The seeded Play already carries lines; one more
+      // is the measure.
       const routes = await page.locator("[data-scene-path]").count();
-      await page.getByRole("button", { name: "Route — R" }).tap();
       const symbol = page
         .locator("[data-scene-player]")
         .first()
@@ -357,6 +358,15 @@ for (const viewport of WORKSPACES) {
       expect(at).not.toBeNull();
       const start = { x: at!.x + at!.width / 2, y: at!.y + at!.height / 2 };
       await page.touchscreen.tap(start.x, start.y);
+      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
+      // The first man in the set is a lineman, whose Draw row offers his
+      // block; whatever the row's first line is, it is drawn the same way.
+      await page
+        .getByRole("group", { name: "Draw by hand" })
+        .getByRole("button")
+        .first()
+        .tap();
+      // The sheet goes so the field is there to draw on.
       await expect(page.locator("[data-drawing-preview]")).toHaveCount(1);
       await page.touchscreen.tap(start.x, start.y - 40);
       await page.touchscreen.tap(start.x + 40, start.y - 40);
@@ -564,7 +574,6 @@ blankTest.describe("first launch on a phone at 390×844", () => {
         page.getByRole("button", { name: "Saved on this device" }),
       ).toBeVisible();
 
-      await page.getByRole("button", { name: "Route — R" }).tap();
       const symbol = page
         .locator("[data-scene-player]")
         .first()
@@ -573,6 +582,15 @@ blankTest.describe("first launch on a phone at 390×844", () => {
       const at = (await symbol.boundingBox())!;
       const start = { x: at.x + at.width / 2, y: at.y + at.height / 2 };
       await page.touchscreen.tap(start.x, start.y);
+      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
+      // The first man in the set is a lineman, whose Draw row offers his
+      // block; whatever the row's first line is, it is drawn the same way.
+      await page
+        .getByRole("group", { name: "Draw by hand" })
+        .getByRole("button")
+        .first()
+        .tap();
+      await expect(page.locator("[data-drawing-preview]")).toHaveCount(1);
       await page.touchscreen.tap(start.x, start.y - 40);
       await page.getByRole("button", { name: "Finish the route — ⏎" }).tap();
       await expect(page.locator("[data-scene-path]")).toHaveCount(1);

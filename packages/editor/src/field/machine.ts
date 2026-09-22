@@ -1,6 +1,5 @@
 import {
   NEW_LABEL_DEFAULTS,
-  canAddPlayerToSide,
   type PlayCommand,
   type PlayDocument,
 } from "@chalk/domain";
@@ -105,21 +104,6 @@ function pointerDown(
   );
   const hit = found?.item;
 
-  if (
-    context.tool === "route" ||
-    context.tool === "motion" ||
-    context.tool === "block" ||
-    context.tool === "zone"
-  ) {
-    // The original also starts unattached routes from grass; the production
-    // schema still requires a Player on every path, so until a schema
-    // revision admits unattached routes, grass presses draw nothing.
-    if (hit?.kind !== "player") return { model };
-    return {
-      model: startDrawing(context.tool, hit.id, context) ?? model,
-    };
-  }
-
   if (hit) {
     if (input.shiftKey) {
       // Shift settles membership on the press itself; no drag follows.
@@ -210,47 +194,6 @@ function pointerDown(
       },
       requestedTool: "select",
       editingLabelId: id,
-    };
-  }
-
-  if (context.tool === "player") {
-    // Eleven to a side: once this unit's side of the LOS is full, another
-    // click does not stack a twelfth man on top of the set.
-    if (!canAddPlayerToSide(context.document, context.document.unit)) {
-      return { model };
-    }
-    // The original places the new man exactly where the Coach pressed.
-    const createId = context.createId ?? ((prefix: string) => `${prefix}_new`);
-    const id = createId("player");
-    return {
-      model: withSelection(model, [{ kind: "player", id }]),
-      command: {
-        kind: "batch",
-        label: "Add Player",
-        commands: [
-          {
-            kind: "insert-players",
-            players: [
-              {
-                index: context.document.players.length,
-                item: {
-                  id,
-                  unit: context.document.unit,
-                  position: coordinate(
-                    input.point.lateralYards,
-                    input.point.depthYards,
-                  ),
-                  symbol: "circle",
-                  label: "",
-                  sublabel: "",
-                  fill: "none",
-                  color: "ink",
-                },
-              },
-            ],
-          },
-        ],
-      },
     };
   }
 
@@ -606,6 +549,14 @@ export function fieldInteraction(
           ...started,
           drawing: { ...started.drawing, initialDrag: event.input },
         },
+      };
+    }
+    case "start-drawing": {
+      // A line begins at his stance and waits for the first break; nothing
+      // else may be in hand, and the man must still be on the field.
+      if (model.drawing || model.gesture.kind !== "idle") return { model };
+      return {
+        model: startDrawing(event.kind, event.playerId, context) ?? model,
       };
     }
     case "finish-drawing": {

@@ -144,7 +144,7 @@ test("drags a Player and his route as one undoable step", async ({ page }) => {
   );
 });
 
-test("marquee selects the line and deletes it as one step", async ({
+test("marquee selects the line, and Backspace leaves the men on the field", async ({
   page,
 }) => {
   await openEditor(page);
@@ -159,13 +159,14 @@ test("marquee selects the line and deletes it as one step", async ({
   );
   await expect(page.locator("[data-scene-player].selected")).toHaveCount(5);
 
-  await page.keyboard.press("Backspace");
-  await expect(page.locator("[data-scene-player]")).toHaveCount(6);
-
+  // Eleven a side is the roster (ADR 0052): Backspace clears what the line
+  // was given, and the linemen have nothing drawn, so the Play is untouched.
   const undo = page.getByRole("button", { name: "Undo" });
-  await expect(undo).toHaveAttribute("title", "Undo Delete Players");
-  await undo.click();
+  await expect(undo).toBeDisabled();
+  await page.keyboard.press("Backspace");
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+  await expect(undo).toBeDisabled();
 });
 
 test("trashes the selection from the tool rail", async ({ page }) => {
@@ -180,15 +181,19 @@ test("trashes the selection from the tool rail", async ({ page }) => {
   await expect(page.locator('[data-scene-player="x"]')).toHaveClass(/selected/);
   await expect(trash).toBeEnabled();
 
+  // Eleven a side is the roster (ADR 0052): X keeps his stance and loses
+  // what he was given, the route drawn from it.
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
   await trash.click();
-  await expect(page.locator('[data-scene-player="x"]')).toHaveCount(0);
-  await expect(page.locator("[data-scene-player]")).toHaveCount(10);
+  await expect(page.locator('[data-scene-player="x"]')).toHaveCount(1);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(5);
   await expect(trash).toBeDisabled();
 
   const undo = page.getByRole("button", { name: "Undo" });
-  await expect(undo).toHaveAttribute("title", /Undo Delete/);
+  await expect(undo).toHaveAttribute("title", "Undo Clear his lines");
   await undo.click();
-  await expect(page.locator('[data-scene-player="x"]')).toHaveCount(1);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
 });
 
 test("Escape abandons a drag; arrows nudge as their keyboard alternative", async ({
@@ -226,19 +231,25 @@ test("Escape abandons a drag; arrows nudge as their keyboard alternative", async
   await expect(undo).toHaveAttribute("title", "Undo Move Player");
 });
 
-test("draws a route with the route tool and commits it once", async ({
+test("draws a route from the selected man's inspector and commits it once", async ({
   page,
 }) => {
   await openEditor(page);
   await expect(page.locator("[data-scene-path]")).toHaveCount(6);
 
-  await page.getByRole("button", { name: "Route — R" }).click();
+  // Pick the Quarterback out; his inspector offers the line by hand
+  // (ADR 0052), and the field takes the breaks from there.
   const start = await playerCenter(page, "q");
-
-  // Start on the Quarterback, break downfield, then out. The preview is
-  // measured by its path data: a straight vertical line has no bounding box,
-  // so visibility would say "hidden" about a preview that is drawing fine.
   await page.mouse.click(start.x, start.y);
+  await expect(page.locator('[data-scene-player="q"]')).toHaveClass(/selected/);
+  await page
+    .getByRole("group", { name: "Draw by hand" })
+    .getByRole("button", { name: /^Route/ })
+    .click();
+
+  // Break downfield, then out. The preview is measured by its path data: a
+  // straight vertical line has no bounding box, so visibility would say
+  // "hidden" about a preview that is drawing fine.
   const preview = page.locator("[data-drawing-preview]");
   // The stem starts on the Quarterback. The live overlay may round the
   // cursor by a fraction of a pixel, so this is the start, not the exact
@@ -259,9 +270,10 @@ test("draws a route with the route tool and commits it once", async ({
     page.getByRole("button", { name: "Saved on this device" }),
   ).toBeVisible();
 
-  // Finishing hands the select tool back, the way the original does.
-  await expect(page.getByRole("button", { name: "Select — V" })).toHaveClass(
-    /active/,
+  // Finishing leaves the line picked out, ready to be shaped.
+  await expect(page.locator(".field-wrap")).toHaveAttribute(
+    "data-tool",
+    "select",
   );
 
   const undo = page.getByRole("button", { name: "Undo" });
@@ -403,8 +415,12 @@ test("writes a note with the text tool and types over it", async ({ page }) => {
   await expect(text).toBeFocused();
   await expect(text).toHaveValue("5 Yds");
   // The tool handed itself back so the note can be moved.
-  await expect(page.getByRole("button", { name: "Select — V" })).toHaveClass(
+  await expect(page.getByRole("button", { name: "Text — T" })).not.toHaveClass(
     /active/,
+  );
+  await expect(page.locator(".field-wrap")).toHaveAttribute(
+    "data-tool",
+    "select",
   );
 
   await page.keyboard.type("MAX SPLIT");
@@ -453,15 +469,11 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
   await expect(page.getByText("Play setup", { exact: true })).toBeVisible();
 });
 
-test("copies a Player and pastes him as a new one", async ({ page }) => {
+test("will not paste a twelfth man onto a full side", async ({ page }) => {
   await openEditor(page);
 
-  // Stick Thunder is already eleven deep; clear one so the paste has room.
-  const spare = await playerCenter(page, "y");
-  await page.mouse.click(spare.x, spare.y);
-  await page.keyboard.press("Backspace");
-  await expect(page.locator("[data-scene-player]")).toHaveCount(10);
-
+  // Stick Thunder is eleven deep, and a man cannot be cleared to make room
+  // (ADR 0052): the paste finds no place for him and leaves the Play alone.
   const start = await playerCenter(page, "q");
   await page.mouse.click(start.x, start.y);
   await expect(page.locator('[data-scene-player="q"]')).toHaveClass("selected");
@@ -470,16 +482,8 @@ test("copies a Player and pastes him as a new one", async ({ page }) => {
   await page.keyboard.press("ControlOrMeta+v");
 
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
-  // The original stayed where he was; the copy is selected, not him.
-  await expect(page.locator('[data-scene-player="q"]')).not.toHaveClass(
-    "selected",
-  );
-  await expect(page.locator("[data-scene-player].selected")).toHaveCount(1);
-
-  const undo = page.getByRole("button", { name: "Undo" });
-  await expect(undo).toHaveAttribute("title", "Undo Paste");
-  await undo.click();
-  await expect(page.locator("[data-scene-player]")).toHaveCount(10);
+  await expect(page.locator('[data-scene-player="q"]')).toHaveClass("selected");
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
 });
 
 test("mirrors the whole Play and back again from the More menu", async ({
@@ -1035,19 +1039,16 @@ test("puts the men in another set, carries their routes, and takes it all back a
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
 });
 
-test("brings on the man a set needs once there is room on the side", async ({
+test("keeps eleven on when a set wants a man the side has no room for", async ({
   page,
 }) => {
   await openEditor(page);
 
   // Gun Spread wants a slot this Play does not have (A) and has no place for
-  // the tight end (Y). Eleven are already on, so clear Y first — that leaves
-  // room under the cap for the man the set brings on, without a twelfth.
-  const tightEnd = await playerCenter(page, "y");
-  await page.mouse.click(tightEnd.x, tightEnd.y);
-  await page.keyboard.press("Backspace");
-  await expect(page.locator("[data-scene-player]")).toHaveCount(10);
-
+  // the tight end (Y). Eleven are already on and stay on (ADR 0052): the set
+  // realigns the men it recognises, leaves Y where he stands, and brings
+  // nobody on past the cap.
+  const before = await playerAt(page, "z");
   await page.getByTitle("Browse formations — ⇧⌘F").click();
   const browser = page.getByRole("dialog", { name: "Formations" });
   await browser.getByRole("button", { name: "10", exact: true }).click();
@@ -1056,18 +1057,17 @@ test("brings on the man a set needs once there is room on the side", async ({
 
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
   const toast = page.getByRole("status");
-  await expect(toast).toContainText("1 added");
+  await expect(toast).toContainText("Gun Spread Right");
+  await expect(toast).toContainText("left in place");
+  await expect(toast).not.toContainText("added");
+  await expect(page.locator('[data-scene-player="y"]')).toHaveCount(1);
 
-  // A man brought on is the one thing the Coach did not draw himself, so the
-  // set hands him over ready to adjust rather than leaving him to be found.
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Letter" })).toHaveValue("A");
-
-  // All of it — the move, the man brought on — is one step back.
+  // The realignment is one step back.
   await page.keyboard.press("Control+z");
-  await expect(page.locator("[data-scene-player]")).toHaveCount(10);
+  await expect
+    .poll(async () => Math.abs((await playerAt(page, "z")).x - before.x))
+    .toBeLessThan(0.5);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
 });
 
 test("names the set on the field, and shows where another one would put the men", async ({
@@ -1823,14 +1823,16 @@ test("does not let the resting hand carry a part-drawn route", async ({
   const pen = contact(page, "pen", 51);
   const palm = contact(page, "touch", 52);
 
-  // A route begun with the Pencil off a man's stance, and left part-drawn:
-  // the next press puts the next break down, so the line follows the tip
-  // between them.
-  await page.keyboard.press("r");
+  // A route begun from the Quarterback — picked out, then R — and left
+  // part-drawn: the next press puts the next break down, so the line
+  // follows the tip between them.
   const start = await playerCenter(page, "q");
-  await pen.down(start);
+  await page.mouse.click(start.x, start.y);
+  await expect(page.locator('[data-scene-player="q"]')).toHaveClass(/selected/);
+  await page.keyboard.press("r");
   const preview = page.locator("[data-drawing-preview]");
   await expect(preview).toHaveAttribute("d", /^M /);
+  await pen.down(start);
 
   // The hand is on the glass while the tip is, so its press is refused
   // outright. It is still there when the tip comes up, and it slides.

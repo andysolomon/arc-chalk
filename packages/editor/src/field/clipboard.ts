@@ -3,6 +3,7 @@ import {
   legacyLateralSpanToYards,
   mirrorCoordinate,
   remainingPlayerSlotsBySide,
+  clampToSideOfBall,
   sideOfBallForUnit,
   type Coordinate,
   type MovementPath,
@@ -87,7 +88,15 @@ export function buildPasteCommand(
     room[side] -= 1;
     const id = createId("player");
     playerIdByOriginal.set(player.id, id);
-    return [{ ...player, id, position: shift(player.position) }];
+    // The paste offset runs toward the backfield; a defender on the line
+    // would land across the ball, so he is held on his side of it.
+    return [
+      {
+        ...player,
+        id,
+        position: clampToSideOfBall(player.unit, shift(player.position)),
+      },
+    ];
   });
 
   const pathIdByOriginal = new Map<string, string>();

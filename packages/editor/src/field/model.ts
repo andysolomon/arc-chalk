@@ -56,6 +56,15 @@ export type FieldInteractionEvent =
       readonly playerId: string;
       readonly input?: FieldPointerInput;
     }
+  | {
+      /**
+       * The inspector's Draw buttons and the R M B Z keys: start a line of
+       * this kind from a Player's stance, the breaks to follow by pointer.
+       */
+      readonly type: "start-drawing";
+      readonly kind: FieldDrawingKind;
+      readonly playerId: string;
+    }
   | { readonly type: "finish-drawing" }
   | {
       /** A typed digit sets the exact depth of the next break. */
@@ -224,8 +233,12 @@ export interface FieldInteractionContext {
   readonly scene: RenderScene;
   readonly screenScale: SnapScreenScale;
   readonly snap: SnapSettings;
-  readonly tool:
-    "select" | "player" | "text" | "route" | "motion" | "block" | "zone";
+  /**
+   * Select is the field's one standing mode; Text places a note. Lines are
+   * given to a selected Player from the inspector, the keys, or the blue
+   * dot, never from a rail tool — see ADR 0052.
+   */
+  readonly tool: "select" | "text";
   /** The drawn frame's depth extents, so a route cannot leave the page. */
   readonly depthWindow?: {
     readonly minDepthYards: number;

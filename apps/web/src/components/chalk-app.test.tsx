@@ -205,81 +205,69 @@ describe("Chalk application shell", () => {
     expect(screen.getByLabelText("Search plays")).toBeVisible();
   });
 
-  it("uses the prototype rail glyphs and makes angle snapping a real toggle", async () => {
+  it("keeps Text and Trash on the rail, and nothing that draws from a tool (ADR 0052)", async () => {
     const user = userEvent.setup();
     const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
     const rail = screen.getByRole("navigation", { name: "Drawing tools" });
-    const glyph = (name: string) =>
-      within(rail).getByRole("button", { name }).querySelector("svg");
 
-    expect(glyph("Select — V")).toHaveAttribute("viewBox", "0 0 18 18");
-    expect(glyph("Select — V")?.querySelector("path")).toHaveAttribute(
-      "d",
-      "M4.5 2.5 L4.5 14.5 L8 11.6 L10 16 L12 15.1 L10 10.8 L14.5 10.5 Z",
+    // The original's Text glyph, drawn as it was: a bare T, no stroked group.
+    const text = within(rail).getByRole("button", { name: "Text — T" });
+    const glyph = text.querySelector("svg");
+    expect(glyph).toHaveAttribute("viewBox", "0 0 18 18");
+    expect(glyph?.querySelector("text")).toHaveTextContent("T");
+    expect(glyph?.querySelector("g")).toBeNull();
+    expect(glyph).toHaveAttribute("width", "18");
+    expect(glyph).toHaveAttribute("height", "18");
+    expect(text).toHaveAttribute("aria-pressed", "false");
+
+    // Select, Player, Route, Motion, Block and Zone drop are not tools any
+    // more: a line starts from the selected man, and eleven a side is the
+    // roster. The names toggle and the snap button went with them.
+    for (const gone of [
+      "Select — V",
+      "Player — P",
+      "Route — R",
+      "Motion — M",
+      "Block — B",
+      "Zone drop — Z",
+      "Tool names",
+      "Angle snap 45 degrees — S",
+      "Clear a layer",
+    ]) {
+      expect(within(rail).queryByRole("button", { name: gone })).toBeNull();
+    }
+    expect(within(rail).getAllByRole("button")).toHaveLength(3);
+
+    // Text is a mode the Coach steps into and out of from the same button.
+    await user.click(text);
+    expect(text).toHaveAttribute("aria-pressed", "true");
+    expect(text).toHaveClass("active");
+    expect(container.querySelector(".field-wrap")).toHaveAttribute(
+      "data-tool",
+      "text",
     );
-    expect(
-      [...(glyph("Route — R")?.querySelectorAll("path") ?? [])].map((path) =>
-        path.getAttribute("d"),
-      ),
-    ).toEqual(["M3.5 15 L9.5 15 L9.5 5", "M6.5 7.5 L9.5 4 L12.5 7.5"]);
-    expect(
-      [...(glyph("Zone drop — Z")?.querySelectorAll("path") ?? [])].map(
-        (path) => path.getAttribute("d"),
-      ),
-    ).toEqual(["M3 15.5 L7.5 10"]);
-    const playerGlyph = glyph("Player — P")?.querySelector("circle");
-    expect(playerGlyph).toHaveAttribute("cx", "9");
-    expect(playerGlyph).toHaveAttribute("cy", "9");
-    expect(playerGlyph).toHaveAttribute("r", "5.5");
-    expect(
-      [...(glyph("Motion — M")?.querySelectorAll("path") ?? [])].map((path) =>
-        path.getAttribute("d"),
-      ),
-    ).toEqual(["M2.5 12.5 L10.5 12.5", "M9.5 9 L13 12.5 L9.5 16"]);
-    expect(
-      [...(glyph("Block — B")?.querySelectorAll("path") ?? [])].map((path) =>
-        path.getAttribute("d"),
-      ),
-    ).toEqual(["M9 15.5 L9 6.5", "M4.5 6.5 L13.5 6.5"]);
-    expect(glyph("Text — T")?.querySelector("text")).toHaveTextContent("T");
-    expect(glyph("Text — T")?.querySelector("g")).toBeNull();
-    expect(glyph("Text — T")).toHaveAttribute("width", "18");
-    expect(glyph("Text — T")).toHaveAttribute("height", "18");
+    await user.click(text);
+    expect(text).toHaveAttribute("aria-pressed", "false");
+    expect(container.querySelector(".field-wrap")).toHaveAttribute(
+      "data-tool",
+      "select",
+    );
 
-    // Clear left the rail for the More menu's Clear… page (issue #65).
-    expect(
-      within(rail).queryByRole("button", { name: "Clear a layer" }),
-    ).toBeNull();
+    // Snap still answers to its key and is read off the status bar.
+    await user.keyboard("s");
+    expect(container.querySelector(".status-controls")).toHaveTextContent(
+      "SNAP OFF",
+    );
+    await user.keyboard("s");
+    expect(container.querySelector(".status-controls")).not.toHaveTextContent(
+      "SNAP OFF",
+    );
 
     const collapse = within(rail).getByRole("button", {
       name: "Hide the tools",
     });
     expect(collapse).toHaveTextContent("‹");
     expect(collapse).toHaveClass("rail-collapse");
-
-    const snap = within(rail).getByRole("button", {
-      name: "Angle snap 45 degrees — S",
-    });
-    expect(snap).toHaveAttribute("aria-pressed", "true");
-    expect(snap.querySelectorAll("path")).toHaveLength(2);
-    expect(snap.querySelector("path")).toHaveAttribute(
-      "d",
-      "M4 3.5 L4 14.5 L15 14.5",
-    );
-    expect(snap.querySelector("g")).toBeNull();
-    expect(snap.querySelector("svg")).toHaveAttribute("width", "18");
-
-    await user.click(snap);
-    expect(snap).toHaveAttribute("aria-pressed", "false");
-    expect(container.querySelector(".status-controls")).toHaveTextContent(
-      "SNAP OFF",
-    );
-
-    snap.focus();
-    await user.keyboard("{Enter}");
-    expect(snap).toHaveAttribute("aria-pressed", "true");
-    await user.keyboard("s");
-    expect(snap).toHaveAttribute("aria-pressed", "false");
 
     const trash = within(rail).getByRole("button", {
       name: "Delete selection — ⌫",
@@ -1792,15 +1780,15 @@ describe("Chalk editor overlays", () => {
     const palette = screen.getByRole("dialog", { name: "Command palette" });
     expect(within(palette).getAllByRole("button")).toHaveLength(10);
 
-    await user.type(search, "route tool");
-    await user.click(screen.getByRole("button", { name: "Route tool R" }));
+    await user.type(search, "text tool");
+    await user.click(screen.getByRole("button", { name: "Text tool T" }));
 
     expect(
       screen.queryByRole("dialog", { name: "Command palette" }),
     ).toBeNull();
-    // The command actually took: the Route tool is the active one.
+    // The command actually took: the Text tool is the active one.
     const rail = screen.getByRole("navigation", { name: "Drawing tools" });
-    expect(within(rail).getByRole("button", { name: "Route — R" })).toHaveClass(
+    expect(within(rail).getByRole("button", { name: "Text — T" })).toHaveClass(
       "active",
     );
   });
@@ -2433,7 +2421,7 @@ describe("Navigation (issue #65)", () => {
     expect(screen.getByRole("button", { name: "Mirror" })).toBeVisible();
   });
 
-  it("names the tools on request, remembers it, and calls Block a Blitz on a defender", async () => {
+  it("offers a defender his zone drop and blitz to draw, and calls Block a Blitz (ADR 0052)", async () => {
     const user = userEvent.setup();
     const coverThree = starterExamplePlays().find(
       ({ name }) => name === "Cover 3 — Fire Zone",
@@ -2450,30 +2438,73 @@ describe("Navigation (issue #65)", () => {
       />,
     );
     const rail = screen.getByRole("navigation", { name: "Drawing tools" });
-    expect(rail).not.toHaveClass("labeled");
     expect(
-      within(rail).getByRole("button", { name: "Block — B" }),
-    ).toBeVisible();
-
-    await user.click(within(rail).getByRole("button", { name: "Tool names" }));
-    expect(rail).toHaveClass("labeled");
-    expect(within(rail).getByText("Zone drop")).toBeVisible();
-    await waitFor(async () => {
-      expect((await library.loadChrome()).railLabels).toBe(true);
-    });
+      within(rail).queryByRole("button", { name: "Block — B" }),
+    ).toBeNull();
+    expect(
+      within(rail).queryByRole("button", { name: "Tool names" }),
+    ).toBeNull();
+    expect(screen.queryByRole("group", { name: "Draw by hand" })).toBeNull();
 
     await user.click(
       within(
         screen.getByRole("list", { name: "Everything on the field" }),
       ).getAllByRole("button", { name: /defense player$/ })[0]!,
     );
+    const draw = screen.getByRole("group", { name: "Draw by hand" });
     expect(
-      within(rail).getByRole("button", { name: "Blitz — B" }),
-    ).toBeVisible();
-    expect(within(rail).getByText("Blitz")).toBeVisible();
+      within(draw)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["Zone dropZ", "BlitzB"]);
+    expect(within(draw).queryByRole("button", { name: /^Block/ })).toBeNull();
+    expect(within(draw).queryByRole("button", { name: /^Route/ })).toBeNull();
+    // What is remembered per device is untouched by looking.
+    expect((await library.loadChrome()).railLabels).toBeUndefined();
+  });
+
+  it("starts a line by hand from the inspector's Draw row, and from its key (ADR 0052)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
+    const outline = screen.getByRole("list", {
+      name: "Everything on the field",
+    });
+    await user.click(
+      within(outline).getByRole("button", { name: "Q offense player" }),
+    );
+    const draw = screen.getByRole("group", { name: "Draw by hand" });
     expect(
-      within(rail).queryByRole("button", { name: "Block — B" }),
-    ).toBeNull();
+      within(draw)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["RouteR", "MotionM", "BlockB"]);
+
+    await user.click(within(draw).getByRole("button", { name: /^Motion/ }));
+    expect(container.querySelector(".field-wrap")).toHaveAttribute(
+      "data-drawing",
+      "true",
+    );
+    // The man is no longer picked out while his line is in hand.
+    expect(screen.queryByRole("group", { name: "Draw by hand" })).toBeNull();
+    await user.keyboard("{Escape}");
+    expect(container.querySelector(".field-wrap")).not.toHaveAttribute(
+      "data-drawing",
+    );
+
+    // The key does the same for the one man picked out, and nothing for none.
+    await user.keyboard("r");
+    expect(container.querySelector(".field-wrap")).not.toHaveAttribute(
+      "data-drawing",
+    );
+    await user.click(
+      within(outline).getByRole("button", { name: "Q offense player" }),
+    );
+    await user.keyboard("r");
+    expect(container.querySelector(".field-wrap")).toHaveAttribute(
+      "data-drawing",
+      "true",
+    );
+    await user.keyboard("{Escape}");
   });
 
   it("points a Coach on his first blank field at Help → Demo", () => {
@@ -2582,12 +2613,10 @@ describe("Tablet and narrow screens (issue #68)", () => {
       const nav = screen.getByRole("navigation", { name: "Workspace views" });
       await user.click(within(nav).getByRole("button", { name: "Playbooks" }));
       expect(screen.getByLabelText("Search plays")).not.toHaveFocus();
-      // The rail keeps its footprint; the names are a tap away on Aa.
+      // The rail keeps its footprint.
       await user.click(within(nav).getByRole("button", { name: "Editor" }));
-      const rail = screen.getByRole("navigation", { name: "Drawing tools" });
-      expect(rail).not.toHaveClass("labeled");
       expect(
-        within(rail).getByRole("button", { name: "Tool names" }),
+        screen.getByRole("navigation", { name: "Drawing tools" }),
       ).toBeVisible();
     } finally {
       restore();
