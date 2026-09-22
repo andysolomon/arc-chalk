@@ -13,6 +13,7 @@ import {
   buildFieldLandmarks,
   evaluatePlayAt,
   GHOST_TRAIL_OPACITY,
+  holdPathsInsideSidelines,
   labelSideOfBall,
   lineSideOfBall,
   opposingUnit,
@@ -204,7 +205,11 @@ export function buildRenderScene(
   const presentation = options.presentation ?? defaultPresentation;
   const page = pageKindSpec(presentation.pageKind);
   const layers = effectiveLayers(presentation);
-  const play = shadowShown(presentation) ? source : withoutShadow(source);
+  // Held between the sidelines before anything is projected, so a Play
+  // stored with a line past the paint is still drawn on it.
+  const play = holdPathsInsideSidelines(
+    shadowShown(presentation) ? source : withoutShadow(source),
+  );
   const plan = options.atMs === undefined ? undefined : planPlay(play);
   const animated =
     plan !== undefined &&
