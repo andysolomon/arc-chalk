@@ -25,6 +25,7 @@ export type RailGlyph =
   | "text"
   | "snap"
   | "erase"
+  | "shadow"
   | "trash";
 
 const icons: Record<RailGlyph, ReactNode> = {
@@ -87,6 +88,15 @@ const icons: Record<RailGlyph, ReactNode> = {
       <path d="M3 15.2 L15 15.2" {...stroke} />
       <path d="M6.4 15.2 L3.6 12.1 L10.2 3.6 L14 6.4 Z" {...stroke} />
       <path d="M7.2 9.1 L11.4 12.2" {...stroke} />
+    </>
+  ),
+  shadow: (
+    // The Play's own man and, ghosted beside him, the other unit's: an O
+    // and a dashed X, which is what the shadow looks like on the field.
+    <>
+      <circle cx="6.5" cy="11.5" r="4" {...stroke} />
+      <path d="M10.5 3.5 L15.5 8.5" {...stroke} strokeDasharray="2 2" />
+      <path d="M15.5 3.5 L10.5 8.5" {...stroke} strokeDasharray="2 2" />
     </>
   ),
   trash: (

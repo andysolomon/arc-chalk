@@ -205,7 +205,7 @@ describe("Chalk application shell", () => {
     expect(screen.getByLabelText("Search plays")).toBeVisible();
   });
 
-  it("keeps Text and Trash on the rail, and nothing that draws from a tool (ADR 0052)", async () => {
+  it("keeps Text and Trash on the rail with Clear and Shadow, and nothing that draws from a tool (ADR 0052)", async () => {
     const user = userEvent.setup();
     const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
     const rail = screen.getByRole("navigation", { name: "Drawing tools" });
@@ -236,7 +236,8 @@ describe("Chalk application shell", () => {
     ]) {
       expect(within(rail).queryByRole("button", { name: gone })).toBeNull();
     }
-    expect(within(rail).getAllByRole("button")).toHaveLength(3);
+    // Text, Clear every line, Shadow, Trash and the collapse control.
+    expect(within(rail).getAllByRole("button")).toHaveLength(5);
 
     // Text is a mode the Coach steps into and out of from the same button.
     await user.click(text);
@@ -276,6 +277,77 @@ describe("Chalk application shell", () => {
     expect(trash.querySelectorAll("path")).toHaveLength(5);
     expect(trash.querySelector("path")).toHaveAttribute("d", "M4 5.5 L14 5.5");
     expect(trash.querySelector("g")).toBeNull();
+  });
+
+  it("clears every line from the tool rail and leaves the men standing", async () => {
+    const user = userEvent.setup();
+    const editorStore = createTestEditorStore();
+    const { container } = render(
+      <ChalkApp runtime={createTestRuntime({ editorStore })} />,
+    );
+    const rail = screen.getByRole("navigation", { name: "Drawing tools" });
+    const clear = within(rail).getByRole("button", {
+      name: "Clear every line",
+    });
+    const men = editorStore.getSnapshot().document.players.length;
+    expect(container.querySelectorAll("[data-scene-path]")).toHaveLength(6);
+    expect(clear).toBeEnabled();
+    expect(clear).toHaveAttribute("title", expect.stringContaining("men stay"));
+
+    await user.click(clear);
+    await waitFor(() =>
+      expect(container.querySelectorAll("[data-scene-path]")).toHaveLength(0),
+    );
+    expect(editorStore.getSnapshot().document.paths).toHaveLength(0);
+    expect(editorStore.getSnapshot().document.players).toHaveLength(men);
+    // Nothing left to wipe, so the button says so.
+    expect(clear).toBeDisabled();
+  });
+
+  it("switches the shadow from the tool rail and from H (ADR 0053)", async () => {
+    const user = userEvent.setup();
+    const editorStore = createTestEditorStore(
+      undefined,
+      playerLabelPrimitivePlay,
+    );
+    const { container } = render(
+      <ChalkApp runtime={createTestRuntime({ editorStore })} />,
+    );
+    const rail = screen.getByRole("navigation", { name: "Drawing tools" });
+    const shadow = within(rail).getByRole("button", {
+      name: "Shadow defense — H",
+    });
+    const drawn = () => container.querySelectorAll("[data-scene-player]");
+    expect(shadow).toHaveAttribute("aria-pressed", "true");
+    expect(shadow.querySelector("circle")).not.toBeNull();
+    expect(drawn()).toHaveLength(6);
+
+    await user.click(shadow);
+    expect(shadow).toHaveAttribute("aria-pressed", "false");
+    expect(drawn()).toHaveLength(4);
+    // The men are still in the play; only the picture changed.
+    expect(editorStore.getSnapshot().document.players).toHaveLength(6);
+    // The layers popover reads the same switch.
+    expect(screen.getByRole("button", { name: /^Layers/ })).toHaveTextContent(
+      "Layers 4/5",
+    );
+
+    await user.keyboard("h");
+    expect(shadow).toHaveAttribute("aria-pressed", "true");
+    expect(drawn()).toHaveLength(6);
+  });
+
+  it("names the rail's shadow for the other unit on a defensive play", () => {
+    const editorStore = createTestEditorStore(undefined, {
+      ...playerLabelPrimitivePlay,
+      unit: "defense",
+      playType: undefined,
+    });
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
+    const rail = screen.getByRole("navigation", { name: "Drawing tools" });
+    expect(
+      within(rail).getByRole("button", { name: "Shadow offense — H" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("trashes the selected object from the tool rail", async () => {
