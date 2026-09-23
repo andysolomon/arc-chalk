@@ -146,6 +146,7 @@ import {
   type EditorUndoState,
   type EditorVersionSummary,
   type FieldDrawingKind,
+  type FieldDrawingMode,
   type FieldDrawingState,
   type FieldGesture,
   lineOf,
@@ -435,6 +436,18 @@ function selectionFrameBounds(
     maxX: Math.max(...points.map(({ x }) => x)),
     maxY: Math.max(...points.map(({ y }) => y)),
   };
+}
+
+/** What the line in hand is called, so Done and Cancel say what they end. */
+function drawingNoun(kind: FieldDrawingKind, capital = false): string {
+  const noun = {
+    route: "route",
+    motion: "motion",
+    block: "block",
+    zone: "zone drop",
+    blitz: "blitz path",
+  }[kind];
+  return capital ? noun.charAt(0).toUpperCase() + noun.slice(1) : noun;
 }
 
 /** Tools the interaction machine understands; the rest it never sees. */
@@ -780,25 +793,37 @@ function FieldInteractionOverlay({
           ? `Q ${point.control.x} ${point.control.y} ${point.x} ${point.y}`
           : `L ${point.x} ${point.y}`,
     );
+    // A stroke being traced is drawn as ink under the pointer, with no aim
+    // line running ahead of it and no dot at each of its many samples.
+    const tracing = drawing.mode === "free" && drawing.pointerDown;
     return (
       <g className="drawing-overlay" pointerEvents="none">
         <path
-          d={`${commands.join(" ")} L ${cursor.x} ${cursor.y}`}
+          d={
+            tracing
+              ? commands.join(" ")
+              : `${commands.join(" ")} L ${cursor.x} ${cursor.y}`
+          }
+          data-drawing-mode={drawing.mode}
           data-drawing-preview
           fill="none"
           stroke={SELECTION_BLUE}
-          strokeDasharray="6 5"
+          strokeDasharray={tracing ? undefined : "6 5"}
+          strokeLinecap="round"
+          strokeLinejoin="round"
           strokeWidth={2.5}
         />
-        {drawn.map((point, index) => (
-          <circle
-            cx={point.x}
-            cy={point.y}
-            fill={SELECTION_BLUE}
-            key={`draw-point-${index}`}
-            r={3}
-          />
-        ))}
+        {drawn.map((point, index) =>
+          drawing.points[index]?.traced ? null : (
+            <circle
+              cx={point.x}
+              cy={point.y}
+              fill={SELECTION_BLUE}
+              key={`draw-point-${index}`}
+              r={3}
+            />
+          ),
+        )}
         {drawing.depthBuffer === "" ? null : (
           <text
             data-depth-buffer
@@ -1394,6 +1419,7 @@ function QuickTray({
  */
 function PlayerInspector({
   activePresets,
+  freeDraw,
   scopeBadge,
   lines,
   onAddAlternate,
@@ -1402,6 +1428,7 @@ function PlayerInspector({
   onDeselect,
   onDraw,
   onFlip,
+  onFreeDraw,
   onQuickCall,
   onRemoveLine,
   onSelectLine,
@@ -1416,6 +1443,9 @@ function PlayerInspector({
   activePresets: ReadonlySet<string>;
   /** Start a line of this kind by hand from his stance (ADR 0052). */
   onDraw: (kind: FieldDrawingKind) => void;
+  /** Whether a line by hand is traced under the pointer or clicked in breaks. */
+  freeDraw: boolean;
+  onFreeDraw: (enabled: boolean) => void;
   lines: readonly {
     readonly id: string;
     readonly name: string;
@@ -1542,13 +1572,34 @@ function PlayerInspector({
           <button
             key={choice.kind}
             onClick={() => onDraw(choice.kind)}
-            title={`Draw his ${choice.label.toLowerCase()} from his stance — ${choice.shortcut}, then click the field for each break; Enter finishes`}
+            title={`Draw his ${choice.label.toLowerCase()} from his stance — ${choice.shortcut}, then ${
+              freeDraw
+                ? "draw it on the field with the pointer held down; lifting finishes"
+                : "click the field for each break; Done or Enter finishes"
+            }`}
             type="button"
           >
             {choice.label}
             <kbd aria-hidden="true">{choice.shortcut}</kbd>
           </button>
         ))}
+        <button
+          // A switch, not another line: on, every line by hand — these
+          // buttons, the keys and the blue dot — is traced under the pointer
+          // and finished the moment it lifts; off, each click is a break.
+          aria-checked={freeDraw}
+          className="draw-mode"
+          onClick={() => onFreeDraw(!freeDraw)}
+          role="switch"
+          title={
+            freeDraw
+              ? "Free draw is on: trace his line with the pointer held down; lifting finishes it. Switch off to click each break"
+              : "Free draw is off: click each break. Switch on to trace his line with the pointer held down"
+          }
+          type="button"
+        >
+          Free draw
+        </button>
       </div>
       {lines.length > 0 && (
         <div className="help-row">
@@ -2390,6 +2441,10 @@ export function ChalkApp({
   const [recoveryDismissed, setRecoveryDismissed] = useState(false);
   const [freedStorage, setFreedStorage] = useState<ChalkRuntime["storage"]>();
   const [snapEnabled, setSnapEnabled] = useState(true);
+  // Free draw traces a line under the held pointer; off, each click is a
+  // break. Remembered per device with the rest of the chrome.
+  const [freeDraw, setFreeDraw] = useState(false);
+  const drawingMode: FieldDrawingMode = freeDraw ? "free" : "breaks";
   const [interaction, setInteraction] = useState(idleFieldInteraction);
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string>();
   // Pointer events can outpace React's render loop; the ref is the machine's
@@ -3270,7 +3325,7 @@ export function ChalkApp({
     if (interactionRef.current.drawing) return;
     setActiveTool("select");
     if (inspectorFloats) setInspectorOpen(false);
-    dispatchField({ type: "start-drawing", kind, playerId });
+    dispatchField({ type: "start-drawing", kind, playerId, mode: drawingMode });
   };
   const startDrawingFromSelection = (kind: FieldDrawingKind): void => {
     const men = interactionRef.current.selection.filter(
@@ -4516,6 +4571,7 @@ export function ChalkApp({
     drawMotion: () => startDrawingFromSelection("motion"),
     drawBlock: () => startDrawingFromSelection("block"),
     drawZone: () => startDrawingFromSelection("zone"),
+    freeDraw: () => setFreeDrawing(!freeDraw),
     focus: () => setPanels(false),
     showPanels: () => setPanels(true),
     toggleInspector: () => setInspectorOpen((shown) => !shown),
@@ -5129,6 +5185,7 @@ export function ChalkApp({
       // A device left on Game Day comes back to it (issue #67).
       if (state.gameDay) setActiveView("GameDay");
       setRailOpen(state.railOpen);
+      setFreeDraw(state.freeDraw === true);
       chromeLoadedRef.current = true;
     });
     void runtime.library.loadOutputPresets().then((presets) => {
@@ -5162,6 +5219,19 @@ export function ChalkApp({
     rememberChrome({
       open: { ...chromeRef.current.open, [id]: !chromeRef.current.open[id] },
     });
+  /**
+   * Free draw on or off — for the next line, and for the one in hand, which
+   * keeps the breaks it already has. The inspector's switch, the bar over
+   * the field and the palette are the same switch.
+   */
+  const setFreeDrawing = (enabled: boolean): void => {
+    setFreeDraw(enabled);
+    rememberChrome({ freeDraw: enabled });
+    dispatchField({
+      type: "set-drawing-mode",
+      mode: enabled ? "free" : "breaks",
+    });
+  };
 
   /**
    * Concepts and line calls as one searchable catalogue (issue #64). The
@@ -5685,7 +5755,10 @@ export function ChalkApp({
     atFit: isAtFit(camera, EDITOR_FRAME),
     selectionCount: interaction.selection.length,
     drawing: interaction.drawing
-      ? { depthBuffer: interaction.drawing.depthBuffer }
+      ? {
+          depthBuffer: interaction.drawing.depthBuffer,
+          mode: interaction.drawing.mode,
+        }
       : undefined,
     labelsTooSmall: labelDensity * (fieldWidthPx / camera.width) < 11,
     animating: showAnimation,
@@ -5881,7 +5954,8 @@ export function ChalkApp({
             ))}
             {phoneWorkspace && interaction.drawing ? (
               // A route on a phone ends here; there is no Enter key and a
-              // double tap is not a thing a Coach should have to know.
+              // double tap is not a thing a Coach should have to know. It
+              // says "route" for every kind of line, as the phone specs do.
               <button
                 aria-label="Finish the route — ⏎"
                 className="rail-finish"
@@ -5978,6 +6052,58 @@ export function ChalkApp({
               onDismiss={playbook.dropOffer}
               onJustThis={() => playbook.setScope("play")}
             />
+            {interaction.drawing && !phoneWorkspace ? (
+              // A line in hand has its controls over the field, where the
+              // pointer already is: Done ends it without a double click or a
+              // reach for the keyboard, and the way it is drawn can change
+              // mid-line. A phone keeps Done in its tool row instead.
+              <div
+                aria-label={`${drawingNoun(interaction.drawing.kind, true)} in hand`}
+                className="drawing-bar"
+                role="group"
+              >
+                <span>Drawing his {drawingNoun(interaction.drawing.kind)}</span>
+                <div
+                  aria-label="How the line is drawn"
+                  className="drawing-bar-mode"
+                  role="group"
+                >
+                  <button
+                    aria-pressed={interaction.drawing.mode === "breaks"}
+                    onClick={() => setFreeDrawing(false)}
+                    title="Click each break; hold a press to bend the line behind it"
+                    type="button"
+                  >
+                    Breaks
+                  </button>
+                  <button
+                    aria-pressed={interaction.drawing.mode === "free"}
+                    onClick={() => setFreeDrawing(true)}
+                    title="Trace the line with the pointer held down; lifting finishes it"
+                    type="button"
+                  >
+                    Free draw
+                  </button>
+                </div>
+                <button
+                  aria-label="Finish the route — ⏎"
+                  className="primary"
+                  onClick={() => dispatchField({ type: "finish-drawing" })}
+                  title="Finish the route — ⏎"
+                  type="button"
+                >
+                  Done
+                </button>
+                <button
+                  aria-label="Cancel the route — esc"
+                  onClick={() => dispatchField({ type: "escape" })}
+                  title="Cancel the route — esc"
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : null}
             <FieldDiagram
               camera={camera}
               livePreviewRef={livePreviewRef}
@@ -5994,6 +6120,7 @@ export function ChalkApp({
                   type: "start-route",
                   playerId,
                   input: fieldPointerInput(event),
+                  mode: drawingMode,
                 });
                 flushLivePaint();
               }}
@@ -6210,8 +6337,10 @@ export function ChalkApp({
                       ),
                     )
                   }
+                  freeDraw={freeDraw}
                   onDeselect={() => dispatchField({ type: "escape" })}
                   onDraw={(kind) => startDrawingFrom(selectedPlayer.id, kind)}
+                  onFreeDraw={setFreeDrawing}
                   onFlip={() =>
                     runLabelCommand(
                       flipPlayerLinesCommand(

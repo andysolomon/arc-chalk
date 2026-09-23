@@ -60,10 +60,16 @@ function sameRefs(
   );
 }
 
+/**
+ * What about a drawing the shell must be told of. A new break and a change
+ * of mode are its business; the points a free stroke traces are not — they
+ * arrive every frame, and the overlay paints them live.
+ */
 function drawingIdentity(model: FieldInteractionModel): string {
   const drawing = model.drawing;
   if (!drawing) return "";
-  return `${drawing.kind}:${drawing.playerId}:${drawing.points.length}`;
+  const breaks = drawing.points.filter((point) => !point.traced).length;
+  return `${drawing.kind}:${drawing.playerId}:${drawing.mode}:${breaks}`;
 }
 
 const livePromotions: ReadonlySet<string> = new Set([

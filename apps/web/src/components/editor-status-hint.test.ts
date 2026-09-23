@@ -48,6 +48,29 @@ describe("what the status bar says on the left", () => {
     ).toBe(
       "depth 12 yds — click to place the point at that depth · ⌫ edits the number · esc cancels",
     );
+    // Done over the field is the way to end a line without the keyboard.
+    expect(
+      editorStatusHint({
+        view: "editor",
+        tool: "select",
+        atFit: true,
+        selectionCount: 0,
+        drawing: { depthBuffer: "", mode: "breaks" },
+      }),
+    ).toContain("Done, enter or double-click: finish");
+  });
+
+  it("says how a free-drawn line ends: when the pointer lifts", () => {
+    const hint = editorStatusHint({
+      view: "editor",
+      tool: "select",
+      atFit: true,
+      selectionCount: 0,
+      drawing: { depthBuffer: "", mode: "free" },
+    });
+    expect(hint).toContain("pointer held down");
+    expect(hint).toContain("lifting finishes");
+    expect(hint).not.toContain("add break");
   });
 
   it("does not keep the Select hint when another tool is in hand", () => {

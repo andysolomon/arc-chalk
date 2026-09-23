@@ -2577,6 +2577,88 @@ describe("Navigation (issue #65)", () => {
     await user.keyboard("{Escape}");
   });
 
+  it("offers Done over the field while a line is in hand, and a Free draw switch that is remembered", async () => {
+    const user = userEvent.setup();
+    const library = createMemoryLibrary(
+      emptyLibrarySnapshot(stickThunderPlay.playbookId),
+    );
+    const { container } = render(
+      <ChalkApp runtime={createTestRuntime({ library })} />,
+    );
+    const outline = screen.getByRole("list", {
+      name: "Everything on the field",
+    });
+    await user.click(
+      within(outline).getByRole("button", { name: "Q offense player" }),
+    );
+    const draw = screen.getByRole("group", { name: "Draw by hand" });
+    // The switch is not one of the lines he can be given.
+    expect(
+      within(draw)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["RouteR", "MotionM", "BlockB"]);
+    const freeDraw = within(draw).getByRole("switch", { name: "Free draw" });
+    expect(freeDraw).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByRole("group", { name: "Route in hand" })).toBeNull();
+
+    await user.click(within(draw).getByRole("button", { name: /^Route/ }));
+    const bar = screen.getByRole("group", { name: "Route in hand" });
+    expect(container.querySelector(".field-wrap")).toHaveAttribute(
+      "data-drawing",
+      "true",
+    );
+    expect(within(bar).getByRole("button", { name: "Breaks" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.getByText(/Done, enter or double-click: finish/),
+    ).toBeVisible();
+
+    // The way the line is drawn can change mid-line, and it is remembered.
+    await user.click(within(bar).getByRole("button", { name: "Free draw" }));
+    expect(
+      within(bar).getByRole("button", { name: "Free draw" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(/lifting finishes it/)).toBeVisible();
+    expect((await library.loadChrome()).freeDraw).toBe(true);
+
+    // Done ends the line where Enter or a double click would have.
+    await user.click(
+      within(bar).getByRole("button", { name: "Finish the route — ⏎" }),
+    );
+    expect(container.querySelector(".field-wrap")).not.toHaveAttribute(
+      "data-drawing",
+    );
+    expect(screen.queryByRole("group", { name: "Route in hand" })).toBeNull();
+
+    // The switch in the inspector shows the choice, and the next line
+    // starts the way it says.
+    await user.click(
+      within(outline).getByRole("button", { name: "Q offense player" }),
+    );
+    expect(
+      within(screen.getByRole("group", { name: "Draw by hand" })).getByRole(
+        "switch",
+        { name: "Free draw" },
+      ),
+    ).toHaveAttribute("aria-checked", "true");
+    await user.keyboard("r");
+    expect(
+      within(screen.getByRole("group", { name: "Route in hand" })).getByRole(
+        "button",
+        { name: "Free draw" },
+      ),
+    ).toHaveAttribute("aria-pressed", "true");
+    await user.click(
+      screen.getByRole("button", { name: "Cancel the route — esc" }),
+    );
+    expect(container.querySelector(".field-wrap")).not.toHaveAttribute(
+      "data-drawing",
+    );
+  });
+
   it("points a Coach on his first blank field at Help → Demo", () => {
     render(
       <ChalkApp

@@ -121,6 +121,7 @@ describe("livePaintCanHold", () => {
       drawing: {
         kind: "route",
         playerId: "q",
+        mode: "breaks",
         points: [{ lateralYards: 0, depthYards: -2 }],
         cursor: { lateralYards: 0, depthYards: 4 },
         depthBuffer: "",
@@ -139,6 +140,28 @@ describe("livePaintCanHold", () => {
     };
     expect(livePaintCanHold(drawing, nextBreak)).toBe(false);
     expect(livePaintCanHold(drawing, drawing)).toBe(true);
+
+    // A free stroke's traced points arrive every frame and paint live; the
+    // Coach switching how he draws is the shell's business.
+    const tracing: FieldInteractionModel = {
+      ...drawing,
+      drawing: {
+        ...drawing.drawing!,
+        mode: "free",
+        points: [
+          { lateralYards: 0, depthYards: -2 },
+          { lateralYards: 0.4, depthYards: 1, traced: true },
+          { lateralYards: 0.8, depthYards: 4, traced: true },
+        ],
+        pointerDown: true,
+      },
+    };
+    const free: FieldInteractionModel = {
+      ...drawing,
+      drawing: { ...drawing.drawing!, mode: "free" },
+    };
+    expect(livePaintCanHold(free, tracing)).toBe(true);
+    expect(livePaintCanHold(drawing, free)).toBe(false);
   });
 
   it("lets go when the Coach finishes or abandons a drawing", () => {
@@ -147,6 +170,7 @@ describe("livePaintCanHold", () => {
       drawing: {
         kind: "route",
         playerId: "q",
+        mode: "breaks",
         points: [{ lateralYards: 0, depthYards: -2 }],
         cursor: { lateralYards: 0, depthYards: 4 },
         depthBuffer: "",

@@ -8,7 +8,11 @@ export interface EditorStatusHintInput {
   readonly tool: StatusHintTool;
   readonly atFit: boolean;
   readonly selectionCount: number;
-  readonly drawing?: { readonly depthBuffer: string };
+  readonly drawing?: {
+    readonly depthBuffer: string;
+    /** Traced under the held pointer, or clicked break by break. */
+    readonly mode?: "breaks" | "free";
+  };
   readonly labelsTooSmall?: boolean;
   readonly animating?: boolean;
   /**
@@ -43,10 +47,13 @@ export function editorStatusHint(input: EditorStatusHintInput): string {
     return "space: play / pause · drag the scrubber to any frame — the play stays selectable and editable · ⟲ back to the snap";
   }
   if (input.drawing) {
+    if (input.drawing.mode === "free") {
+      return "free draw: press on the field and draw the line with the pointer held down — lifting finishes it · ⌫: take the stroke back · esc cancels";
+    }
     const depth = input.drawing.depthBuffer;
     return depth !== ""
       ? `depth ${depth} yds — click to place the point at that depth · ⌫ edits the number · esc cancels`
-      : "click: add break · type a number: exact depth · enter / double-click: finish · ⌫: remove last point · shift: toggle snap";
+      : "click: add break · type a number: exact depth · Done, enter or double-click: finish · ⌫: remove last point · shift: toggle snap";
   }
   if (input.selectionCount > 1) {
     return "drag any selected item to move the group · shift-click: add/remove · ⌫ delete · ⌘D duplicate";

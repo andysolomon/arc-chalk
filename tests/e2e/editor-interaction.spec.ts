@@ -328,6 +328,103 @@ test("retains a blue-dot drag on release, finishes on Enter, and undoes once", a
   await expect(page.locator("[data-scene-path]")).toHaveCount(6);
 });
 
+test("ends a route from Done over the field, without Enter or a double click (ADR 0054)", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const start = await playerCenter(page, "q");
+  await page.mouse.click(start.x, start.y);
+  await page
+    .getByRole("group", { name: "Draw by hand" })
+    .getByRole("button", { name: /^Route/ })
+    .click();
+  const bar = page.getByRole("group", { name: "Route in hand" });
+  await expect(bar).toBeVisible();
+  await expect(bar.getByRole("button", { name: "Breaks" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  await page.mouse.click(start.x, start.y - 60);
+  await page.mouse.click(start.x + 70, start.y - 60);
+  await bar.getByRole("button", { name: "Finish the route — ⏎" }).click();
+
+  await expect(bar).toHaveCount(0);
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(7);
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Draw route");
+
+  // Cancel is Escape: nothing drawn, nothing to undo past the first. The
+  // finished route stands selected with a handle on the Quarterback's
+  // stance, so it is put down before he is picked up again.
+  await page.keyboard.press("Escape");
+  const again = await playerCenter(page, "q");
+  await page.mouse.click(again.x, again.y);
+  await expect(page.locator('[data-scene-player="q"]')).toHaveClass(/selected/);
+  await page.keyboard.press("r");
+  await page
+    .getByRole("group", { name: "Route in hand" })
+    .getByRole("button", { name: "Cancel the route — esc" })
+    .click();
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(7);
+  await expect(undo).toHaveAttribute("title", "Undo Draw route");
+});
+
+test("traces a route with Free draw on, finishing the moment the pointer lifts (ADR 0054)", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const start = await playerCenter(page, "q");
+  await page.mouse.click(start.x, start.y);
+  const draw = page.getByRole("group", { name: "Draw by hand" });
+  await draw.getByRole("switch", { name: "Free draw" }).click();
+  await expect(draw.getByRole("switch", { name: "Free draw" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await draw.getByRole("button", { name: /^Route/ }).click();
+  const bar = page.getByRole("group", { name: "Route in hand" });
+  await expect(bar.getByRole("button", { name: "Free draw" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  // A stem, then a wheel bending out to the flat — the shape of a hand.
+  await page.mouse.move(start.x, start.y - 20);
+  await page.mouse.down();
+  await page.mouse.move(start.x, start.y - 80, { steps: 6 });
+  for (let step = 1; step <= 8; step += 1) {
+    const angle = (step / 8) * (Math.PI / 2);
+    await page.mouse.move(
+      start.x + 90 * Math.sin(angle),
+      start.y - 80 - 90 * (1 - Math.cos(angle)),
+    );
+  }
+  const preview = page.locator("[data-drawing-preview]");
+  await expect(preview).toHaveAttribute("data-drawing-mode", "free");
+  await page.mouse.up();
+
+  // Lifting is the finish: no Enter, no Done, one route, one undo.
+  await expect(preview).toHaveCount(0);
+  await expect(bar).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(7);
+  await expect(page.locator(".field-wrap")).toHaveAttribute(
+    "data-tool",
+    "select",
+  );
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Draw route");
+  // The bend the hand drew arrives as a curve, not a fan of straight steps.
+  await expect(page.locator("[data-scene-path]").last()).toHaveAttribute(
+    "d",
+    / Q /,
+  );
+  await undo.click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+});
+
 test("edits a route through its handles", async ({ page }) => {
   await openEditor(page);
 
