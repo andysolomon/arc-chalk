@@ -5963,12 +5963,13 @@ export function ChalkApp({
             ))}
             {phoneWorkspace && interaction.drawing ? (
               // A route on a phone ends here; there is no Enter key and a
-              // double tap is not a thing a Coach should have to know.
+              // double tap is not a thing a Coach should have to know. It
+              // says "route" for every kind of line, as the phone specs do.
               <button
-                aria-label={`Finish the ${drawingNoun(interaction.drawing.kind)} — ⏎`}
+                aria-label="Finish the route — ⏎"
                 className="rail-finish"
                 onClick={() => dispatchField({ type: "finish-drawing" })}
-                title={`Finish the ${drawingNoun(interaction.drawing.kind)} — ⏎`}
+                title="Finish the route — ⏎"
                 type="button"
               >
                 Done
@@ -6094,18 +6095,18 @@ export function ChalkApp({
                   </button>
                 </div>
                 <button
-                  aria-label={`Finish the ${drawingNoun(interaction.drawing.kind)} — ⏎`}
+                  aria-label="Finish the route — ⏎"
                   className="primary"
                   onClick={() => dispatchField({ type: "finish-drawing" })}
-                  title={`Finish the ${drawingNoun(interaction.drawing.kind)} — ⏎`}
+                  title="Finish the route — ⏎"
                   type="button"
                 >
                   Done
                 </button>
                 <button
-                  aria-label={`Cancel the ${drawingNoun(interaction.drawing.kind)} — esc`}
+                  aria-label="Cancel the route — esc"
                   onClick={() => dispatchField({ type: "escape" })}
-                  title={`Cancel the ${drawingNoun(interaction.drawing.kind)} — esc`}
+                  title="Cancel the route — esc"
                   type="button"
                 >
                   Cancel
