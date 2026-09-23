@@ -23,6 +23,7 @@ import {
   clearDrawing,
   drawTarget,
   holdDrawPoint,
+  routeDragAim,
   startDrawing,
 } from "./drawing";
 import {
@@ -222,6 +223,26 @@ function pointerMove(
       drawing.initialDrag.pointerId !== input.pointerId
     )
       return { model };
+    // The press lands on the dot, upfield of the man. Follow the drag from
+    // his stance instead, or the first segment is straight ahead before the
+    // finger has chosen a direction.
+    if (drawing.initialDrag) {
+      const stance = drawing.points[0] ?? drawing.cursor;
+      return {
+        model: {
+          ...model,
+          drawing: {
+            ...drawing,
+            cursor: drawTarget(
+              drawing,
+              routeDragAim(stance, drawing.initialDrag.point, input.point),
+              input.shiftKey,
+              context,
+            ),
+          },
+        },
+      };
+    }
     const last = drawing.points.at(-1)!;
     if (
       drawing.pointerDown &&
@@ -322,10 +343,15 @@ function pointerUp(
       initialDrag: undefined,
       pointerDown: false,
     };
+    const stance = model.drawing.points[0] ?? input.point;
+    const aimed = {
+      ...input,
+      point: routeDragAim(stance, initialDrag.point, input.point),
+    };
     const next =
       screenDistancePx(initialDrag.point, input.point, context.screenScale) >=
       MOVE_THRESHOLD_PX
-        ? addDrawPoint(model, released, input, context)
+        ? addDrawPoint(model, released, aimed, context)
         : { ...model, drawing: released };
     return {
       model: {

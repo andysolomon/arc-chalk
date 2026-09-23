@@ -45,6 +45,23 @@ export function holdDrawPoint(
   );
 }
 
+/**
+ * Where a drag that started on the blue dot is aiming. The dot sits upfield
+ * of the man so a finger can find it; that offset is not the route. The line
+ * leaves his stance along the direction the finger actually travelled, so a
+ * drag to the flat, the backfield, or the sideline starts that way.
+ */
+export function routeDragAim(
+  stance: Coordinate,
+  press: Coordinate,
+  pointer: Coordinate,
+): Coordinate {
+  return coordinate(
+    stance.lateralYards + (pointer.lateralYards - press.lateralYards),
+    stance.depthYards + (pointer.depthYards - press.depthYards),
+  );
+}
+
 export /**
  * Where the next break would land: constrained to grass-true 45° increments
  * from the last one while snap is on (Shift inverts), then clamped, then

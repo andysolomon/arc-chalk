@@ -51,7 +51,11 @@ export type FieldInteractionEvent =
       readonly depthYards: number;
     }
   | {
-      /** The blue dot above a Player: start drawing his route right there. */
+      /**
+       * The blue dot above a Player. The drag's direction, measured from the
+       * press, is the direction the route leaves his stance — the dot sits
+       * upfield only so it can be grabbed.
+       */
       readonly type: "start-route";
       readonly playerId: string;
       readonly input?: FieldPointerInput;

@@ -1142,6 +1142,74 @@ describe("field interaction drawing", () => {
     ).toEqual([origin, end]);
   });
 
+  it("follows a blue-dot drag in the direction pulled, not straight upfield", () => {
+    const context = contextFor(stickThunderPlay);
+    const origin = positionOf(stickThunderPlay, "q");
+    // The handle sits upfield of the man. That offset must not become the
+    // first segment: a pull to the side, back, or further upfield starts there.
+    const press = { ...origin, depthYards: origin.depthYards + 3 };
+    const sideways = {
+      lateralYards: press.lateralYards + 6,
+      depthYards: press.depthYards,
+    };
+    const toTheSide = run(context, [
+      {
+        type: "start-route",
+        playerId: "q",
+        input: { pointerId: 1, point: press },
+      },
+      move(sideways),
+      up(sideways),
+    ]);
+    expect(toTheSide.model.drawing?.points?.[0]).toEqual(origin);
+    expect(toTheSide.model.drawing?.points?.[1]?.depthYards).toBeCloseTo(
+      origin.depthYards,
+      5,
+    );
+    expect(toTheSide.model.drawing?.points?.[1]?.lateralYards).toBeCloseTo(
+      origin.lateralYards + 6,
+      5,
+    );
+
+    const back = {
+      lateralYards: press.lateralYards,
+      depthYards: press.depthYards - 5,
+    };
+    const backward = run(context, [
+      {
+        type: "start-route",
+        playerId: "q",
+        input: { pointerId: 1, point: press },
+      },
+      move(back),
+      up(back),
+    ]);
+    expect(backward.model.drawing?.points?.[1]?.depthYards).toBeCloseTo(
+      origin.depthYards - 5,
+      5,
+    );
+    expect(backward.model.drawing?.points?.[1]?.lateralYards).toBeCloseTo(
+      origin.lateralYards,
+      5,
+    );
+
+    const ahead = { ...press, depthYards: press.depthYards + 8 };
+    const forward = run(context, [
+      {
+        type: "start-route",
+        playerId: "q",
+        input: { pointerId: 1, point: press },
+      },
+      move(ahead),
+      up(ahead),
+    ]);
+    // Eight yards of drag, not eight plus the handle's own upfield offset.
+    expect(forward.model.drawing?.points?.[1]?.depthYards).toBeCloseTo(
+      origin.depthYards + 8,
+      5,
+    );
+  });
+
   it("keeps a blue-dot click in click-to-draw mode without adding a stub", () => {
     const context = contextFor(stickThunderPlay);
     const origin = positionOf(stickThunderPlay, "q");
