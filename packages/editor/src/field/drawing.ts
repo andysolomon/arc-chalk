@@ -2,25 +2,32 @@ import {
   DEFAULT_ZONE_COVERAGE_RADII,
   routeKindStyle,
   type Coordinate,
+  type PathPoint,
   type PathStyle,
   type PlayCommand,
   type Player,
 } from "@chalk/domain";
 
 import { snapRouteEndpoint } from "../smart-snapping";
+import { fitFreehandStroke } from "./freehand";
 import { clampToField, coordinate, screenDistancePx } from "./geometry";
 import {
   DRAW_POINT_MIN_PX,
+  TRACE_POINT_MIN_PX,
   type FieldDrawingKind,
+  type FieldDrawingMode,
+  type FieldDrawingPoint,
   type FieldDrawingState,
   type FieldInteractionContext,
   type FieldInteractionModel,
+  type FieldInteractionResult,
   type FieldPointerInput,
 } from "./model";
 
 /**
  * Drawing a route: where the next break would land, how a held pointer bends
- * the segment behind it, and the one insert a finished route commits.
+ * the segment behind it, how a traced stroke follows the pointer, and the one
+ * insert a finished route commits.
  */
 
 /**
@@ -65,7 +72,8 @@ export function routeDragAim(
 export /**
  * Where the next break would land: constrained to grass-true 45° increments
  * from the last one while snap is on (Shift inverts), then clamped, then
- * overridden in depth by any digits the Coach has typed.
+ * overridden in depth by any digits the Coach has typed. A traced line is
+ * neither constrained nor given a depth — it goes where the hand goes.
  */
 function drawTarget(
   drawing: FieldDrawingState,
@@ -74,6 +82,7 @@ function drawTarget(
   context: FieldInteractionContext,
 ): Coordinate {
   const last = drawing.points.at(-1)!;
+  if (drawing.mode === "free") return holdDrawPoint(drawing, point, context);
   const constrain = context.snap.enabled !== (shiftKey === true);
   const snapped = constrain
     ? snapRouteEndpoint({
@@ -119,6 +128,92 @@ export function addDrawPoint(
       pointerDown: true,
     },
   };
+}
+
+/**
+ * A free stroke under way: the pointer is held down and the line follows it.
+ * Every point it passes is kept, marked as traced, so the finish can fit a
+ * clean line through the stroke rather than through the hand's tremor. A
+ * press that has not yet moved still holds the pointer, so the moves that
+ * follow it trace.
+ */
+export function traceDrawPoint(
+  model: FieldInteractionModel,
+  drawing: FieldDrawingState,
+  point: Coordinate,
+  context: FieldInteractionContext,
+): FieldInteractionModel {
+  const target = holdDrawPoint(drawing, point, context);
+  const last = drawing.points.at(-1)!;
+  if (
+    screenDistancePx(last, target, context.screenScale) < TRACE_POINT_MIN_PX
+  ) {
+    return {
+      ...model,
+      drawing: {
+        ...drawing,
+        cursor: target,
+        depthBuffer: "",
+        pointerDown: true,
+      },
+    };
+  }
+  return {
+    ...model,
+    drawing: {
+      ...drawing,
+      points: [
+        ...drawing.points,
+        {
+          lateralYards: target.lateralYards,
+          depthYards: target.depthYards,
+          traced: true,
+        },
+      ],
+      cursor: target,
+      depthBuffer: "",
+      pointerDown: true,
+    },
+  };
+}
+
+/**
+ * A free line's press takes hold of the pointer without marking the line:
+ * the stroke is what the pointer does next. A press that lifts where it
+ * landed was a tap, and a tap is not a line.
+ */
+export function holdStroke(
+  model: FieldInteractionModel,
+  drawing: FieldDrawingState,
+  point: Coordinate,
+  context: FieldInteractionContext,
+): FieldInteractionModel {
+  return {
+    ...model,
+    drawing: {
+      ...drawing,
+      cursor: holdDrawPoint(drawing, point, context),
+      depthBuffer: "",
+      pointerDown: true,
+    },
+  };
+}
+
+/** Whether the line in hand has a stroke on it — anything the pointer traced. */
+export function hasTracedStroke(
+  drawing: Pick<FieldDrawingState, "points">,
+): boolean {
+  return drawing.points.some((point) => point.traced === true);
+}
+
+/**
+ * Takes the last stroke off the line in hand, the way Backspace takes the
+ * last break: one traced run is one thing the Coach did, so it goes as one.
+ */
+export function dropLastStroke(drawing: FieldDrawingState): FieldDrawingState {
+  const points = [...drawing.points];
+  while (points.length > 1 && points.at(-1)!.traced) points.pop();
+  return { ...drawing, points, cursor: points.at(-1)! };
 }
 
 /**
@@ -189,6 +284,7 @@ export function startDrawing(
   kind: FieldDrawingKind,
   playerId: string,
   context: FieldInteractionContext,
+  mode: FieldDrawingMode = "breaks",
 ): FieldInteractionModel | undefined {
   const player = context.document.players.find(({ id }) => id === playerId);
   if (!player) return undefined;
@@ -198,6 +294,7 @@ export function startDrawing(
     drawing: {
       kind: drawingKindFor(kind, player),
       playerId,
+      mode,
       points: [
         {
           lateralYards: player.position.lateralYards,
@@ -212,6 +309,40 @@ export function startDrawing(
 }
 
 /**
+ * The line as it will be committed: clicked breaks exactly where they were
+ * put, and each traced stroke fitted into a clean line from the break it
+ * set out from. What was traced is the drawing's business, not the Play's.
+ */
+export function resolveDrawnPoints(
+  drawing: Pick<FieldDrawingState, "points">,
+  context: Pick<FieldInteractionContext, "screenScale">,
+): PathPoint[] {
+  const resolved: PathPoint[] = [];
+  let stroke: FieldDrawingPoint[] = [];
+  const fitStroke = (): void => {
+    if (stroke.length === 0) return;
+    resolved.push(
+      ...fitFreehandStroke(resolved.at(-1)!, stroke, context.screenScale),
+    );
+    stroke = [];
+  };
+  for (const point of drawing.points) {
+    if (point.traced && resolved.length > 0) {
+      stroke.push(point);
+      continue;
+    }
+    fitStroke();
+    resolved.push({
+      lateralYards: point.lateralYards,
+      depthYards: point.depthYards,
+      ...(point.control ? { control: point.control } : {}),
+    });
+  }
+  fitStroke();
+  return resolved;
+}
+
+/**
  * One finished route is one insert. Kind defaults are the original's, and a
  * second route on the same man arrives dotted as his alternate.
  */
@@ -220,13 +351,15 @@ export function buildDrawCommand(
   drawing: FieldDrawingState,
   pathId: string,
 ): PlayCommand | undefined {
-  const points = drawing.points.filter((point, index, all) => {
-    if (index === 0) return true;
-    return (
-      screenDistancePx(all[index - 1]!, point, context.screenScale) >=
-      DRAW_POINT_MIN_PX
-    );
-  });
+  const points = resolveDrawnPoints(drawing, context).filter(
+    (point, index, all) => {
+      if (index === 0) return true;
+      return (
+        screenDistancePx(all[index - 1]!, point, context.screenScale) >=
+        DRAW_POINT_MIN_PX
+      );
+    },
+  );
   if (points.length < 2) return undefined;
 
   const sibling =
@@ -264,5 +397,27 @@ export function buildDrawCommand(
   };
 }
 
-// ---------------------------------------------------------------------------
-// The machine
+/**
+ * The finish: one insert for the line in hand, which then stands selected,
+ * with the select tool handed back so it is the Coach's to adjust. A line
+ * that never left its man commits nothing and is simply put down.
+ */
+export function finishDrawing(
+  model: FieldInteractionModel,
+  context: FieldInteractionContext,
+): FieldInteractionResult {
+  const drawing = model.drawing;
+  if (!drawing) return { model };
+  const createId = context.createId ?? ((prefix: string) => `${prefix}_new`);
+  const pathId = createId("path");
+  const command = buildDrawCommand(context, drawing, pathId);
+  if (command === undefined) return { model: clearDrawing(model) };
+  return {
+    model: {
+      selection: [{ kind: "path", id: pathId }],
+      gesture: { kind: "idle" },
+    },
+    command,
+    requestedTool: "select",
+  };
+}

@@ -19,12 +19,16 @@ import {
 import {
   addDrawPoint,
   bendLastSegment,
-  buildDrawCommand,
   clearDrawing,
   drawTarget,
+  dropLastStroke,
+  finishDrawing,
+  hasTracedStroke,
   holdDrawPoint,
+  holdStroke,
   routeDragAim,
   startDrawing,
+  traceDrawPoint,
 } from "./drawing";
 import {
   clampToField,
@@ -94,8 +98,15 @@ function pointerDown(
   if (model.gesture.kind !== "idle") return { model };
   if (input.button !== undefined && input.button !== 0) return { model };
 
-  // Mid-drawing, every press places the next break — even over a Player.
+  // Mid-drawing, every press places the next break — even over a Player. A
+  // free line's press takes hold of the pointer instead: the stroke runs
+  // from the last break to wherever the pointer goes until it lifts.
   if (model.drawing) {
+    if (model.drawing.mode === "free") {
+      return {
+        model: holdStroke(model, model.drawing, input.point, context),
+      };
+    }
     return { model: addDrawPoint(model, model.drawing, input, context) };
   }
 
@@ -225,26 +236,30 @@ function pointerMove(
       return { model };
     // The press lands on the dot, upfield of the man. Follow the drag from
     // his stance instead, or the first segment is straight ahead before the
-    // finger has chosen a direction.
+    // finger has chosen a direction. A free line traces that drag as it goes.
     if (drawing.initialDrag) {
       const stance = drawing.points[0] ?? drawing.cursor;
+      const aim = routeDragAim(stance, drawing.initialDrag.point, input.point);
+      if (drawing.mode === "free") {
+        return { model: traceDrawPoint(model, drawing, aim, context) };
+      }
       return {
         model: {
           ...model,
           drawing: {
             ...drawing,
-            cursor: drawTarget(
-              drawing,
-              routeDragAim(stance, drawing.initialDrag.point, input.point),
-              input.shiftKey,
-              context,
-            ),
+            cursor: drawTarget(drawing, aim, input.shiftKey, context),
           },
         },
       };
     }
+    // A free stroke follows the held pointer; lifted, the pointer only aims.
+    if (drawing.mode === "free" && drawing.pointerDown) {
+      return { model: traceDrawPoint(model, drawing, input.point, context) };
+    }
     const last = drawing.points.at(-1)!;
     if (
+      drawing.mode === "breaks" &&
       drawing.pointerDown &&
       drawing.points.length > 1 &&
       screenDistancePx(last, input.point, context.screenScale) >
@@ -336,6 +351,25 @@ function pointerUp(
   context: FieldInteractionContext,
 ): FieldInteractionResult {
   const initialDrag = model.drawing?.initialDrag;
+  if (model.drawing?.mode === "free") {
+    if (initialDrag && initialDrag.pointerId !== input.pointerId) {
+      return { model };
+    }
+    // A stroke ends where the pointer lifts, and that is the line — the way
+    // a pen leaves the whiteboard. A press that never moved, on the dot or
+    // the grass, leaves the line in hand for the stroke still to come.
+    const released = {
+      ...model,
+      drawing: {
+        ...model.drawing,
+        initialDrag: undefined,
+        pointerDown: false,
+      },
+    };
+    return hasTracedStroke(model.drawing)
+      ? finishDrawing(released, context)
+      : { model: released };
+  }
   if (model.drawing && initialDrag) {
     if (initialDrag.pointerId !== input.pointerId) return { model };
     const released = {
@@ -526,6 +560,9 @@ export function fieldInteraction(
             },
           };
         }
+        if (drawing.points.at(-1)?.traced) {
+          return { model: { ...model, drawing: dropLastStroke(drawing) } };
+        }
         if (drawing.points.length > 1) {
           return {
             model: {
@@ -578,7 +615,12 @@ export function fieldInteraction(
       if (model.drawing || model.gesture.kind !== "idle") return { model };
       if (event.input?.button !== undefined && event.input.button !== 0)
         return { model };
-      const started = startDrawing("route", event.playerId, context);
+      const started = startDrawing(
+        "route",
+        event.playerId,
+        context,
+        event.mode,
+      );
       if (!started?.drawing || !event.input) return { model: started ?? model };
       return {
         model: {
@@ -592,24 +634,28 @@ export function fieldInteraction(
       // else may be in hand, and the man must still be on the field.
       if (model.drawing || model.gesture.kind !== "idle") return { model };
       return {
-        model: startDrawing(event.kind, event.playerId, context) ?? model,
+        model:
+          startDrawing(event.kind, event.playerId, context, event.mode) ??
+          model,
       };
     }
-    case "finish-drawing": {
+    case "finish-drawing":
+      return finishDrawing(model, context);
+    case "set-drawing-mode": {
+      // Switching mid-line keeps what is drawn: the breaks placed so far
+      // stay, and the next press traces or clicks as the new mode says.
       const drawing = model.drawing;
-      if (!drawing) return { model };
-      const createId =
-        context.createId ?? ((prefix: string) => `${prefix}_new`);
-      const pathId = createId("path");
-      const command = buildDrawCommand(context, drawing, pathId);
-      if (command === undefined) return { model: clearDrawing(model) };
+      if (!drawing || drawing.mode === event.mode) return { model };
       return {
         model: {
-          selection: [{ kind: "path", id: pathId }],
-          gesture: { kind: "idle" },
+          ...model,
+          drawing: {
+            ...drawing,
+            mode: event.mode,
+            depthBuffer: "",
+            cursor: drawing.points.at(-1) ?? drawing.cursor,
+          },
         },
-        command,
-        requestedTool: "select",
       };
     }
     case "handle-down": {
@@ -723,6 +769,8 @@ export function fieldInteraction(
     case "depth-digit": {
       const drawing = model.drawing;
       if (!drawing || !/^[0-9.]$/.test(event.digit)) return { model };
+      // A traced line has no next break to give a depth to.
+      if (drawing.mode === "free") return { model };
       const depthBuffer = drawing.depthBuffer + event.digit;
       const typed = Number.parseFloat(depthBuffer);
       return {
