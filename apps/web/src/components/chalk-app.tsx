@@ -6019,6 +6019,8 @@ export function ChalkApp({
                 />
               }
               routeDotPlayerId={routeDotPlayerId}
+              routeDotPrecise={precisePointer}
+              routeDotZoom={camera.width > 0 ? fieldWidthPx / camera.width : 1}
               scene={scene}
               selection={selectionKeys}
               svgRef={fieldSvgRef}

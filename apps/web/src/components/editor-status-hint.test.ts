@@ -12,7 +12,9 @@ describe("what the status bar says on the left", () => {
       selectionCount: 0,
     });
     expect(atFit).toContain("select a player to give him his assignment");
-    expect(atFit).toContain("drag the blue dot above a player");
+    expect(atFit).toContain(
+      "drag the blue dot above a player in any direction",
+    );
     expect(atFit).not.toContain("drag the grass");
 
     const zoomed = editorStatusHint({

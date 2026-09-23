@@ -2410,7 +2410,8 @@ button.play-type.open {
   cursor: crosshair;
 }
 /* The dot draws rather than moves, and says so before it is pressed. */
-.field-diagram .route-dot {
+.field-diagram .route-dot,
+.field-diagram .route-dot-hit {
   cursor: crosshair;
 }
 .field-wrap[data-drawing="true"] .field-diagram,

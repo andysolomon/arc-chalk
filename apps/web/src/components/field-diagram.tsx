@@ -12,6 +12,7 @@ import { useLayoutEffect } from "react";
 
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { sceneColors, SELECTION_BLUE, selectionKey } from "./field-marks";
+import { routeDotGeometry, routeDotPressStartsRoute } from "./route-dot";
 
 const stickThunderScene = buildSvgRenderScene(
   buildRenderScene(stickThunderPlay),
@@ -133,6 +134,8 @@ export function FieldDiagram({
   overlay,
   livePreviewRef,
   routeDotPlayerId,
+  routeDotZoom = 1,
+  routeDotPrecise = true,
   onHoverPlayer,
   onStartRoute,
   svgRef,
@@ -156,6 +159,13 @@ export function FieldDiagram({
   livePreviewRef?: React.RefObject<LiveFieldPaint | undefined>;
   /** The Player currently offering the blue draw-a-route dot, if any. */
   routeDotPlayerId?: string;
+  /**
+   * CSS pixels per frame unit, so the draw handle stays a finger-sized
+   * target however small the field is drawn.
+   */
+  routeDotZoom?: number;
+  /** A mouse or Pencil keeps a smaller handle than a finger. */
+  routeDotPrecise?: boolean;
   onHoverPlayer?: (playerId: string | undefined) => void;
   onStartRoute?: (
     playerId: string,
@@ -172,6 +182,7 @@ export function FieldDiagram({
 }) {
   const selected = (kind: "player" | "path" | "label", id: string): boolean =>
     selection?.has(selectionKey(kind, id)) === true;
+  const routeDot = routeDotGeometry(routeDotZoom, routeDotPrecise);
   const viewBox = camera
     ? `${camera.x} ${camera.y} ${camera.width} ${camera.height}`
     : `0 0 ${scene.viewport.width} ${scene.viewport.height}`;
@@ -641,36 +652,68 @@ export function FieldDiagram({
                 <SceneText key={`${player.id}-text-${index}`} text={text} />
               ))}
               {routeDotPlayerId === player.id ? (
-                <circle
-                  className="route-dot"
-                  cx={0}
-                  cy={-26}
-                  data-print-chrome=""
-                  data-route-dot={player.id}
-                  fill={SELECTION_BLUE}
-                  onPointerDown={(event) => {
-                    // The dot owns this press: it starts a route rather than
-                    // letting the field begin a move.
-                    if (event.button !== 0) return;
-                    event.preventDefault();
-                    event.stopPropagation();
-                    // Capture on the stable SVG: the dot disappears when
-                    // drawing begins, but release must still reach the field.
-                    try {
-                      event.currentTarget.ownerSVGElement?.setPointerCapture(
-                        event.pointerId,
-                      );
-                    } catch {
-                      // As with field drags, capture is best-effort.
-                    }
-                    onStartRoute?.(player.id, event);
-                  }}
-                  r={5}
-                  stroke="#FFFFFF"
-                  strokeWidth={1.5}
-                >
-                  <title>Drag off to draw a route from this player</title>
-                </circle>
+                <>
+                  <circle
+                    className="route-dot-hit"
+                    cx={0}
+                    cy={routeDot.cy}
+                    data-print-chrome=""
+                    data-route-dot={player.id}
+                    fill="transparent"
+                    onPointerDown={(event) => {
+                      // The handle owns this press: it starts a route rather
+                      // than letting the field begin a move. A press on the
+                      // man himself, or closer to someone else, does not.
+                      if (event.button !== 0) return;
+                      const matrix = event.currentTarget.getScreenCTM();
+                      if (matrix) {
+                        const local = new DOMPoint(
+                          event.clientX,
+                          event.clientY,
+                        ).matrixTransform(matrix.inverse());
+                        if (
+                          !routeDotPressStartsRoute(
+                            local.x,
+                            local.y,
+                            routeDot,
+                            player.id,
+                            scene.players,
+                          )
+                        ) {
+                          return;
+                        }
+                      }
+                      event.preventDefault();
+                      event.stopPropagation();
+                      // Capture on the stable SVG: the handle disappears when
+                      // drawing begins, but release must still reach the field.
+                      try {
+                        event.currentTarget.ownerSVGElement?.setPointerCapture(
+                          event.pointerId,
+                        );
+                      } catch {
+                        // As with field drags, capture is best-effort.
+                      }
+                      onStartRoute?.(player.id, event);
+                    }}
+                    r={routeDot.hitRadius}
+                  >
+                    <title>
+                      Drag in any direction to draw a route from this player
+                    </title>
+                  </circle>
+                  <circle
+                    className="route-dot"
+                    cx={0}
+                    cy={routeDot.cy}
+                    data-print-chrome=""
+                    fill={SELECTION_BLUE}
+                    pointerEvents="none"
+                    r={routeDot.visualRadius}
+                    stroke="#FFFFFF"
+                    strokeWidth={1.5}
+                  />
+                </>
               ) : null}
             </g>
           );

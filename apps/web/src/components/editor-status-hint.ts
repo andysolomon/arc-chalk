@@ -24,7 +24,7 @@ export const FIRST_USE_HINT =
 const toolHint: Record<StatusHintTool, (atFit: boolean) => string> = {
   select: (atFit) =>
     atFit
-      ? "select a player to give him his assignment on the right, or drag the blue dot above a player to draw his route — double-click a line to add a node · ⌫ delete"
+      ? "select a player to give him his assignment on the right, or drag the blue dot above a player in any direction to draw his route — double-click a line to add a node · ⌫ delete"
       : "drag the grass to move the view · shift-drag: marquee select · double-click a line to add a node · ⌫ delete",
   text: () => "click the field to drop a text label",
 };
