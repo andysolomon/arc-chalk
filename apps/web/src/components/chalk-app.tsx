@@ -454,8 +454,8 @@ function fieldDepthWindow(projection: SvgProjection) {
 }
 
 /**
- * The handles on the one selected route: a circle on every break, a square
- * in the middle of every segment to bend it, and the zone corner. Their
+ * The handles on the one selected route: a circle on every break, an unseen
+ * target in the middle of every segment to bend it, and the zone corner. Their
  * radii are viewBox units, which the editor draws at no more than one CSS
  * pixel each, so they stay constant on screen and their invisible hit areas
  * clear the 44 CSS px touch minimum (ADR 0016).
@@ -572,19 +572,10 @@ function RouteHandles({
               y: (previous.y + 2 * point.control.y + point.y) / 4,
             }
           : { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
+        // The segment square is not drawn for now; its target stays, so a
+        // segment still bends from its middle.
         return (
           <g key={`control-${index}`}>
-            <rect
-              fill="#FFFFFF"
-              height={7}
-              pointerEvents="none"
-              rx={1.5}
-              stroke="#8FC2F8"
-              strokeWidth={1.5}
-              width={7}
-              x={midpoint.x - 3.5}
-              y={midpoint.y - 3.5}
-            />
             <rect
               className="handle-target"
               data-control-handle={index}
