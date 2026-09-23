@@ -10,7 +10,7 @@ Chalk implements editor gestures through Pointer Events and a shared command pip
 
 - Tap or click selects, and dragging a selected object moves it.
 - Empty-field drag creates a desktop selection box; Space-drag, middle-drag, and trackpad gestures pan.
-- Two-finger pan and pinch-to-zoom navigate on touch devices.
+- Two-finger pan and pinch-to-zoom navigate on touch devices. One finger on open field pans too, since a phone has no Space bar and no second hand to spare; on a Player, route, or note it selects and moves, and a tap on open field clears the selection as a click does.
 - Apple Pencil draws and edits precisely while touch remains available for viewport navigation.
 - Pointer capture keeps an active gesture intact when the pointer leaves its originating element.
 - Selection handles remain constant in screen space regardless of zoom, and touch targets are at least 44 by 44 CSS pixels.

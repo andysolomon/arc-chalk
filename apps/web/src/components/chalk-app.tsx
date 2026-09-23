@@ -150,6 +150,7 @@ import {
   type FieldGesture,
   lineOf,
   type FieldHandleRef,
+  type FieldPointerInput,
   type FieldInteractionContext,
   type FieldInteractionEvent,
   type FieldInteractionModel,
@@ -336,6 +337,14 @@ const destinations: readonly { readonly view: View; readonly label: string }[] =
 
 /** The original's own wait before a held press becomes a menu. */
 const LONG_PRESS_MS = 480;
+/**
+ * How far a finger may wander between landing on the grass and lifting and
+ * still have tapped it. A fingertip is not a mouse: it rolls a few pixels on
+ * the way down and on the way up, and the machine's own two-pixel move
+ * threshold, which suits a Pencil, would turn most taps into the smallest
+ * possible pan and leave the selection standing.
+ */
+const FINGER_TAP_SLOP_PX = 10;
 /**
  * The frame the renderer draws into, which is what the camera looks at. Taken
  * from the renderer rather than written out again, so the two cannot drift.
@@ -2532,8 +2541,20 @@ export function ChalkApp({
     midX: number;
     midY: number;
   }>(undefined);
-  /** Where a pan gesture last was, in client pixels. */
-  const panRef = useRef<{ x: number; y: number }>(undefined);
+  /**
+   * Where a pan gesture last was, in client pixels — and, when one finger on
+   * open grass started it, where it landed and the press it stands in for,
+   * so a finger that lifts without travelling is still the tap it was.
+   */
+  const panRef = useRef<{
+    x: number;
+    y: number;
+    tap?: {
+      readonly x: number;
+      readonly y: number;
+      readonly input: FieldPointerInput;
+    };
+  }>(undefined);
   /**
    * Which pointer the Coach has in his hand. An iPad calls itself coarse
    * whichever one it is, so the field watches what actually touches it
@@ -3360,6 +3381,39 @@ export function ChalkApp({
     );
     return found?.item.kind === "label" ? undefined : found?.item;
   };
+  /**
+   * Whether one finger, pressed here, moves the field rather than what is on
+   * it. A phone has no Space bar, no middle button and no trackpad, and the
+   * two-finger pan wants a hand that a phone held in one cannot spare; the
+   * selection box the desktop draws on empty grass is, as ADR 0016 has it, a
+   * desktop gesture. So a finger on the grass pans. A finger on a man, a
+   * route or a note still picks it up — a note included, which the menu
+   * leaves out but a drag moves — and a finger mid-drawing or holding the
+   * Text tool still puts down what it came to put down.
+   */
+  const fingerPansFrom = (
+    clientX: number,
+    clientY: number,
+    pointerType: string,
+  ): boolean => {
+    if (pointerType !== "touch") return false;
+    if (interactionRef.current.drawing) return false;
+    if (interactionTool(activeTool) === "text") return false;
+    const document = editorStore.getSnapshot().document;
+    // Measured the way the machine measures its own press, zoom included, so
+    // the finger is told the same thing here that it would be told there.
+    const zoom = fieldWidthPx / cameraRef.current.width;
+    const found = hitTestField(
+      buildRenderScene(document, { presentation }),
+      fieldPointFromClient(clientX, clientY),
+      {
+        lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard * zoom,
+        depthPixelsPerYard: scene.viewport.depthPixelsPerYard * zoom,
+      },
+      fieldHitOptions(pointerType),
+    );
+    return found === undefined;
+  };
   const openContextMenu = (
     clientX: number,
     clientY: number,
@@ -3446,6 +3500,24 @@ export function ChalkApp({
     ) {
       if (spaceHeldRef.current) spacePannedRef.current = true;
       panRef.current = { x: event.clientX, y: event.clientY };
+      cancelLongPress();
+      return;
+    }
+    // Before a Pencil has been out, one finger is the only pointer the Coach
+    // has, and on the grass it moves the field the way it always could with
+    // two. The press is kept with the pan: a finger that lifts where it
+    // landed was a tap on empty grass, which clears the selection the way a
+    // click there does, and that is settled when it lifts.
+    if (fingerPansFrom(event.clientX, event.clientY, event.pointerType)) {
+      panRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+        tap: {
+          x: event.clientX,
+          y: event.clientY,
+          input: fieldPointerInput(event),
+        },
+      };
       cancelLongPress();
       return;
     }
@@ -3550,8 +3622,22 @@ export function ChalkApp({
       return;
     }
     if (panRef.current || pinching) {
+      const tap = panRef.current?.tap;
       panRef.current = undefined;
       setCamera(cameraRef.current);
+      // A finger that came down on the grass and lifted within a tap's
+      // wobble of the same spot never meant to move anything. It is handed
+      // to the machine as the press and release it was, which is how empty
+      // grass clears the selection under a mouse too.
+      if (
+        tap &&
+        Math.hypot(event.clientX - tap.x, event.clientY - tap.y) <=
+          FINGER_TAP_SLOP_PX
+      ) {
+        dispatchField({ type: "pointer-down", input: tap.input });
+        dispatchField({ type: "pointer-up", input: fieldPointerInput(event) });
+        flushLivePaint();
+      }
       return;
     }
     paintLoop.flush();
