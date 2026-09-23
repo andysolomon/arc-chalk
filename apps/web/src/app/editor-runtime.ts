@@ -114,6 +114,12 @@ export interface ChromeState {
    * reading rather than on the editor.
    */
   readonly gameDay?: boolean;
+  /**
+   * Whether a line by hand is traced with the pointer held down rather than
+   * clicked break by break. How this Coach draws on this device, so it is
+   * remembered here rather than with any Play.
+   */
+  readonly freeDraw?: boolean;
   readonly open: Readonly<Record<string, boolean>>;
   readonly favoritePresets: readonly string[];
   readonly recentPresets: readonly string[];
@@ -157,6 +163,7 @@ export function readChromeState(value: unknown): ChromeState {
       ? { railLabels: record.railLabels }
       : {}),
     ...(record.gameDay === true ? { gameDay: true } : {}),
+    ...(record.freeDraw === true ? { freeDraw: true } : {}),
     open,
     favoritePresets: readIds(record.favoritePresets),
     recentPresets: readIds(record.recentPresets),

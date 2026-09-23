@@ -1249,6 +1249,228 @@ describe("field interaction drawing", () => {
   });
 });
 
+describe("field interaction free drawing", () => {
+  const drawingContext = (overrides: Partial<FieldInteractionContext> = {}) =>
+    contextFor(stickThunderPlay, {
+      snap: { enabled: true, grid: "off" },
+      createId: (prefix) => `${prefix}_drawn`,
+      ...overrides,
+    });
+  const startFree = (
+    kind: "route" | "motion" | "block" | "zone",
+    playerId: string,
+  ): FieldInteractionEvent => ({
+    type: "start-drawing",
+    kind,
+    playerId,
+    mode: "free",
+  });
+  /** A hand's stroke: a stem straight up, a hard cut out, with a wobble. */
+  const strokeFrom = (origin: Coordinate): Coordinate[] => [
+    ...Array.from({ length: 12 }, (_, index) => ({
+      lateralYards: origin.lateralYards + (index % 2 === 0 ? 0.05 : -0.05),
+      depthYards: origin.depthYards + index + 1,
+    })),
+    ...Array.from({ length: 8 }, (_, index) => ({
+      lateralYards: origin.lateralYards - (index + 1),
+      depthYards: origin.depthYards + 12 + (index % 2 === 0 ? 0.05 : -0.05),
+    })),
+  ];
+
+  it("traces the held pointer, ignoring snap and typed depths, and commits when it lifts", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+    const stroke = strokeFrom(y);
+
+    const held = run(context, [
+      startFree("route", "y"),
+      { type: "depth-digit", digit: "7" },
+      down(stroke[0]!),
+      ...stroke.slice(1).map((point) => move(point)),
+    ]);
+    expect(held.commands).toHaveLength(0);
+    expect(held.model.drawing).toMatchObject({
+      mode: "free",
+      pointerDown: true,
+      depthBuffer: "",
+    });
+    // Every point the pointer passed after the press is kept, marked as
+    // traced, and put where the hand went rather than on a 45° ray.
+    const traced = held.model.drawing!.points.filter((point) => point.traced);
+    expect(traced.length).toBe(stroke.length - 1);
+    expect(traced[0]!.lateralYards).toBeCloseTo(stroke[1]!.lateralYards, 6);
+
+    const lifted = run(context, [up(stroke.at(-1)!)], held.model);
+    expect(lifted.commands).toHaveLength(1);
+    expect(lifted.commands[0]).toMatchObject({
+      kind: "batch",
+      label: "Draw route",
+    });
+    expect(lifted.model.drawing).toBeUndefined();
+    expect(lifted.model.selection).toEqual([path("path_drawn")]);
+
+    // What is committed is the clean line: the stance, the cut, the end —
+    // not twenty samples of tremor, and nothing marked traced.
+    const drawn = applyPlayCommand(
+      stickThunderPlay,
+      lifted.commands[0]!,
+    ).paths.find(({ id }) => id === "path_drawn")!;
+    expect(drawn.points.length).toBeLessThanOrEqual(4);
+    expect(drawn.points[0]).toMatchObject({
+      lateralYards: y.lateralYards,
+      depthYards: y.depthYards,
+    });
+    expect(drawn.points.at(-1)!.lateralYards).toBeCloseTo(
+      stroke.at(-1)!.lateralYards,
+      6,
+    );
+    expect(drawn.points.some((point) => "traced" in point)).toBe(false);
+    const cut = drawn.points.find(
+      (point) => Math.abs(point.depthYards - (y.depthYards + 12)) < 0.2,
+    );
+    expect(cut).toBeDefined();
+  });
+
+  it("keeps a press that never moved in hand, and traces a blue-dot drag", () => {
+    const context = drawingContext();
+    const q = positionOf(stickThunderPlay, "q");
+
+    // A tap on the grass is not a stroke: the line waits for one.
+    const tapped = run(context, [
+      startFree("route", "q"),
+      down({ lateralYards: q.lateralYards, depthYards: q.depthYards + 5 }),
+      up({ lateralYards: q.lateralYards, depthYards: q.depthYards + 5 }),
+    ]);
+    expect(tapped.commands).toHaveLength(0);
+    expect(tapped.model.drawing).toMatchObject({
+      mode: "free",
+      pointerDown: false,
+    });
+
+    // The dot sits upfield of the man; the drag is followed from his stance.
+    const press = {
+      lateralYards: q.lateralYards,
+      depthYards: q.depthYards + 1,
+    };
+    const drag = Array.from({ length: 10 }, (_, index) => ({
+      lateralYards: press.lateralYards + index * 0.6,
+      depthYards: press.depthYards + index,
+    }));
+    const dragged = run(context, [
+      {
+        type: "start-route",
+        playerId: "q",
+        input: { pointerId: 1, point: press },
+        mode: "free",
+      },
+      ...drag.map((point) => move(point)),
+      up(drag.at(-1)!),
+    ]);
+    expect(dragged.commands).toHaveLength(1);
+    const drawn = applyPlayCommand(
+      stickThunderPlay,
+      dragged.commands[0]!,
+    ).paths.find(({ id }) => id === "path_drawn")!;
+    expect(drawn.points[0]).toMatchObject(q);
+    expect(drawn.points.at(-1)!.lateralYards).toBeCloseTo(
+      q.lateralYards + 9 * 0.6,
+      6,
+    );
+    expect(drawn.points.at(-1)!.depthYards).toBeCloseTo(q.depthYards + 9, 6);
+  });
+
+  it("switches mode mid-line, keeping the breaks placed so far", () => {
+    const context = drawingContext({ snap: { enabled: false, grid: "off" } });
+    const y = positionOf(stickThunderPlay, "y");
+    const stem = { lateralYards: y.lateralYards, depthYards: y.depthYards + 6 };
+    const stroke = Array.from({ length: 8 }, (_, index) => ({
+      lateralYards: stem.lateralYards - index - 1,
+      depthYards: stem.depthYards + index * 0.5,
+    }));
+
+    const session = run(context, [
+      start("route", "y"),
+      move(stem),
+      down(stem),
+      up(stem),
+      { type: "set-drawing-mode", mode: "free" },
+      down(stroke[0]!),
+      ...stroke.slice(1).map((point) => move(point)),
+      up(stroke.at(-1)!),
+    ]);
+    expect(session.commands).toHaveLength(1);
+    const drawn = applyPlayCommand(
+      stickThunderPlay,
+      session.commands[0]!,
+    ).paths.find(({ id }) => id === "path_drawn")!;
+    expect(drawn.points[1]!.lateralYards).toBeCloseTo(stem.lateralYards, 6);
+    expect(drawn.points[1]!.depthYards).toBeCloseTo(stem.depthYards, 6);
+    expect(drawn.points.at(-1)!.lateralYards).toBeCloseTo(
+      stroke.at(-1)!.lateralYards,
+      6,
+    );
+
+    // Back to breaks: the same press places one, and lifting keeps drawing.
+    const back = run(context, [
+      startFree("route", "y"),
+      { type: "set-drawing-mode", mode: "breaks" },
+      down(stem),
+      up(stem),
+    ]);
+    expect(back.commands).toHaveLength(0);
+    expect(back.model.drawing?.mode).toBe("breaks");
+    expect(back.model.drawing?.points).toHaveLength(2);
+  });
+
+  it("takes a whole stroke back with Backspace, and abandons it on Escape", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+    const stroke = strokeFrom(y);
+    const held = run(context, [
+      startFree("route", "y"),
+      down(stroke[0]!),
+      ...stroke.slice(1, 6).map((point) => move(point)),
+      { type: "pointer-cancel" },
+    ]);
+    expect(held.model.drawing?.pointerDown).toBe(false);
+    expect(held.model.drawing!.points.length).toBeGreaterThan(1);
+
+    const undone = run(context, [{ type: "delete" }], held.model);
+    expect(undone.model.drawing?.points).toHaveLength(1);
+    expect(undone.commands).toHaveLength(0);
+
+    const abandoned = run(context, [{ type: "escape" }], held.model);
+    expect(abandoned.model.drawing).toBeUndefined();
+    expect(abandoned.commands).toHaveLength(0);
+  });
+
+  it("holds a traced line on the field and finishes a mid-stroke Done", () => {
+    const context = drawingContext({
+      depthWindow: { minDepthYards: -20, maxDepthYards: 30 },
+    });
+    const y = positionOf(stickThunderPlay, "y");
+    const halfWidth = stickThunderPlay.fieldProfile.widthYards / 2;
+    const past = Array.from({ length: 10 }, (_, index) => ({
+      lateralYards: y.lateralYards + index * 4,
+      depthYards: y.depthYards + index,
+    }));
+    const session = run(context, [
+      startFree("route", "y"),
+      down(past[0]!),
+      ...past.slice(1).map((point) => move(point)),
+      { type: "finish-drawing" },
+    ]);
+    expect(session.commands).toHaveLength(1);
+    const drawn = applyPlayCommand(
+      stickThunderPlay,
+      session.commands[0]!,
+    ).paths.find(({ id }) => id === "path_drawn")!;
+    for (const point of drawn.points) {
+      expect(Math.abs(point.lateralYards)).toBeLessThanOrEqual(halfWidth);
+    }
+  });
+});
+
 describe("field interaction route handles", () => {
   const handleContext = (overrides: Partial<FieldInteractionContext> = {}) =>
     contextFor(stickThunderPlay, {

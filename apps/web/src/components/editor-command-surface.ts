@@ -45,6 +45,8 @@ export type ActionId =
   | "drawMotion"
   | "drawBlock"
   | "drawZone"
+  /** Trace lines under the held pointer, or click each break. */
+  | "freeDraw"
   | "toggleInspector"
   | "toggleRail"
   | "present"
@@ -393,6 +395,12 @@ export function paletteCommands(
       shortcut: "Z",
       title: "With one defender selected: a zone drop by hand from his stance",
     },
+    {
+      id: "freeDraw",
+      label: "Free draw on / off",
+      title:
+        "Trace a line by hand with the pointer held down, or click each break",
+    },
     { id: "focus", label: "Focus mode", shortcut: "F" },
     { id: "settings", label: "Settings" },
     { id: "toggleInspector", label: "Inspector on / off", shortcut: "⌥1" },
@@ -508,7 +516,8 @@ export const shortcutRows: readonly (readonly [string, string])[] = [
   ["Copy / paste", "⌘C / ⌘V"],
   ["Group / ungroup", "⌘G / ⇧⌘G"],
   ["Forward / backward", "⌘] / ⌘["],
-  ["Finish route", "Enter or double-click"],
+  ["Finish route", "Done over the field, Enter or double-click"],
+  ["Free draw a route", "Free draw switch, then drag on the field"],
   ["Cancel", "Esc"],
   ["Remove last point", "⌫ while drawing"],
   ["Delete selection", "⌫"],

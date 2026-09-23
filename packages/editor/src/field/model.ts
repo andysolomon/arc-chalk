@@ -59,6 +59,7 @@ export type FieldInteractionEvent =
       readonly type: "start-route";
       readonly playerId: string;
       readonly input?: FieldPointerInput;
+      readonly mode?: FieldDrawingMode;
     }
   | {
       /**
@@ -68,8 +69,14 @@ export type FieldInteractionEvent =
       readonly type: "start-drawing";
       readonly kind: FieldDrawingKind;
       readonly playerId: string;
+      readonly mode?: FieldDrawingMode;
     }
   | { readonly type: "finish-drawing" }
+  | {
+      /** The Coach switches between clicking breaks and tracing mid-line. */
+      readonly type: "set-drawing-mode";
+      readonly mode: FieldDrawingMode;
+    }
   | {
       /** A typed digit sets the exact depth of the next break. */
       readonly type: "depth-digit";
@@ -182,15 +189,33 @@ export type FieldGesture =
 export type FieldDrawingKind = "route" | "motion" | "block" | "zone" | "blitz";
 
 /**
+ * How the Coach lays a line down. With breaks, each press places one; the
+ * line between is straight, or bent by holding the press. Free, the line is
+ * traced: it follows the pointer while it is held down and is finished the
+ * moment it lifts, the way a pen leaves the whiteboard.
+ */
+export type FieldDrawingMode = "breaks" | "free";
+
+/**
+ * A point of the line in hand. A traced point is one the pointer passed over
+ * while free drawing; the finish fits a clean line through those, where a
+ * clicked break is kept exactly where it was put.
+ */
+export interface FieldDrawingPoint extends PathPoint {
+  readonly traced?: boolean;
+}
+
+/**
  * An in-progress route. Drawing spans several presses — start on a Player,
- * click each break, finish on Enter or a double click — so it lives beside
- * the single-pointer gesture rather than inside it. Nothing is committed
- * until the finish produces one insert command.
+ * click each break, finish on Enter, Done or a double click — so it lives
+ * beside the single-pointer gesture rather than inside it. Nothing is
+ * committed until the finish produces one insert command.
  */
 export interface FieldDrawingState {
   readonly kind: FieldDrawingKind;
   readonly playerId: string;
-  readonly points: readonly PathPoint[];
+  readonly mode: FieldDrawingMode;
+  readonly points: readonly FieldDrawingPoint[];
   /** The 45°-constrained preview endpoint the dashed line runs to. */
   readonly cursor: Coordinate;
   /** Typed digits waiting to become the next break's exact depth. */
@@ -269,9 +294,12 @@ export const idleFieldInteraction: FieldInteractionModel = {
 /**
  * The original's gesture grammar in canvas pixels: 2 px before a press
  * becomes a drag, 3 px before a press on grass becomes a marquee, breaks at
- * least 4 px apart, and a held pointer bends the segment past 7 px.
+ * least 4 px apart, and a held pointer bends the segment past 7 px. A traced
+ * line samples the pointer every 2 px, close enough that the fit sees every
+ * cut the hand made.
  */
 export const MOVE_THRESHOLD_PX = 2;
 export const MARQUEE_THRESHOLD_PX = 3;
 export const DRAW_POINT_MIN_PX = 4;
 export const DRAW_CURVE_THRESHOLD_PX = 7;
+export const TRACE_POINT_MIN_PX = 2;

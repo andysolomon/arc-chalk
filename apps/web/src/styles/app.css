@@ -863,6 +863,16 @@ button.play-type.open {
   background: #f5f5f5;
   color: var(--ink);
 }
+/* The Free draw switch: lit blue while lines are traced rather than clicked. */
+.draw-row .draw-mode {
+  flex: 1 0 100%;
+  color: var(--muted);
+}
+.draw-row .draw-mode[aria-checked="true"] {
+  background: #eaf2ff;
+  box-shadow: 0 0 0 1px #0072f5;
+  color: #0072f5;
+}
 .draw-row kbd {
   padding: 1px 4px;
   border-radius: 3px;
@@ -3080,6 +3090,73 @@ button.library-dot.target.small {
   padding: 0;
   box-shadow: none;
   color: var(--muted);
+}
+/* The line in hand: its controls sit over the field, under the scope bar
+   when one is up, so Done is a click away from wherever the pointer is. */
+.drawing-bar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  max-width: calc(100% - 28px);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 4px 14px rgba(0, 0, 0, 0.1);
+  color: var(--ink);
+  font-size: 12px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.scope-bar + .drawing-bar {
+  top: 50px;
+}
+.drawing-bar > span {
+  color: var(--muted);
+}
+.drawing-bar button {
+  flex: none;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.drawing-bar button:hover {
+  background: #f5f5f5;
+}
+.drawing-bar button.primary {
+  background: #0072f5;
+  box-shadow: none;
+  color: #fff;
+  font-weight: 600;
+}
+.drawing-bar button.primary:hover {
+  background: #0062d3;
+}
+.drawing-bar-mode {
+  display: inline-flex;
+  overflow: hidden;
+  border-radius: 5px;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.drawing-bar-mode button {
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--muted);
+}
+.drawing-bar-mode button[aria-pressed="true"] {
+  background: #eaf2ff;
+  color: #0072f5;
 }
 /* While a broadcast walks the siblings the store is not on this play. */
 .field-wrap[data-busy="true"] .field-diagram {
