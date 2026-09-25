@@ -678,6 +678,9 @@ export function FieldDiagram({
                             routeDot,
                             player.id,
                             scene.players,
+                            event.pointerType === "touch"
+                              ? routeDot.fingerReach
+                              : undefined,
                           )
                         ) {
                           return;

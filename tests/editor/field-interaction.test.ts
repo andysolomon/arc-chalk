@@ -197,6 +197,55 @@ describe("field interaction dragging", () => {
     expect(session.model.gesture.kind).toBe("idle");
   });
 
+  it("lets a finger wobble on a man and still have tapped him", () => {
+    const context = contextFor(stickThunderPlay, {
+      snap: { enabled: false, grid: "off" },
+    });
+    const q = positionOf(stickThunderPlay, "q");
+    const across = (px: number) => ({
+      lateralYards: q.lateralYards + px / screenScale.lateralPixelsPerYard,
+      depthYards: q.depthYards,
+    });
+    const touch = (
+      type: "pointer-down" | "pointer-move" | "pointer-up",
+      point: Coordinate,
+    ): FieldInteractionEvent => ({
+      type,
+      input: { point, pointerId: 1, pointerType: "touch" },
+    });
+    const all = run(context, [{ type: "select-all" }]).model;
+
+    // Six pixels of a fingertip rolling is a tap: it narrows the selection
+    // to him, as a click does, and moves nobody.
+    const tapped = run(
+      context,
+      [
+        touch("pointer-down", q),
+        touch("pointer-move", across(6)),
+        touch("pointer-up", across(6)),
+      ],
+      all,
+    );
+    expect(tapped.commands).toHaveLength(0);
+    expect(tapped.model.selection).toEqual([player("q")]);
+
+    // The same six pixels under a mouse are a drag of everything picked.
+    const dragged = run(
+      context,
+      [down(q), move(across(6)), up(across(6))],
+      all,
+    );
+    expect(dragged.commands).toHaveLength(1);
+
+    // And a finger that means to move him still does.
+    const moved = run(context, [
+      touch("pointer-down", q),
+      touch("pointer-move", across(24)),
+      touch("pointer-up", across(24)),
+    ]);
+    expect(moved.commands).toHaveLength(1);
+  });
+
   it("commits one batch that carries a Player and his attached route", () => {
     const context = contextFor(stickThunderPlay, {
       snap: { enabled: false, grid: "off" },
@@ -592,6 +641,32 @@ describe("field hit testing", () => {
     expect(
       hitTestField(scene, offset, screenScale, fieldHitOptions("touch"))?.item,
     ).toEqual(player("q"));
+  });
+
+  it("gives a finger the man it landed on when the men stand closer than it is wide", () => {
+    // A phone draws the field at about four tenths of its frame, which puts
+    // linemen fourteen pixels apart inside a finger's forty-four.
+    const phone = {
+      lateralPixelsPerYard: screenScale.lateralPixelsPerYard * 0.39,
+      depthPixelsPerYard: screenScale.depthPixelsPerYard * 0.39,
+    };
+    for (const man of stickThunderPlay.players) {
+      expect(
+        hitTestField(scene, man.position, phone, fieldHitOptions("touch"))
+          ?.item,
+      ).toEqual(player(man.id));
+    }
+    // Off his centre, a press still goes to whoever it is nearer.
+    const center = positionOf(stickThunderPlay, "ol2");
+    const guard = positionOf(stickThunderPlay, "ol3");
+    const leaning = {
+      lateralYards:
+        center.lateralYards + (guard.lateralYards - center.lateralYards) * 0.4,
+      depthYards: center.depthYards,
+    };
+    expect(
+      hitTestField(scene, leaning, phone, fieldHitOptions("touch"))?.item,
+    ).toEqual(player("ol2"));
   });
 
   it("selects on a touch press that a mouse press would miss", () => {

@@ -75,6 +75,22 @@ const expectSavedOnThisDevice = (page: Page) =>
     "Saved on this device",
   );
 
+/**
+ * Where a man stands on the glass: his own origin through the field's
+ * transform, which is his centre whatever else is drawn about him — a
+ * selection halo, the draw-a-route mark.
+ */
+const manOnGlass = (page: Page, id: string) =>
+  page.evaluate((id) => {
+    const man = document.querySelector<SVGGElement>(
+      `[data-scene-player='${id}']`,
+    );
+    const matrix = man?.getScreenCTM();
+    if (!matrix) throw new Error(`${id} is not on the field.`);
+    const centre = new DOMPoint(0, 0).matrixTransform(matrix);
+    return { x: centre.x, y: centre.y };
+  }, id);
+
 const enterEditor = async (page: Page) => {
   await page.goto("/");
   // Every viewport here is below the editor's floor, so the reading shell is
@@ -458,6 +474,41 @@ for (const viewport of WORKSPACES) {
       });
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+    });
+
+    test("picks the man a finger taps, shoulder to shoulder on the line", async ({
+      page,
+    }) => {
+      await enterEditor(page);
+      await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+      const ids = await page
+        .locator("[data-scene-player]")
+        .evaluateAll((men) =>
+          men.map((man) => man.getAttribute("data-scene-player")!),
+        );
+      // The quarterback first, so his draw-a-route mark is standing over the
+      // center when the center is tapped next; then every other man in turn.
+      const order = [
+        "q",
+        "ol2",
+        ...ids.filter((id) => id !== "q" && id !== "ol2"),
+      ];
+      for (const id of order) {
+        const at = await manOnGlass(page, id);
+        await page.touchscreen.tap(at.x, at.y);
+        await expect(
+          page.locator("[data-scene-player].selected"),
+          `a tap on ${id}`,
+        ).toHaveAttribute("data-scene-player", id);
+        await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+      }
+      // Tapping men moved none of them.
+      await expect(
+        page.locator("header.topbar").getByRole("button", {
+          name: "Undo",
+          exact: true,
+        }),
+      ).toBeDisabled();
     });
 
     test("gives a picked man his routes from a tray above the tools", async ({

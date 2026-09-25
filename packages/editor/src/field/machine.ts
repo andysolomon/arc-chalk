@@ -46,6 +46,7 @@ import {
   DRAW_CURVE_THRESHOLD_PX,
   MARQUEE_THRESHOLD_PX,
   MOVE_THRESHOLD_PX,
+  moveThresholdPx,
   type FieldGesture,
   type FieldInteractionContext,
   type FieldInteractionEvent,
@@ -290,7 +291,7 @@ function pointerMove(
   if (gesture.kind === "pressing") {
     if (
       screenDistancePx(gesture.start, input.point, context.screenScale) <
-      MOVE_THRESHOLD_PX
+      moveThresholdPx(input.pointerType)
     ) {
       return { model };
     }

@@ -95,6 +95,7 @@ import {
   type PlayerAlignment,
   linemenOf,
   linePresetIsOn,
+  FINGER_TAP_SLOP_PX,
   fieldHitOptions,
   fieldInteraction,
   hitTestField,
@@ -338,14 +339,6 @@ const destinations: readonly { readonly view: View; readonly label: string }[] =
 
 /** The original's own wait before a held press becomes a menu. */
 const LONG_PRESS_MS = 480;
-/**
- * How far a finger may wander between landing on the grass and lifting and
- * still have tapped it. A fingertip is not a mouse: it rolls a few pixels on
- * the way down and on the way up, and the machine's own two-pixel move
- * threshold, which suits a Pencil, would turn most taps into the smallest
- * possible pan and leave the selection standing.
- */
-const FINGER_TAP_SLOP_PX = 10;
 /**
  * The frame the renderer draws into, which is what the camera looks at. Taken
  * from the renderer rather than written out again, so the two cannot drift.
@@ -3168,26 +3161,31 @@ export function ChalkApp({
         hoveredPlayerId)
       : undefined;
 
+  /**
+   * What a screen pixel is worth in yards. It changes with the camera and
+   * with the size of the screen, and this is measured from both — so a
+   * tolerance the original wrote in pixels stays that many pixels under the
+   * Coach's finger wherever he is working.
+   */
+  const fieldScreenScale = () => {
+    const zoom = fieldWidthPx / cameraRef.current.width;
+    return {
+      lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard * zoom,
+      depthPixelsPerYard: scene.viewport.depthPixelsPerYard * zoom,
+    };
+  };
   const dispatchField = (event: FieldInteractionEvent): void => {
     const document = editorStore.getSnapshot().document;
     const previous = interactionRef.current;
     // The scene is only consulted for hit tests, so build it on demand.
     let renderScene: RenderScene | undefined;
-    const zoom = fieldWidthPx / cameraRef.current.width;
     const result = fieldInteraction(previous, event, {
       document,
       get scene() {
         renderScene ??= buildRenderScene(document, { presentation });
         return renderScene;
       },
-      // What a screen pixel is worth in yards changes with the camera and
-      // with the size of the screen, and this is measured from both — so a
-      // tolerance the original wrote in pixels stays that many pixels under
-      // the Coach's finger wherever he is working.
-      screenScale: {
-        lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard * zoom,
-        depthPixelsPerYard: scene.viewport.depthPixelsPerYard * zoom,
-      },
+      screenScale: fieldScreenScale(),
       snap: { enabled: snapEnabled, grid: "off" },
       tool: interactionTool(activeTool),
       depthWindow: fieldDepthWindow(scene.viewport),
@@ -3416,10 +3414,10 @@ export function ChalkApp({
     const found = hitTestField(
       buildRenderScene(document, { presentation }),
       fieldPointFromClient(clientX, clientY),
-      {
-        lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard,
-        depthPixelsPerYard: scene.viewport.depthPixelsPerYard,
-      },
+      // In screen pixels, zoom included, as the press itself is measured: a
+      // phone draws the field small, and in the frame's own pixels a finger's
+      // reach there would shrink to a fraction of what selects the man.
+      fieldScreenScale(),
       // A finger is allowed the same wider reach here as it is everywhere
       // else; asking with mouse precision would make the menu the one thing
       // on the field a touch had to be accurate to open.
@@ -3448,14 +3446,10 @@ export function ChalkApp({
     const document = editorStore.getSnapshot().document;
     // Measured the way the machine measures its own press, zoom included, so
     // the finger is told the same thing here that it would be told there.
-    const zoom = fieldWidthPx / cameraRef.current.width;
     const found = hitTestField(
       buildRenderScene(document, { presentation }),
       fieldPointFromClient(clientX, clientY),
-      {
-        lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard * zoom,
-        depthPixelsPerYard: scene.viewport.depthPixelsPerYard * zoom,
-      },
+      fieldScreenScale(),
       fieldHitOptions(pointerType),
     );
     return found === undefined;
@@ -3643,9 +3637,10 @@ export function ChalkApp({
     // flush it before reading whether the press survived.
     //
     // The original allowed six pixels of tremor before giving up on the menu.
-    // Production asks the machine instead, which lets go at two — one press
-    // cannot both be dragging a man and offering a menu about him, and the
-    // machine is what already decides which of those is happening.
+    // Production asks the machine instead, which lets go at a finger's tap
+    // slop, or two pixels for a Pencil — one press cannot both be dragging a
+    // man and offering a menu about him, and the machine is what already
+    // decides which of those is happening.
     if (interactionRef.current.gesture.kind === "pressing") {
       paintLoop.flush();
     }

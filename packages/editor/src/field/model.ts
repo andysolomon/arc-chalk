@@ -303,3 +303,17 @@ export const MARQUEE_THRESHOLD_PX = 3;
 export const DRAW_POINT_MIN_PX = 4;
 export const DRAW_CURVE_THRESHOLD_PX = 7;
 export const TRACE_POINT_MIN_PX = 2;
+
+/**
+ * How far a finger may wander between landing and lifting and still have
+ * tapped. A fingertip is not a mouse: it rolls a few pixels on the way down
+ * and on the way up, and the two pixels that suit a mouse or a Pencil would
+ * turn most taps into the smallest possible drag — of the man pressed, or of
+ * the field when it was the grass.
+ */
+export const FINGER_TAP_SLOP_PX = 10;
+
+/** How far a press travels before it is a drag, for what is pressing. */
+export function moveThresholdPx(pointerType?: string): number {
+  return pointerType === "touch" ? FINGER_TAP_SLOP_PX : MOVE_THRESHOLD_PX;
+}
