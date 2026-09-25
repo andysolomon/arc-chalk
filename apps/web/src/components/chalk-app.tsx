@@ -49,6 +49,7 @@ import {
   formationFromOffense,
   stockDefensiveCalls,
   stockFormations,
+  baseAlignment,
   addCoachPlayType,
   formatClassification,
   type Concept,
@@ -59,8 +60,10 @@ import {
   type MovementPath,
   type Player,
   type BallSpot,
+  type AlignmentResetTarget,
   type PlayCommand,
   type PlayDocument,
+  type PlayerSideOfBall,
   type PlayUnit,
   type PlayErasure,
   type TextLabel,
@@ -82,6 +85,7 @@ import {
   applyConceptCommand,
   applyDefensiveCallCommand,
   applyFormationCommand,
+  resetAlignmentCommand,
   applyLabelRoleCommand,
   applyPlayerRoutePresetCommand,
   applyRoutePresetCommand,
@@ -795,7 +799,7 @@ function FieldInteractionOverlay({
     );
     // A stroke being traced is drawn as ink under the pointer, with no aim
     // line running ahead of it and no dot at each of its many samples.
-    const tracing = drawing.mode === "free" && drawing.pointerDown;
+    const tracing = drawing.strokeFrom !== undefined;
     return (
       <g className="drawing-overlay" pointerEvents="none">
         <path
@@ -1267,10 +1271,10 @@ const playerSymbolChoices: ReadonlyArray<{
 }> = [
   { symbol: "circle", glyph: "○", name: "Circle — receiver" },
   { symbol: "square", glyph: "□", name: "Square — center" },
-  { symbol: "triangle", glyph: "△", name: "Triangle" },
+  { symbol: "triangle", glyph: "△", name: "Triangle — defender" },
   { symbol: "oval", glyph: "⬭", name: "Oval — back" },
   { symbol: "x", glyph: "✕", name: "X" },
-  { symbol: "none", glyph: "A", name: "Letter only — defender" },
+  { symbol: "none", glyph: "A", name: "Letter only" },
 ];
 
 const playerFillChoices: ReadonlyArray<{
@@ -1575,7 +1579,7 @@ function PlayerInspector({
             title={`Draw his ${choice.label.toLowerCase()} from his stance — ${choice.shortcut}, then ${
               freeDraw
                 ? "draw it on the field with the pointer held down; lifting finishes"
-                : "click the field for each break; Done or Enter finishes"
+                : "click the field for each break, or drag from the end of the line to draw it by hand; Done or Enter finishes"
             }`}
             type="button"
           >
@@ -1594,7 +1598,7 @@ function PlayerInspector({
           title={
             freeDraw
               ? "Free draw is on: trace his line with the pointer held down; lifting finishes it. Switch off to click each break"
-              : "Free draw is off: click each break. Switch on to trace his line with the pointer held down"
+              : "Free draw is off: click each break, or drag from the blue dot or the end of the line to draw it by hand. Switch on to trace every line and finish it when the pointer lifts"
           }
           type="button"
         >
@@ -2039,6 +2043,76 @@ function RouteInspector({
   );
 }
 
+/** What one Reset button would put a side of the ball back in. */
+interface AlignmentResetOption {
+  readonly name: string;
+  /** Whether pressing it would move anyone. */
+  readonly available: boolean;
+}
+
+/**
+ * The resets a side of the ball offers: back to the set or call the Play
+ * remembers for it, if there is one, and to the base alignment.
+ */
+interface SideResets {
+  readonly chosen?: AlignmentResetOption;
+  readonly base: AlignmentResetOption;
+}
+
+/**
+ * Putting one side back, under its picker. The row appears once the Play
+ * remembers a set or call for that side and stays, so the inspector does not
+ * jump the moment a man is dragged; each button is grey when it would move
+ * nobody. A Play drawn by hand reaches base from the palette, which is also
+ * what keeps the untouched starter Play's inspector as the original drew it.
+ */
+function ResetRow({
+  onReset,
+  resets,
+  side,
+}: {
+  onReset: (side: PlayerSideOfBall, target: AlignmentResetTarget) => void;
+  resets: SideResets;
+  side: PlayerSideOfBall;
+}) {
+  const { base, chosen } = resets;
+  if (!chosen) return null;
+  const lines = side === "defense" ? "drops" : "routes";
+  return (
+    <div className="segment-row reset-row">
+      <span>Reset to</span>
+      <div className="segments">
+        <button
+          aria-label={`Reset ${side} to ${chosen.name}`}
+          disabled={!chosen.available}
+          onClick={() => onReset(side, "chosen")}
+          title={
+            chosen.available
+              ? `Put the ${side} back in ${chosen.name} — each man keeps his ${lines}`
+              : `Every man already stands where ${chosen.name} puts him`
+          }
+          type="button"
+        >
+          {chosen.name}
+        </button>
+        <button
+          aria-label={`Reset ${side} to base — ${base.name}`}
+          disabled={!base.available}
+          onClick={() => onReset(side, "base")}
+          title={
+            base.available
+              ? `Put the ${side} in the base ${side === "defense" ? "call" : "formation"}, ${base.name} — each man keeps his ${lines}`
+              : `Every man already stands where ${base.name} puts him`
+          }
+          type="button"
+        >
+          Base
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Inspector({
   ballSpots,
   call,
@@ -2067,6 +2141,8 @@ function Inspector({
   sheet = false,
   shadowOn,
   onToggleShadow,
+  resets,
+  onReset,
   unit,
 }: {
   ballSpots: readonly {
@@ -2113,6 +2189,9 @@ function Inspector({
   /** Whether the other unit's shadow is on the field (ADR 0053). */
   shadowOn: boolean;
   onToggleShadow: () => void;
+  /** Putting each side of the ball back (ADR 0055). */
+  resets: Readonly<Record<PlayerSideOfBall, SideResets>>;
+  onReset: (side: PlayerSideOfBall, target: AlignmentResetTarget) => void;
 }) {
   const defense = unit === "defense";
   const shadowName = defense ? "Shadow offense" : "Shadow defense";
@@ -2186,6 +2265,7 @@ function Inspector({
           ))}
         </div>
       </div>
+      <ResetRow onReset={onReset} resets={resets.offense} side="offense" />
       <Hint about="the formation">{formationHint}</Hint>
     </>
   );
@@ -2213,10 +2293,11 @@ function Inspector({
           &nbsp;›
         </span>
       </button>
+      <ResetRow onReset={onReset} resets={resets.defense} side="defense" />
       <Hint about="defensive calls">
         Start with a call — each one replaces the last and leaves the offense
-        untouched. Just the front and secondary — letter symbols only, so you
-        can draw your own coverage on top. Press Z to add your own drop.
+        untouched. Just the front and secondary — a triangle for each man, so
+        you can draw your own coverage on top. Press Z to add your own drop.
       </Hint>
     </>
   );
@@ -2463,9 +2544,12 @@ export function ChalkApp({
   const publishLiveVisualsRef = useRef<
     (model: FieldInteractionModel, metrics?: PaintLoopSample) => void
   >(() => undefined);
-  const pendingPointerRef = useRef<FieldInteractionEvent | undefined>(
-    undefined,
-  );
+  /**
+   * Moves waiting for the next paint. A drag only needs the latest point.
+   * A traced stroke needs every sample: the fit runs through the hand's
+   * path, and keeping only the last point in the frame straightens the bend.
+   */
+  const pendingPointersRef = useRef<FieldInteractionEvent[]>([]);
   const [paintLoop] = useState(() =>
     createPaintLoop({
       now: () => performance.now(),
@@ -2609,23 +2693,13 @@ export function ChalkApp({
   const stylusRef = useRef<StylusState>(idleStylus);
   const [precisePointer, setPrecisePointer] = useState(() => !deviceIsCoarse());
   /**
-   * Whether this screen is too small to work on, and so shows the Play to be
-   * read instead. A phone on the sideline is for looking at what was called,
-   * and a thumb on the glass must not move a man on it.
+   * A screen below the editor's floor opens straight into the editor laid
+   * out for a phone (issue #92) — a two-row header, the tools in a tray
+   * along the bottom, the inspector as a sheet over the field. There is no
+   * read-only stop on the way in: a Coach who comes back to Chalk after
+   * switching apps picks up where he left off.
    */
-  const [reading, setReading] = useState(false);
-  /**
-   * The Coach's own say on a screen below the floor (issue #68): he can
-   * draw on it if he means to, for this session. Nothing infers it.
-   */
-  const [editAnyway, setEditAnyway] = useState(false);
-  const readsOnly = reading && !editAnyway;
-  /**
-   * Editing on a screen below the floor (issue #92): the same editor, laid
-   * out for a phone — a two-row header, the tools in a tray along the
-   * bottom, the inspector as a sheet over the field.
-   */
-  const phoneWorkspace = reading && editAnyway;
+  const [phoneWorkspace, setPhoneWorkspace] = useState(false);
   /**
    * Below the docked inspector's floor the inspector is a drawer over the
    * field (issue #68). Watched, because a tablet turns over.
@@ -3294,9 +3368,9 @@ export function ChalkApp({
     liveStore.notify(model);
   };
   const flushLivePaint = (): void => {
-    const pending = pendingPointerRef.current;
-    pendingPointerRef.current = undefined;
-    if (pending) dispatchFieldRef.current(pending);
+    const pending = pendingPointersRef.current;
+    pendingPointersRef.current = [];
+    for (const event of pending) dispatchFieldRef.current(event);
     const model = interactionRef.current;
     const metrics = paintLoop.sample();
     publishLiveVisuals(model, metrics.frames > 0 ? metrics : undefined);
@@ -3396,7 +3470,14 @@ export function ChalkApp({
   };
   const fieldPointFromClient = (clientX: number, clientY: number) =>
     unprojectPoint(framePointFromClient(clientX, clientY), scene.viewport);
-  const fieldPointerInput = (event: React.PointerEvent) => ({
+  const fieldPointerInput = (event: {
+    clientX: number;
+    clientY: number;
+    pointerId: number;
+    shiftKey: boolean;
+    button: number;
+    pointerType: string;
+  }) => ({
     point: fieldPointFromClient(event.clientX, event.clientY),
     pointerId: event.pointerId,
     shiftKey: event.shiftKey,
@@ -3503,6 +3584,10 @@ export function ChalkApp({
       abandonTouchGesture();
     noteStylus(stylusDown(stylusRef.current, event.pointerType));
     paintLoop.reset();
+    // A press is where the pointer is now. The field takes it from here, so
+    // the leave of a man it was over may never arrive; what the press picks
+    // is what offers the dot, not a hover left behind.
+    setHoveredPlayerId(undefined);
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -3533,12 +3618,10 @@ export function ChalkApp({
     // Held space or a held alt moves the field instead of what is on it —
     // the gestures every drawing tool has trained into him. So does a finger,
     // once a Pencil has been out: the tip draws and the hand moves the field,
-    // which is what ADR 0016 means by leaving touch the viewport. On a screen
-    // too small to work on, moving the field is all any pointer does. A
-    // middle-mouse drag does the same — the Figma way to pan without giving
-    // up the primary button or hunting for a modifier.
+    // which is what ADR 0016 means by leaving touch the viewport. A
+    // middle-mouse drag does the same — the Figma way to pan without
+    // giving up the primary button or hunting for a modifier.
     if (
-      readsOnly ||
       spaceHeldRef.current ||
       event.altKey ||
       event.button === 1 ||
@@ -3574,7 +3657,14 @@ export function ChalkApp({
     flushLivePaint();
     cancelLongPress();
     // A mouse has a button for this; every other pointer holds still instead.
-    if (event.pointerType === "mouse" || event.button !== 0) return;
+    // Not while a line is in hand: a finger resting on his stance before it
+    // draws is starting the line, not asking about the man.
+    if (
+      event.pointerType === "mouse" ||
+      event.button !== 0 ||
+      interactionRef.current.drawing
+    )
+      return;
     const { clientX, clientY, pointerType } = event;
     longPressRef.current = setTimeout(() => {
       longPressRef.current = undefined;
@@ -3632,10 +3722,22 @@ export function ChalkApp({
     // gesture of its own to end — but a route left part-drawn would follow it
     // anyway, which is the one thing a rejected palm can still reach.
     if (touchNavigates(stylusRef.current, event.pointerType)) return;
-    pendingPointerRef.current = {
-      type: "pointer-move",
-      input: fieldPointerInput(event),
-    };
+    const drawing = interactionRef.current.drawing;
+    // Any stroke being traced — free, off the dot, or off the end of a line
+    // clicked in breaks — keeps every sample; bending a break needs the last.
+    const keepEverySample =
+      drawing !== undefined &&
+      (drawing.strokeFrom !== undefined || drawing.initialDrag !== undefined);
+    const samples = event.nativeEvent.getCoalescedEvents?.() ?? [];
+    const moves = (samples.length > 0 ? samples : [event]).map(
+      (sample): FieldInteractionEvent => ({
+        type: "pointer-move",
+        input: fieldPointerInput(sample),
+      }),
+    );
+    pendingPointersRef.current = keepEverySample
+      ? [...pendingPointersRef.current, ...moves]
+      : moves.slice(-1);
     scheduleLivePaint(event.timeStamp);
     // Asked after the move, not before it: this very event is what turns a
     // still press into a drag, and reading the gesture first would always find
@@ -4259,6 +4361,67 @@ export function ChalkApp({
   };
 
   /**
+   * Putting each side of the ball back (ADR 0055): in the set or call the
+   * Play remembers, or in base. As with the ball spots, a reset that would
+   * move nobody is no command at all, which is what greys its button.
+   */
+  const alignmentResets = useMemo(() => {
+    const option = (side: PlayerSideOfBall, target: AlignmentResetTarget) => {
+      const { command, result } = resetAlignmentCommand(
+        editor.document,
+        side,
+        target,
+        allFormations,
+      );
+      return result
+        ? { name: result.alignment.name, available: command !== undefined }
+        : undefined;
+    };
+    const side = (name: PlayerSideOfBall): SideResets => {
+      const chosen = option(name, "chosen");
+      return {
+        ...(chosen ? { chosen } : {}),
+        base: option(name, "base") ?? {
+          name: baseAlignment(name).name,
+          available: false,
+        },
+      };
+    };
+    return { offense: side("offense"), defense: side("defense") };
+  }, [allFormations, editor.document]);
+  /**
+   * The reset is the Coach's whole gesture, the way picking a set is: built
+   * from the live Play, one transaction, and a word about what it did where
+   * he is already looking.
+   */
+  const resetMen = (
+    side: PlayerSideOfBall,
+    target: AlignmentResetTarget,
+  ): void => {
+    const document = editorStore.getSnapshot().document;
+    const { command, result } = resetAlignmentCommand(
+      document,
+      side,
+      target,
+      allFormations,
+    );
+    if (!command || !result) return;
+    setOverlay(null);
+    // Putting the shadow back is asking to see it.
+    if (side !== document.unit) showShadow();
+    const men = result.movedCount === 1 ? "1 man" : `${result.movedCount} men`;
+    setToast({
+      name: result.alignment.name,
+      text:
+        result.movedCount === 0
+          ? "— already aligned"
+          : target === "base"
+            ? `— base, ${men} moved`
+            : `— ${men} back in place`,
+    });
+    runPanelCommand(command, { selection: [], drawing: undefined });
+  };
+  /**
    * Bringing forward and sending back are unavailable when the selection is
    * already as far as it goes — or is only Players, who draw above every line
    * whatever order they are stored in. Grey and inert come from one answer.
@@ -4705,6 +4868,19 @@ export function ChalkApp({
     },
     alignDepth: alignAction("depth"),
     alignSplits: alignAction("splits"),
+    // A reset that would move nobody is unavailable, as its button is grey.
+    ...(alignmentResets.offense.chosen?.available
+      ? { resetOffense: () => resetMen("offense", "chosen") }
+      : {}),
+    ...(alignmentResets.offense.base.available
+      ? { resetOffenseBase: () => resetMen("offense", "base") }
+      : {}),
+    ...(alignmentResets.defense.chosen?.available
+      ? { resetDefense: () => resetMen("defense", "chosen") }
+      : {}),
+    ...(alignmentResets.defense.base.available
+      ? { resetDefenseBase: () => resetMen("defense", "base") }
+      : {}),
     group: groupAction,
     ungroup: ungroupAction,
     reverseRoute: reverseAction,
@@ -4791,10 +4967,10 @@ export function ChalkApp({
     const query = globalThis.matchMedia(editorScreenQuery);
     const read = () => {
       const tooSmall = !query.matches;
-      setReading(tooSmall);
-      // Whatever corner of the field he had been working in, a screen he can
-      // only read shows the Play whole to begin with. He can still go in for
-      // a closer look; he should not have to come back out for the first one.
+      setPhoneWorkspace(tooSmall);
+      // Whatever corner of the field he had been working in on a bigger
+      // screen, a phone shows the Play whole to begin with. He can still go
+      // in for a closer look; he should not have to come back out first.
       if (tooSmall) setCamera(fitCamera(EDITOR_FRAME));
     };
     read();
@@ -4855,9 +5031,6 @@ export function ChalkApp({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      // A keyboard reaches a phone too — paired, or on a screen the browser
-      // has shrunk — and every shortcut below this line changes the Play.
-      if (readsOnly) return;
       const target = event.target as HTMLElement | null;
       const typing =
         target?.isContentEditable ||
@@ -4996,16 +5169,16 @@ export function ChalkApp({
       }
       if (meta && !typing && (key === "]" || key === "[")) {
         event.preventDefault();
-        // Built from the live document and selection rather than from the
-        // render that registered this listener, which may be older.
-        const command = reorderSelectionCommand(
-          editorStore.getSnapshot().document,
-          interactionRef.current.selection,
-          key === "]" ? 1 : -1,
-        );
-        if (command) {
-          void editorStore.applyCommand(command).catch(() => undefined);
-        }
+        // Built when this save runs, not from the document the key found.
+        // The menu's reorder may still be in the queue, and a command
+        // captured now would paint that older order back over it.
+        const direction = key === "]" ? 1 : -1;
+        const selection = interactionRef.current.selection;
+        void editorStore
+          .applyEdit((document) =>
+            reorderSelectionCommand(document, selection, direction),
+          )
+          .catch(() => undefined);
         return;
       }
       if (meta && !typing && (key === "c" || key === "v" || key === "d")) {
@@ -5138,7 +5311,6 @@ export function ChalkApp({
     openMenu,
     overlay,
     playbook,
-    readsOnly,
     showSelectionOnKey,
   ]);
 
@@ -5436,44 +5608,6 @@ export function ChalkApp({
    * tap away, and the answer is remembered per device.
    */
 
-  /**
-   * Below the editor's floor the header is the three destinations, the
-   * Play's name, and the Coach's choice between reading and editing (issue
-   * #68); everything else waits for a screen that can carry it.
-   */
-  const compactHeader = (
-    <header className="topbar reading-topbar">
-      <div className="chalk-mark" aria-hidden="true">
-        <i />
-      </div>
-      <nav className="view-tabs" aria-label="Workspace views">
-        {destinations.map(({ view, label }) => (
-          <button
-            aria-current={activeView === view ? "page" : undefined}
-            className={activeView === view ? "active" : ""}
-            key={view}
-            onClick={() => goToView(view)}
-            type="button"
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-      <button
-        className="reading-edit"
-        onClick={() => setEditAnyway(true)}
-        title="Open the drawing tools on this screen for this session"
-        type="button"
-      >
-        Edit on this screen
-      </button>
-      {/* A phone's reading header is two deliberate rows: the destinations
-          and the way in, then the name (issue #92). */}
-      <span className="top-break" aria-hidden="true" />
-      <span className="reading-name">{editor.document.name}</span>
-      <span className="reading-chip">Read only</span>
-    </header>
-  );
   /** Whether an image a prepared Play references is on this device. */
   const hasImage = useCallback(
     (hash: string) =>
@@ -5529,9 +5663,7 @@ export function ChalkApp({
     label: preset.name,
     title: "Run this output again",
   }));
-  const header = readsOnly ? (
-    compactHeader
-  ) : (
+  const header = (
     <Header
       actions={actions}
       activeView={activeView}
@@ -5559,7 +5691,7 @@ export function ChalkApp({
       sync={sync}
       syncSnapshot={syncSnapshot}
       onOpenConflicts={() => setOverlay("conflicts")}
-      onReadOnly={reading ? () => setEditAnyway(false) : undefined}
+      phone={phoneWorkspace}
       recentOutputs={recentOutputs}
       wristband={{
         rows: libraryRows,
@@ -5654,9 +5786,8 @@ export function ChalkApp({
     }
     return null;
   })();
-  // The only report of a failed write, so every shell shows it — the reading
-  // shell included, where the draft a Coach could not save must stay
-  // recoverable (issue #97).
+  // The only report of a failed write, so the draft a Coach could not save
+  // stays recoverable on every screen, a phone's included (issue #97).
   const saveStateButton = (
     <button
       aria-label={localSaveMessage(editor.localSave)}
@@ -5680,49 +5811,6 @@ export function ChalkApp({
       {localSaveStatus(editor.localSave)}
     </button>
   );
-
-  if (readsOnly && activeView === "Editor") {
-    // A phone shows the Play and nothing that changes it. The field still
-    // moves — a Coach on the sideline wants a closer look at one man — but
-    // every pointer here only moves the camera, so the picture in his hand is
-    // the picture that was called. The destinations stay a tap away, and so
-    // does the editor for a Coach who means to use it here (issue #68).
-    return (
-      <div className="chalk-shell view-reading">
-        {compactHeader}
-        <main className="editor-stage">
-          <div className="field-wrap">
-            <FieldDiagram
-              camera={camera}
-              livePreviewRef={livePreviewRef}
-              onPointerCancel={onFieldPointerCancel}
-              onPointerDown={onFieldPointerDown}
-              onPointerMove={onFieldPointerMove}
-              onPointerUp={onFieldPointerUp}
-              scene={scene}
-              svgRef={fieldSvgRef}
-            />
-            <ul aria-label="Everything on the field" className="field-outline">
-              {fieldItems.map((item) => (
-                <li key={`${item.kind}:${item.id}`}>{fieldItemName(item)}</li>
-              ))}
-            </ul>
-          </div>
-        </main>
-        <div className="statusbar reading-statusbar">
-          <span>
-            {editor.document.players.length}P · {editor.document.paths.length}R
-          </span>
-          {saveStateButton}
-        </div>
-        <p className="reading-note">
-          This screen is below the editor's floor. Open the Play on a tablet or
-          a computer to change it, or press Edit on this screen to work here
-          anyway.
-        </p>
-      </div>
-    );
-  }
 
   const labelDensity = resolveTypeDensity(presentation).label;
   /**
@@ -6116,6 +6204,10 @@ export function ChalkApp({
               onDoubleClick={onFieldDoubleClick}
               onHoverPlayer={setHoveredPlayerId}
               onStartRoute={(playerId, event) => {
+                // The dot goes as the route starts, and the leave its man
+                // would have had goes with it. Without this he keeps
+                // offering it after the Coach has tapped away.
+                setHoveredPlayerId(undefined);
                 dispatchField({
                   type: "start-route",
                   playerId,
@@ -6455,6 +6547,8 @@ export function ChalkApp({
             onToggle={toggleDisclosure}
             onToggleLayer={toggleFieldLayer}
             onToggleShadow={toggleShadow}
+            onReset={resetMen}
+            resets={alignmentResets}
             open={chrome.open}
             shadowOn={shadowOnField}
             unit={editor.document.unit}
@@ -7242,7 +7336,7 @@ function Header({
   sync,
   syncSnapshot,
   onOpenConflicts,
-  onReadOnly,
+  phone,
   recentOutputs,
   setPlayName,
   undo,
@@ -7278,15 +7372,15 @@ function Header({
   sync?: SyncOrchestrator;
   syncSnapshot: SyncSnapshot;
   onOpenConflicts: () => void;
-  /** Present on a screen below the floor: the way back to reading. */
-  onReadOnly?: () => void;
+  /** A screen below the floor: the two-row header of issue #92. */
+  phone: boolean;
   setPlayName: (name: string) => void;
   undo: EditorUndoState;
   versions: readonly EditorVersionSummary[];
   zonesHidden: boolean;
 }) {
   return (
-    <header className="topbar">
+    <header className={phone ? "topbar phone-topbar" : "topbar"}>
       <div className="chalk-mark" aria-hidden="true">
         <i />
       </div>
@@ -7352,16 +7446,6 @@ function Header({
             Redo
           </button>
           <span className="divider" />
-          {onReadOnly ? (
-            <button
-              className="reading-edit"
-              onClick={onReadOnly}
-              title="Put the tools away and read the play"
-              type="button"
-            >
-              Read only
-            </button>
-          ) : null}
           <NewPlayMenu
             actions={actions}
             onDismiss={onCloseMenu}

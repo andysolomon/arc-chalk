@@ -18,6 +18,7 @@ import {
   mirrorPlayGeometry,
   recognizeFormation,
   RECOGNITION_THRESHOLD,
+  resetAlignment,
   labelRolePresets,
   resolvePathTiming,
   routePresetNames,
@@ -29,6 +30,8 @@ import {
   legacyLateralSpanToYards,
   routeKindStyle,
   yardsToLegacyCanvas,
+  type AlignmentReset,
+  type AlignmentResetTarget,
   type ConceptDefinition,
   type BallSpot,
   type Coordinate,
@@ -41,6 +44,7 @@ import {
   type PathBranch,
   type PathPoint,
   type Player,
+  type PlayerSideOfBall,
   type PlayCommand,
   type PlayDocument,
   type PrimitivePlayCommand,
@@ -1264,6 +1268,32 @@ export function applyDefensiveCallCommand(
     document,
     result.play,
     `Applied ${call.formation.name}`,
+  );
+  return {
+    result,
+    ...(command.commands.length > 0 ? { command } : {}),
+  };
+}
+
+/**
+ * Putting one side of the ball back in the set or call the Coach chose, or in
+ * the base alignment. The domain works out who goes where and carries each
+ * man's lines with him; as with applying a set, the result is expressed as an
+ * ordinary difference, so the whole reset is one transaction and one press of
+ * undo. Nothing to go back to, or everyone already there, is no command.
+ */
+export function resetAlignmentCommand(
+  document: PlayDocument,
+  side: PlayerSideOfBall,
+  target: AlignmentResetTarget,
+  catalogue: readonly Formation[] = stockFormations,
+): { readonly command?: PlayCommand; readonly result?: AlignmentReset } {
+  const result = resetAlignment(document, side, target, catalogue);
+  if (!result) return {};
+  const command = diffPlayDocuments(
+    document,
+    result.play,
+    `Reset ${side} to ${result.alignment.name}`,
   );
   return {
     result,

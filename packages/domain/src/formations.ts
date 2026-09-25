@@ -496,18 +496,16 @@ export interface RealignmentResult {
 }
 
 /**
- * Moves the men onto the set in place and carries what belongs to them: every
- * route travels with the man running it, control points included, and an
- * unbound offensive note goes with the nearest man who moved. A note pinned
- * to a route needs no help — it rides the route it is pinned to.
+ * Moves men to new spots and carries what belongs to each of them: every route
+ * travels with the man running it, control points included, and an unbound
+ * note beside a man goes with the nearest man of his side who was placed. A
+ * note pinned to a route needs no help — it rides the route it is pinned to.
+ * Realigning into a set does this, and so does putting the men back.
  */
-export function applyFormation(
+export function moveMenWithTheirLines(
   play: PlayDocument,
-  formation: Formation,
-  createId: (prefix: string) => string,
-  options: { readonly addMissingPlayers?: boolean } = {},
-): RealignmentResult {
-  const plan = planRealignment(play, formation);
+  targets: ReadonlyMap<string, Coordinate>,
+): PlayDocument {
   const halfWidth = play.fieldProfile.widthYards / 2;
   const inside = (point: Coordinate): Coordinate => ({
     lateralYards: Math.max(-halfWidth, Math.min(halfWidth, point.lateralYards)),
@@ -516,22 +514,21 @@ export function applyFormation(
 
   const shifts = new Map<
     string,
-    { readonly from: Coordinate; readonly to: Coordinate }
+    {
+      readonly from: Coordinate;
+      readonly to: Coordinate;
+      readonly side: PlayerSideOfBall;
+    }
   >();
-  for (const pair of plan.pairs) {
-    shifts.set(pair.playerId, { from: pair.from, to: pair.slot.position });
-  }
-
   const players = play.players.map((player) => {
-    const pair = plan.pairs.find(({ playerId }) => playerId === player.id);
-    if (!pair) return player;
-    return {
-      ...player,
-      position: pair.slot.position,
-      // A man the Coach has lettered keeps the shape he was drawn with; only
-      // an unlettered one takes the slot's, since that is the line's shape.
-      ...(player.label.trim() === "" ? { symbol: pair.slot.symbol } : {}),
-    };
+    const to = targets.get(player.id);
+    if (!to) return player;
+    shifts.set(player.id, {
+      from: player.position,
+      to,
+      side: sideOfBallForUnit(player.unit),
+    });
+    return { ...player, position: to };
   });
 
   const translate = (shift: { from: Coordinate; to: Coordinate }) => {
@@ -565,10 +562,13 @@ export function applyFormation(
   });
 
   const labels = play.labels.map((label) => {
-    if (label.binding || label.unit === "defense") return label;
+    if (label.binding) return label;
+    const side: PlayerSideOfBall =
+      label.unit === "defense" ? "defense" : "offense";
     let nearest:
       { shift: { from: Coordinate; to: Coordinate }; gap: number } | undefined;
     for (const shift of shifts.values()) {
+      if (shift.side !== side) continue;
       const gap = Math.hypot(
         label.position.lateralYards - shift.from.lateralYards,
         label.position.depthYards - shift.from.depthYards,
@@ -588,6 +588,37 @@ export function applyFormation(
         : {}),
     };
   });
+
+  return { ...play, players, paths, labels };
+}
+
+/**
+ * Moves the men onto the set in place, carrying what belongs to each of them,
+ * and adds the men the set has nobody for unless the Coach says not to.
+ */
+export function applyFormation(
+  play: PlayDocument,
+  formation: Formation,
+  createId: (prefix: string) => string,
+  options: { readonly addMissingPlayers?: boolean } = {},
+): RealignmentResult {
+  const plan = planRealignment(play, formation);
+  const slotFor = new Map(
+    plan.pairs.map(({ playerId, slot }) => [playerId, slot]),
+  );
+  const moved = moveMenWithTheirLines(
+    play,
+    new Map(plan.pairs.map(({ playerId, slot }) => [playerId, slot.position])),
+  );
+  const players = moved.players.map((player) => {
+    const slot = slotFor.get(player.id);
+    // A man the Coach has lettered keeps the shape he was drawn with; only
+    // an unlettered one takes the slot's, since that is the line's shape.
+    return slot && player.label.trim() === ""
+      ? { ...player, symbol: slot.symbol }
+      : player;
+  });
+  const { paths, labels } = moved;
 
   const addedPlayerIds: string[] = [];
   const added: Player[] = [];

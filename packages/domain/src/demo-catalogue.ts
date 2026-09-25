@@ -412,11 +412,11 @@ const blockPlay = playFrom("demo-block", "Outside Zone — Pull", "Run", {
     player("x", 130, 452, "X"),
     player("y", 700, 450, "Y"),
     player("z", 870, 452, "Z"),
-    player("dt", 452, 404, "T", { symbol: "none" }),
-    player("dn", 548, 404, "N", { symbol: "none" }),
-    player("de", 628, 400, "E", { symbol: "none" }),
-    player("dw", 430, 346, "W", { symbol: "none" }),
-    player("dm", 528, 342, "M", { symbol: "none" }),
+    player("dt", 452, 404, "T", { symbol: "triangle" }),
+    player("dn", 548, 404, "N", { symbol: "triangle" }),
+    player("de", 628, 400, "E", { symbol: "triangle" }),
+    player("dw", 430, 346, "W", { symbol: "triangle" }),
+    player("dm", 528, 342, "M", { symbol: "triangle" }),
   ]),
   routes: [
     route(
@@ -510,11 +510,11 @@ const blockSteps: readonly DemoStep[] = [
     ],
     "Player",
     [
-      ["a", "Letter-only symbol for defenders"],
+      ["a", "Triangle symbol for defenders"],
       ["b", "T N E up front, W M at linebacker"],
       ["c", "Color them separately if you like"],
     ],
-    "Draw the defenders you are blocking first — the Letter symbol gives you a bare T, N, E, W, M with no circle around it.",
+    "Draw the defenders you are blocking first — the Triangle symbol puts T, N, E, W, M each in a triangle, so they never read as your own men.",
   ),
   step(
     "Base blocks",
@@ -717,7 +717,7 @@ const airSteps: readonly DemoStep[] = [
 ];
 
 const gray = { color: "g" };
-const bare = { symbol: "none" };
+const defender = { symbol: "triangle" };
 const offense = offensiveLine("g").concat([
   player("oq", 500, 504, "Q", gray),
   player("ox", 130, 452, "X", gray),
@@ -726,19 +726,19 @@ const offense = offensiveLine("g").concat([
   player("oz", 870, 452, "Z", gray),
 ]);
 const front = [
-  player("de1", 392, 404, "E", bare),
-  player("dt1", 452, 404, "T", bare),
-  player("dt2", 548, 404, "T", bare),
-  player("de2", 608, 404, "E", bare),
-  player("dw", 420, 344, "W", bare),
-  player("dm", 504, 338, "M", bare),
-  player("ds", 592, 344, "S", bare),
+  player("de1", 392, 404, "E", defender),
+  player("dt1", 452, 404, "T", defender),
+  player("dt2", 548, 404, "T", defender),
+  player("de2", 608, 404, "E", defender),
+  player("dw", 420, 344, "W", defender),
+  player("dm", 504, 338, "M", defender),
+  player("ds", 592, 344, "S", defender),
 ];
 const back = [
-  player("dc1", 140, 372, "C", bare),
-  player("dc2", 860, 372, "C", bare),
-  player("dfs", 500, 192, "F", bare),
-  player("dss", 700, 304, "$", bare),
+  player("dc1", 140, 372, "C", defender),
+  player("dc2", 860, 372, "C", defender),
+  player("dfs", 500, 192, "F", defender),
+  player("dss", 700, 304, "$", defender),
 ];
 const zone = (id: string, playerId: string, points: readonly CanvasPoint[]) =>
   route(id, playerId, points, {
@@ -822,7 +822,7 @@ const defenseSteps: readonly DemoStep[] = [
   step(
     "Front seven",
     "player",
-    "P · Letter",
+    "P · Triangle",
     1600,
     front.map(({ id }) => id),
     [
@@ -832,11 +832,11 @@ const defenseSteps: readonly DemoStep[] = [
     ],
     "Player · Symbol",
     [
-      ["a", "Letter — bare initial, no shape"],
+      ["a", "Triangle — the letter goes inside"],
       ["b", "E T T E on the line"],
       ["c", "W M S at linebacker depth"],
     ],
-    "Defenders are letters, not circles. Pick the Letter symbol and type the position — E T T E up front, W M S behind them.",
+    "Defenders are triangles, not circles. Pick the Triangle symbol and type the position — E T T E up front, W M S behind them.",
   ),
   step(
     "Secondary",
