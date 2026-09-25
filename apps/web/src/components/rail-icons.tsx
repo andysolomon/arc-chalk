@@ -117,3 +117,37 @@ export function RailIcon({ glyph }: { glyph: RailGlyph }) {
     </svg>
   );
 }
+
+/**
+ * Undo and Redo as the phone header draws them (ADR 0057): a hook-back
+ * arrow on the rail's own 18-unit grid and stroke, one the mirror of the
+ * other. Wider screens keep the words.
+ */
+const history = {
+  undo: (
+    <>
+      <path d="M6.5 4 L3.5 7 L6.5 10" {...stroke} />
+      <path
+        d="M3.5 7 L10.75 7 A3.75 3.75 0 0 1 10.75 14.5 L7.5 14.5"
+        {...stroke}
+      />
+    </>
+  ),
+  redo: (
+    <>
+      <path d="M11.5 4 L14.5 7 L11.5 10" {...stroke} />
+      <path
+        d="M14.5 7 L7.25 7 A3.75 3.75 0 0 0 7.25 14.5 L10.5 14.5"
+        {...stroke}
+      />
+    </>
+  ),
+} as const;
+
+export function HistoryIcon({ direction }: { direction: "undo" | "redo" }) {
+  return (
+    <svg aria-hidden="true" height="18" viewBox="0 0 18 18" width="18">
+      {history[direction]}
+    </svg>
+  );
+}

@@ -137,6 +137,18 @@ async function unfold(
   );
 }
 
+/** The left sidebar (ADR 0058): formation, ball, shadow, layers, library, help. */
+const sidebarOf = () => screen.getByRole("navigation", { name: "Sidebar" });
+
+/** Picks a tab of the Settings dialog (ADR 0058). */
+async function settingsTab(
+  user: ReturnType<typeof userEvent.setup>,
+  settings: HTMLElement,
+  name: string,
+): Promise<void> {
+  await user.click(within(settings).getByRole("tab", { name }));
+}
+
 /**
  * Opens the Settings overlay — Field, Playbook settings, History and Print &
  * export moved off the inspector into a single dialog the Coach opens from
@@ -187,22 +199,22 @@ describe("Chalk application shell", () => {
     );
   });
 
-  it("keeps the original library panel and opens an additive Playbook browser", async () => {
+  it("keeps the original library panel, in the sidebar, and opens an additive Playbook browser", async () => {
     const user = userEvent.setup();
     render(<ChalkApp runtime={createTestRuntime()} />);
 
-    const inspector = screen.getByRole("complementary", {
-      name: "Play inspector",
-    });
-    expect(within(inspector).getByText("Library")).toBeVisible();
-    await unfold(user, inspector, "Library");
-    expect(within(inspector).getByText("This play")).toBeVisible();
+    // The library left the inspector for the sidebar (ADR 0058).
+    const sidebar = sidebarOf();
+    expect(within(sidebar).getByText("Library")).toBeVisible();
+    await unfold(user, sidebar, "Library");
+    const panel = within(sidebar).getByRole("group", { name: "Library" });
+    expect(within(panel).getByText("This play")).toBeVisible();
     expect(
-      within(inspector).getByRole("button", { name: "Browse Playbook" }),
+      within(panel).getByRole("button", { name: "Browse Playbook" }),
     ).toBeVisible();
 
     await user.click(
-      within(inspector).getByRole("button", { name: "Browse Playbook" }),
+      within(sidebar).getByRole("button", { name: "Browse Playbook" }),
     );
     expect(screen.getByRole("dialog", { name: "Playbook" })).toBeVisible();
     expect(screen.getByLabelText("Search plays")).toBeVisible();
@@ -330,10 +342,10 @@ describe("Chalk application shell", () => {
     expect(drawn()).toHaveLength(4);
     // The men are still in the play; only the picture changed.
     expect(editorStore.getSnapshot().document.players).toHaveLength(6);
-    // The layers popover reads the same switch.
-    expect(screen.getByRole("button", { name: /^Layers/ })).toHaveTextContent(
-      "Layers 4/5",
-    );
+    // The sidebar's Show on field row reads the same switch.
+    expect(
+      within(sidebarOf()).getByRole("button", { name: /^Show on field/ }),
+    ).toHaveTextContent("4 of 5");
 
     await user.keyboard("h");
     expect(shadow).toHaveAttribute("aria-pressed", "true");
@@ -568,11 +580,7 @@ describe("Chalk application shell", () => {
       />,
     );
 
-    await unfold(
-      user,
-      screen.getByRole("complementary", { name: "Play inspector" }),
-      "Shadow defense",
-    );
+    await unfold(user, sidebarOf(), "Shadow defense");
     await user.click(screen.getByTitle("Browse defenses — ⇧⌘D"));
     const book = screen.getByRole("dialog", { name: "Defenses" });
     await user.click(within(book).getByRole("tab", { name: "Favorites" }));
@@ -875,7 +883,9 @@ describe("Chalk application shell", () => {
     });
     render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
 
-    await user.click(screen.getByRole("button", { name: "Help" }));
+    await user.click(
+      within(screen.getByRole("banner")).getByRole("button", { name: "Help" }),
+    );
     await user.click(
       screen.getByRole("button", { name: "Demo — guided tour" }),
     );
@@ -1012,6 +1022,7 @@ describe("Chalk application shell", () => {
     const user = userEvent.setup();
     render(<ChalkApp runtime={createTestRuntime()} />);
     const settings = await openSettings(user);
+    await settingsTab(user, settings, "Print & export");
 
     await user.click(within(settings).getByRole("button", { name: /^Print$/ }));
     await user.click(
@@ -1137,12 +1148,10 @@ describe("Play classification (issue #63)", () => {
 
     expect(pill()).toHaveTextContent("Offense · Pass");
 
-    const inspector = screen.getByRole("complementary", {
-      name: "Play inspector",
-    });
-    await unfold(user, inspector, "Library");
+    const sidebar = sidebarOf();
+    await unfold(user, sidebar, "Library");
     await user.click(
-      within(inspector).getByRole("button", { name: "Browse Playbook" }),
+      within(sidebar).getByRole("button", { name: "Browse Playbook" }),
     );
     const book = screen.getByRole("dialog", { name: "Playbook" });
     const card = await within(book).findByRole("button", {
@@ -1178,11 +1187,7 @@ describe("Play classification (issue #63)", () => {
       members: [stickThunderPlay, coverThree, coverage].map(projectionOf),
     });
     render(<ChalkApp runtime={createTestRuntime({ library })} />);
-    await unfold(
-      user,
-      screen.getByRole("complementary", { name: "Play inspector" }),
-      "Library",
-    );
+    await unfold(user, sidebarOf(), "Library");
     await user.click(screen.getByRole("button", { name: "Browse Playbook" }));
     const book = screen.getByRole("dialog", { name: "Playbook" });
 
@@ -1316,23 +1321,36 @@ describe("Inspector progressive disclosure (issue #64)", () => {
   const before = (a: Element, b: Element) =>
     Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
-  it("leads the idle panel with play setup and folds library and print away", () => {
+  it("leads the idle panel with the play call and the roster, and keeps the play's setup in the sidebar", () => {
     render(<ChalkApp runtime={createTestRuntime()} />);
     const inspector = inspectorOf();
-    const formation = within(inspector).getByTitle("Browse formations — ⇧⌘F");
+    const sidebar = sidebarOf();
+    // Formation and the library are sidebar rows now (ADR 0058).
+    expect(
+      within(sidebar).getByTitle("Browse formations — ⇧⌘F"),
+    ).toHaveTextContent(/Custom alignment|Gun Doubles Right/);
+    expect(
+      within(inspector).queryByTitle("Browse formations — ⇧⌘F"),
+    ).toBeNull();
     const concept = within(inspector).getByRole("button", {
       name: /^No concept yet/,
     });
     const lineCall = within(inspector).getByRole("button", {
       name: /^No line call yet/,
     });
-    const library = within(inspector).getByRole("button", {
+    const library = within(sidebar).getByRole("button", {
       name: /^Library/,
       expanded: false,
     });
-    expect(before(formation, concept)).toBe(true);
+    expect(library).toBeVisible();
     expect(before(concept, lineCall)).toBe(true);
-    expect(before(lineCall, library)).toBe(true);
+    // Then the roster, grouped, with what each man is asked to do.
+    expect(within(inspector).getByText("Assignments")).toBeVisible();
+    expect(within(inspector).getByText("Skill")).toBeVisible();
+    expect(within(inspector).getByText("Line")).toBeVisible();
+    expect(
+      within(inspector).getByRole("button", { name: /^X: / }),
+    ).toBeVisible();
     // The grids and the library tree are not on the idle panel any more.
     expect(
       within(inspector).queryByRole("button", { name: "Reach" }),
@@ -1341,6 +1359,12 @@ describe("Inspector progressive disclosure (issue #64)", () => {
     expect(within(inspector).queryByText(/Applies to all/)).toBeNull();
     expect(
       within(inspector).queryByRole("button", { name: "Half field" }),
+    ).toBeNull();
+    expect(
+      within(inspector).queryByRole("button", { name: /^Shadow defense/ }),
+    ).toBeNull();
+    expect(
+      within(inspector).queryByRole("button", { name: /^Layers/ }),
     ).toBeNull();
     // Print & export, Field profile, Playbook settings and History moved
     // into the Settings overlay — they should not be on the inspector.
@@ -1356,12 +1380,8 @@ describe("Inspector progressive disclosure (issue #64)", () => {
     expect(
       within(inspector).queryByRole("button", { name: /^History/ }),
     ).toBeNull();
-    // What the folded sections currently say stays in view.
-    expect(
-      inspector.querySelector(
-        '[data-disclosure="library"] .disclosure-summary',
-      ),
-    ).toHaveTextContent(/^0 plays$/);
+    // What the sidebar rows currently say stays in view.
+    expect(library).toHaveTextContent(/0 plays/);
   });
 
   it("opens the searchable catalogue, draws a concept in two actions, and stars it", async () => {
@@ -1456,15 +1476,19 @@ describe("Inspector progressive disclosure (issue #64)", () => {
       />,
     );
     const inspector = inspectorOf();
-    expect(within(inspector).getByText("Defensive call")).toBeVisible();
-    expect(within(inspector).getByTitle("Browse defenses — ⇧⌘D")).toBeVisible();
+    const sidebar = sidebarOf();
+    expect(within(sidebar).getByText("Defensive call")).toBeVisible();
+    expect(within(sidebar).getByTitle("Browse defenses — ⇧⌘D")).toBeVisible();
     expect(
       within(inspector).queryByRole("button", { name: /^No concept yet/ }),
     ).toBeNull();
     expect(within(inspector).queryByText(/linemen/)).toBeNull();
+    // The roster reads the defense by level.
+    expect(within(inspector).getByText("Front")).toBeVisible();
+    expect(within(inspector).getByText("Secondary")).toBeVisible();
     // On a defensive play the offense is the shadow (ADR 0053).
     expect(
-      within(inspector).getByRole("button", {
+      within(sidebar).getByRole("button", {
         name: /^Shadow offense/,
         expanded: false,
       }),
@@ -1495,10 +1519,16 @@ describe("Inspector progressive disclosure (issue #64)", () => {
       expect((await library.loadChrome()).inspectorOpen).toBe(true);
     });
 
-    // Unfolded sections are remembered the same way.
-    await unfold(user, inspectorOf(), "Library");
+    // The sidebar is remembered the same way, and ⌥3 brings it back.
+    await user.click(screen.getByRole("button", { name: "Hide the sidebar" }));
+    expect(screen.queryByRole("navigation", { name: "Sidebar" })).toBeNull();
     await waitFor(async () => {
-      expect((await library.loadChrome()).open.library).toBe(true);
+      expect((await library.loadChrome()).sidebarOpen).toBe(false);
+    });
+    await user.keyboard("{Alt>}3{/Alt}");
+    expect(screen.getByRole("navigation", { name: "Sidebar" })).toBeVisible();
+    await waitFor(async () => {
+      expect((await library.loadChrome()).sidebarOpen).toBe(true);
     });
   });
 
@@ -1593,7 +1623,10 @@ describe("Chalk device durability surfaces", () => {
     expect(restored).toEqual(["revision_1"]);
 
     const settings = await openSettings(user);
-    expect(within(settings).getByText("History 1")).toBeVisible();
+    expect(
+      within(settings).getByRole("tab", { name: "History" }),
+    ).toHaveTextContent("1");
+    await settingsTab(user, settings, "History");
     expect(within(settings).getByText("just now")).toBeVisible();
     expect(within(settings).getByText("Install week")).toBeVisible();
     expect(
@@ -1609,6 +1642,7 @@ describe("Chalk device durability surfaces", () => {
     const user = userEvent.setup();
     render(<ChalkApp runtime={createTestRuntime()} />);
     const settings = await openSettings(user);
+    await settingsTab(user, settings, "History");
 
     expect(
       within(settings).getByRole("heading", { name: /^History/ }),
@@ -1818,6 +1852,136 @@ describe("Chalk encrypted backups", () => {
       await screen.findByText(
         "Restored 3 Plays. Newer work on this device was kept.",
       ),
+    ).toBeVisible();
+  });
+});
+
+describe("Assignments-only inspector and play sidebar (ADR 0058)", () => {
+  it("picks a man from the roster as the field would, and only his kind of assignment is offered", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+    const inspector = screen.getByRole("complementary", {
+      name: "Play inspector",
+    });
+    expect(within(inspector).getByText("Assignments")).toBeVisible();
+    expect(within(inspector).getByText(/^\d+ of 11$/)).toBeVisible();
+
+    // A tight end: routes and alternates, quick routes, quick blocks folded.
+    await user.click(within(inspector).getByRole("button", { name: /^Y: / }));
+    expect(
+      screen.getByRole("list", { name: "Everything on the field" }),
+    ).toBeVisible();
+    expect(within(inspector).getByText("Tight end")).toBeVisible();
+    expect(within(inspector).getByText("Offense")).toBeVisible();
+    expect(within(inspector).getByText("Routes & alternates")).toBeVisible();
+    expect(within(inspector).getByText("Quick routes")).toBeVisible();
+    expect(
+      within(inspector).getByRole("button", {
+        name: /^Quick blocks/,
+        expanded: false,
+      }),
+    ).toBeVisible();
+    expect(
+      within(inspector).queryByRole("button", { name: "Reach" }),
+    ).toBeNull();
+    expect(
+      within(inspector).queryByTitle("Browse formations — ⇧⌘F"),
+    ).toBeNull();
+
+    // Escape is the way back to the roster.
+    await user.keyboard("{Escape}");
+    expect(within(inspector).getByText("Assignments")).toBeVisible();
+
+    // A lineman: blocking alone, no routes.
+    const lineman = within(inspector).getAllByRole("button", {
+      name: /No block yet — /,
+    })[0]!;
+    await user.click(lineman);
+    expect(within(inspector).getByText("Blocking")).toBeVisible();
+    expect(within(inspector).getByText("Quick blocks")).toBeVisible();
+    expect(within(inspector).queryByText("Quick routes")).toBeNull();
+    expect(
+      within(inspector).getByRole("button", { name: "Reach" }),
+    ).toBeVisible();
+  });
+
+  it("reaches the formation, the play type and the layers from the sidebar", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
+    const sidebar = sidebarOf();
+    expect(within(sidebar).getByText("Playbook")).toBeVisible();
+    expect(within(sidebar).getByText("This play")).toBeVisible();
+    expect(
+      within(sidebar).getByRole("button", { name: /^Plays/ }),
+    ).toBeVisible();
+    expect(
+      within(sidebar).getByRole("button", { name: "Game Day" }),
+    ).toBeVisible();
+
+    await user.click(within(sidebar).getByTitle("Browse formations — ⇧⌘F"));
+    expect(screen.getByRole("dialog", { name: "Formations" })).toBeVisible();
+    await user.keyboard("{Escape}");
+
+    await user.click(
+      within(sidebar).getByRole("button", { name: /^Type of play, Pass/ }),
+    );
+    await user.click(
+      within(
+        screen.getByRole("group", { name: "Play classification" }),
+      ).getByRole("button", { name: "Run" }),
+    );
+    await waitFor(() =>
+      expect(
+        within(sidebar).getByRole("button", { name: /^Type of play, Run/ }),
+      ).toBeVisible(),
+    );
+
+    await user.click(
+      within(sidebar).getByRole("button", { name: /^Show on field/ }),
+    );
+    await user.click(within(sidebar).getByRole("button", { name: "Text" }));
+    expect(container.querySelector("[data-scene-label]")).toBeNull();
+    // A tap past the sidebar puts its popover away.
+    await user.click(screen.getByRole("main"));
+    expect(within(sidebar).queryByRole("button", { name: "Text" })).toBeNull();
+  });
+
+  it("tabs Settings, keeps Account there, and reaches it from the More menu's shortcut", async () => {
+    const user = userEvent.setup();
+    render(<ChalkApp runtime={createTestRuntime()} />);
+    const settings = await openSettings(user);
+    for (const name of [
+      "Field",
+      "Playbook",
+      "History",
+      "Print & export",
+      "Account",
+      "About",
+    ]) {
+      expect(within(settings).getByRole("tab", { name })).toBeVisible();
+    }
+    expect(
+      within(settings).getByRole("tab", { name: "Field", selected: true }),
+    ).toBeVisible();
+    await settingsTab(user, settings, "About");
+    expect(
+      within(settings).getByText(/A play-design and playbook editor/),
+    ).toBeVisible();
+    await settingsTab(user, settings, "Account");
+    expect(
+      within(settings).getByText(
+        "Cloud sign-in is not configured. Editing on this device still works.",
+      ),
+    ).toBeVisible();
+    await user.click(within(settings).getByRole("button", { name: "Close" }));
+
+    // The More menu's Account… lands on the tab; its own panel is gone.
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.queryByRole("button", { name: "Account" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Account…" }));
+    const again = screen.getByRole("dialog", { name: "Settings" });
+    expect(
+      within(again).getByRole("tab", { name: "Account", selected: true }),
     ).toBeVisible();
   });
 });
@@ -2052,6 +2216,7 @@ describe("Chalk editor overlays", () => {
     const user = userEvent.setup();
     const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
     const settings = await openSettings(user);
+    await settingsTab(user, settings, "Print & export");
 
     expect(within(settings).getByText("Page")).toBeVisible();
     expect(
@@ -2100,10 +2265,9 @@ describe("Chalk editor overlays", () => {
   it("scales the words and hides a family of marks from the type and layer controls", async () => {
     const user = userEvent.setup();
     const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
-    const inspector = screen.getByRole("complementary", {
-      name: "Play inspector",
-    });
+    const sidebar = sidebarOf();
     const settings = await openSettings(user);
+    await settingsTab(user, settings, "Print & export");
 
     expect(
       within(settings).getByText(
@@ -2130,24 +2294,28 @@ describe("Chalk editor overlays", () => {
       ),
     ).toBeVisible();
 
-    // The layer toggles live in the inspector bar's Layers popover now.
+    // The layer toggles live behind the sidebar's Show on field row now.
+    await user.click(within(settings).getByRole("button", { name: "Close" }));
     await user.click(
-      within(inspector).getByRole("button", { name: /^Layers/ }),
+      within(sidebar).getByRole("button", { name: /^Show on field/ }),
     );
-    await user.click(within(inspector).getByRole("button", { name: "Text" }));
+    await user.click(within(sidebar).getByRole("button", { name: "Text" }));
     expect(container.querySelector("[data-scene-label]")).toBeNull();
     expect(
-      within(inspector).getByRole("button", { name: "Text" }),
+      within(sidebar).getByRole("button", { name: "Text" }),
     ).toHaveAttribute("aria-pressed", "false");
     expect(
-      within(inspector).getByRole("button", { name: /^Layers 4\/5/ }),
+      within(sidebar).getByRole("button", { name: /^Show on field, 4 of 5/ }),
     ).toBeVisible();
   });
 
-  it("opens the shortcut reference from the inspector and closes it on Escape", async () => {
+  it("opens the shortcut reference from the sidebar's Help and closes it on Escape", async () => {
     const user = userEvent.setup();
     render(<ChalkApp runtime={createTestRuntime()} />);
 
+    await user.click(
+      within(sidebarOf()).getByRole("button", { name: /^Help/ }),
+    );
     await user.click(screen.getByRole("button", { name: "Shortcuts ?" }));
     const panel = screen.getByRole("dialog", { name: "Keyboard shortcuts" });
     expect(within(panel).getByText("Marquee select")).toBeVisible();
@@ -2439,11 +2607,7 @@ describe("Navigation (issue #65)", () => {
     expect(screen.getByRole("button", { name: "Play type" })).toHaveTextContent(
       "Defense",
     );
-    expect(
-      within(
-        screen.getByRole("complementary", { name: "Play inspector" }),
-      ).getByText("Defensive call"),
-    ).toBeVisible();
+    expect(within(sidebarOf()).getByText("Defensive call")).toBeVisible();
 
     await user.click(within(nav()).getByRole("button", { name: "Playbooks" }));
     await user.keyboard("{Escape}");
@@ -2880,7 +3044,7 @@ describe("Tablet and narrow screens (issue #68)", () => {
     }
   });
 
-  it("offers a picked man his routes in a tray above the tools on a phone, and a chosen one closes the sheet", async () => {
+  it("offers a picked man his routes in a tray above the tools on a phone, and the sheet stays for the next one", async () => {
     const restore = screenWhere((query) => !query.includes("min-width"));
     try {
       const user = userEvent.setup();
@@ -2888,10 +3052,15 @@ describe("Tablet and narrow screens (issue #68)", () => {
       const fieldList = screen.getByRole("list", {
         name: "Everything on the field",
       });
-      // Nothing picked, no tray: the field keeps the glass.
+      // Nothing picked, no tray: the field keeps the glass. The sheet peeks
+      // above the tools with a chip for every man (ADR 0058).
       expect(
         screen.queryByRole("navigation", { name: "Quick calls" }),
       ).toBeNull();
+      const sheet = () =>
+        screen.getByRole("complementary", { name: "Play inspector" });
+      expect(sheet()).toHaveAttribute("data-sheet", "peek");
+      expect(within(sheet()).getByRole("group", { name: "Men" })).toBeVisible();
 
       // A man with nothing on him gets the route tree, and one tap draws it.
       await user.click(
@@ -2911,49 +3080,43 @@ describe("Tablet and narrow screens (issue #68)", () => {
       expect(
         within(tray).getByRole("button", { name: "Slant" }),
       ).toHaveAttribute("aria-pressed", "true");
-
-      // The sheet was open; choosing from the tray is the answer, so it goes.
-      await user.click(screen.getByRole("button", { name: "Inspector" }));
+      // The chip says so too.
       expect(
-        screen.getByRole("complementary", { name: "Play inspector" }),
+        within(sheet()).getByRole("button", { name: /^Q — Slant/ }),
+      ).toHaveAttribute("aria-pressed", "true");
+
+      // The sheet opens full on the picked man; a call from the tray or the
+      // sheet updates the field and leaves the sheet where it is.
+      await user.click(
+        screen.getByRole("button", { name: "Show all assignments" }),
+      );
+      expect(sheet()).toHaveAttribute("data-sheet", "full");
+      expect(
+        within(sheet()).getByRole("button", { name: /back to the roster/ }),
       ).toBeVisible();
       await user.click(within(tray).getByRole("button", { name: "Curl" }));
-      expect(
-        screen.queryByRole("complementary", { name: "Play inspector" }),
-      ).toBeNull();
       await waitFor(() =>
         expect(
           within(tray).getByRole("button", { name: "Curl" }),
         ).toHaveAttribute("aria-pressed", "true"),
       );
-
-      // A quick route chosen inside the sheet closes it the same way.
-      await user.click(screen.getByRole("button", { name: "Inspector" }));
-      const sheet = screen.getByRole("complementary", {
-        name: "Play inspector",
-      });
-      await user.click(within(sheet).getByRole("button", { name: "Post" }));
-      expect(
-        screen.queryByRole("complementary", { name: "Play inspector" }),
-      ).toBeNull();
-
-      // A picked line is offered the calls it can be redrawn as, and the tray
-      // says which one it is.
-      await user.click(
-        within(fieldList).getByRole("button", { name: "Q route" }),
-      );
-      expect(within(tray).getByText("Q · Redraw")).toBeVisible();
-      expect(
-        within(tray).getByRole("button", { name: "Post" }),
-      ).toHaveAttribute("aria-pressed", "true");
-      await user.click(within(tray).getByRole("button", { name: "Out" }));
+      expect(sheet()).toHaveAttribute("data-sheet", "full");
+      await user.click(within(sheet()).getByRole("button", { name: "Post" }));
       await waitFor(() =>
         expect(
-          within(tray).getByRole("button", { name: "Out" }),
+          within(tray).getByRole("button", { name: "Post" }),
         ).toHaveAttribute("aria-pressed", "true"),
       );
+      expect(sheet()).toHaveAttribute("data-sheet", "full");
 
-      // Escape drops the pick, and the tray with it.
+      // The pager steps to the next man in roster order.
+      await user.click(within(sheet()).getByRole("button", { name: /\bF$/ }));
+      expect(within(tray).getByText("F · Routes")).toBeVisible();
+
+      // Field puts the sheet back to its peek; Escape drops the pick and the
+      // tray with it.
+      await user.click(screen.getByRole("button", { name: "Show the field" }));
+      expect(sheet()).toHaveAttribute("data-sheet", "peek");
       await user.keyboard("{Escape}");
       expect(
         screen.queryByRole("navigation", { name: "Quick calls" }),
@@ -2976,7 +3139,7 @@ describe("Tablet and narrow screens (issue #68)", () => {
     ).toBeNull();
   });
 
-  it("puts the drawer away on a tap past it and on the pick it was opened for", async () => {
+  it("puts the drawers away on a tap past them and on the pick they were opened for", async () => {
     const restore = screenWhere(
       (query) =>
         query.includes("max-width: 1023px") ||
@@ -2988,6 +3151,8 @@ describe("Tablet and narrow screens (issue #68)", () => {
       render(<ChalkApp runtime={createTestRuntime()} />);
       const inspectorOf = () =>
         screen.queryByRole("complementary", { name: "Play inspector" });
+      const sidebarOf = () =>
+        screen.queryByRole("navigation", { name: "Sidebar" });
 
       // A tap on the field, past the drawer, closes it.
       await user.click(screen.getByRole("button", { name: "Inspector" }));
@@ -2995,11 +3160,20 @@ describe("Tablet and narrow screens (issue #68)", () => {
       await user.click(screen.getByRole("main"));
       expect(inspectorOf()).toBeNull();
 
-      // Its own popover is not "past it".
-      await user.click(screen.getByRole("button", { name: "Inspector" }));
-      await user.click(screen.getByRole("button", { name: /^Layers/ }));
-      await user.click(screen.getByRole("button", { name: "Text" }));
-      expect(inspectorOf()).toBeVisible();
+      // The sidebar is a drawer too (ADR 0058). Its own page is not "past it".
+      expect(sidebarOf()).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Sidebar" }));
+      expect(sidebarOf()).toBeVisible();
+      await user.click(
+        within(sidebarOf()!).getByRole("button", { name: /^Show on field/ }),
+      );
+      await user.click(
+        within(sidebarOf()!).getByRole("button", { name: "Text" }),
+      );
+      expect(sidebarOf()).toBeVisible();
+      await user.click(
+        within(sidebarOf()!).getByRole("button", { name: "Back" }),
+      );
 
       // Nor is the browser it opened; but choosing a set is the errand done.
       await user.click(screen.getByTitle("Browse formations — ⇧⌘F"));
@@ -3007,18 +3181,17 @@ describe("Tablet and narrow screens (issue #68)", () => {
       await user.click(
         within(book).getByRole("textbox", { name: "Search formations" }),
       );
-      expect(inspectorOf()).toBeVisible();
       await user.click(
         within(book).getByRole("button", { name: "Gun Trips Right" }),
       );
       expect(screen.queryByRole("dialog", { name: "Formations" })).toBeNull();
-      expect(inspectorOf()).toBeNull();
+      expect(sidebarOf()).toBeNull();
     } finally {
       restore();
     }
   });
 
-  it("makes the phone sheet's whole top row its handle and folds the layers into it", async () => {
+  it("peeks the phone sheet above the tools, opens it full on the roster, and keeps the layers in the drawer", async () => {
     const restore = screenWhere(
       (query) =>
         query.includes("max-width: 1023px") ||
@@ -3027,32 +3200,87 @@ describe("Tablet and narrow screens (issue #68)", () => {
     try {
       const user = userEvent.setup();
       const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
-      await user.click(screen.getByRole("button", { name: "Inspector" }));
       const sheet = screen.getByRole("complementary", {
         name: "Play inspector",
       });
-      // The bar no longer holds a Layers popover; the switches fold inside.
+      // Peeked: the head and a chip per man; nothing of the play's setup.
+      expect(sheet).toHaveAttribute("data-sheet", "peek");
       expect(
         within(sheet).queryByRole("button", { name: /^Layers/ }),
       ).toBeNull();
-      await user.click(
-        within(sheet).getByRole("button", { name: /^Show on the field/ }),
-      );
-      await user.click(within(sheet).getByRole("button", { name: "Text" }));
-      expect(container.querySelector("[data-scene-label]")).toBeNull();
-      // Folded again, the section says what it is showing.
-      await user.click(
-        within(sheet).getByRole("button", { name: /^Show on the field/ }),
-      );
-      expect(within(sheet).getByText("4 of 5")).toBeVisible();
+      expect(
+        within(sheet).queryByRole("button", { name: /^Show on the field/ }),
+      ).toBeNull();
+      expect(
+        within(sheet).getByRole("button", { name: /^X — / }),
+      ).toBeVisible();
 
-      // A tap anywhere along the top row puts the sheet away.
+      // The head opens it full on the roster; Field puts it back.
       await user.click(
-        within(sheet).getByRole("button", { name: "Hide the inspector" }),
+        within(sheet).getByRole("button", { name: "Show all assignments" }),
+      );
+      expect(sheet).toHaveAttribute("data-sheet", "full");
+      expect(within(sheet).getByText("Skill")).toBeVisible();
+      await user.click(within(sheet).getByRole("button", { name: /^Y: / }));
+      expect(
+        within(sheet).getByRole("textbox", { name: "Tag under" }),
+      ).toBeVisible();
+      await user.click(
+        within(sheet).getByRole("button", { name: "Show the field" }),
+      );
+      expect(sheet).toHaveAttribute("data-sheet", "peek");
+
+      // The layers are a page of the sidebar drawer, off the ≡.
+      await user.click(
+        screen.getByRole("button", { name: "Open the sidebar" }),
+      );
+      const drawer = screen.getByRole("navigation", { name: "Sidebar" });
+      await user.click(
+        within(drawer).getByRole("button", { name: /^Show on field/ }),
+      );
+      await user.click(within(drawer).getByRole("button", { name: "Text" }));
+      expect(container.querySelector("[data-scene-label]")).toBeNull();
+      await user.click(within(drawer).getByRole("button", { name: "Back" }));
+      expect(
+        within(drawer).getByRole("button", { name: /^Show on field, 4 of 5/ }),
+      ).toBeVisible();
+      await user.click(
+        within(drawer).getByRole("button", { name: "Close the sidebar" }),
+      );
+      expect(screen.queryByRole("navigation", { name: "Sidebar" })).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it("opens the sidebar as a drawer off ≡ on a phone and pages into a row", async () => {
+    const restore = screenWhere((query) => !query.includes("min-width"));
+    try {
+      const user = userEvent.setup();
+      render(<ChalkApp runtime={createTestRuntime()} />);
+      expect(screen.queryByRole("navigation", { name: "Sidebar" })).toBeNull();
+      await user.click(
+        screen.getByRole("button", { name: "Open the sidebar" }),
+      );
+      const drawer = screen.getByRole("navigation", { name: "Sidebar" });
+      expect(within(drawer).getByText("Chalk")).toBeVisible();
+      await user.click(
+        within(drawer).getByRole("button", { name: /^Ball on/ }),
       );
       expect(
-        screen.queryByRole("complementary", { name: "Play inspector" }),
-      ).toBeNull();
+        within(drawer).getByRole("button", { name: "Back" }),
+      ).toBeVisible();
+      expect(
+        within(drawer).getByRole("button", { name: "L hash" }),
+      ).toBeVisible();
+      await user.click(within(drawer).getByRole("button", { name: "Back" }));
+      // Formation opens the browser and the drawer goes with the pick.
+      await user.click(within(drawer).getByTitle("Browse formations — ⇧⌘F"));
+      const book = screen.getByRole("dialog", { name: "Formations" });
+      await user.click(
+        within(book).getByRole("button", { name: "Gun Trips Right" }),
+      );
+      expect(screen.queryByRole("navigation", { name: "Sidebar" })).toBeNull();
     } finally {
       restore();
     }
@@ -3129,9 +3357,6 @@ describe("Present for a thumb (issue #67)", () => {
 });
 
 describe("the other unit's shadow (ADR 0053)", () => {
-  const inspector = () =>
-    screen.getByRole("complementary", { name: "Play inspector" });
-
   it("takes the shadow defense off the field and brings it back, without touching the play", async () => {
     const user = userEvent.setup();
     const editorStore = createTestEditorStore(
@@ -3144,9 +3369,9 @@ describe("the other unit's shadow (ADR 0053)", () => {
     const drawn = () => container.querySelectorAll("[data-scene-player]");
     expect(drawn()).toHaveLength(6);
 
-    await unfold(user, inspector(), "Shadow defense");
-    const shown = within(inspector()).getByRole("button", { name: "Shown" });
-    const hidden = within(inspector()).getByRole("button", { name: "Hidden" });
+    await unfold(user, sidebarOf(), "Shadow defense");
+    const shown = within(sidebarOf()).getByRole("button", { name: "Shown" });
+    const hidden = within(sidebarOf()).getByRole("button", { name: "Hidden" });
     expect(shown).toHaveAttribute("aria-pressed", "true");
 
     await user.click(hidden);
@@ -3157,19 +3382,23 @@ describe("the other unit's shadow (ADR 0053)", () => {
     expect(hidden).toHaveAttribute("aria-pressed", "true");
     // The men are still in the play; only the picture changed.
     expect(editorStore.getSnapshot().document.players).toHaveLength(6);
-    // The layers popover says the same, and counts the shadow with the rest.
-    expect(screen.getByRole("button", { name: /^Layers/ })).toHaveTextContent(
-      "Layers 4/5",
-    );
-    // Folded, the section says the look and that it is off the field.
+    // The Show on field row says the same, and counts the shadow with the rest.
+    expect(
+      within(sidebarOf()).getByRole("button", { name: /^Show on field/ }),
+    ).toHaveTextContent("4 of 5");
+    // Folded, the row says it is off the field.
     await user.click(
-      within(inspector()).getByRole("button", { name: /^Shadow defense/ }),
+      within(sidebarOf()).getByRole("button", { name: /^Shadow defense/ }),
     );
-    expect(within(inspector()).getByText(/· hidden$/)).toBeVisible();
+    expect(
+      within(sidebarOf()).getByRole("button", {
+        name: /^Shadow defense, hidden/,
+      }),
+    ).toBeVisible();
 
-    await unfold(user, inspector(), "Shadow defense");
+    await unfold(user, sidebarOf(), "Shadow defense");
     await user.click(
-      within(inspector()).getByRole("button", { name: "Shown" }),
+      within(sidebarOf()).getByRole("button", { name: "Shown" }),
     );
     expect(drawn()).toHaveLength(6);
   });
@@ -3183,13 +3412,16 @@ describe("the other unit's shadow (ADR 0053)", () => {
     });
     render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
     expect(
-      within(inspector()).getByRole("button", { name: /^Shadow offense/ }),
+      within(sidebarOf()).getByRole("button", { name: /^Shadow offense/ }),
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: /^Layers/ }));
+    await user.click(
+      within(sidebarOf()).getByRole("button", { name: /^Show on field/ }),
+    );
     expect(
-      within(
-        screen.getByRole("group", { name: "Show on the field" }),
-      ).getByRole("button", { name: "Shadow offense" }),
+      within(screen.getByRole("group", { name: "Show on field" })).getByRole(
+        "button",
+        { name: "Shadow offense" },
+      ),
     ).toHaveAttribute("aria-pressed", "true");
   });
 });
@@ -3221,12 +3453,9 @@ describe("putting the men back (ADR 0055)", () => {
     );
   };
 
-  it("keeps the untouched starter's inspector as it was until a set is chosen", () => {
+  it("keeps the untouched starter's sidebar as it was until a set is chosen", () => {
     render(<ChalkApp runtime={createTestRuntime()} />);
-    const inspector = screen.getByRole("complementary", {
-      name: "Play inspector",
-    });
-    expect(within(inspector).queryByText("Reset to")).toBeNull();
+    expect(within(sidebarOf()).queryByText("Reset to")).toBeNull();
   });
 
   it("puts a dragged man back in the set the Play remembers, from under its picker", async () => {
@@ -3238,15 +3467,14 @@ describe("putting the men back (ADR 0055)", () => {
     render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
     expect(screen.getByText("CUSTOM ALIGNMENT")).toBeVisible();
 
-    const inspector = screen.getByRole("complementary", {
-      name: "Play inspector",
-    });
-    const reset = within(inspector).getByRole("button", {
+    // The Reset row sits under the sidebar's Formation row (ADR 0058).
+    const sidebar = sidebarOf();
+    const reset = within(sidebar).getByRole("button", {
       name: "Reset offense to Gun Trips Right",
     });
     expect(reset).toBeEnabled();
     expect(
-      within(inspector).getByRole("button", {
+      within(sidebar).getByRole("button", {
         name: "Reset offense to base — Gun Doubles Right",
       }),
     ).toBeEnabled();
@@ -3292,13 +3520,11 @@ describe("putting the men back (ADR 0055)", () => {
     );
     const editorStore = createTestEditorStore(undefined, moved);
     render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
-    const inspector = screen.getByRole("complementary", {
-      name: "Play inspector",
-    });
-    await unfold(user, inspector, "Shadow defense");
+    const sidebar = sidebarOf();
+    await unfold(user, sidebar, "Shadow defense");
 
     await user.click(
-      within(inspector).getByRole("button", {
+      within(sidebar).getByRole("button", {
         name: "Reset defense to 4-3 Cover 2",
       }),
     );

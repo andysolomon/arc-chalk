@@ -37,6 +37,7 @@ export function PlayClassificationControl({
   onDismiss,
   onToggle,
   open,
+  phone = false,
   play,
   playbook,
 }: {
@@ -47,10 +48,13 @@ export function PlayClassificationControl({
   onDismiss: () => void;
   onToggle: () => void;
   open: boolean;
+  /** The phone header, which may show the Unit's word alone (ADR 0057). */
+  phone?: boolean;
   play: PlayDocument;
   playbook: Playbook;
 }) {
   const label = formatClassification(play);
+  const unit = unitName(play.unit);
   return (
     <div className="menu classify-menu">
       <button
@@ -59,11 +63,23 @@ export function PlayClassificationControl({
         className={`play-type${open ? " open" : ""}`}
         data-unit={play.unit}
         onClick={onToggle}
-        title={`${unitName(play.unit)} play — the type it is filed under`}
+        title={`${unit} play — the type it is filed under`}
         type="button"
       >
         <i />
-        <span>{label}</span>
+        {/* On a phone the one label comes in two parts, so the header held
+            upright can show the Unit's word alone and leave the room to the
+            play's name (ADR 0057). Wider screens keep a single run. */}
+        {phone ? (
+          <span>
+            {unit}
+            {label.length > unit.length ? (
+              <span className="play-type-name">{label.slice(unit.length)}</span>
+            ) : null}
+          </span>
+        ) : (
+          <span>{label}</span>
+        )}
       </button>
       {open ? (
         <ClassificationPanel
@@ -80,7 +96,8 @@ export function PlayClassificationControl({
   );
 }
 
-function ClassificationPanel({
+/** The panel on its own, for the sidebar's Play type row (ADR 0058). */
+export function ClassificationPanel({
   concepts,
   formations,
   onAddPlayType,

@@ -8,7 +8,10 @@ export function AccountPanel({
   onOpenConflicts,
   onKeepLocalData,
   onRemoveLocalData,
+  expanded = false,
 }: {
+  /** Laid open, without its own toggle — the Settings dialog's Account tab. */
+  readonly expanded?: boolean;
   readonly identity: IdentityPort;
   readonly sync: SyncOrchestrator | undefined;
   readonly snapshot: SyncSnapshot;
@@ -61,15 +64,17 @@ export function AccountPanel({
 
   return (
     <div className="backup-section">
-      <button
-        aria-expanded={open}
-        className="menu-entry"
-        onClick={() => setOpen((shown) => !shown)}
-        type="button"
-      >
-        Account
-      </button>
-      <div className="backup-panel" hidden={!open}>
+      {expanded ? null : (
+        <button
+          aria-expanded={open}
+          className="menu-entry"
+          onClick={() => setOpen((shown) => !shown)}
+          type="button"
+        >
+          Account
+        </button>
+      )}
+      <div className="backup-panel" hidden={!expanded && !open}>
         {session.status === "signed_in" ? (
           <>
             <p className="version-empty">

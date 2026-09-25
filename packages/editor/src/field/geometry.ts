@@ -210,6 +210,13 @@ export interface FieldHit {
  * Resolves what a pointer landed on, topmost layer first: Players draw over
  * labels, labels over routes — the same stacking the original resolved
  * through the DOM.
+ *
+ * Among Players it is the nearest man who is hit, not the topmost one whose
+ * circle reaches. A finger's circle is wider than the gap between linemen
+ * once a phone shrinks the field, so every lineman's circle covers his
+ * neighbours' centres too; topmost-first then gave a tap on the center to
+ * whichever man was drawn last. Where two are equally near, the one drawn
+ * on top still wins.
  */
 export function hitTestField(
   scene: RenderScene,
@@ -217,13 +224,17 @@ export function hitTestField(
   scale: SnapScreenScale,
   options: FieldHitOptions,
 ): FieldHit | undefined {
+  let nearest: { readonly id: string; readonly distancePx: number } | undefined;
   for (const player of [...scene.players].reverse()) {
+    const distancePx = screenDistancePx(player.position, point, scale);
     if (
-      screenDistancePx(player.position, point, scale) <= options.playerRadiusPx
+      distancePx <= options.playerRadiusPx &&
+      (nearest === undefined || distancePx < nearest.distancePx)
     ) {
-      return { item: { kind: "player", id: player.id } };
+      nearest = { id: player.id, distancePx };
     }
   }
+  if (nearest) return { item: { kind: "player", id: nearest.id } };
   for (const label of [...scene.labels].reverse()) {
     if (labelHit(label, point, scale, options.labelPaddingPx)) {
       return { item: { kind: "label", id: label.id } };

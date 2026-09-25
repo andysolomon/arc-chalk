@@ -38,6 +38,11 @@ function relaxShareCspInDev() {
 }
 
 export default defineConfig({
+  define: {
+    // The About tab names the build. The Release workflow exports
+    // CHALK_VERSION; a local build names none.
+    __CHALK_VERSION__: JSON.stringify(process.env.CHALK_VERSION ?? ""),
+  },
   plugins: [
     sharePathRewrite(),
     relaxShareCspInDev(),
