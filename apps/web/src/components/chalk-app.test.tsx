@@ -3045,14 +3045,15 @@ describe("Tablet and narrow screens (issue #68)", () => {
         name: "Everything on the field",
       });
       // Nothing picked, no tray: the field keeps the glass. The sheet peeks
-      // above the tools with a chip for every man (ADR 0058).
+      // above the tools as a single bar, with no strip of men (ADR 0058).
       expect(
         screen.queryByRole("navigation", { name: "Quick calls" }),
       ).toBeNull();
       const sheet = () =>
         screen.getByRole("complementary", { name: "Play inspector" });
       expect(sheet()).toHaveAttribute("data-sheet", "peek");
-      expect(within(sheet()).getByRole("group", { name: "Men" })).toBeVisible();
+      expect(within(sheet()).queryByRole("group", { name: "Men" })).toBeNull();
+      expect(within(sheet()).getAllByRole("button")).toHaveLength(1);
 
       // A man with nothing on him gets the route tree, and one tap draws it.
       await user.click(
@@ -3071,10 +3072,6 @@ describe("Tablet and narrow screens (issue #68)", () => {
       );
       expect(
         within(tray).getByRole("button", { name: "Slant" }),
-      ).toHaveAttribute("aria-pressed", "true");
-      // The chip says so too.
-      expect(
-        within(sheet()).getByRole("button", { name: /^Q — Slant/ }),
       ).toHaveAttribute("aria-pressed", "true");
 
       // The sheet opens full on the picked man; a call from the tray or the
@@ -3195,7 +3192,7 @@ describe("Tablet and narrow screens (issue #68)", () => {
       const sheet = screen.getByRole("complementary", {
         name: "Play inspector",
       });
-      // Peeked: the head and a chip per man; nothing of the play's setup.
+      // Peeked: the head bar alone; nothing of the play's setup, no men.
       expect(sheet).toHaveAttribute("data-sheet", "peek");
       expect(
         within(sheet).queryByRole("button", { name: /^Layers/ }),
@@ -3203,9 +3200,7 @@ describe("Tablet and narrow screens (issue #68)", () => {
       expect(
         within(sheet).queryByRole("button", { name: /^Show on the field/ }),
       ).toBeNull();
-      expect(
-        within(sheet).getByRole("button", { name: /^X — / }),
-      ).toBeVisible();
+      expect(within(sheet).queryByRole("button", { name: /^X/ })).toBeNull();
 
       // The head opens it full on the roster; Field puts it back.
       await user.click(

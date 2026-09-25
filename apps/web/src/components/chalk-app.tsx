@@ -1456,6 +1456,7 @@ function PlayerInspector({
   open,
   player,
   role,
+  mark,
   text,
 }: {
   /** Every call he is already running, so a button can say so. */
@@ -1493,6 +1494,8 @@ function PlayerInspector({
   player: Player;
   /** What he plays, said the way the roster says it: Tight end, Mike. */
   role: string;
+  /** His letter, or the spot he plays when he has none (LT, C). */
+  mark?: string;
   text: Readonly<Record<"label" | "sublabel", string>>;
   scopeBadge?: string;
 }) {
@@ -1535,7 +1538,7 @@ function PlayerInspector({
             ←
           </button>
           <span aria-hidden="true" className="player-chip">
-            {letter}
+            {mark ?? letter}
           </span>
           <span className="player-role">{role || "Player"}</span>
           {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
@@ -2199,7 +2202,7 @@ function RosterList({
           <div className="section-heading roster-heading">{group.name}</div>
           {group.rows.map((row) => (
             <button
-              aria-label={`${row.letter || row.role}: ${row.summary ?? row.nothingYet} — ${row.role}`}
+              aria-label={`${row.mark}: ${row.summary ?? row.nothingYet} — ${row.role}`}
               aria-pressed={row.player.id === selectedId}
               className="roster-row"
               data-roster-player={row.player.id}
@@ -2209,7 +2212,7 @@ function RosterList({
               type="button"
             >
               <span aria-hidden="true" className="roster-symbol">
-                {row.letter}
+                {row.mark}
               </span>
               <span
                 className={`roster-summary${row.summary === undefined ? " empty" : ""}`}
@@ -2234,48 +2237,12 @@ function RosterList({
 }
 
 /**
- * A phone's peeked sheet: one chip per man, his letter over the word that
- * says what he does, in a strip a thumb scrolls sideways.
- */
-function ManChips({
-  onSelectPlayer,
-  roster,
-  selectedId,
-}: {
-  onSelectPlayer: (playerId: string) => void;
-  roster: Roster;
-  selectedId?: string;
-}) {
-  return (
-    <div aria-label="Men" className="man-chips" role="group">
-      {roster.rows.map((row) => (
-        <button
-          aria-label={`${row.letter || row.role} — ${row.summary ?? row.nothingYet}`}
-          aria-pressed={row.player.id === selectedId}
-          className="man-chip"
-          key={row.player.id}
-          onClick={() => onSelectPlayer(row.player.id)}
-          type="button"
-        >
-          <span className="man-chip-letter">{row.letter || "·"}</span>
-          <span
-            className={`man-chip-word${row.summary === undefined ? " empty" : ""}`}
-          >
-            {row.summary ?? "—"}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/**
  * The right inspector is assignments only (ADR 0058): what each man on the
  * play's own unit is asked to do. Idle, it lists the play call — concept and
  * line call — and the roster; a picked man, line or note gets his own panel.
  * Formation, ball, shadow, library, layers and print live in the sidebar and
  * in Settings, not here. On a phone it is a sheet with two heights: peeked,
- * a strip of men above the tools; full, the roster or the picked man.
+ * a single bar above the tools; full, the roster or the picked man.
  */
 function Inspector({
   currentConcept,
@@ -2385,8 +2352,8 @@ function Inspector({
     );
   }
 
-  // The sheet. Peeked: its head and the strip of men. Full: the roster, or
-  // the picked thing with a pager through the unit.
+  // The sheet. Peeked: its head bar alone, so the field keeps the glass.
+  // Full: the roster, or the picked thing with a pager through the unit.
   const snap = (next: "peek" | "full") => onSheetSnap?.(next);
   const calls = [currentConcept, currentLineCall].filter(Boolean).join(" · ");
   if (sheetSnap === "peek") {
@@ -2412,11 +2379,6 @@ function Inspector({
             ⌃
           </span>
         </button>
-        <ManChips
-          onSelectPlayer={onSelectPlayer}
-          roster={roster}
-          selectedId={selectedId}
-        />
       </aside>
     );
   }
@@ -2445,7 +2407,7 @@ function Inspector({
       selected.kind === "player" ? (
         <>
           <span aria-hidden="true" className="player-chip">
-            {selected.row?.letter}
+            {selected.row?.mark}
           </span>
           <span className="player-role">{selected.row?.role ?? "Player"}</span>
         </>
@@ -2485,7 +2447,7 @@ function Inspector({
               <span aria-hidden="true">‹</span>{" "}
               {previous ? (
                 <>
-                  <strong>{previous.letter}</strong> {previous.summary ?? ""}
+                  <strong>{previous.mark}</strong> {previous.summary ?? ""}
                 </>
               ) : null}
             </button>
@@ -2500,7 +2462,7 @@ function Inspector({
             >
               {next ? (
                 <>
-                  {next.summary ?? ""} <strong>{next.letter}</strong>
+                  {next.summary ?? ""} <strong>{next.mark}</strong>
                 </>
               ) : null}{" "}
               <span aria-hidden="true">›</span>
@@ -6382,7 +6344,16 @@ export function ChalkApp({
       onOpen={setSidebarPopover}
       open={sidebarPopover}
       playbook={sidebarPlaybook}
-      status={phoneWorkspace ? saveStateButton : undefined}
+      status={
+        phoneWorkspace ? (
+          <span
+            className={`sidebar-save ${editor.localSave.phase}`}
+            role="status"
+          >
+            {localSaveMessage(editor.localSave)}
+          </span>
+        ) : undefined
+      }
       thisPlay={sidebarThisPlay}
     />
   );
@@ -6999,6 +6970,7 @@ export function ChalkApp({
                 <PlayerInspector
                   bare={phoneWorkspace}
                   role={selectedRosterRow?.role ?? ""}
+                  mark={selectedRosterRow?.mark}
                   onToggle={toggleDisclosure}
                   open={chrome.open}
                   activePresets={playerPresets(selectedPlayer)}

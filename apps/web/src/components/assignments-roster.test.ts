@@ -45,7 +45,7 @@ describe("assignments roster (ADR 0058)", () => {
     );
   });
 
-  it("says the Coach's words first, then the call the line was drawn as, then the kind", () => {
+  it("says the Coach's words first, then the call, then his tag, then the kind", () => {
     const y = stickThunderPlay.players.find(({ label }) => label === "Y")!;
     const yLine = stickThunderPlay.paths.find(
       ({ playerId }) => playerId === y.id,
@@ -55,7 +55,9 @@ describe("assignments roster (ADR 0058)", () => {
     );
     // The seeded Y carries an assignment; it leads.
     expect(assignmentSummary(stickThunderPlay, y)).toBe(
-      assignment?.text.trim() || yLine.preset || "Route",
+      assignment?.text.trim() ||
+        yLine.preset ||
+        y.sublabel.trim().charAt(0) + y.sublabel.trim().slice(1).toLowerCase(),
     );
 
     const bare = {
@@ -75,7 +77,19 @@ describe("assignments roster (ADR 0058)", () => {
         return rest;
       }),
     };
-    expect(assignmentSummary(kindOnly, y)).toBe("Route");
+    // No words and no call: the tag under him, said as a word, not shouted.
+    expect(y.sublabel.trim()).not.toBe("");
+    expect(assignmentSummary(kindOnly, y)).toBe(
+      y.sublabel.trim().charAt(0) + y.sublabel.trim().slice(1).toLowerCase(),
+    );
+    // No tag either: what kind of line it is.
+    const untagged = {
+      ...kindOnly,
+      players: kindOnly.players.map((man) =>
+        man.id === y.id ? { ...man, sublabel: "" } : man,
+      ),
+    };
+    expect(assignmentSummary(untagged, { ...y, sublabel: "" })).toBe("Route");
     const nothing = { ...bare, paths: [] };
     expect(assignmentSummary(nothing, y)).toBeUndefined();
   });
@@ -142,5 +156,14 @@ describe("assignments roster (ADR 0058)", () => {
       true,
     );
     expect(roster.rows[0]?.nothingYet).toMatch(/^No /);
+    // Nobody's symbol is blank: an unlettered man shows the spot he plays.
+    expect(roster.rows.every(({ mark }) => mark !== "" && mark !== "·")).toBe(
+      true,
+    );
+    expect(
+      roster.groups
+        .find(({ id }) => id === "line")
+        ?.rows.map(({ mark }) => mark),
+    ).toEqual(expect.arrayContaining(["C"]));
   });
 });

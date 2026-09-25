@@ -96,7 +96,11 @@ select:disabled {
 }
 .topbar {
   position: relative;
-  z-index: 5;
+  /* Above the panels that float over the workspace — a phone's assignments
+     sheet and a tablet's inspector drawer (8) — so a header menu opens over
+     them rather than under them (ADR 0058). The sidebar drawer covers the
+     header on purpose, as a drawer does. */
+  z-index: 10;
   height: 56px;
   flex: none;
   display: flex;
@@ -5494,6 +5498,18 @@ button.library-dot.target.small {
 .phone-workspace .minimap {
   bottom: 60px;
 }
+/* The assignments sheet peeks over the bottom of the field (ADR 0058): what
+   the field shows along its lower edge — the Undo toast, the map — stands
+   above the bar rather than under it. Held sideways the peek is a corner
+   pill, and they keep their places. */
+@media (min-height: 440px) {
+  .phone-workspace .field-wrap > .toast {
+    bottom: 84px;
+  }
+  .phone-workspace .minimap {
+    bottom: 130px;
+  }
+}
 .phone-workspace .statusbar {
   height: auto;
   min-height: 44px;
@@ -6556,19 +6572,22 @@ button.shell-quiet:hover {
 /* Below the docked inspector's floor the sidebar is a drawer over the field's
    left edge, and on a phone it is the drawer the ≡ opens. */
 .sidebar-scrim {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 8;
+  z-index: 14;
   border: 0;
   background: rgba(23, 23, 23, 0.35);
   cursor: pointer;
 }
+/* The drawer is the whole height of the glass, over the header too, as the
+   handoff draws it; the browsers it opens (z 20) still come over it. */
 .play-sidebar.sidebar-drawer {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   bottom: 0;
-  z-index: 9;
+  z-index: 15;
+  padding-top: env(safe-area-inset-top);
   width: 304px;
   max-width: 88vw;
   padding: 0 8px max(10px, env(safe-area-inset-bottom));
@@ -6649,33 +6668,23 @@ button.shell-quiet:hover {
 .sidebar-status {
   padding: 12px 8px 4px;
 }
-.sidebar-status .save-state {
-  height: auto;
-  padding: 0;
-  border: 0;
-  background: transparent;
+.sidebar-status .sidebar-save {
   color: var(--ready);
-  font: inherit;
   font-size: 13px;
-  text-align: left;
 }
-.sidebar-status .save-state::before {
+.sidebar-status .sidebar-save::before {
   content: "●";
   margin-right: 8px;
   font-size: 9px;
   vertical-align: 1px;
 }
-.sidebar-status .save-state.error {
+.sidebar-status .sidebar-save.error {
   color: var(--red);
 }
+/* Below 1024 px the sidebar stub keeps its own column, as on a desktop, so
+   the tool rail stands beside it rather than under it; only the tools' own
+   stub floats, and it moves over to clear the sidebar's. */
 @media (max-width: 1023px) {
-  .sidebar-stub {
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    z-index: 7;
-  }
   .sidebar-stub ~ .rail-stub {
     left: 28px;
   }
@@ -6941,55 +6950,6 @@ button.shell-quiet:hover {
   color: var(--muted);
   font-size: 14px;
 }
-.man-chips {
-  display: flex;
-  flex: none;
-  gap: 8px;
-  padding: 0 12px 12px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.man-chips::-webkit-scrollbar {
-  display: none;
-}
-.man-chip {
-  width: 52px;
-  height: 56px;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  border: 0;
-  border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 0 0 1px var(--line);
-  color: var(--ink);
-  font: inherit;
-  cursor: pointer;
-}
-.man-chip[aria-pressed="true"] {
-  background: var(--selected-tint);
-  box-shadow: 0 0 0 2px var(--blue);
-}
-.man-chip-letter {
-  font-size: 14px;
-  font-weight: 700;
-}
-.man-chip-word {
-  max-width: 46px;
-  overflow: hidden;
-  color: var(--unit-accent, var(--unit-offense));
-  font-size: 8.5px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.man-chip-word.empty {
-  color: #c9c9c9;
-}
 .sheet-head {
   position: relative;
   min-height: 48px;
@@ -7111,13 +7071,10 @@ button.shell-quiet:hover {
   font-size: 13px;
   text-align: center;
 }
-/* Held sideways there is no depth for the strip: the peek is a pill in the
-   field's bottom corner, where the canvas around a fitted field is empty, and
-   the full sheet's rows stand shorter. */
+/* Held sideways there is no depth for a bar across the glass: the peek is a
+   pill in the field's bottom corner, where the canvas around a fitted field
+   is empty, and the full sheet's rows stand shorter. */
 @media (max-height: 439px) {
-  .phone-workspace .man-chips {
-    display: none;
-  }
   .phone-workspace .inspector.sheet-peek {
     left: auto;
     right: 10px;
