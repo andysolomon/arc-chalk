@@ -888,9 +888,9 @@ const callId = (key: string) => `defense_${key.replaceAll("-", "_")}`;
 const slotId = (key: string, index: number) => `${callId(key)}_s${index}`;
 
 /**
- * A defender is drawn as his letter and nothing else — no shape around it —
- * which is what the original's "none" symbol means and what tells a Coach at
- * a glance which side of the ball he is looking at.
+ * A defender is drawn as a triangle with his letter inside it — a shape, like
+ * every man on offense, but one no offensive position uses — which is what
+ * tells a Coach at a glance which side of the ball he is looking at.
  */
 function build(defense: LegacyDefense): DefensiveCall {
   const id = callId(defense.key);
@@ -912,7 +912,7 @@ function build(defense: LegacyDefense): DefensiveCall {
       // two ends — so his side is what tells the two of them apart.
       role: `${player.label}${player.x < 500 ? "-L" : player.x > 500 ? "-R" : ""}`,
       position: legacyCanvasToYards(player),
-      symbol: "none" as const,
+      symbol: "triangle" as const,
       label: player.label,
       sublabel: "",
       fill: "none" as const,

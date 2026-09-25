@@ -94,9 +94,9 @@ describe("the calls the original ships with", () => {
     }
   });
 
-  it("draws a defender as his letter and nothing else, which is how a Coach reads a side", () => {
+  it("draws a defender as a triangle around his letter, which is how a Coach reads a side", () => {
     for (const slot of callNamed("4-3 Cover 3").formation.slots) {
-      expect(slot.symbol).toBe("none");
+      expect(slot.symbol).toBe("triangle");
       expect(slot.label).not.toBe("");
     }
   });
