@@ -11,6 +11,7 @@ import type {
   PathPoint,
   PlayDocument,
   Player,
+  PlayerSymbol,
 } from "./schema";
 
 /**
@@ -78,17 +79,20 @@ const BACKFIELD_LATERAL_YARDS = legacyCanvasToYards({
 /**
  * A role for every man, declared where he has one and inferred where he does
  * not: his letter first, since X, Y, Z, H, Q and F are unambiguous, then his
- * position — the five unlettered men nearest the ball are the line, and the
+ * position — the five unlettered men nearest the ball are the line, a line
+ * short of a man takes back the unlettered one who was moved off it, and the
  * rest are backs or slots by how deep and how wide they stand.
  */
 /**
  * Anyone standing somewhere on the field with a letter on him and perhaps a
- * position of his own — which both a Player and a Formation slot are.
+ * position of his own — which both a Player and a Formation slot are. The
+ * shape he is drawn with says which man is the centre.
  */
 export interface Placed {
   readonly label: string;
   readonly position: Coordinate;
   readonly role?: string;
+  readonly symbol?: PlayerSymbol;
 }
 
 export function assignRoles(
@@ -121,11 +125,9 @@ export function assignRoles(
         players[right]!.position.lateralYards,
     );
 
-  // A line short of five is centred on the names, so a four-man look reads
-  // LG through RG rather than LT through RG.
-  const offset = Math.floor((LINE_ROLES.length - line.length) / 2);
-  for (const [order, index] of line.entries()) {
-    roles[index] = LINE_ROLES[offset + order];
+  const strays = strayLinemen(players, unknown, line);
+  for (const [index, role] of nameLine(players, line, strays)) {
+    roles[index] = role;
   }
   for (const index of unknown) {
     if (roles[index]) continue;
@@ -137,6 +139,117 @@ export function assignRoles(
         : "H";
   }
   return roles;
+}
+
+/**
+ * The linemen a short line has lost to a drag. Backs and receivers carry
+ * letters, so an unlettered man off the line is one of the line who was
+ * moved: a tackle stood in the backfield has not become a back, and the next
+ * set puts him back at tackle. Only a line that is there to be short is
+ * filled; a set drawn with no line at all keeps reading its unlettered men
+ * as backs and slots.
+ */
+function strayLinemen(
+  players: readonly Placed[],
+  unknown: readonly number[],
+  line: readonly number[],
+): number[] {
+  const missing = LINE_ROLES.length - line.length;
+  if (line.length === 0 || missing === 0) return [];
+  const middle =
+    line.reduce(
+      (total, index) => total + players[index]!.position.lateralYards,
+      0,
+    ) / line.length;
+  const away = (index: number) =>
+    Math.hypot(
+      players[index]!.position.lateralYards - middle,
+      players[index]!.position.depthYards,
+    );
+  return unknown
+    .filter(
+      (index) => !line.includes(index) && players[index]!.label.trim() === "",
+    )
+    .sort((left, right) => away(left) - away(right))
+    .slice(0, missing);
+}
+
+/**
+ * Names for the men of the line. A line nobody has left is named left to
+ * right as it stands, and a short one is centred on the names, so three men
+ * read as the guards and the centre.
+ */
+function nameLine(
+  players: readonly Placed[],
+  line: readonly number[],
+  strays: readonly number[],
+): Map<number, string> {
+  const fromCentre =
+    strays.length > 0 ? nameFromCentre(players, line, strays) : undefined;
+  if (fromCentre) return fromCentre;
+  const men = [...line, ...strays].sort(
+    (left, right) =>
+      players[left]!.position.lateralYards -
+      players[right]!.position.lateralYards,
+  );
+  const offset = Math.floor((LINE_ROLES.length - men.length) / 2);
+  return new Map(
+    men.map((index, order) => [index, LINE_ROLES[offset + order]!]),
+  );
+}
+
+/**
+ * A line that has lost a man is named from its centre outward, a split at a
+ * time, so the tackle beside the hole a guard left is still the tackle, and
+ * the men who left take the names nobody on the line is standing in. The
+ * ball is under the centre while he is on the line; when he is the one who
+ * left, it is in the widest hole along it. A line that will not read that way
+ * — nobody drawn as the centre, a split that does not divide it — is named
+ * left to right instead.
+ */
+function nameFromCentre(
+  players: readonly Placed[],
+  line: readonly number[],
+  strays: readonly number[],
+): Map<number, string> | undefined {
+  const lateral = (index: number) => players[index]!.position.lateralYards;
+  const centre = [...line, ...strays].find(
+    (index) => players[index]!.symbol === "square",
+  );
+  if (centre === undefined) return undefined;
+
+  const gaps = line.slice(1).map((index, order) => ({
+    middle: (lateral(line[order]!) + lateral(index)) / 2,
+    width: lateral(index) - lateral(line[order]!),
+  }));
+  // One man on the line has no split to measure; he can only be the centre.
+  const split = Math.min(...gaps.map(({ width }) => width));
+  const widest = gaps.reduce<(typeof gaps)[number] | undefined>(
+    (best, gap) => (!best || gap.width > best.width ? gap : best),
+    undefined,
+  );
+  const ball = line.includes(centre) ? lateral(centre) : widest?.middle;
+  if (ball === undefined) return undefined;
+
+  const names = new Map<number, string>([[centre, "C"]]);
+  const taken = new Set(["C"]);
+  const middle = LINE_ROLES.indexOf("C");
+  for (const index of line) {
+    if (index === centre) continue;
+    const role =
+      LINE_ROLES[middle + Math.round((lateral(index) - ball) / split)];
+    if (role === undefined || taken.has(role)) return undefined;
+    names.set(index, role);
+    taken.add(role);
+  }
+  const open = LINE_ROLES.filter((role) => !taken.has(role));
+  const movedOff = strays
+    .filter((index) => index !== centre)
+    .sort((left, right) => lateral(left) - lateral(right));
+  for (const [order, index] of movedOff.entries()) {
+    names.set(index, open[order]!);
+  }
+  return names;
 }
 
 /**
