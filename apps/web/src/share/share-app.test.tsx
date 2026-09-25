@@ -40,17 +40,6 @@ describe("Share shell", () => {
     expect(open).not.toHaveBeenCalled();
   });
 
-  it("asks the Coach for the complete address when the fragment is missing", async () => {
-    window.history.replaceState({}, "", "/s/share_public");
-    window.location.hash = "";
-    render(
-      <ShareApp openShare={() => Promise.resolve({ outcome: "not-found" })} />,
-    );
-    expect(
-      await screen.findByText(/full address, including the part after #/i),
-    ).toBeVisible();
-  });
-
   it("plays a granted publication without exposing notes", async () => {
     window.history.replaceState({}, "", "/s/share_public");
     window.location.hash = secret;

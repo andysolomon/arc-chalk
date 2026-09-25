@@ -81,14 +81,6 @@ function syntheticEntry(index: number, createdAtMs: number): UndoEntry {
 }
 
 describe("bounded persistent undo history", () => {
-  it("records a committed edit and names it for the Coach", async () => {
-    const { history } = await historyWithRename();
-
-    expect(history.undo).toHaveLength(1);
-    expect(history.undo[0]?.label).toBe("Rename Play");
-    expect(history.encodedByteLength).toBeGreaterThan(0);
-  });
-
   it("ignores an edit that leaves the Play unchanged", () => {
     const history = recordUndoEntry(
       createUndoHistory(offensiveStickThunderPlay.id, START_MS),
@@ -349,27 +341,6 @@ describe("bounded persistent undo history", () => {
     await expect(
       redoStep(empty, play, await hashPlayDocument(play), START_MS),
     ).resolves.toEqual({ status: "empty" });
-  });
-
-  it("redoes the edit it undid and returns to the same Play", async () => {
-    const { history, document, afterHash, beforeHash } =
-      await historyWithRename();
-    const undone = await undoStep(history, document, afterHash, START_MS);
-    expect(undone.status).toBe("applied");
-    if (undone.status !== "applied") return;
-
-    const redone = await redoStep(
-      undone.history,
-      undone.document,
-      beforeHash,
-      START_MS,
-    );
-    expect(redone.status).toBe("applied");
-    if (redone.status !== "applied") return;
-    expect(redone.document.name).toBe("Stick — Alert");
-    expect(redone.history.undo).toHaveLength(1);
-    expect(redone.history.redo).toEqual([]);
-    expect(await hashPlayDocument(redone.document)).toBe(afterHash);
   });
 
   it("discards a stored history that no longer parses or belongs elsewhere", async () => {

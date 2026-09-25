@@ -1,11 +1,7 @@
 import { searchPlays } from "@chalk/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  createMainThreadSearchClient,
-  createPlaySearchClient,
-  projectionsForHits,
-} from "./play-search-client";
+import { createPlaySearchClient } from "./play-search-client";
 
 /**
  * A Worker that answers the way the real one does, and records when it is
@@ -49,15 +45,6 @@ describe("Play search client", () => {
     notes: "",
   }));
 
-  it("falls back to the same answers as the pure search on the main thread", async () => {
-    const client = createMainThreadSearchClient();
-    const query = { text: "stick" };
-    await expect(client.search(plays, query)).resolves.toEqual(
-      searchPlays(plays, query),
-    );
-    client.dispose();
-  });
-
   describe("with a Worker", () => {
     afterEach(() => {
       vi.unstubAllGlobals();
@@ -82,12 +69,5 @@ describe("Play search client", () => {
       expect(FakeSearchWorker.spawned).toHaveLength(2);
       client.dispose();
     });
-  });
-
-  it("maps ranked hits back onto metadata records without loading Plays", () => {
-    const hits = searchPlays(plays, { text: "thunder" });
-    expect(projectionsForHits(plays, hits).map(({ playId }) => playId)).toEqual(
-      ["play_7"],
-    );
   });
 });

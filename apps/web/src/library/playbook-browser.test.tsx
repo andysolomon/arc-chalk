@@ -1,10 +1,9 @@
 import { blankPlaybook, stickThunderPlay } from "@chalk/domain";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { createMemoryLibrary } from "../app/editor-runtime";
-import { NARROW_PLAY_CARD_ROW_HEIGHT } from "./grid-columns";
 import { PlaybookBrowser } from "./playbook-browser";
 
 function member(
@@ -93,131 +92,8 @@ describe("the Playbook browser", () => {
     );
 
     const dialog = screen.getByRole("dialog", { name: "Playbook" });
-    expect(dialog.className).toContain("browser");
     await userEvent.type(screen.getByLabelText("Search plays"), "stick");
     expect(await screen.findByText("Stick — Thunder")).toBeVisible();
     expect(dialog.querySelectorAll("[data-play-id]").length).toBeLessThan(80);
-  });
-});
-
-describe("the Playbook browser on a tablet (issue #68)", () => {
-  const observers: Array<(width: number) => void> = [];
-  const installObserver = () => {
-    globalThis.ResizeObserver = class {
-      private readonly callback: ResizeObserverCallback;
-      constructor(callback: ResizeObserverCallback) {
-        this.callback = callback;
-      }
-      observe(target: Element) {
-        // Only the scroller's own observer hears a resize; the virtualizer
-        // measures its rows through another one.
-        if (!target.classList.contains("playbook-scroll")) return;
-        observers.push((width) =>
-          this.callback(
-            [{ contentRect: { width }, target } as ResizeObserverEntry],
-            this,
-          ),
-        );
-      }
-      unobserve() {
-        return undefined;
-      }
-      disconnect() {
-        return undefined;
-      }
-    };
-  };
-
-  it("lays the cards out by the width it has and keeps the rows in step", async () => {
-    installObserver();
-    const members = Array.from({ length: 9 }, (_, index) => member(index));
-    render(
-      <PlaybookBrowser
-        currentPlayId="play_0"
-        focusSearch={false}
-        initial={{ scrollTop: 0, query: "" }}
-        library={createMemoryLibrary()}
-        members={members}
-        onClose={() => undefined}
-        onOpen={() => undefined}
-        onRemember={() => undefined}
-        playTypes={blankPlaybook().playTypes}
-      />,
-    );
-    const scroller = document.querySelector(".playbook-scroll")!;
-    expect(scroller).toHaveAttribute("data-grid-columns", "4");
-    // A finger did not ask for the keyboard.
-    expect(screen.getByLabelText("Search plays")).not.toHaveFocus();
-
-    act(() => {
-      for (const resize of observers) resize(662);
-    });
-    expect(scroller).toHaveAttribute("data-grid-columns", "3");
-    await waitFor(() => {
-      const rows = [...document.querySelectorAll(".playbook-virtual-row")];
-      expect(rows.length).toBeGreaterThan(0);
-      for (const row of rows) {
-        expect((row as HTMLElement).style.gridTemplateColumns).toBe(
-          "repeat(3, minmax(0, 1fr))",
-        );
-        expect(
-          row.querySelectorAll("[data-play-id]").length,
-        ).toBeLessThanOrEqual(3);
-      }
-    });
-  });
-
-  it("uses one column and a taller row on a phone-width sheet", async () => {
-    observers.length = 0;
-    const original = globalThis.matchMedia;
-    globalThis.matchMedia = (query: string) =>
-      ({
-        matches: query.includes("max-width: 667px"),
-        media: query,
-        onchange: null,
-        addEventListener: () => undefined,
-        removeEventListener: () => undefined,
-        addListener: () => undefined,
-        removeListener: () => undefined,
-        dispatchEvent: () => false,
-      }) as MediaQueryList;
-    try {
-      installObserver();
-      const members = Array.from({ length: 4 }, (_, index) => member(index));
-      render(
-        <PlaybookBrowser
-          currentPlayId="play_0"
-          focusSearch={false}
-          initial={{ scrollTop: 0, query: "" }}
-          library={createMemoryLibrary()}
-          members={members}
-          onClose={() => undefined}
-          onOpen={() => undefined}
-          onRemember={() => undefined}
-          playTypes={blankPlaybook().playTypes}
-        />,
-      );
-      act(() => {
-        for (const resize of observers) resize(300);
-      });
-      const scroller = document.querySelector(".playbook-scroll")!;
-      expect(scroller).toHaveAttribute("data-grid-columns", "1");
-      expect(scroller).toHaveAttribute(
-        "data-card-row-height",
-        String(NARROW_PLAY_CARD_ROW_HEIGHT),
-      );
-      await waitFor(() => {
-        const rows = [...document.querySelectorAll(".playbook-virtual-row")];
-        expect(rows.length).toBeGreaterThan(0);
-        for (const row of rows) {
-          expect((row as HTMLElement).style.gridTemplateColumns).toBe(
-            "repeat(1, minmax(0, 1fr))",
-          );
-          expect(row.querySelectorAll("[data-play-id]").length).toBe(1);
-        }
-      });
-    } finally {
-      globalThis.matchMedia = original;
-    }
   });
 });

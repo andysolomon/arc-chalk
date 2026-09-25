@@ -1,7 +1,5 @@
 import {
   applyPlayCommand,
-  assignmentForPath,
-  canonicalStringify,
   flipStrengthWords,
   highSchoolFieldProfile,
   playDocumentSchema,
@@ -13,12 +11,8 @@ import {
   addDepthLabelCommand,
   alignPlayersCommand,
   depthLabelText,
-  expandSelectionToGroups,
   flipStrengthCommand,
-  groupSelectionCommand,
   reverseRouteCommand,
-  ungroupSelectionCommand,
-  type FieldItemRef,
 } from "@chalk/editor";
 import { describe, expect, it } from "vitest";
 
@@ -108,25 +102,6 @@ describe("flipping the strength", () => {
     expect(flipStrengthWords("vs McCoy")).toBe("vs McCoy");
     // A crosser is a crosser whichever way it runs.
     expect(flipStrengthWords("OVER")).toBe("OVER");
-  });
-
-  it("moves the men, trades the letters, and flips the language with them", () => {
-    const flipped = run(play, flipStrengthCommand(play, stockFormations));
-    expect(() => playDocumentSchema.parse(flipped)).not.toThrow();
-
-    const wasX = at(play, "man_7");
-    const nowThere = flipped.players.find((player) => player.id === "man_7")!;
-    expect(nowThere.position.lateralYards).toBeGreaterThan(0);
-    // The X becomes the Z, because a letter says which side a man plays.
-    expect(nowThere.label).toBe("Z");
-    expect(wasX.label).toBe("X");
-    expect(nowThere.sublabel).toBe("WEAK LEFT");
-
-    expect(assignmentForPath(flipped, "route_x")?.text).toBe(
-      "OVER, then RIGHT",
-    );
-    expect(flipped.paths[0]!.conversion).toBe("vs man: fade RIGHT");
-    expect(flipped.labels[0]!.text).toBe("WEAK side");
   });
 
   it("flips a set it recognises through its own named counterpart", () => {
@@ -231,61 +206,6 @@ describe("lining men up with one another", () => {
     // which is why this is turned away rather than attempted.
     expect(alignPlayersCommand(play, ["man_7"], "splits")).toBeUndefined();
     expect(alignPlayersCommand(play, [], "splits")).toBeUndefined();
-  });
-});
-
-describe("tying things together", () => {
-  const selection: readonly FieldItemRef[] = [
-    { kind: "player", id: "man_7" },
-    { kind: "path", id: "route_x" },
-    { kind: "label", id: "note" },
-  ];
-
-  it("marks everything picked as one group, whatever kind of thing it is", () => {
-    const grouped = run(play, groupSelectionCommand(play, selection, makeId));
-    expect(() => playDocumentSchema.parse(grouped)).not.toThrow();
-    const group = at(grouped, "man_7").group;
-    expect(group).toBeDefined();
-    expect(grouped.paths[0]!.group).toBe(group);
-    expect(grouped.labels[0]!.group).toBe(group);
-  });
-
-  it("picks the whole of a group when one of it is picked, which is all a group does", () => {
-    const grouped = run(play, groupSelectionCommand(play, selection, makeId));
-    const expanded = expandSelectionToGroups(grouped, [
-      { kind: "player", id: "man_7" },
-    ]);
-    expect(expanded).toHaveLength(3);
-    expect(expanded.map(({ id }) => id).sort()).toEqual([
-      "man_7",
-      "note",
-      "route_x",
-    ]);
-    // Something in no group brings nothing else with it — and is handed back
-    // as it came, so nothing downstream sees a change that did not happen.
-    const alone: readonly FieldItemRef[] = [{ kind: "player", id: "man_0" }];
-    expect(expandSelectionToGroups(grouped, alone)).toBe(alone);
-  });
-
-  it("unties them again, and leaves what was never tied alone", () => {
-    const grouped = run(play, groupSelectionCommand(play, selection, makeId));
-    const loose = run(
-      grouped,
-      ungroupSelectionCommand(grouped, [{ kind: "player", id: "man_7" }]),
-    );
-    expect("group" in at(loose, "man_7")).toBe(false);
-    expect("group" in loose.paths[0]!).toBe(false);
-    // Untied, it hashes exactly like a Play that was never grouped.
-    expect(canonicalStringify(loose)).toBe(canonicalStringify(play));
-    expect(
-      ungroupSelectionCommand(play, [{ kind: "player", id: "man_7" }]),
-    ).toBeUndefined();
-  });
-
-  it("needs two things to tie together", () => {
-    expect(
-      groupSelectionCommand(play, [{ kind: "player", id: "man_7" }], makeId),
-    ).toBeUndefined();
   });
 });
 

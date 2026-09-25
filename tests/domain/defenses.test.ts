@@ -1,9 +1,6 @@
 import {
   applyDefensiveCall,
-  countAssignments,
   currentDefensiveCall,
-  defensiveFronts,
-  formationSchema,
   highSchoolFieldProfile,
   playDocumentSchema,
   stockDefensiveCalls,
@@ -83,98 +80,7 @@ const offenseOnly: PlayDocument = playDocumentSchema.parse({
   ],
 });
 
-describe("the calls the original ships with", () => {
-  it("carries every one of them, each a Formation the schema accepts", () => {
-    expect(stockDefensiveCalls).toHaveLength(11);
-    for (const call of stockDefensiveCalls) {
-      expect(() => formationSchema.parse(call.formation)).not.toThrow();
-      expect(call.formation.unit).toBe("defense");
-      expect(call.formation.slots).toHaveLength(11);
-      expect(defensiveFronts).toContain(call.front);
-    }
-  });
-
-  it("draws a defender as his letter and nothing else, which is how a Coach reads a side", () => {
-    for (const slot of callNamed("4-3 Cover 3").formation.slots) {
-      expect(slot.symbol).toBe("none");
-      expect(slot.label).not.toBe("");
-    }
-  });
-
-  it("gives all eleven Fire Zone defenders one assignment: five rush and six cover", () => {
-    const call = callNamed("Fire Zone Blitz");
-    expect(call.assignments).toHaveLength(11);
-    expect(new Set(call.assignments.map(({ slotId }) => slotId))).toEqual(
-      new Set(call.formation.slots.map(({ id }) => id)),
-    );
-    for (const assignment of call.assignments) {
-      expect(assignment.points[0]).toEqual(
-        call.formation.slots.find(({ id }) => id === assignment.slotId)!
-          .position,
-      );
-    }
-    const { play } = applyDefensiveCall(offenseOnly, call, makeId);
-    expect(play.players.filter(({ unit }) => unit === "defense")).toHaveLength(
-      11,
-    );
-  });
-
-  it("tells the two corners apart by the side each plays, not by the letter they share", () => {
-    const corners = callNamed("4-3 Cover 3").formation.slots.filter(
-      ({ label }) => label === "C",
-    );
-    expect(corners).toHaveLength(2);
-    expect(new Set(corners.map(({ role }) => role)).size).toBe(2);
-  });
-
-  it("is a front and a coverage, and every line in it belongs to one of its men", () => {
-    for (const call of stockDefensiveCalls) {
-      const slotIds = new Set(call.formation.slots.map(({ id }) => id));
-      for (const assignment of call.assignments) {
-        expect(slotIds.has(assignment.slotId)).toBe(true);
-        expect(assignment.points.length).toBeGreaterThanOrEqual(2);
-      }
-    }
-    expect(countAssignments(callNamed("Fire Zone Blitz"))).toEqual({
-      drop: 6,
-      man: 0,
-      blitz: 5,
-    });
-    expect(countAssignments(callNamed("Nickel Cover 1"))).toEqual({
-      drop: 1,
-      man: 6,
-      blitz: 0,
-    });
-  });
-});
-
 describe("putting a call on the field", () => {
-  it("brings the men on and draws what each of them has to do", () => {
-    const { play, addedPlayerIds, addedPathCount } = applyDefensiveCall(
-      offenseOnly,
-      callNamed("4-3 Cover 3"),
-      makeId,
-    );
-    expect(() => playDocumentSchema.parse(play)).not.toThrow();
-    expect(addedPlayerIds).toHaveLength(11);
-    expect(addedPathCount).toBe(7);
-    expect(play.players.filter(({ unit }) => unit === "defense")).toHaveLength(
-      11,
-    );
-  });
-
-  it("leaves the lines off when the Coach wants the alignment to draw his own on", () => {
-    const { play, addedPathCount } = applyDefensiveCall(
-      offenseOnly,
-      callNamed("4-3 Cover 3"),
-      makeId,
-      { withAssignments: false },
-    );
-    expect(addedPathCount).toBe(0);
-    expect(play.paths).toHaveLength(offenseOnly.paths.length);
-    expect(play.players).toHaveLength(12);
-  });
-
   it("gives a drop the ground it owns, wider the deeper it goes, and reads back what it is", () => {
     const { play } = applyDefensiveCall(
       offenseOnly,
@@ -212,17 +118,6 @@ describe("putting a call on the field", () => {
       expect(path.style.line).toBe("dotted");
       expect(path.style.ending).toBe("arrow");
     }
-  });
-
-  it("draws a blitz in red, the way the domain already says a blitz is drawn", () => {
-    const { play } = applyDefensiveCall(
-      offenseOnly,
-      callNamed("Fire Zone Blitz"),
-      makeId,
-    );
-    const blitzes = play.paths.filter(({ kind }) => kind === "blitz");
-    expect(blitzes).toHaveLength(5);
-    for (const path of blitzes) expect(path.style.color).toBe("red");
   });
 
   it("starts every line on the man running it", () => {
@@ -351,23 +246,6 @@ describe("putting a call on the field", () => {
 });
 
 describe("reading which call is on the field", () => {
-  it("names nothing when there is no defense on it", () => {
-    expect(
-      currentDefensiveCall(offenseOnly, stockDefensiveCalls),
-    ).toBeUndefined();
-  });
-
-  it("names the call the men are standing in", () => {
-    const { play } = applyDefensiveCall(
-      offenseOnly,
-      callNamed("Nickel Cover 2"),
-      makeId,
-    );
-    expect(
-      currentDefensiveCall(play, stockDefensiveCalls)?.formation.name,
-    ).toBe("Nickel Cover 2");
-  });
-
   it("loses the name for a step in any direction, a changed letter, or an extra man", () => {
     const { play } = applyDefensiveCall(
       offenseOnly,

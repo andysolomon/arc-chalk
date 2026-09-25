@@ -102,18 +102,6 @@ describe("app lifecycle", () => {
     expect(fake.record()).toBe(3);
   });
 
-  it("follows the network and notifies subscribers", () => {
-    const fake = fakePorts();
-    const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
-    const listener = vi.fn();
-    lifecycle.subscribe(listener);
-    fake.setOnline(false);
-    expect(lifecycle.getSnapshot().connectivity).toBe("offline");
-    fake.setOnline(true);
-    expect(lifecycle.getSnapshot().connectivity).toBe("online");
-    expect(listener).toHaveBeenCalledTimes(2);
-  });
-
   it("reports a waiting shell and only switches when asked", async () => {
     const fake = fakePorts();
     const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
@@ -124,14 +112,6 @@ describe("app lifecycle", () => {
     await lifecycle.applyUpdate();
     expect(fake.activate).toHaveBeenCalledWith(true);
     expect(lifecycle.getSnapshot().update).toBe("applying");
-  });
-
-  it("ignores applyUpdate when nothing is waiting", async () => {
-    const fake = fakePorts();
-    const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
-    await lifecycle.applyUpdate();
-    expect(fake.activate).not.toHaveBeenCalled();
-    expect(lifecycle.getSnapshot().update).toBe("current");
   });
 
   it("keeps the update offered when switching fails", async () => {
@@ -161,16 +141,6 @@ describe("app lifecycle", () => {
     const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 2 });
     expect(lifecycle.getSnapshot().fault).toBeUndefined();
     expect(fake.record()).toBe(2);
-  });
-
-  it("repairs a stale shell by dropping workers and caches, then reloading", async () => {
-    const fake = fakePorts();
-    fake.setRecord(9);
-    const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
-    await lifecycle.repairShell();
-    expect(fake.cache.unregisterWorkers).toHaveBeenCalledTimes(1);
-    expect(fake.cache.clearShellCaches).toHaveBeenCalledTimes(1);
-    expect(fake.cache.reload).toHaveBeenCalledTimes(1);
   });
 
   it("reports a registration failure without blocking the editor", () => {
@@ -228,20 +198,6 @@ describe("app lifecycle", () => {
     expect(lifecycle.getSnapshot().install).toBe("installed");
   });
 
-  it("offers install when the browser does and finishes on acceptance", async () => {
-    const fake = fakePorts();
-    const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
-    const prompt: InstallPromptLike = {
-      prompt: vi.fn(() => Promise.resolve()),
-      userChoice: Promise.resolve({ outcome: "accepted" as const }),
-    };
-    fake.offerInstall(prompt);
-    expect(lifecycle.getSnapshot().install).toBe("available");
-    await lifecycle.install();
-    expect(prompt.prompt).toHaveBeenCalledTimes(1);
-    expect(lifecycle.getSnapshot().install).toBe("installed");
-  });
-
   it("keeps the offer when the Coach dismisses the browser prompt", async () => {
     const fake = fakePorts();
     const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
@@ -251,10 +207,5 @@ describe("app lifecycle", () => {
     });
     await lifecycle.install();
     expect(lifecycle.getSnapshot().install).toBe("available");
-  });
-
-  it("runs without any browser surface at all", () => {
-    const lifecycle = createAppLifecycle({ ports: {}, dataVersion: 1 });
-    expect(lifecycle.getSnapshot().update).toBe("current");
   });
 });

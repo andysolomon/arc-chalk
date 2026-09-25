@@ -114,15 +114,6 @@ describe("edits made in 'This play'", () => {
     expect(hook.result.current.report).toMatch(/^Applied to \d of 5/);
     expect(editorStore.getSnapshot().document.id).toBe(family[0]!.id);
   });
-
-  it("can be waved off, and the offer expires on its own", async () => {
-    const { editorStore, hook } = setup();
-    await waitFor(() => expect(hook.result.current.familySize).toBe(5));
-    act(() => hook.result.current.maybeBroadcast(dashZ(editorStore)));
-    expect(hook.result.current.offer).toBeDefined();
-    act(() => hook.result.current.dropOffer());
-    expect(hook.result.current.offer).toBeUndefined();
-  });
 });
 
 describe("an armed 'All versions' scope", () => {

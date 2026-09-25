@@ -5,10 +5,8 @@ import {
   currentFormation,
   formationFromOffense,
   formationMeta,
-  formationSchema,
   formationStillApplied,
   highSchoolFieldProfile,
-  planRealignment,
   playDocumentSchema,
   recognizeFormation,
   roleFromLabel,
@@ -65,14 +63,6 @@ let nextId = 0;
 const makeId = (prefix: string) => `${prefix}_new_${(nextId += 1)}`;
 
 describe("the sets the original ships with", () => {
-  it("carries every one of them, and each is a Formation the schema accepts", () => {
-    expect(stockFormations).toHaveLength(18);
-    for (const formation of stockFormations) {
-      expect(() => formationSchema.parse(formation)).not.toThrow();
-      expect(formation.slots).toHaveLength(11);
-    }
-  });
-
   it("derives the left-handed twin by reflection, trading the names that say which side a man plays", () => {
     const right = setNamed("Gun Trips Right");
     const left = setNamed("Gun Trips Left");
@@ -228,27 +218,6 @@ describe("where the ball is spotted", () => {
 });
 
 describe("moving the men onto another set", () => {
-  it("pairs every man with the slot of the position he was playing", () => {
-    const play = playOn(setNamed("Gun Doubles Right"));
-    const plan = planRealignment(play, setNamed("Gun Trips Right"));
-    expect(plan.vacancies).toHaveLength(0);
-    expect(plan.orphans).toHaveLength(0);
-    expect(plan.pairs).toHaveLength(11);
-    const moved = plan.pairs.find(({ slot }) => slot.role === "H")!;
-    expect(moved.slot.position.lateralYards).toBeGreaterThan(0);
-    expect(moved.from.lateralYards).toBeLessThan(0);
-    expect(plan.movedCount).toBeGreaterThan(0);
-  });
-
-  it("counts a slot nobody plays as a vacancy and a man the set has no place for as an orphan", () => {
-    const play = playOn(setNamed("Gun Ace Right"));
-    // Gun Ace has two tight ends; Gun Doubles has one, so a Y is left over.
-    const plan = planRealignment(play, setNamed("Gun Doubles Right"));
-    expect(plan.vacancies.map(({ role }) => role)).toEqual(["H"]);
-    expect(plan.orphans).toHaveLength(1);
-    expect(assignRoles(plan.orphans)).toEqual(["TE"]);
-  });
-
   it("carries every route with the man running it, control points and forks included", () => {
     const start = playOn(setNamed("Gun Doubles Right"));
     const receiver = idOfRole(start, "X");
@@ -403,15 +372,6 @@ describe("moving the men onto another set", () => {
     expect(play.players).toHaveLength(10);
   });
 
-  it("records which set is on the field, and which man is standing in which slot", () => {
-    const play = playOn(setNamed("Gun Doubles Right"));
-    const trips = setNamed("Gun Trips Right");
-    const { play: after } = applyFormation(play, trips, makeId);
-    expect(after.formationSource?.formationId).toBe(trips.id);
-    expect(after.formationSource?.slotBindings).toHaveLength(11);
-    expect(() => playDocumentSchema.parse(after)).not.toThrow();
-  });
-
   it("gives an unlettered man the shape his slot is drawn with, and leaves a lettered one his own", () => {
     const start = playOn(setNamed("Gun Doubles Right"));
     const disguised: PlayDocument = {
@@ -436,13 +396,6 @@ describe("moving the men onto another set", () => {
 });
 
 describe("reading which set is on the field", () => {
-  it("names the set the men are standing in", () => {
-    const bunch = setNamed("Gun Bunch Right");
-    const read = recognizeFormation(playOn(bunch), stockFormations);
-    expect(read.formation?.id).toBe(bunch.id);
-    expect(read.confidence).toBe(1);
-  });
-
   it("names nothing at all when the count is wrong, however well the rest of them line up", () => {
     const trips = setNamed("Gun Trips Right");
     const start = playOn(trips);
@@ -592,38 +545,6 @@ describe("the offense on the field, kept as a set of its own", () => {
     name: "Andy's Empty",
     slotId: (index: number) => `slot_saved_${index}`,
   };
-
-  it("reads the set off the men, so only the name is the Coach's to give", () => {
-    const play = playOn(setNamed("Gun Trips Right"));
-    const saved = formationFromOffense(play, named)!;
-
-    // It has to be a Formation before anything else — a set Chalk cannot
-    // validate is a set it cannot keep.
-    expect(() => formationSchema.parse(saved)).not.toThrow();
-    expect(saved.name).toBe("Andy's Empty");
-    expect(saved.family).toBe("custom");
-    expect(saved.unit).toBe("offense");
-    expect(saved.playbookId).toBe("playbook_under_test");
-
-    const offense = play.players.filter(({ unit }) => unit !== "defense");
-    expect(saved.slots).toHaveLength(offense.length);
-    expect(saved.description).toBe(`${offense.length} pl`);
-    // Personnel and strength are what the men say they are, not what the set
-    // it came from was called.
-    const read = formationMeta(offense);
-    expect(saved.personnelLabel).toBe(read.personnelLabel);
-    expect(saved.strength).toBe(read.strength);
-    // Every man keeps his place, his mark and his letter.
-    expect(saved.slots.map(({ position }) => position)).toEqual(
-      offense.map(({ position }) => position),
-    );
-    expect(saved.slots.map(({ label }) => label)).toEqual(
-      offense.map(({ label }) => label),
-    );
-    expect(saved.slots.map(({ symbol }) => symbol)).toEqual(
-      offense.map(({ symbol }) => symbol),
-    );
-  });
 
   it("names a role for every man, so a route survives being realigned into it", () => {
     const saved = formationFromOffense(

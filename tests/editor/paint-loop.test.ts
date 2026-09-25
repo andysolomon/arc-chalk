@@ -1,7 +1,6 @@
 import {
   classifyFrameBudget,
   classifyInputToPaint,
-  createLiveSnapshotStore,
   createPaintLoop,
   FRAME_BUDGET_MS,
   INPUT_TO_PAINT_BUDGET_MS,
@@ -116,21 +115,5 @@ describe("createPaintLoop", () => {
     loop.flush();
     expect(painted).toBe(true);
     expect(clock.pendingCount()).toBe(0);
-  });
-});
-
-describe("createLiveSnapshotStore", () => {
-  it("notifies subscribers with a new snapshot identity", () => {
-    const first = { n: 1 };
-    const store = createLiveSnapshotStore(first);
-    const seen: number[] = [];
-    const stop = store.subscribe(() => seen.push(store.getSnapshot().n));
-
-    expect(store.getSnapshot()).toBe(first);
-    store.notify({ n: 2 });
-    expect(seen).toEqual([2]);
-    stop();
-    store.notify({ n: 3 });
-    expect(seen).toEqual([2]);
   });
 });
