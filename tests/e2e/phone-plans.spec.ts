@@ -69,7 +69,7 @@ const noRootOverflow = (page: Page) =>
 
 const openGamePlans = async (page: Page) => {
   await page.goto("/");
-  await expect(page.getByText("Read only")).toBeVisible();
+  await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
   // The phone reports a coarse pointer; every sizing rule below hangs on it.
   expect(
     await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
@@ -226,8 +226,7 @@ for (const viewport of VIEWPORTS) {
       page,
     }) => {
       await page.goto("/");
-      await expect(page.getByText("Read only")).toBeVisible();
-      await page.getByRole("button", { name: "Edit on this screen" }).tap();
+      await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
       await page.getByRole("button", { name: "Inspector", exact: true }).tap();
       await page.getByTitle("Browse formations — ⇧⌘F").tap();
       const book = page.getByRole("dialog", { name: "Formations" });
