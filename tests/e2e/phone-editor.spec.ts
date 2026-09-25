@@ -510,6 +510,54 @@ for (const viewport of WORKSPACES) {
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
     });
 
+    test("puts the blue dot away when a tap on the grass clears the field", async ({
+      page,
+    }) => {
+      await enterEditor(page);
+      const routes = await page.locator("[data-scene-path]").count();
+      // The Y, not the quarterback: held sideways, the tray that opens for a
+      // picked man lands where the quarterback was, under the lifting finger.
+      // The Y stands clear of anyone a finger could take for him.
+      const symbol = page
+        .locator("[data-scene-player='y']")
+        .locator("circle, rect, path")
+        .first();
+      const at = (await symbol.boundingBox())!;
+      await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
+      const dot = page.locator("[data-route-dot]");
+      await expect(page.locator('[data-route-dot="y"]')).toHaveCount(1);
+
+      // A route from his dot: the dot, a break, Done. He is measured again,
+      // because the tray moved the field when it opened.
+      const moved = (await symbol.boundingBox())!;
+      const start = {
+        x: moved.x + moved.width / 2,
+        y: moved.y + moved.height / 2,
+      };
+      const handle = (await page.locator(".route-dot").boundingBox())!;
+      await page.touchscreen.tap(
+        handle.x + handle.width / 2,
+        handle.y + handle.height / 2,
+      );
+      await expect(page.locator("[data-drawing-preview]")).toHaveCount(1);
+      await page.touchscreen.tap(start.x + 40, start.y - 50);
+      await page.getByRole("button", { name: "Finish the route — ⏎" }).tap();
+      await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+      await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+
+      // A tap on bare grass puts everything down, the dot with it: a finger
+      // never hovered him, so nothing is left offering it. The low corner,
+      // because the note that the play changed rides along the top.
+      const field = (await page
+        .locator("svg.field-diagram")
+        .first()
+        .boundingBox())!;
+      await page.touchscreen.tap(field.x + 16, field.y + field.height - 16);
+      await expect(page.locator("[data-selected-path]")).toHaveCount(0);
+      await expect(page.locator("[data-scene-player].selected")).toHaveCount(0);
+      await expect(dot).toHaveCount(0);
+    });
+
     test("keeps an update notice's action whole inside the width", async ({
       page,
     }) => {

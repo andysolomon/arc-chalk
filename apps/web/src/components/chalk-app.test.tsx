@@ -5,13 +5,16 @@ import {
 import {
   formationFromOffense,
   hashPlayDocument,
+  moveMenWithTheirLines,
   starterExamplePlays,
   starterPlaybookEnvelope,
   stickThunderPlay,
+  stockDefensiveCalls,
   stockFormations,
   type PlayDocument,
 } from "@chalk/domain";
 import {
+  applyDefensiveCallCommand,
   applyFormationCommand,
   createEditorStore,
   type EditorPersistence,
@@ -3091,5 +3094,151 @@ describe("the other unit's shadow (ADR 0053)", () => {
         screen.getByRole("group", { name: "Show on the field" }),
       ).getByRole("button", { name: "Shadow offense" }),
     ).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("putting the men back (ADR 0055)", () => {
+  const trips = stockFormations.find(({ name }) => name === "Gun Trips Right")!;
+  const formed = applyFormationCommand(
+    stickThunderPlay,
+    trips,
+    (prefix) => `${prefix}_formed`,
+  ).result.play;
+  const positions = (play: PlayDocument) =>
+    play.players.map(({ id, position }) => ({ id, position }));
+  const nudge = (play: PlayDocument, label: string, lateralYards: number) => {
+    const man = play.players.find(
+      (player) => player.label === label && player.unit === "offense",
+    )!;
+    return moveMenWithTheirLines(
+      play,
+      new Map([
+        [
+          man.id,
+          {
+            lateralYards: man.position.lateralYards + lateralYards,
+            depthYards: man.position.depthYards,
+          },
+        ],
+      ]),
+    );
+  };
+
+  it("keeps the untouched starter's inspector as it was until a set is chosen", () => {
+    render(<ChalkApp runtime={createTestRuntime()} />);
+    const inspector = screen.getByRole("complementary", {
+      name: "Play inspector",
+    });
+    expect(within(inspector).queryByText("Reset to")).toBeNull();
+  });
+
+  it("puts a dragged man back in the set the Play remembers, from under its picker", async () => {
+    const user = userEvent.setup();
+    const editorStore = createTestEditorStore(
+      undefined,
+      nudge(nudge(formed, "X", 4), "H", -3),
+    );
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
+    expect(screen.getByText("CUSTOM ALIGNMENT")).toBeVisible();
+
+    const inspector = screen.getByRole("complementary", {
+      name: "Play inspector",
+    });
+    const reset = within(inspector).getByRole("button", {
+      name: "Reset offense to Gun Trips Right",
+    });
+    expect(reset).toBeEnabled();
+    expect(
+      within(inspector).getByRole("button", {
+        name: "Reset offense to base — Gun Doubles Right",
+      }),
+    ).toBeEnabled();
+
+    await user.click(reset);
+    await waitFor(() =>
+      expect(positions(editorStore.getSnapshot().document)).toEqual(
+        positions(formed),
+      ),
+    );
+    expect(screen.getByText("GUN TRIPS RIGHT · 11")).toBeVisible();
+    // Everyone is home, so the button says there is nothing left to do.
+    expect(reset).toBeDisabled();
+  });
+
+  it("puts a moved defender back in the call from the Shadow defense section", async () => {
+    const user = userEvent.setup();
+    const call = stockDefensiveCalls.find(
+      ({ formation }) => formation.name === "4-3 Cover 2",
+    )!;
+    const withCall = applyDefensiveCallCommand(
+      formed,
+      call,
+      (() => {
+        let next = 0;
+        return (prefix: string) => `${prefix}_called_${(next += 1)}`;
+      })(),
+    ).result.play;
+    const mike = withCall.players.find(
+      ({ label, unit }) => unit === "defense" && label === "M",
+    )!;
+    const moved = moveMenWithTheirLines(
+      withCall,
+      new Map([
+        [
+          mike.id,
+          {
+            lateralYards: mike.position.lateralYards + 3,
+            depthYards: mike.position.depthYards + 2,
+          },
+        ],
+      ]),
+    );
+    const editorStore = createTestEditorStore(undefined, moved);
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
+    const inspector = screen.getByRole("complementary", {
+      name: "Play inspector",
+    });
+    await unfold(user, inspector, "Shadow defense");
+
+    await user.click(
+      within(inspector).getByRole("button", {
+        name: "Reset defense to 4-3 Cover 2",
+      }),
+    );
+    await waitFor(() =>
+      expect(positions(editorStore.getSnapshot().document)).toEqual(
+        positions(withCall),
+      ),
+    );
+  });
+
+  it("reaches base from the palette on a Play drawn by hand", async () => {
+    const user = userEvent.setup();
+    const editorStore = createTestEditorStore();
+    render(<ChalkApp runtime={createTestRuntime({ editorStore })} />);
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(
+      screen.getByRole("textbox", { name: "Command palette" }),
+      "reset offense",
+    );
+    // Nothing was chosen for the starter, so only base has anywhere to go.
+    expect(
+      screen.getByRole("button", { name: "Reset offense to its formation" }),
+    ).toBeDisabled();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Reset offense to base — Gun Doubles Right",
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        editorStore.getSnapshot().document.formationSource?.formationId,
+      ).toBe("formation_gun_doubles_right"),
+    );
+    // Base adds nobody: the starter's men are the men there were.
+    expect(editorStore.getSnapshot().document.players).toHaveLength(
+      stickThunderPlay.players.length,
+    );
   });
 });

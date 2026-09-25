@@ -2940,6 +2940,14 @@ button.play-type.open {
   color: var(--ink);
   box-shadow: 0 0 0 1px var(--line);
 }
+/* A set's name can outrun its half of the Reset row; the title says it all. */
+.reset-row .segments button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reset-row .segments button:not(:disabled) {
+  color: var(--ink);
+}
 .inspector p {
   margin: 8px 0 0;
   color: #777;
