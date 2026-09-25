@@ -2577,6 +2577,95 @@ describe("Navigation (issue #65)", () => {
     await user.keyboard("{Escape}");
   });
 
+  it("keeps a lineman to his block — no route by key, no blue dot, no other kind", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
+    const outline = screen.getByRole("list", {
+      name: "Everything on the field",
+    });
+    const drawing = () =>
+      container.querySelector(".field-wrap")?.getAttribute("data-drawing");
+
+    // The Quarterback runs routes, so he has the dot.
+    await user.click(
+      within(outline).getByRole("button", { name: "Q offense player" }),
+    );
+    expect(container.querySelector(".route-dot")).not.toBeNull();
+
+    // The centre blocks and nothing else.
+    await user.click(
+      within(outline).getAllByRole("button", {
+        name: "player offense player",
+      })[2]!,
+    );
+    const draw = screen.getByRole("group", { name: "Draw by hand" });
+    expect(
+      within(draw)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["BlockB"]);
+    expect(container.querySelector(".route-dot")).toBeNull();
+    for (const key of ["r", "m", "z"]) {
+      await user.keyboard(key);
+      expect(drawing()).toBeNull();
+    }
+
+    // Given a block, the line can be nothing but a block.
+    await user.click(screen.getByRole("button", { name: /^Drive/ }));
+    await user.click(
+      within(
+        screen.getByRole("list", { name: "Everything on the field" }),
+      ).getByRole("button", { name: /offense player block/ }),
+    );
+    expect(
+      [
+        ...container.querySelectorAll(".label-inspector .segments")[0]!
+          .children,
+      ].map((button) => button.textContent),
+    ).toEqual(["Block"]);
+  });
+
+  it("keeps a defender off routes — no route by key, no blue dot, no route kind", async () => {
+    const user = userEvent.setup();
+    const coverThree = starterExamplePlays().find(
+      ({ name }) => name === "Cover 3 — Fire Zone",
+    )!;
+    const { container } = render(
+      <ChalkApp
+        runtime={createTestRuntime({
+          editorStore: createTestEditorStore(undefined, coverThree),
+          library: createMemoryLibrary(
+            emptyLibrarySnapshot(coverThree.playbookId),
+          ),
+        })}
+      />,
+    );
+    const outline = screen.getByRole("list", {
+      name: "Everything on the field",
+    });
+    await user.click(
+      within(outline).getAllByRole("button", { name: /defense player$/ })[0]!,
+    );
+    expect(container.querySelector(".route-dot")).toBeNull();
+    for (const key of ["r", "m"]) {
+      await user.keyboard(key);
+      expect(
+        container.querySelector(".field-wrap")?.getAttribute("data-drawing"),
+      ).toBeNull();
+    }
+
+    // A drop can become a blitz or a stunt, never a route or a ball flight.
+    await user.click(
+      within(outline).getAllByRole("button", { name: / zone$/ })[0]!,
+    );
+    expect(
+      [
+        ...container.querySelectorAll(".label-inspector .segments")[0]!
+          .children,
+      ].map((button) => button.textContent),
+    ).toEqual(["Zone", "Blitz", "Stunt"]);
+  });
+
   it("offers Done over the field while a line is in hand, and a Free draw switch that is remembered", async () => {
     const user = userEvent.setup();
     const library = createMemoryLibrary(

@@ -121,6 +121,32 @@ const up = (point: Coordinate, pointerId = 1): FieldInteractionEvent => ({
   input: { point, pointerId },
 });
 
+/** Stick Thunder with a Mike linebacker across from it. */
+const withMike = applyPlayCommand(stickThunderPlay, {
+  kind: "batch",
+  label: "Add Player",
+  commands: [
+    {
+      kind: "insert-players",
+      players: [
+        {
+          index: stickThunderPlay.players.length,
+          item: {
+            id: "mike",
+            unit: "defense",
+            position: { lateralYards: 0, depthYards: 5 },
+            symbol: "circle",
+            label: "M",
+            sublabel: "",
+            fill: "none",
+            color: "ink",
+          },
+        },
+      ],
+    },
+  ],
+});
+
 describe("field interaction selection", () => {
   it("selects on click and clears on a click in the grass", () => {
     const context = contextFor(stickThunderPlay);
@@ -487,31 +513,6 @@ describe("field interaction keyboard", () => {
 
 describe("field interaction tools", () => {
   /** A defender on the seeded offensive Play, for the lines only he draws. */
-  const withMike = applyPlayCommand(stickThunderPlay, {
-    kind: "batch",
-    label: "Add Player",
-    commands: [
-      {
-        kind: "insert-players",
-        players: [
-          {
-            index: stickThunderPlay.players.length,
-            item: {
-              id: "mike",
-              unit: "defense",
-              position: { lateralYards: 0, depthYards: 5 },
-              symbol: "circle",
-              label: "M",
-              sublabel: "",
-              fill: "none",
-              color: "ink",
-            },
-          },
-        ],
-      },
-    ],
-  });
-
   it("never places a man from a press on the grass — eleven a side is the roster", () => {
     // There is no Player tool (ADR 0052): the grass under Select starts a
     // marquee, never a twelfth man.
@@ -548,6 +549,33 @@ describe("field interaction tools", () => {
     expect(run(context, [start("block", "y")]).model.drawing).toMatchObject({
       kind: "block",
     });
+  });
+
+  it("gives nobody a line by hand his position cannot run", () => {
+    const context = contextFor(withMike);
+    const drawn = (kind: "route" | "motion" | "block" | "zone", id: string) =>
+      run(context, [start(kind, id)]).model.drawing;
+
+    // A defender never runs a route or a motion.
+    expect(drawn("route", "mike")).toBeUndefined();
+    expect(drawn("motion", "mike")).toBeUndefined();
+    // Nobody on offense drops into a zone.
+    expect(drawn("zone", "y")).toBeUndefined();
+    expect(drawn("zone", "ol2")).toBeUndefined();
+    // A lineman only blocks.
+    expect(drawn("route", "ol2")).toBeUndefined();
+    expect(drawn("motion", "ol2")).toBeUndefined();
+    expect(drawn("block", "ol2")).toMatchObject({
+      kind: "block",
+      playerId: "ol2",
+    });
+
+    // The blue dot's drag is a route too, so it starts nothing from either.
+    for (const playerId of ["mike", "ol2"]) {
+      const dragged = run(context, [{ type: "start-route", playerId }]);
+      expect(dragged.model.drawing).toBeUndefined();
+      expect(dragged.commands).toHaveLength(0);
+    }
   });
 
   it("ignores a start for a man who is not there, or while a line is in hand", () => {
@@ -866,6 +894,29 @@ describe("field interaction drawing", () => {
       const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
       return after.paths.find(({ id }) => id === "path_drawn")!;
     };
+    // A drop is a defender's, so it is drawn from the Mike.
+    const mike = positionOf(withMike, "mike");
+    const dropBreak = {
+      lateralYards: mike.lateralYards + 4,
+      depthYards: mike.depthYards + 4,
+    };
+    const dropSession = run(
+      contextFor(withMike, {
+        snap: { enabled: false, grid: "off" },
+        createId: (prefix) => `${prefix}_drawn`,
+      }),
+      [
+        start("zone", "mike"),
+        move(dropBreak),
+        down(dropBreak),
+        up(dropBreak),
+        { type: "finish-drawing" },
+      ],
+    );
+    const drop = applyPlayCommand(
+      withMike,
+      dropSession.commands[0]!,
+    ).paths.find(({ id }) => id === "path_drawn")!;
 
     expect(drawWith("motion").style).toMatchObject({
       line: "zigzag",
@@ -876,7 +927,7 @@ describe("field interaction drawing", () => {
       line: "solid",
       ending: "bar",
     });
-    expect(drawWith("zone").style).toMatchObject({
+    expect(drop.style).toMatchObject({
       line: "dashed",
       ending: "bubble",
       color: "blue",
@@ -2571,14 +2622,90 @@ describe("route styling", () => {
     expect(backToRoute.style.ending).toBe("arrow");
 
     // A blitz is red and a stunt runs on chevrons, whatever came before.
+    const dropping = applyPlayCommand(withMike, {
+      kind: "insert-paths",
+      paths: [
+        {
+          index: withMike.paths.length,
+          item: {
+            id: "drop",
+            kind: "zone",
+            playerId: "mike",
+            points: [
+              { lateralYards: 0, depthYards: 5 },
+              { lateralYards: 0, depthYards: 10 },
+            ],
+            branches: [],
+            style: { line: "dashed", ending: "bubble", color: "blue" },
+          },
+        },
+      ],
+    });
     const blitz = pathOf(
       applyPlayCommand(
-        stickThunderPlay,
-        setRouteKindCommand(stickThunderPlay, "rx", "blitz")!,
+        dropping,
+        setRouteKindCommand(dropping, "drop", "blitz")!,
       ),
-      "rx",
+      "drop",
     );
     expect(blitz.style).toMatchObject({ color: "red", ending: "arrow" });
+  });
+
+  it("only turns a line into what its man can run", () => {
+    // A receiver never blitzes or drops.
+    expect(
+      setRouteKindCommand(stickThunderPlay, "rx", "blitz"),
+    ).toBeUndefined();
+    expect(setRouteKindCommand(stickThunderPlay, "rx", "zone")).toBeUndefined();
+
+    // A lineman's block stays a block.
+    const blocking = applyPlayCommand(stickThunderPlay, {
+      kind: "insert-paths",
+      paths: [
+        {
+          index: stickThunderPlay.paths.length,
+          item: {
+            id: "pass_pro",
+            kind: "block",
+            playerId: "ol2",
+            points: [
+              positionOf(stickThunderPlay, "ol2"),
+              { lateralYards: 0, depthYards: -3 },
+            ],
+            branches: [],
+            style: { line: "solid", ending: "bar", color: "ink" },
+          },
+        },
+      ],
+    });
+    for (const kind of ["route", "motion", "ball", "blitz"] as const) {
+      expect(setRouteKindCommand(blocking, "pass_pro", kind)).toBeUndefined();
+    }
+
+    // A defender's drop never becomes a route, a block or a ball flight.
+    const dropping = applyPlayCommand(withMike, {
+      kind: "insert-paths",
+      paths: [
+        {
+          index: withMike.paths.length,
+          item: {
+            id: "drop",
+            kind: "zone",
+            playerId: "mike",
+            points: [
+              { lateralYards: 0, depthYards: 5 },
+              { lateralYards: 0, depthYards: 10 },
+            ],
+            branches: [],
+            style: { line: "dashed", ending: "bubble", color: "blue" },
+          },
+        },
+      ],
+    });
+    for (const kind of ["route", "motion", "block", "ball"] as const) {
+      expect(setRouteKindCommand(dropping, "drop", kind)).toBeUndefined();
+    }
+    expect(setRouteKindCommand(dropping, "drop", "stunt")).toBeDefined();
   });
 
   it("keeps what the Coach chose when the new kind does not contradict it", () => {
@@ -3054,6 +3181,15 @@ describe("the other lines he could run", () => {
   it("declines for a man who is not on the field", () => {
     expect(
       addAlternateRouteCommand(stickThunderPlay, "missing", createId),
+    ).toBeUndefined();
+  });
+
+  it("gives no alternate route to a man who does not run routes", () => {
+    expect(
+      addAlternateRouteCommand(stickThunderPlay, "ol2", createId),
+    ).toBeUndefined();
+    expect(
+      addAlternateRouteCommand(withMike, "mike", createId),
     ).toBeUndefined();
   });
 });
@@ -3795,9 +3931,9 @@ describe("holding a zone bubble on the field", () => {
   });
 
   it("draws a drop no nearer the sideline than its default bubble allows", () => {
-    const context = zoneContext(stickThunderPlay);
+    const context = zoneContext(withMike);
     const session = run(context, [
-      start("zone", "q"),
+      start("zone", "mike"),
       move({ lateralYards: 90, depthYards: 8 }),
     ]);
     expect(session.model.drawing!.kind).toBe("zone");
