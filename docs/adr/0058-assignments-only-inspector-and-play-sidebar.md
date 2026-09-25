@@ -61,13 +61,19 @@ shortcut to the tab. About names the build (`CHALK_VERSION` at build time).
 **The phone.** The header's left carries `≡`, which opens the sidebar as a 304 px
 drawer over a scrim; _This play_ rows push a page inside it, and Formation opens the
 browser and closes the drawer on a pick. The inspector is an **Assignments sheet** with
-two heights over the field, above the tools: _peek_ — its head (_Assignments · N of
-M · the concept · the line call_) and a strip of man chips, letter over the word he
-runs — and _full_ — the roster, or the picked man with _‹ All 11_, _Field ⌄_ and a
-pager through the unit in roster order. A chip or the head opens it full; Field, a
-tap past it, or starting a line by hand drops it to its peek; a quick call chosen in
-the sheet or the tray keeps the sheet where it is. The floating _Inspector_ stub is
-gone. Settings on a phone is a full-screen page with pill tabs. Every target is 44 px.
+two heights over the field, above the tools: _peek_ — one bar, _Assignments · N of
+M · the concept · the line call_ — and _full_ — the roster, or the picked man with
+_‹ All 11_, _Field ⌄_ and a pager through the unit in roster order. Tapping the bar opens it full, on
+the picked man if there is one; Field, a tap past it, or starting a line by hand
+drops it to its peek; a quick call chosen in the sheet or the tray keeps the sheet
+where it is. The floating _Inspector_ stub is gone. Settings on a phone is a
+full-screen page with pill tabs. Every target is 44 px, and the header stands above
+the sheet and both drawers, so its menus open over them. A man with no letter is
+marked by the spot he plays (LT, C) wherever the roster draws him.
+
+The handoff's peek also drew a strip of chips, one per man with the word he runs.
+The product owner dropped it on 2026-09-25 after trying it on a phone: the bar
+alone keeps more of the field in view, and the roster is one tap away.
 
 ## Preserved
 
@@ -86,7 +92,7 @@ Measured against the original's goldens at 1440 × 960 in
 main (pixels differing out of 1,382,400): Editor 18,105 → 31,601; More menu 20,265 →
 32,954; Export menu 19,507 → 32,926; Save menu 18,334 → 31,752; command palette
 19,381 → 32,875; shortcut reference 40,564 → 53,575; Formations 27,738 → 31,592;
-Defenses 22,221 → 25,856. Present, Print and Demo did not move. The difference in each
+Defenses 22,221 → 25,856. Present, Print and Demo did not move. Giving each roster row the man's own word added about 250 px to each of those states the same day (Editor 31,825). The difference in each
 is the 236 px sidebar column the original does not draw; the ratchets are raised to
 the branch measurements and the numbers are recorded in
 `docs/original-prototype-parity-matrix.md`.

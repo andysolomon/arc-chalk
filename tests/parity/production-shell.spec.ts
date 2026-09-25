@@ -44,10 +44,14 @@ import { expect, test, type Page } from "@playwright/test";
  * 31,752; palette 19,381 → 32,875; shortcuts 40,564 → 53,575; Formations
  * 27,738 → 31,592; Defenses 22,221 → 25,856. Present, Print and Demo did not
  * move. Each ratchet below is that branch measurement.
+ *
+ * Raised again the same day by about 250 px each (0.02%): the roster now says
+ * each man's word — Flat, Stick, Over — where it said "Route", and those words
+ * sit in the inspector column the original draws differently anyway.
  */
 const parityGap: Readonly<Record<string, number>> = {
-  // 2.2860% (31,601 px) with the sidebar, from 1.6526% (22,846 px).
-  editor: 0.0229,
+  // 2.3022% (31,825 px) with the sidebar, from 1.6526% (22,846 px).
+  editor: 0.0231,
   // 8.9932% (124,322 px), from 17.96% (248,333 px). The remaining Present
   // gap is the animation scrubber and the "1 / 5 · STICK — THUNDER"
   // variation line, both waiting on later phases.
@@ -60,16 +64,16 @@ const parityGap: Readonly<Record<string, number>> = {
   // 1000×620; what remains is the original's cursor having already walked
   // the first clicks before Pause, and the 1.3% Player shift.
   demo: 0.0205,
-  moreMenu: 0.0239, // 2.3838% (32,954 px), from 1.6666% (23,038 px)
-  exportMenu: 0.0239, // 2.3818% (32,926 px), from 1.5982% (22,095 px)
-  saveMenu: 0.023, // 2.2968% (31,752 px), from 1.6645% (23,010 px)
-  commandPalette: 0.0238, // 2.3781% (32,875 px), from 1.6640% (23,004 px)
-  shortcuts: 0.0388, // 3.8755% (53,575 px), from 2.4176% (33,420 px)
+  moreMenu: 0.024, // 2.3956% (33,117 px), from 1.6666% (23,038 px)
+  exportMenu: 0.024, // 2.3901% (33,041 px), from 1.5982% (22,095 px)
+  saveMenu: 0.0232, // 2.3131% (31,976 px), from 1.6645% (23,010 px)
+  commandPalette: 0.024, // 2.3933% (33,085 px), from 1.6640% (23,004 px)
+  shortcuts: 0.039, // 3.8926% (53,811 px), from 2.4176% (33,420 px)
   // Raised 317 px with the field-aspect slice: more of the Play shows around
   // the panel. Card name-row and thumbnail-dot arithmetic now match the
   // original; any remaining gap is the Play behind the panel.
-  formations: 0.0229, // 2.2853% (31,592 px), from 2.0059% (27,730 px)
-  defenses: 0.0188, // 1.8703% (25,856 px), from 1.5938% (22,033 px)
+  formations: 0.0231, // 2.3043% (31,854 px), from 2.0059% (27,730 px)
+  defenses: 0.019, // 1.8893% (26,118 px), from 1.5938% (22,033 px)
 };
 
 /**

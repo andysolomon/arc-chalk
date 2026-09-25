@@ -27,6 +27,11 @@ export interface RosterRow {
   readonly player: Player;
   /** His letter, or nothing when he has none. */
   readonly letter: string;
+  /**
+   * What his symbol says in the roster and on his chip: his letter, or for
+   * an unlettered man the spot he plays — LT, C, RB — so no row is blank.
+   */
+  readonly mark: string;
   /** What he plays, said the way the Coach would: Receiver, Tight end, Mike. */
   readonly role: string;
   /**
@@ -165,7 +170,9 @@ function presetName(path: MovementPath): string | undefined {
 /**
  * The one line that says what a man does. His first line that is not a
  * motion leads — a motion is how he gets there, not what he is asked for —
- * and a motion counts only when it is all he has.
+ * and a motion counts only when it is all he has. It says, in order: the
+ * Coach's assignment words on that line, the call it was drawn as, the tag
+ * under the man, and only then what kind of line it is.
  */
 export function assignmentSummary(
   play: PlayDocument,
@@ -181,7 +188,24 @@ export function assignmentSummary(
     return words?.trim() || undefined;
   }
   const words = assignmentForPath(play, line.id)?.text.trim();
-  return words || presetName(line) || lineKindNames[line.kind];
+  return (
+    words ||
+    presetName(line) ||
+    tagWords(player.sublabel) ||
+    lineKindNames[line.kind]
+  );
+}
+
+/**
+ * The tag under a man — FLAT, CHECK SLOW — is the Coach's own word for what
+ * he runs, printed in capitals on the field. The roster says it the way the
+ * rest of the panel talks: Flat, Check slow.
+ */
+function tagWords(tag: string): string | undefined {
+  const words = tag.trim();
+  if (!words) return undefined;
+  const lower = words.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
 const byLateral = (left: Player, right: Player) =>
@@ -208,7 +232,13 @@ function offenseRows(play: PlayDocument): readonly RosterRow[] {
       : role === "QB" || role === "RB"
         ? "backs"
         : "skill";
-    return row(play, player, group, (role && OFFENSE_ROLE_NAMES[role]) || "");
+    return row(
+      play,
+      player,
+      group,
+      (role && OFFENSE_ROLE_NAMES[role]) || "",
+      role ?? "",
+    );
   });
 }
 
@@ -218,7 +248,7 @@ function defenseRows(play: PlayDocument): readonly RosterRow[] {
     const role =
       DEFENSE_ROLE_NAMES[player.label.trim().toUpperCase()] ??
       DEFENSE_GROUP_ROLE[group]!;
-    return row(play, player, group, role);
+    return row(play, player, group, role, "");
   });
 }
 
@@ -227,11 +257,14 @@ function row(
   player: Player,
   group: RosterGroupId,
   role: string,
+  code: string,
 ): RosterRow {
   const summary = assignmentSummary(play, player);
+  const letter = player.label.trim();
   return {
     player,
-    letter: player.label.trim(),
+    letter,
+    mark: letter || code || "·",
     role: role || (group === "line" ? "Line" : "Skill"),
     ...(summary === undefined ? {} : { summary }),
     nothingYet: KIND_NOTHING[group],
