@@ -2696,23 +2696,13 @@ export function ChalkApp({
   const stylusRef = useRef<StylusState>(idleStylus);
   const [precisePointer, setPrecisePointer] = useState(() => !deviceIsCoarse());
   /**
-   * Whether this screen is too small to work on, and so shows the Play to be
-   * read instead. A phone on the sideline is for looking at what was called,
-   * and a thumb on the glass must not move a man on it.
+   * A screen below the editor's floor opens straight into the editor laid
+   * out for a phone (issue #92) — a two-row header, the tools in a tray
+   * along the bottom, the inspector as a sheet over the field. There is no
+   * read-only stop on the way in: a Coach who comes back to Chalk after
+   * switching apps picks up where he left off.
    */
-  const [reading, setReading] = useState(false);
-  /**
-   * The Coach's own say on a screen below the floor (issue #68): he can
-   * draw on it if he means to, for this session. Nothing infers it.
-   */
-  const [editAnyway, setEditAnyway] = useState(false);
-  const readsOnly = reading && !editAnyway;
-  /**
-   * Editing on a screen below the floor (issue #92): the same editor, laid
-   * out for a phone — a two-row header, the tools in a tray along the
-   * bottom, the inspector as a sheet over the field.
-   */
-  const phoneWorkspace = reading && editAnyway;
+  const [phoneWorkspace, setPhoneWorkspace] = useState(false);
   /**
    * Below the docked inspector's floor the inspector is a drawer over the
    * field (issue #68). Watched, because a tablet turns over.
@@ -3646,12 +3636,10 @@ export function ChalkApp({
     // Held space or a held alt moves the field instead of what is on it —
     // the gestures every drawing tool has trained into him. So does a finger,
     // once a Pencil has been out: the tip draws and the hand moves the field,
-    // which is what ADR 0016 means by leaving touch the viewport. On a screen
-    // too small to work on, moving the field is all any pointer does. A
-    // middle-mouse drag does the same — the Figma way to pan without giving
-    // up the primary button or hunting for a modifier.
+    // which is what ADR 0016 means by leaving touch the viewport. A
+    // middle-mouse drag does the same — the Figma way to pan without
+    // giving up the primary button or hunting for a modifier.
     if (
-      readsOnly ||
       spaceHeldRef.current ||
       event.altKey ||
       event.button === 1 ||
@@ -4997,10 +4985,10 @@ export function ChalkApp({
     const query = globalThis.matchMedia(editorScreenQuery);
     const read = () => {
       const tooSmall = !query.matches;
-      setReading(tooSmall);
-      // Whatever corner of the field he had been working in, a screen he can
-      // only read shows the Play whole to begin with. He can still go in for
-      // a closer look; he should not have to come back out for the first one.
+      setPhoneWorkspace(tooSmall);
+      // Whatever corner of the field he had been working in on a bigger
+      // screen, a phone shows the Play whole to begin with. He can still go
+      // in for a closer look; he should not have to come back out first.
       if (tooSmall) setCamera(fitCamera(EDITOR_FRAME));
     };
     read();
@@ -5061,9 +5049,6 @@ export function ChalkApp({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      // A keyboard reaches a phone too — paired, or on a screen the browser
-      // has shrunk — and every shortcut below this line changes the Play.
-      if (readsOnly) return;
       const target = event.target as HTMLElement | null;
       const typing =
         target?.isContentEditable ||
@@ -5344,7 +5329,6 @@ export function ChalkApp({
     openMenu,
     overlay,
     playbook,
-    readsOnly,
     showSelectionOnKey,
   ]);
 
@@ -5642,44 +5626,6 @@ export function ChalkApp({
    * tap away, and the answer is remembered per device.
    */
 
-  /**
-   * Below the editor's floor the header is the three destinations, the
-   * Play's name, and the Coach's choice between reading and editing (issue
-   * #68); everything else waits for a screen that can carry it.
-   */
-  const compactHeader = (
-    <header className="topbar reading-topbar">
-      <div className="chalk-mark" aria-hidden="true">
-        <i />
-      </div>
-      <nav className="view-tabs" aria-label="Workspace views">
-        {destinations.map(({ view, label }) => (
-          <button
-            aria-current={activeView === view ? "page" : undefined}
-            className={activeView === view ? "active" : ""}
-            key={view}
-            onClick={() => goToView(view)}
-            type="button"
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-      <button
-        className="reading-edit"
-        onClick={() => setEditAnyway(true)}
-        title="Open the drawing tools on this screen for this session"
-        type="button"
-      >
-        Edit on this screen
-      </button>
-      {/* A phone's reading header is two deliberate rows: the destinations
-          and the way in, then the name (issue #92). */}
-      <span className="top-break" aria-hidden="true" />
-      <span className="reading-name">{editor.document.name}</span>
-      <span className="reading-chip">Read only</span>
-    </header>
-  );
   /** Whether an image a prepared Play references is on this device. */
   const hasImage = useCallback(
     (hash: string) =>
@@ -5735,9 +5681,7 @@ export function ChalkApp({
     label: preset.name,
     title: "Run this output again",
   }));
-  const header = readsOnly ? (
-    compactHeader
-  ) : (
+  const header = (
     <Header
       actions={actions}
       activeView={activeView}
@@ -5765,7 +5709,7 @@ export function ChalkApp({
       sync={sync}
       syncSnapshot={syncSnapshot}
       onOpenConflicts={() => setOverlay("conflicts")}
-      onReadOnly={reading ? () => setEditAnyway(false) : undefined}
+      phone={phoneWorkspace}
       recentOutputs={recentOutputs}
       wristband={{
         rows: libraryRows,
@@ -5860,9 +5804,8 @@ export function ChalkApp({
     }
     return null;
   })();
-  // The only report of a failed write, so every shell shows it — the reading
-  // shell included, where the draft a Coach could not save must stay
-  // recoverable (issue #97).
+  // The only report of a failed write, so the draft a Coach could not save
+  // stays recoverable on every screen, a phone's included (issue #97).
   const saveStateButton = (
     <button
       aria-label={localSaveMessage(editor.localSave)}
@@ -5886,49 +5829,6 @@ export function ChalkApp({
       {localSaveStatus(editor.localSave)}
     </button>
   );
-
-  if (readsOnly && activeView === "Editor") {
-    // A phone shows the Play and nothing that changes it. The field still
-    // moves — a Coach on the sideline wants a closer look at one man — but
-    // every pointer here only moves the camera, so the picture in his hand is
-    // the picture that was called. The destinations stay a tap away, and so
-    // does the editor for a Coach who means to use it here (issue #68).
-    return (
-      <div className="chalk-shell view-reading">
-        {compactHeader}
-        <main className="editor-stage">
-          <div className="field-wrap">
-            <FieldDiagram
-              camera={camera}
-              livePreviewRef={livePreviewRef}
-              onPointerCancel={onFieldPointerCancel}
-              onPointerDown={onFieldPointerDown}
-              onPointerMove={onFieldPointerMove}
-              onPointerUp={onFieldPointerUp}
-              scene={scene}
-              svgRef={fieldSvgRef}
-            />
-            <ul aria-label="Everything on the field" className="field-outline">
-              {fieldItems.map((item) => (
-                <li key={`${item.kind}:${item.id}`}>{fieldItemName(item)}</li>
-              ))}
-            </ul>
-          </div>
-        </main>
-        <div className="statusbar reading-statusbar">
-          <span>
-            {editor.document.players.length}P · {editor.document.paths.length}R
-          </span>
-          {saveStateButton}
-        </div>
-        <p className="reading-note">
-          This screen is below the editor's floor. Open the Play on a tablet or
-          a computer to change it, or press Edit on this screen to work here
-          anyway.
-        </p>
-      </div>
-    );
-  }
 
   const labelDensity = resolveTypeDensity(presentation).label;
   /**
@@ -7455,7 +7355,7 @@ function Header({
   sync,
   syncSnapshot,
   onOpenConflicts,
-  onReadOnly,
+  phone,
   recentOutputs,
   setPlayName,
   undo,
@@ -7491,15 +7391,15 @@ function Header({
   sync?: SyncOrchestrator;
   syncSnapshot: SyncSnapshot;
   onOpenConflicts: () => void;
-  /** Present on a screen below the floor: the way back to reading. */
-  onReadOnly?: () => void;
+  /** A screen below the floor: the two-row header of issue #92. */
+  phone: boolean;
   setPlayName: (name: string) => void;
   undo: EditorUndoState;
   versions: readonly EditorVersionSummary[];
   zonesHidden: boolean;
 }) {
   return (
-    <header className="topbar">
+    <header className={phone ? "topbar phone-topbar" : "topbar"}>
       <div className="chalk-mark" aria-hidden="true">
         <i />
       </div>
@@ -7565,16 +7465,6 @@ function Header({
             Redo
           </button>
           <span className="divider" />
-          {onReadOnly ? (
-            <button
-              className="reading-edit"
-              onClick={onReadOnly}
-              title="Put the tools away and read the play"
-              type="button"
-            >
-              Read only
-            </button>
-          ) : null}
           <NewPlayMenu
             actions={actions}
             onDismiss={onCloseMenu}
