@@ -1136,6 +1136,51 @@ test("puts the men in another set, carries their routes, and takes it all back a
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
 });
 
+test("puts a dragged man back in the set he picked, from under the picker (ADR 0055)", async ({
+  page,
+}) => {
+  await openEditor(page);
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  const browser = page.getByRole("dialog", { name: "Formations" });
+  await browser
+    .getByRole("textbox", { name: "Search formations" })
+    .fill("trips");
+  await browser.getByText("Gun Trips Right", { exact: true }).click();
+  await expect(browser).toBeHidden();
+
+  // Once a set is picked the row is there to stay, and says there is nothing
+  // to put back while everyone stands where the set put him.
+  const inspector = page.getByRole("complementary", {
+    name: "Play inspector",
+  });
+  const reset = inspector.getByRole("button", {
+    name: "Reset offense to Gun Trips Right",
+  });
+  await expect(reset).toBeDisabled();
+
+  const home = await playerAt(page, "z");
+  const start = await playerCenter(page, "z");
+  await drag(page, start, { x: start.x - 40, y: start.y + 25 });
+  await expect
+    .poll(async () => Math.abs((await playerAt(page, "z")).x - home.x))
+    .toBeGreaterThan(1);
+
+  // Letting go of him brings the Play's own panel back, reset and all. A Z
+  // brought in still reads as Trips — the split is his to tighten — but he
+  // is not where the set put him, so there is something to put back.
+  await page.keyboard.press("Escape");
+  await expect(reset).toBeEnabled();
+  await reset.click();
+  await expect(page.getByRole("status")).toContainText("1 man back in place");
+  await expect
+    .poll(async () => Math.abs((await playerAt(page, "z")).x - home.x))
+    .toBeLessThan(0.01);
+  await expect(page.locator("[data-formation-status]")).toHaveText(
+    "GUN TRIPS RIGHT · 11",
+  );
+  await expect(reset).toBeDisabled();
+});
+
 test("keeps eleven on when a set wants a man the side has no room for", async ({
   page,
 }) => {

@@ -49,6 +49,7 @@ import {
   formationFromOffense,
   stockDefensiveCalls,
   stockFormations,
+  baseAlignment,
   addCoachPlayType,
   formatClassification,
   type Concept,
@@ -59,8 +60,10 @@ import {
   type MovementPath,
   type Player,
   type BallSpot,
+  type AlignmentResetTarget,
   type PlayCommand,
   type PlayDocument,
+  type PlayerSideOfBall,
   type PlayUnit,
   type PlayErasure,
   type TextLabel,
@@ -82,6 +85,7 @@ import {
   applyConceptCommand,
   applyDefensiveCallCommand,
   applyFormationCommand,
+  resetAlignmentCommand,
   applyLabelRoleCommand,
   applyPlayerRoutePresetCommand,
   applyRoutePresetCommand,
@@ -2039,6 +2043,76 @@ function RouteInspector({
   );
 }
 
+/** What one Reset button would put a side of the ball back in. */
+interface AlignmentResetOption {
+  readonly name: string;
+  /** Whether pressing it would move anyone. */
+  readonly available: boolean;
+}
+
+/**
+ * The resets a side of the ball offers: back to the set or call the Play
+ * remembers for it, if there is one, and to the base alignment.
+ */
+interface SideResets {
+  readonly chosen?: AlignmentResetOption;
+  readonly base: AlignmentResetOption;
+}
+
+/**
+ * Putting one side back, under its picker. The row appears once the Play
+ * remembers a set or call for that side and stays, so the inspector does not
+ * jump the moment a man is dragged; each button is grey when it would move
+ * nobody. A Play drawn by hand reaches base from the palette, which is also
+ * what keeps the untouched starter Play's inspector as the original drew it.
+ */
+function ResetRow({
+  onReset,
+  resets,
+  side,
+}: {
+  onReset: (side: PlayerSideOfBall, target: AlignmentResetTarget) => void;
+  resets: SideResets;
+  side: PlayerSideOfBall;
+}) {
+  const { base, chosen } = resets;
+  if (!chosen) return null;
+  const lines = side === "defense" ? "drops" : "routes";
+  return (
+    <div className="segment-row reset-row">
+      <span>Reset to</span>
+      <div className="segments">
+        <button
+          aria-label={`Reset ${side} to ${chosen.name}`}
+          disabled={!chosen.available}
+          onClick={() => onReset(side, "chosen")}
+          title={
+            chosen.available
+              ? `Put the ${side} back in ${chosen.name} — each man keeps his ${lines}`
+              : `Every man already stands where ${chosen.name} puts him`
+          }
+          type="button"
+        >
+          {chosen.name}
+        </button>
+        <button
+          aria-label={`Reset ${side} to base — ${base.name}`}
+          disabled={!base.available}
+          onClick={() => onReset(side, "base")}
+          title={
+            base.available
+              ? `Put the ${side} in the base ${side === "defense" ? "call" : "formation"}, ${base.name} — each man keeps his ${lines}`
+              : `Every man already stands where ${base.name} puts him`
+          }
+          type="button"
+        >
+          Base
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Inspector({
   ballSpots,
   call,
@@ -2067,6 +2141,8 @@ function Inspector({
   sheet = false,
   shadowOn,
   onToggleShadow,
+  resets,
+  onReset,
   unit,
 }: {
   ballSpots: readonly {
@@ -2113,6 +2189,9 @@ function Inspector({
   /** Whether the other unit's shadow is on the field (ADR 0053). */
   shadowOn: boolean;
   onToggleShadow: () => void;
+  /** Putting each side of the ball back (ADR 0055). */
+  resets: Readonly<Record<PlayerSideOfBall, SideResets>>;
+  onReset: (side: PlayerSideOfBall, target: AlignmentResetTarget) => void;
 }) {
   const defense = unit === "defense";
   const shadowName = defense ? "Shadow offense" : "Shadow defense";
@@ -2186,6 +2265,7 @@ function Inspector({
           ))}
         </div>
       </div>
+      <ResetRow onReset={onReset} resets={resets.offense} side="offense" />
       <Hint about="the formation">{formationHint}</Hint>
     </>
   );
@@ -2213,6 +2293,7 @@ function Inspector({
           &nbsp;›
         </span>
       </button>
+      <ResetRow onReset={onReset} resets={resets.defense} side="defense" />
       <Hint about="defensive calls">
         Start with a call — each one replaces the last and leaves the offense
         untouched. Just the front and secondary — letter symbols only, so you
@@ -4259,6 +4340,67 @@ export function ChalkApp({
   };
 
   /**
+   * Putting each side of the ball back (ADR 0055): in the set or call the
+   * Play remembers, or in base. As with the ball spots, a reset that would
+   * move nobody is no command at all, which is what greys its button.
+   */
+  const alignmentResets = useMemo(() => {
+    const option = (side: PlayerSideOfBall, target: AlignmentResetTarget) => {
+      const { command, result } = resetAlignmentCommand(
+        editor.document,
+        side,
+        target,
+        allFormations,
+      );
+      return result
+        ? { name: result.alignment.name, available: command !== undefined }
+        : undefined;
+    };
+    const side = (name: PlayerSideOfBall): SideResets => {
+      const chosen = option(name, "chosen");
+      return {
+        ...(chosen ? { chosen } : {}),
+        base: option(name, "base") ?? {
+          name: baseAlignment(name).name,
+          available: false,
+        },
+      };
+    };
+    return { offense: side("offense"), defense: side("defense") };
+  }, [allFormations, editor.document]);
+  /**
+   * The reset is the Coach's whole gesture, the way picking a set is: built
+   * from the live Play, one transaction, and a word about what it did where
+   * he is already looking.
+   */
+  const resetMen = (
+    side: PlayerSideOfBall,
+    target: AlignmentResetTarget,
+  ): void => {
+    const document = editorStore.getSnapshot().document;
+    const { command, result } = resetAlignmentCommand(
+      document,
+      side,
+      target,
+      allFormations,
+    );
+    if (!command || !result) return;
+    setOverlay(null);
+    // Putting the shadow back is asking to see it.
+    if (side !== document.unit) showShadow();
+    const men = result.movedCount === 1 ? "1 man" : `${result.movedCount} men`;
+    setToast({
+      name: result.alignment.name,
+      text:
+        result.movedCount === 0
+          ? "— already aligned"
+          : target === "base"
+            ? `— base, ${men} moved`
+            : `— ${men} back in place`,
+    });
+    runPanelCommand(command, { selection: [], drawing: undefined });
+  };
+  /**
    * Bringing forward and sending back are unavailable when the selection is
    * already as far as it goes — or is only Players, who draw above every line
    * whatever order they are stored in. Grey and inert come from one answer.
@@ -4705,6 +4847,19 @@ export function ChalkApp({
     },
     alignDepth: alignAction("depth"),
     alignSplits: alignAction("splits"),
+    // A reset that would move nobody is unavailable, as its button is grey.
+    ...(alignmentResets.offense.chosen?.available
+      ? { resetOffense: () => resetMen("offense", "chosen") }
+      : {}),
+    ...(alignmentResets.offense.base.available
+      ? { resetOffenseBase: () => resetMen("offense", "base") }
+      : {}),
+    ...(alignmentResets.defense.chosen?.available
+      ? { resetDefense: () => resetMen("defense", "chosen") }
+      : {}),
+    ...(alignmentResets.defense.base.available
+      ? { resetDefenseBase: () => resetMen("defense", "base") }
+      : {}),
     group: groupAction,
     ungroup: ungroupAction,
     reverseRoute: reverseAction,
@@ -6455,6 +6610,8 @@ export function ChalkApp({
             onToggle={toggleDisclosure}
             onToggleLayer={toggleFieldLayer}
             onToggleShadow={toggleShadow}
+            onReset={resetMen}
+            resets={alignmentResets}
             open={chrome.open}
             shadowOn={shadowOnField}
             unit={editor.document.unit}
