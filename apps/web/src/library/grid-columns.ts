@@ -17,10 +17,22 @@ const MAX_COLUMNS = 6;
 export const NARROW_BROWSER_MAX_WIDTH = 667;
 export const NARROW_BROWSER_QUERY = `(max-width: ${NARROW_BROWSER_MAX_WIDTH}px)`;
 
-/** Desktop virtual row: 78 px thumb, name, type, and padding. */
-export const PLAY_CARD_ROW_HEIGHT = 118;
-/** Phone virtual row: 148 px thumb plus wrapping name. */
-export const NARROW_PLAY_CARD_ROW_HEIGHT = 220;
+/**
+ * The space under each row of cards. Rows are a fixed height and the card
+ * fills what is left, so a row never runs into the next one before the
+ * virtualizer has measured it.
+ */
+export const PLAY_CARD_ROW_GAP = 10;
+/** Desktop virtual row: 78 px thumb, name, unit and type, and the gap. */
+export const PLAY_CARD_ROW_HEIGHT = 150;
+/** Phone virtual row: 148 px thumb plus a name of up to two lines. */
+export const NARROW_PLAY_CARD_ROW_HEIGHT = 240;
+/**
+ * The Playbooks page on a phone lists Plays rather than tiling them: a small
+ * diagram beside the name, so a screen holds a page of the book rather than
+ * two pictures of it.
+ */
+export const PLAY_LIST_ROW_HEIGHT = 72;
 
 /** How many cards fit across a scroller this wide. */
 export function gridColumnsFor(width: number): number {
