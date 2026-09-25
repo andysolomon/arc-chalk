@@ -383,6 +383,68 @@ test("draws a route by hand off the blue dot with Free draw off, and keeps it in
   await expect(page.locator("[data-scene-path]")).toHaveCount(6);
 });
 
+test("keeps every sample of a route drawn off the dot when moves outrun frames (ADR 0056)", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const start = await playerCenter(page, "z");
+  await page.mouse.click(start.x, start.y);
+  const box = (await page.locator('[data-route-dot="z"]').boundingBox())!;
+  const press = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  // A stem, then a wheel bending in toward the ball.
+  const stroke: { x: number; y: number }[] = [];
+  for (let step = 1; step <= 8; step += 1) {
+    stroke.push({ x: press.x, y: press.y - (90 * step) / 8 });
+  }
+  for (let step = 1; step <= 10; step += 1) {
+    const angle = (step / 10) * (Math.PI / 2);
+    stroke.push({
+      x: press.x - 80 * (1 - Math.cos(angle)),
+      y: press.y - 90 - 80 * Math.sin(angle),
+    });
+  }
+
+  // A busy tablet hands the page many moves between two frames. Every one is
+  // a piece of the shape, so none may be dropped for being early.
+  await page.evaluate(
+    ({ press, stroke }) => {
+      const dot = document.querySelector('[data-route-dot="z"]')!;
+      const field = document.querySelector("svg.field-diagram")!;
+      const at = (point: { x: number; y: number }, buttons: number) => ({
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        pointerId: 7,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons,
+        clientX: point.x,
+        clientY: point.y,
+      });
+      dot.dispatchEvent(new PointerEvent("pointerdown", at(press, 1)));
+      for (const point of stroke) {
+        field.dispatchEvent(new PointerEvent("pointermove", at(point, 1)));
+      }
+      field.dispatchEvent(new PointerEvent("pointerup", at(stroke.at(-1)!, 0)));
+    },
+    { press, stroke },
+  );
+
+  // Still in hand, and still the shape of the hand: not one straight stem.
+  const preview = page.locator("[data-drawing-preview]");
+  await expect(preview).toHaveCount(1);
+  await expect(preview).toHaveAttribute("d", / L .* L .* L /);
+  await page
+    .getByRole("group", { name: "Route in hand" })
+    .getByRole("button", { name: "Finish the route — ⏎" })
+    .click();
+  await expect(page.locator("[data-scene-path]").last()).toHaveAttribute(
+    "d",
+    / Q /,
+  );
+});
+
 test("puts the blue dot away when a click on the grass clears the field", async ({
   page,
 }) => {

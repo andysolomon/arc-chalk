@@ -50,6 +50,10 @@ anywhere on the field traces, not whether a Coach can draw by hand at all.
 - `FieldDrawingState` gains `strokeFrom`, the index a stroke under a held pointer set out
   from. It is what tells a stroke lifted in breaks mode apart from the line it continues,
   and the overlay draws a stroke as ink whenever one is being traced, in either mode.
+- The shell keeps every pointer sample of a stroke being traced in either mode, as it
+  already did for a free one; only a drag that bends a break is cut to the last sample
+  in the frame. A stroke whose samples were dropped between frames would reach the fit
+  as a straight pull.
 - `liftStroke` settles a stroke lifted in breaks mode; `grabsLineEnd` decides whether a
   press picks the line up; `isStraightStroke` tells a straight pull from a drawn shape.
 - The Play still receives breaks and controls, never samples, so a route drawn by hand

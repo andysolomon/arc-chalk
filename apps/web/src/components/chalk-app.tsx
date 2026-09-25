@@ -2546,8 +2546,8 @@ export function ChalkApp({
   >(() => undefined);
   /**
    * Moves waiting for the next paint. A drag only needs the latest point.
-   * A free stroke needs every sample: the fit runs through the hand's path,
-   * and keeping only the last point in the frame straightens the bend.
+   * A traced stroke needs every sample: the fit runs through the hand's
+   * path, and keeping only the last point in the frame straightens the bend.
    */
   const pendingPointersRef = useRef<FieldInteractionEvent[]>([]);
   const [paintLoop] = useState(() =>
@@ -3735,9 +3735,11 @@ export function ChalkApp({
     // anyway, which is the one thing a rejected palm can still reach.
     if (touchNavigates(stylusRef.current, event.pointerType)) return;
     const drawing = interactionRef.current.drawing;
+    // Any stroke being traced — free, off the dot, or off the end of a line
+    // clicked in breaks — keeps every sample; bending a break needs the last.
     const keepEverySample =
-      drawing?.mode === "free" &&
-      (drawing.pointerDown || drawing.initialDrag !== undefined);
+      drawing !== undefined &&
+      (drawing.strokeFrom !== undefined || drawing.initialDrag !== undefined);
     const samples = event.nativeEvent.getCoalescedEvents?.() ?? [];
     const moves = (samples.length > 0 ? samples : [event]).map(
       (sample): FieldInteractionEvent => ({
