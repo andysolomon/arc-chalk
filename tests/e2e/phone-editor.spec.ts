@@ -517,17 +517,25 @@ for (const viewport of WORKSPACES) {
     }) => {
       await enterEditor(page);
       const routes = await page.locator("[data-scene-path]").count();
+      // The Y, not the quarterback: held sideways, the tray that opens for a
+      // picked man lands where the quarterback was, under the lifting finger.
+      // The Y stands clear of anyone a finger could take for him.
       const symbol = page
-        .locator("[data-scene-player='q']")
+        .locator("[data-scene-player='y']")
         .locator("circle, rect, path")
         .first();
       const at = (await symbol.boundingBox())!;
-      const start = { x: at.x + at.width / 2, y: at.y + at.height / 2 };
-      await page.touchscreen.tap(start.x, start.y);
+      await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
       const dot = page.locator("[data-route-dot]");
-      await expect(page.locator('[data-route-dot="q"]')).toHaveCount(1);
+      await expect(page.locator('[data-route-dot="y"]')).toHaveCount(1);
 
-      // A route from his dot: the dot, a break, Done.
+      // A route from his dot: the dot, a break, Done. He is measured again,
+      // because the tray moved the field when it opened.
+      const moved = (await symbol.boundingBox())!;
+      const start = {
+        x: moved.x + moved.width / 2,
+        y: moved.y + moved.height / 2,
+      };
       const handle = (await page.locator(".route-dot").boundingBox())!;
       await page.touchscreen.tap(
         handle.x + handle.width / 2,
