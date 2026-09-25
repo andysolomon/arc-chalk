@@ -2463,9 +2463,12 @@ export function ChalkApp({
   const publishLiveVisualsRef = useRef<
     (model: FieldInteractionModel, metrics?: PaintLoopSample) => void
   >(() => undefined);
-  const pendingPointerRef = useRef<FieldInteractionEvent | undefined>(
-    undefined,
-  );
+  /**
+   * Moves waiting for the next paint. A drag only needs the latest point.
+   * A free stroke needs every sample: the fit runs through the hand's path,
+   * and keeping only the last point in the frame straightens the bend.
+   */
+  const pendingPointersRef = useRef<FieldInteractionEvent[]>([]);
   const [paintLoop] = useState(() =>
     createPaintLoop({
       now: () => performance.now(),
@@ -3294,9 +3297,9 @@ export function ChalkApp({
     liveStore.notify(model);
   };
   const flushLivePaint = (): void => {
-    const pending = pendingPointerRef.current;
-    pendingPointerRef.current = undefined;
-    if (pending) dispatchFieldRef.current(pending);
+    const pending = pendingPointersRef.current;
+    pendingPointersRef.current = [];
+    for (const event of pending) dispatchFieldRef.current(event);
     const model = interactionRef.current;
     const metrics = paintLoop.sample();
     publishLiveVisuals(model, metrics.frames > 0 ? metrics : undefined);
@@ -3396,7 +3399,14 @@ export function ChalkApp({
   };
   const fieldPointFromClient = (clientX: number, clientY: number) =>
     unprojectPoint(framePointFromClient(clientX, clientY), scene.viewport);
-  const fieldPointerInput = (event: React.PointerEvent) => ({
+  const fieldPointerInput = (event: {
+    clientX: number;
+    clientY: number;
+    pointerId: number;
+    shiftKey: boolean;
+    button: number;
+    pointerType: string;
+  }) => ({
     point: fieldPointFromClient(event.clientX, event.clientY),
     pointerId: event.pointerId,
     shiftKey: event.shiftKey,
@@ -3632,10 +3642,20 @@ export function ChalkApp({
     // gesture of its own to end — but a route left part-drawn would follow it
     // anyway, which is the one thing a rejected palm can still reach.
     if (touchNavigates(stylusRef.current, event.pointerType)) return;
-    pendingPointerRef.current = {
-      type: "pointer-move",
-      input: fieldPointerInput(event),
-    };
+    const drawing = interactionRef.current.drawing;
+    const keepEverySample =
+      drawing?.mode === "free" &&
+      (drawing.pointerDown || drawing.initialDrag !== undefined);
+    const samples = event.nativeEvent.getCoalescedEvents?.() ?? [];
+    const moves = (samples.length > 0 ? samples : [event]).map(
+      (sample): FieldInteractionEvent => ({
+        type: "pointer-move",
+        input: fieldPointerInput(sample),
+      }),
+    );
+    pendingPointersRef.current = keepEverySample
+      ? [...pendingPointersRef.current, ...moves]
+      : moves.slice(-1);
     scheduleLivePaint(event.timeStamp);
     // Asked after the move, not before it: this very event is what turns a
     // still press into a drag, and reading the gesture first would always find
