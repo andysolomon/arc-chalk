@@ -5579,6 +5579,10 @@ button.library-dot.target.small {
   flex: 1 1 auto;
   margin-left: 0;
 }
+/* The tabs already take the row; a spacer beside them only squeezes them. */
+.topbar.phone-topbar > .topbar-fill {
+  display: none;
+}
 .topbar.phone-topbar .view-tabs button {
   min-width: 0;
   flex: 1 1 0;
@@ -5731,6 +5735,9 @@ button.library-dot.target.small {
   }
   .topbar.phone-topbar .view-tabs {
     flex: none;
+  }
+  .topbar.phone-topbar > .topbar-fill {
+    display: block;
   }
   .topbar.phone-topbar .view-tabs button {
     flex: none;

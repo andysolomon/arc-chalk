@@ -253,9 +253,6 @@ export function PlaybookBrowser({
     onOpen(playId);
   };
 
-  const urlFor = (request: ThumbnailRequest, signal?: AbortSignal) =>
-    thumbnails.urlFor(request, signal);
-
   const searchInput = (
     <input
       aria-label="Search plays"
@@ -469,7 +466,7 @@ export function PlaybookBrowser({
                       }
                       onFocus={() => setFocusedPlayId(member.playId)}
                       onOpen={() => open(member.playId)}
-                      urlFor={urlFor}
+                      urlFor={thumbnails.urlFor}
                     />
                   ))}
                 </div>
