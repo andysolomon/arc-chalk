@@ -4355,28 +4355,6 @@ button.library-dot.target.small {
     display: none;
   }
 }
-/* The reading shell (a screen below the editor's floor) still carries the
-   three destinations and an explicit way into the editor (issue #68). */
-.reading-topbar .view-tabs {
-  margin-left: 0;
-}
-.reading-topbar .view-tabs button {
-  padding: 0 8px;
-}
-.reading-edit {
-  height: 32px;
-  flex: none;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-size: 12px;
-  box-shadow: 0 0 0 1px var(--line);
-  cursor: pointer;
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -5185,216 +5163,107 @@ button.library-dot.target.small {
 }
 
 /*
- * A screen too small to work on shows the Play instead of the editor. The
- * shell's own minimum width is what the editor needs to lay its panels out;
- * this is the layout that has none of them.
+ * Editing on a screen below the floor (issue #92). A phone gets the editor
+ * laid out for a phone rather than the desktop editor squeezed into one: a
+ * two-row header, the tools in a tray along the bottom, the inspector as a
+ * sheet over the field. Everything the header sheds is in the More menu.
+ * The header is the phone's on every destination, not just the editor.
  */
-.view-reading {
-  min-width: 0;
-}
-.reading-topbar {
-  flex-wrap: wrap;
-  height: auto;
-  min-height: 0;
-  gap: 4px 8px;
-  padding: 4px 12px;
-}
-.reading-topbar .reading-edit {
-  margin-left: auto;
-}
-/* The destinations and the way in share the first row, and the mark is
-   decorative — at 400 px the two of them plus the mark leave three pixels,
-   which one engine's wider text turns into a third row (issue #92). */
-@media (max-width: 667px) {
-  .reading-topbar > .chalk-mark {
-    display: none;
-  }
-  .reading-topbar .reading-edit {
-    padding: 0 8px;
-    font-size: 12px;
-  }
-}
-.reading-topbar .top-break {
-  display: block;
-  flex-basis: 100%;
-  height: 0;
-}
-/* Wide and shallow — a phone held sideways — has the width for one row. */
-@media (min-width: 668px) {
-  .reading-topbar .top-break {
-    display: none;
-  }
-  .reading-topbar .reading-edit {
-    order: 1;
-    margin-left: 0;
-  }
-}
-.reading-name {
-  overflow: hidden;
-  flex: 1;
-  font-size: 13px;
-  font-weight: 550;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.reading-chip {
-  flex: none;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--hover);
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.view-reading .editor-stage {
-  box-shadow: none;
-}
-.view-reading .field-wrap {
-  padding: 12px;
-  background: var(--paper);
-}
-/* The outline is the way through the Play without sight, on any screen. */
-.view-reading .field-outline li {
-  position: absolute;
-  overflow: hidden;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-/* The reading shell keeps the one report of a failed write (issue #97). */
-.reading-statusbar {
-  justify-content: space-between;
-  box-shadow: 0 -1px 0 var(--line);
-}
-.reading-statusbar .save-state {
-  flex: none;
-}
-.reading-note {
-  flex: none;
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-  margin: 0;
-  background: var(--canvas);
-  box-shadow: 0 -1px 0 var(--line);
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.4;
-  text-align: center;
-}
-/* A shallow screen has no depth to spare for the explanation; the chip and
-   the button say it. */
-@media (max-height: 439px) {
-  .reading-note {
-    display: none;
-  }
-}
-
-/*
- * Editing on a screen below the floor (issue #92). A Coach who pressed Edit
- * on this screen gets the editor laid out for a phone rather than the
- * desktop editor squeezed into one: a two-row header, the tools in a tray
- * along the bottom, the inspector as a sheet over the field. Everything the
- * header sheds is in the More menu.
- */
-.phone-workspace .topbar {
+.topbar.phone-topbar {
   flex-wrap: wrap;
   height: auto;
   min-height: 0;
   gap: 4px 3px;
   padding: 4px 8px;
 }
-.phone-workspace .topbar > .chalk-mark,
-.phone-workspace .topbar > .brand,
-.phone-workspace .topbar > .slash,
-.phone-workspace .topbar > .divider,
-.phone-workspace .topbar > .new-play,
-.phone-workspace .topbar > .menu-new,
-.phone-workspace .topbar > .reset-positions,
-.phone-workspace .topbar > .present,
-.phone-workspace .topbar > .menu-help,
-.phone-workspace .topbar > .menu-export {
+.topbar.phone-topbar > .chalk-mark,
+.topbar.phone-topbar > .brand,
+.topbar.phone-topbar > .slash,
+.topbar.phone-topbar > .divider,
+.topbar.phone-topbar > .new-play,
+.topbar.phone-topbar > .menu-new,
+.topbar.phone-topbar > .reset-positions,
+.topbar.phone-topbar > .present,
+.topbar.phone-topbar > .menu-help,
+.topbar.phone-topbar > .menu-export {
   display: none;
 }
 /* The second row is tight at 360 px: a point smaller, and the type pill
    gives way before the actions do. */
-.phone-workspace .topbar > button,
-.phone-workspace .topbar .play-type select,
-.phone-workspace .topbar .menu > button {
+.topbar.phone-topbar > button,
+.topbar.phone-topbar .play-type select,
+.topbar.phone-topbar .menu > button {
   font-size: 12px;
 }
-.phone-workspace .topbar > button.quiet {
+.topbar.phone-topbar > button.quiet {
   padding: 0 8px;
 }
-/* The actions row is the tight one: the type pill, Undo, Redo, Read only
-   and Save have to share 360 px with room to spare, because a wider text
+/* The actions row is the tight one: the type pill, Undo, Redo and Save
+   have to share 360 px with room to spare, because a wider text
    engine turns a few missing pixels into a third row (issue #92). The pill
    is the one that can give — its words are in the panel it opens. */
-.phone-workspace .topbar > .classify-menu {
+.topbar.phone-topbar > .classify-menu {
   min-width: 0;
   flex: 0 1 auto;
   max-width: 76px;
 }
-.phone-workspace .topbar > .top-spacer {
+.topbar.phone-topbar > .top-spacer {
   display: none;
 }
-.phone-workspace .topbar > .reading-edit,
-.phone-workspace .topbar > .menu-save > button {
+.topbar.phone-topbar > .menu-save > button {
   padding: 0 8px;
 }
-.phone-workspace .topbar .play-type {
+.topbar.phone-topbar .play-type {
   max-width: 100%;
   overflow: hidden;
   padding: 0 8px;
 }
-.phone-workspace .topbar .play-type select {
+.topbar.phone-topbar .play-type select {
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.phone-workspace .topbar .view-tabs {
+.topbar.phone-topbar .view-tabs {
   margin-left: 0;
 }
-.phone-workspace .topbar .view-tabs button {
+.topbar.phone-topbar .view-tabs button {
   padding: 0 8px;
 }
-.phone-workspace .topbar .play-name {
+.topbar.phone-topbar .play-name {
   width: auto;
   min-width: 0;
   flex: 1 1 60px;
 }
-.phone-workspace .topbar > .menu-more {
+.topbar.phone-topbar > .menu-more {
   order: 1;
 }
-.phone-workspace .topbar > .top-break {
+.topbar.phone-topbar > .top-break {
   order: 2;
   display: block;
   flex-basis: 100%;
   height: 0;
 }
-.phone-workspace .topbar > .classify-menu,
-.phone-workspace .topbar > button.quiet {
+.topbar.phone-topbar > .classify-menu,
+.topbar.phone-topbar > button.quiet {
   order: 3;
 }
-.phone-workspace .topbar .play-type {
+.topbar.phone-topbar .play-type {
   display: flex;
 }
 /* Wide and shallow has the width for one row, and needs the depth. */
 @media (min-width: 668px) {
-  .phone-workspace .topbar > .top-break {
+  .topbar.phone-topbar > .top-break {
     display: none;
   }
-  .phone-workspace .topbar > .menu-more {
+  .topbar.phone-topbar > .menu-more {
     order: 5;
   }
 }
-.phone-workspace .topbar > .top-spacer {
+.topbar.phone-topbar > .top-spacer {
   order: 4;
 }
-.phone-workspace .topbar > .reading-edit,
-.phone-workspace .topbar > .menu-save {
+.topbar.phone-topbar > .menu-save {
   order: 5;
 }
 .phone-workspace .workspace {

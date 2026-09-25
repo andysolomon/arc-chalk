@@ -46,7 +46,7 @@ const noRootOverflow = (page: Page) =>
 /** Builds and prepares a plan from every seeded play, through the phone's own doors. */
 async function preparePlanOnPhone(page: Page): Promise<number> {
   await page.goto("/");
-  await expect(page.getByText("Read only")).toBeVisible();
+  await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
   await page
     .getByRole("navigation", { name: "Workspace views" })
     .getByRole("button", { name: "Playbooks", exact: true })
