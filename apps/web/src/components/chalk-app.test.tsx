@@ -2714,34 +2714,39 @@ describe("Tablet and narrow screens (issue #68)", () => {
     };
   };
 
-  it("keeps the destinations on a screen below the floor and lets the Coach edit there anyway", async () => {
+  it("opens a screen below the floor straight into the editor, with the destinations a tap away", async () => {
     const restore = screenWhere((query) => !query.includes("min-width"));
     try {
       const user = userEvent.setup();
-      render(<ChalkApp runtime={createTestRuntime()} />);
+      const { unmount } = render(<ChalkApp runtime={createTestRuntime()} />);
       const nav = screen.getByRole("navigation", { name: "Workspace views" });
       expect(
         within(nav).getByRole("button", { name: "Game Day" }),
       ).toBeVisible();
-      expect(screen.getByText("Read only")).toBeVisible();
+      // No read-only stop on the way in: the tools are there from the start.
       expect(
-        screen.queryByRole("navigation", { name: "Drawing tools" }),
+        screen.getByRole("navigation", { name: "Drawing tools" }),
+      ).toBeVisible();
+      expect(screen.queryByText("Read only")).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Edit on this screen" }),
       ).toBeNull();
 
       await user.click(within(nav).getByRole("button", { name: "Playbooks" }));
       expect(screen.getByRole("main", { name: "Playbooks" })).toBeVisible();
       await user.click(within(nav).getByRole("button", { name: "Editor" }));
-
-      await user.click(
-        screen.getByRole("button", { name: "Edit on this screen" }),
-      );
       expect(
         screen.getByRole("navigation", { name: "Drawing tools" }),
       ).toBeVisible();
-      await user.click(screen.getByRole("button", { name: "Read only" }));
+
+      // A phone browser that reloads the page after the Coach switched apps
+      // brings him back to the editor, not to a screen he has to leave.
+      unmount();
+      render(<ChalkApp runtime={createTestRuntime()} />);
       expect(
-        screen.queryByRole("navigation", { name: "Drawing tools" }),
-      ).toBeNull();
+        screen.getByRole("navigation", { name: "Drawing tools" }),
+      ).toBeVisible();
+      expect(screen.queryByText("Read only")).toBeNull();
     } finally {
       restore();
     }
@@ -2783,9 +2788,6 @@ describe("Tablet and narrow screens (issue #68)", () => {
     try {
       const user = userEvent.setup();
       render(<ChalkApp runtime={createTestRuntime()} />);
-      await user.click(
-        screen.getByRole("button", { name: "Edit on this screen" }),
-      );
       const fieldList = screen.getByRole("list", {
         name: "Everything on the field",
       });
@@ -2928,9 +2930,6 @@ describe("Tablet and narrow screens (issue #68)", () => {
     try {
       const user = userEvent.setup();
       const { container } = render(<ChalkApp runtime={createTestRuntime()} />);
-      await user.click(
-        screen.getByRole("button", { name: "Edit on this screen" }),
-      );
       await user.click(screen.getByRole("button", { name: "Inspector" }));
       const sheet = screen.getByRole("complementary", {
         name: "Play inspector",
