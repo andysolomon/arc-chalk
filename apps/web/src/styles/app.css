@@ -4186,9 +4186,37 @@ button.library-dot.target.small {
     height: 44px;
     min-width: 44px;
   }
+  /* Each destination is a 44 px box that meets its neighbour; the current
+     one is painted as the fine pointer's segment — paper, hairline, a 2 px
+     shadow — inset within its box, so the track still reads as one
+     segmented control rather than a white block laid across a gray one. */
   .view-tabs {
     padding: 0;
-    gap: 4px;
+    gap: 0;
+    border-radius: 8px;
+  }
+  .view-tabs button {
+    position: relative;
+    isolation: isolate;
+    border-radius: 8px;
+  }
+  .view-tabs button.active {
+    background: transparent;
+    box-shadow: none;
+  }
+  .view-tabs button.active::before {
+    position: absolute;
+    z-index: -1;
+    inset: 3px;
+    border-radius: 6px;
+    background: var(--paper);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.04);
+    content: "";
+  }
+  .view-tabs button:not(.active):active {
+    color: var(--ink);
   }
   .tool-rail {
     width: 60px;
@@ -5168,13 +5196,22 @@ button.library-dot.target.small {
  * two-row header, the tools in a tray along the bottom, the inspector as a
  * sheet over the field. Everything the header sheds is in the More menu.
  * The header is the phone's on every destination, not just the editor.
+ *
+ * The two rows read where, then what (ADR 0057). The first is where the
+ * Coach is: the three destinations as one segmented control across the
+ * row, and More at its end. The second is the work in hand: the
+ * play's name with the room it needs, its Unit, Undo and Redo as arrows,
+ * and Save, anchored at the trailing edge beneath More. Every control is a
+ * 44 px box; the pill and Save are painted inside theirs at the wider
+ * header's 32 px, so the name stays the loudest thing on the row.
  */
 .topbar.phone-topbar {
   flex-wrap: wrap;
   height: auto;
   min-height: 0;
-  gap: 4px 3px;
-  padding: 4px 8px;
+  gap: 2px 4px;
+  padding: max(4px, env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
 }
 .topbar.phone-topbar > .chalk-mark,
 .topbar.phone-topbar > .brand,
@@ -5185,58 +5222,45 @@ button.library-dot.target.small {
 .topbar.phone-topbar > .reset-positions,
 .topbar.phone-topbar > .present,
 .topbar.phone-topbar > .menu-help,
-.topbar.phone-topbar > .menu-export {
-  display: none;
-}
-/* The second row is tight at 360 px: a point smaller, and the type pill
-   gives way before the actions do. */
-.topbar.phone-topbar > button,
-.topbar.phone-topbar .play-type select,
-.topbar.phone-topbar .menu > button {
-  font-size: 12px;
-}
-.topbar.phone-topbar > button.quiet {
-  padding: 0 8px;
-}
-/* The actions row is the tight one: the type pill, Undo, Redo and Save
-   have to share 360 px with room to spare, because a wider text
-   engine turns a few missing pixels into a third row (issue #92). The pill
-   is the one that can give — its words are in the panel it opens. */
-.topbar.phone-topbar > .classify-menu {
-  min-width: 0;
-  flex: 0 1 auto;
-  max-width: 76px;
-}
+.topbar.phone-topbar > .menu-export,
 .topbar.phone-topbar > .top-spacer {
   display: none;
 }
-.topbar.phone-topbar > .menu-save > button {
-  padding: 0 8px;
+/* A finger has no hover: a tapped control must not stay lit, and a press
+   shows while the finger is down instead. */
+.topbar.phone-topbar button {
+  -webkit-tap-highlight-color: transparent;
 }
-.topbar.phone-topbar .play-type {
-  max-width: 100%;
-  overflow: hidden;
-  padding: 0 8px;
+.topbar.phone-topbar > button:not(:disabled):hover,
+.topbar.phone-topbar .menu > button:not(.save):hover {
+  background: transparent;
 }
-.topbar.phone-topbar .play-type select {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.topbar.phone-topbar > button:not(:disabled):active,
+.topbar.phone-topbar .menu > button:not(.save, .play-type):active,
+.topbar.phone-topbar .menu > button.open:not(.save, .play-type) {
+  background: var(--hover);
+  color: var(--ink);
 }
+
+/* Row one — where. */
 .topbar.phone-topbar .view-tabs {
+  min-width: 0;
+  flex: 1 1 auto;
   margin-left: 0;
 }
 .topbar.phone-topbar .view-tabs button {
-  padding: 0 8px;
-}
-.topbar.phone-topbar .play-name {
-  width: auto;
   min-width: 0;
-  flex: 1 1 60px;
+  flex: 1 1 0;
+  padding: 0 6px;
+  font-size: 13px;
 }
 .topbar.phone-topbar > .menu-more {
   order: 1;
+}
+.topbar.phone-topbar .menu > .more {
+  width: 44px;
+  padding: 0;
+  font-size: 20px;
 }
 .topbar.phone-topbar > .top-break {
   order: 2;
@@ -5244,27 +5268,152 @@ button.library-dot.target.small {
   flex-basis: 100%;
   height: 0;
 }
-.topbar.phone-topbar > .classify-menu,
-.topbar.phone-topbar > button.quiet {
+
+/* Row two — what. The name takes whatever the row has left, from a zero
+   basis: a wrapping row places its items by basis before anything shrinks,
+   so a long name would otherwise push Save onto a third row. The Unit pill
+   says the Unit's word alone and is capped, tighter on the narrowest phones:
+   its Type is one tap away in the panel it opens, and the name's words are
+   nowhere else. */
+.topbar.phone-topbar > .play-name {
   order: 3;
+  width: auto;
+  min-width: 0;
+  height: 44px;
+  flex: 1 1 0;
+  padding: 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
 }
-.topbar.phone-topbar .play-type {
+.topbar.phone-topbar > .play-name:hover {
+  background: transparent;
+}
+.topbar.phone-topbar > .play-name:focus {
+  background: var(--paper);
+}
+.topbar.phone-topbar > .classify-menu {
+  order: 3;
+  position: static;
+  min-width: 44px;
+  max-width: 112px;
+  flex: 0 1 auto;
+}
+.topbar.phone-topbar .play-type-name {
+  display: none;
+}
+@media (max-width: 374px) {
+  .topbar.phone-topbar > .classify-menu {
+    max-width: 88px;
+  }
+}
+/* The pill is the wider header's own — 32 px, 6 px corners, a hairline and
+   the Unit's dot (ADR 0051) — painted inside a 44 px box. */
+.topbar.phone-topbar .classify-menu > .play-type {
+  position: relative;
+  isolation: isolate;
   display: flex;
+  width: 100%;
+  max-width: none;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: #4d4d4d;
+  font-size: 12px;
 }
-/* Wide and shallow has the width for one row, and needs the depth. */
+.topbar.phone-topbar .classify-menu > .play-type i {
+  flex: none;
+}
+.topbar.phone-topbar .classify-menu > .play-type::before {
+  position: absolute;
+  z-index: -1;
+  inset: 6px 0;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--line);
+  content: "";
+}
+.topbar.phone-topbar .classify-menu > .play-type:active::before,
+.topbar.phone-topbar .classify-menu > .play-type.open::before {
+  background: var(--hover);
+}
+/* The pill sits mid-row, so its panel hangs from the header's trailing
+   edge rather than from the pill, where it could run off the glass. */
+.topbar.phone-topbar .classify-panel {
+  top: calc(100% + 2px);
+  right: max(8px, env(safe-area-inset-right));
+  left: auto;
+  width: min(236px, calc(100vw - 16px));
+}
+.topbar.phone-topbar > .undo,
+.topbar.phone-topbar > .redo {
+  order: 3;
+  width: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+/* The arrows are a pair: their boxes meet, and the glyphs keep 26 px. */
+.topbar.phone-topbar > .redo {
+  margin-left: -4px;
+}
+.topbar.phone-topbar > .menu-save {
+  order: 5;
+}
+.topbar.phone-topbar .menu-save > .save,
+.topbar.phone-topbar .menu-save > .save:hover,
+.topbar.phone-topbar .menu-save > .save.saved {
+  position: relative;
+  isolation: isolate;
+  padding: 0 12px;
+  background: transparent;
+  font-size: 13px;
+}
+.topbar.phone-topbar .menu-save > .save::before {
+  position: absolute;
+  z-index: -1;
+  inset: 6px 0;
+  border-radius: 6px;
+  background: var(--ink);
+  content: "";
+}
+.topbar.phone-topbar .menu-save > .save:active::before,
+.topbar.phone-topbar .menu-save > .save.open::before {
+  background: #383838;
+}
+.topbar.phone-topbar .menu-save > .save.saved::before {
+  background: #398e4a;
+}
+/* A 44 px button's panel opens beneath it, not over its lower edge. */
+.topbar.phone-topbar .menu > .menu-panel {
+  top: calc(100% + 2px);
+}
+
+/* Wide and shallow — a phone held sideways — has the width for one row and
+   needs the depth: the destinations at their own width, the name between
+   them and the actions, the pill's Type back beside its Unit, More beside
+   Save. */
 @media (min-width: 668px) {
   .topbar.phone-topbar > .top-break {
     display: none;
   }
-  .topbar.phone-topbar > .menu-more {
-    order: 5;
+  .topbar.phone-topbar .view-tabs {
+    flex: none;
   }
-}
-.topbar.phone-topbar > .top-spacer {
-  order: 4;
-}
-.topbar.phone-topbar > .menu-save {
-  order: 5;
+  .topbar.phone-topbar .view-tabs button {
+    flex: none;
+    padding: 0 12px;
+  }
+  .topbar.phone-topbar > .menu-more {
+    order: 4;
+  }
+  .topbar.phone-topbar > .classify-menu {
+    max-width: 180px;
+  }
+  .topbar.phone-topbar .play-type-name {
+    display: inline;
+  }
 }
 .phone-workspace .workspace {
   flex-direction: column;

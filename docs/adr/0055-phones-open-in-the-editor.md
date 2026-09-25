@@ -32,7 +32,8 @@ Chalk on Game Day; now it also reopens ready to draw.
 **The phone header on every destination.** The reading shell's compact header was what
 Playbooks and Game Day wore on a phone. The phone workspace's two-row header now carries
 the `phone-topbar` class itself, so every destination below the floor wears it rather
-than the desktop header squeezed into a phone.
+than the desktop header squeezed into a phone. _(Its rows are laid out by ADR 0057:
+the destinations and More, then the play and what acts on it.)_
 
 ## Consequences
 
