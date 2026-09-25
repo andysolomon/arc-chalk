@@ -145,39 +145,86 @@ const LINEMAN_DEPTH_TOLERANCE_YARDS = legacyCanvasToYards({
   y: LEGACY_FIELD_GEOMETRY.lineOfScrimmageY - 14,
 }).depthYards;
 
+/** The letters that name a spot on the offensive line. */
+const LINE_LETTERS: ReadonlySet<string> = new Set([
+  "LT",
+  "LG",
+  "C",
+  "RG",
+  "RT",
+]);
+
 /**
  * Who is on the line. The original reads this off where a man stands rather
  * than off a role he was given — an offensive player with no letter on him,
  * level with the ball, is a lineman — and production keeps the same rule
  * because the same Plays feed it: a formation carries positions, not roles.
- * What it decides is what the Coach is offered, since a lineman blocks and
- * has no route to run.
+ * A man the Coach lettered for a spot on the line — LT, LG, C, RG, RT — is a
+ * lineman wherever he stands, since the Coach said so. What it decides is
+ * what the Coach is offered, since a lineman blocks and has no route to run.
  */
 export function isLineman(
   player: Pick<Player, "unit" | "label" | "position">,
 ): boolean {
+  if (player.unit === "defense") return false;
+  const letter = player.label.trim().toUpperCase();
+  if (LINE_LETTERS.has(letter)) return true;
   return (
-    player.unit !== "defense" &&
-    player.label.trim() === "" &&
+    letter === "" &&
     Math.abs(player.position.depthYards - LINEMAN_DEPTH_YARDS) <
       LINEMAN_DEPTH_TOLERANCE_YARDS
   );
 }
 
-/** The kinds the original offers, by the unit whose Play is open. */
-export const offensiveRouteKinds = Object.freeze([
-  { kind: "route", name: "Route" },
-  { kind: "motion", name: "Motion" },
-  { kind: "block", name: "Block" },
-  { kind: "ball", name: "Ball" },
-] as const);
+/** What each kind of line is called where a Coach picks one. */
+export const lineKindNames: Readonly<Record<MovementPath["kind"], string>> =
+  Object.freeze({
+    route: "Route",
+    motion: "Motion",
+    block: "Block",
+    zone: "Zone",
+    blitz: "Blitz",
+    stunt: "Stunt",
+    ball: "Ball",
+  });
 
-export const defensiveRouteKinds = Object.freeze([
-  { kind: "zone", name: "Zone" },
-  { kind: "blitz", name: "Blitz" },
-  { kind: "stunt", name: "Stunt" },
-  { kind: "ball", name: "Ball" },
-] as const);
+const DEFENDER_LINE_KINDS: readonly MovementPath["kind"][] = Object.freeze([
+  "zone",
+  "blitz",
+  "stunt",
+]);
+const LINEMAN_LINE_KINDS: readonly MovementPath["kind"][] = Object.freeze([
+  "block",
+]);
+const SKILL_LINE_KINDS: readonly MovementPath["kind"][] = Object.freeze([
+  "route",
+  "motion",
+  "block",
+  "ball",
+]);
+
+/**
+ * The lines a man can be given, read off who he is rather than off the Play
+ * he is drawn on. A defender drops, blitzes and stunts — he never runs a
+ * route. A lineman blocks and does nothing else. Every other offensive man
+ * runs, motions, blocks and carries the ball's flight, and nobody on offense
+ * drops into a zone or blitzes. In the order a Coach is offered them.
+ */
+export function lineKindsFor(
+  player: Pick<Player, "unit" | "label" | "position">,
+): readonly MovementPath["kind"][] {
+  if (player.unit === "defense") return DEFENDER_LINE_KINDS;
+  if (isLineman(player)) return LINEMAN_LINE_KINDS;
+  return SKILL_LINE_KINDS;
+}
+
+/** Whether this man can be given a line of this kind. */
+export function canRunLine(
+  player: Pick<Player, "unit" | "label" | "position">,
+  kind: MovementPath["kind"],
+): boolean {
+  return lineKindsFor(player).includes(kind);
+}
 
 /** The sizes the original offers, and the text it labels them with. */
 export const labelSizeChoices = Object.freeze([

@@ -1,4 +1,5 @@
 import {
+  canRunLine,
   DEFAULT_ZONE_COVERAGE_RADII,
   routeKindStyle,
   type Coordinate,
@@ -366,6 +367,19 @@ export function drawingKindFor(
   return tool === "block" && player.unit === "defense" ? "blitz" : tool;
 }
 
+/**
+ * Whether this man can be given what the tool draws: a defender never runs a
+ * route, a lineman only blocks, and nobody on offense drops or blitzes. Every
+ * way of starting a line by hand asks, so a key or a drag cannot give a man a
+ * line his inspector would not offer him.
+ */
+export function canDrawFrom(
+  tool: FieldDrawingKind,
+  player: Pick<Player, "unit" | "label" | "position">,
+): boolean {
+  return canRunLine(player, drawingKindFor(tool, player));
+}
+
 /** Abandons an in-progress route, leaving the committed Play untouched. */
 export function clearDrawing(
   model: FieldInteractionModel,
@@ -380,7 +394,7 @@ export function startDrawing(
   mode: FieldDrawingMode = "breaks",
 ): FieldInteractionModel | undefined {
   const player = context.document.players.find(({ id }) => id === playerId);
-  if (!player) return undefined;
+  if (!player || !canDrawFrom(kind, player)) return undefined;
   return {
     selection: [],
     gesture: { kind: "idle" },
