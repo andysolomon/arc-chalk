@@ -9,8 +9,13 @@ import {
 } from "@chalk/domain";
 
 import { snapRouteEndpoint } from "../smart-snapping";
-import { fitFreehandStroke } from "./freehand";
-import { clampToField, coordinate, screenDistancePx } from "./geometry";
+import { fitFreehandStroke, isStraightStroke } from "./freehand";
+import {
+  clampToField,
+  coordinate,
+  fieldHitOptions,
+  screenDistancePx,
+} from "./geometry";
 import {
   DRAW_POINT_MIN_PX,
   TRACE_POINT_MIN_PX,
@@ -131,11 +136,11 @@ export function addDrawPoint(
 }
 
 /**
- * A free stroke under way: the pointer is held down and the line follows it.
+ * A stroke under way: the pointer is held down and the line follows it.
  * Every point it passes is kept, marked as traced, so the finish can fit a
  * clean line through the stroke rather than through the hand's tremor. A
  * press that has not yet moved still holds the pointer, so the moves that
- * follow it trace.
+ * follow it trace. The first of them remembers where the stroke set out.
  */
 export function traceDrawPoint(
   model: FieldInteractionModel,
@@ -145,6 +150,7 @@ export function traceDrawPoint(
 ): FieldInteractionModel {
   const target = holdDrawPoint(drawing, point, context);
   const last = drawing.points.at(-1)!;
+  const strokeFrom = drawing.strokeFrom ?? drawing.points.length - 1;
   if (
     screenDistancePx(last, target, context.screenScale) < TRACE_POINT_MIN_PX
   ) {
@@ -155,6 +161,7 @@ export function traceDrawPoint(
         cursor: target,
         depthBuffer: "",
         pointerDown: true,
+        strokeFrom,
       },
     };
   }
@@ -173,14 +180,16 @@ export function traceDrawPoint(
       cursor: target,
       depthBuffer: "",
       pointerDown: true,
+      strokeFrom,
     },
   };
 }
 
 /**
- * A free line's press takes hold of the pointer without marking the line:
- * the stroke is what the pointer does next. A press that lifts where it
- * landed was a tap, and a tap is not a line.
+ * A press that takes hold of the pointer without marking the line: the
+ * stroke is what the pointer does next, and it sets out from the end of the
+ * line as it stands. A press that lifts where it landed was a tap, and a
+ * tap is not a line.
  */
 export function holdStroke(
   model: FieldInteractionModel,
@@ -195,15 +204,91 @@ export function holdStroke(
       cursor: holdDrawPoint(drawing, point, context),
       depthBuffer: "",
       pointerDown: true,
+      strokeFrom: drawing.points.length - 1,
     },
   };
 }
 
-/** Whether the line in hand has a stroke on it — anything the pointer traced. */
-export function hasTracedStroke(
-  drawing: Pick<FieldDrawingState, "points">,
+/**
+ * Whether a press while clicking breaks lands on the end of the line in
+ * hand — his stance, before anything is drawn — close enough to pick the
+ * line up and draw on from it by hand, as a pen goes back to where it left
+ * off. The reach is a man's, so a finger finds it. A typed depth is waiting
+ * for the next break, so with one typed the press places it instead.
+ */
+export function grabsLineEnd(
+  drawing: FieldDrawingState,
+  input: FieldPointerInput,
+  context: FieldInteractionContext,
 ): boolean {
-  return drawing.points.some((point) => point.traced === true);
+  if (drawing.mode !== "breaks" || drawing.depthBuffer !== "") return false;
+  return (
+    screenDistancePx(
+      drawing.points.at(-1)!,
+      input.point,
+      context.screenScale,
+    ) <= fieldHitOptions(input.pointerType).playerRadiusPx
+  );
+}
+
+/**
+ * A stroke lifted while the line is clicked in breaks. The line stays in
+ * hand either way — the next press places the next break, and Done still
+ * finishes it — and what the stroke leaves on it is what the hand did. A
+ * stroke that bent keeps its shape, fitted at the finish like a free one.
+ * One that ran straight is the break a click where it lifted would have
+ * placed, snapped and clamped like one, so a quick pull off the dot still
+ * lands a clean stem. A press that never moved was a click.
+ */
+export function liftStroke(
+  model: FieldInteractionModel,
+  drawing: FieldDrawingState,
+  release: FieldPointerInput,
+  context: FieldInteractionContext,
+): FieldInteractionModel {
+  const from = Math.min(
+    drawing.strokeFrom ?? drawing.points.length - 1,
+    drawing.points.length - 1,
+  );
+  const anchor = drawing.points[from]!;
+  const stroke = drawing.points.slice(from + 1);
+  const lifted: FieldDrawingState = {
+    ...drawing,
+    initialDrag: undefined,
+    pointerDown: false,
+    strokeFrom: undefined,
+  };
+  if (
+    stroke.length > 0 &&
+    !isStraightStroke(anchor, stroke, context.screenScale)
+  ) {
+    return { ...model, drawing: { ...lifted, cursor: stroke.at(-1)! } };
+  }
+  const unstroked: FieldDrawingState = {
+    ...lifted,
+    points: drawing.points.slice(0, from + 1),
+    cursor: anchor,
+  };
+  const placed = addDrawPoint(
+    { ...model, drawing: unstroked },
+    unstroked,
+    release,
+    context,
+  );
+  return { ...placed, drawing: { ...placed.drawing!, pointerDown: false } };
+}
+
+/**
+ * Whether the stroke under the held pointer has drawn anything yet. A press
+ * that never moved has not, however much the line traced before it.
+ */
+export function hasTracedStroke(
+  drawing: Pick<FieldDrawingState, "points" | "strokeFrom">,
+): boolean {
+  return (
+    drawing.strokeFrom !== undefined &&
+    drawing.points.length - 1 > drawing.strokeFrom
+  );
 }
 
 /**
@@ -213,7 +298,15 @@ export function hasTracedStroke(
 export function dropLastStroke(drawing: FieldDrawingState): FieldDrawingState {
   const points = [...drawing.points];
   while (points.length > 1 && points.at(-1)!.traced) points.pop();
-  return { ...drawing, points, cursor: points.at(-1)! };
+  return {
+    ...drawing,
+    points,
+    cursor: points.at(-1)!,
+    // A stroke still held sets out again from what is left of the line.
+    ...(drawing.strokeFrom === undefined
+      ? {}
+      : { strokeFrom: Math.min(drawing.strokeFrom, points.length - 1) }),
+  };
 }
 
 /**
