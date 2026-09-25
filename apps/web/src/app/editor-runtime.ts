@@ -87,10 +87,15 @@ export interface LibrarySnapshot {
   readonly members: readonly PlaySearchProjection[];
 }
 
+/** How the Playbook lists its Plays when nothing is being searched for. */
+export type PlaybookSort = "name" | "recent";
+
 export interface LibraryBrowserState {
   readonly scrollTop: number;
   readonly focusedPlayId?: string;
   readonly query: string;
+  /** Unset reads as by name. */
+  readonly sort?: PlaybookSort;
 }
 
 /**
@@ -742,6 +747,9 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
         query: typeof record.query === "string" ? record.query : "",
         ...(typeof record.focusedPlayId === "string"
           ? { focusedPlayId: record.focusedPlayId }
+          : {}),
+        ...(record.sort === "name" || record.sort === "recent"
+          ? { sort: record.sort }
           : {}),
       };
     },

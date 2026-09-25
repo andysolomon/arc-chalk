@@ -2413,6 +2413,14 @@ describe("Navigation (issue #65)", () => {
       within(page).getByRole("region", { name: "Game plans" }),
     ).toBeVisible();
 
+    // Game plans has its own New plan; New play belongs to the Plays page.
+    expect(within(page).queryByRole("button", { name: "New play" })).toBeNull();
+    await user.click(
+      within(
+        screen.getByRole("navigation", { name: "Playbooks pages" }),
+      ).getByRole("button", { name: "Plays" }),
+    );
+
     // New play is a choice of unit, never a plain blank (ADR 0053).
     await user.click(within(page).getByRole("button", { name: "New play" }));
     await user.click(

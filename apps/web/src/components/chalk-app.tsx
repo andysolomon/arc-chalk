@@ -4458,6 +4458,11 @@ export function ChalkApp({
 
   const goToView = useCallback(
     (view: View): void => {
+      // The Playbooks header has no name field, so a name still being typed
+      // is kept before the field goes (it commits on blur in the editor).
+      if (view === "Playbooks") {
+        void editorStore.commitPlayName().catch(() => undefined);
+      }
       setActiveView(view);
       setOpenMenu(null);
       setOverlay(null);
@@ -4474,7 +4479,7 @@ export function ChalkApp({
         }
       }
     },
-    [runtime.library],
+    [editorStore, runtime.library],
   );
   /** Help's tutorials open Demo on the tour named (issue #65). */
   const openTour = useCallback(
@@ -5951,51 +5956,70 @@ export function ChalkApp({
       void playbook.loadPlay(playId);
       goToView("Editor");
     };
+    // Deleting the Play a Concept is named for lets the Concept go too; its
+    // versions stay, each its own Play (the library panel asks the same).
+    const deletePlayPrompt = (playId: string) => {
+      const member = playbook.snapshot.members.find(
+        (entry) => entry.playId === playId,
+      );
+      const concept = playbook.snapshot.concepts.find(
+        ({ id }) => id === member?.conceptId,
+      );
+      return concept && concept.name === member?.name
+        ? "Its concept goes with it; the other versions stay as plays of their own. This can’t be undone."
+        : "It will be removed from this Playbook. This can’t be undone.";
+    };
     return (
       <div className="chalk-shell view-playbooks">
         {header}
         <main className="destination" aria-label="Playbooks">
-          <nav className="destination-tabs" aria-label="Playbooks pages">
-            <button
-              aria-pressed={playbooksTab === "plays"}
-              className={playbooksTab === "plays" ? "active" : undefined}
-              onClick={() => setPlaybooksTab("plays")}
-              type="button"
-            >
-              Plays
-            </button>
-            <button
-              aria-pressed={playbooksTab === "plans"}
-              className={playbooksTab === "plans" ? "active" : undefined}
-              onClick={() => setPlaybooksTab("plans")}
-              type="button"
-            >
-              Game plans
-            </button>
-            <span className="top-spacer" />
-            <NewPlayMenu
-              actions={actions}
-              buttonClassName="destination-new"
-              onDismiss={() => setOpenMenu(null)}
-              onToggle={() =>
-                setOpenMenu((current) =>
-                  current === "newPage" ? null : "newPage",
-                )
-              }
-              open={openMenu === "newPage"}
-            />
-          </nav>
+          {/* One bar for the page: which half of the Playbook, and the one
+              thing most often started from it. */}
+          <div className="destination-bar">
+            <nav className="destination-tabs" aria-label="Playbooks pages">
+              <button
+                aria-pressed={playbooksTab === "plays"}
+                className={playbooksTab === "plays" ? "active" : undefined}
+                onClick={() => setPlaybooksTab("plays")}
+                type="button"
+              >
+                Plays
+              </button>
+              <button
+                aria-pressed={playbooksTab === "plans"}
+                className={playbooksTab === "plans" ? "active" : undefined}
+                onClick={() => setPlaybooksTab("plans")}
+                type="button"
+              >
+                Game plans
+              </button>
+            </nav>
+            {playbooksTab === "plays" ? (
+              <NewPlayMenu
+                actions={actions}
+                buttonClassName="destination-new"
+                onDismiss={() => setOpenMenu(null)}
+                onToggle={() =>
+                  setOpenMenu((current) =>
+                    current === "newPage" ? null : "newPage",
+                  )
+                }
+                open={openMenu === "newPage"}
+              />
+            ) : null}
+          </div>
           {playbooksTab === "plays" ? (
             <PlaybookBrowser
               currentPlayId={editor.document.id}
+              deletePrompt={deletePlayPrompt}
               embedded
               focusSearch={precisePointer}
               initial={playbook.browserState}
               library={runtime.library}
               members={playbook.snapshot.members}
               onClose={() => goToView("Editor")}
+              onDelete={(playId) => playbook.removePlay(playId, true)}
               onOpen={openPlay}
-              onOpenGamePlans={() => setPlaybooksTab("plans")}
               onRemember={playbook.rememberBrowser}
               playTypes={playbook.snapshot.playbook.playTypes}
             />
@@ -7398,6 +7422,32 @@ function Header({
   versions: readonly EditorVersionSummary[];
   zonesHidden: boolean;
 }) {
+  const moreMenu = (
+    <MoreMenu
+      actions={actions}
+      focused={focused}
+      onDismiss={onCloseMenu}
+      onToggle={() => onMenu("more")}
+      open={openMenu === "more"}
+      zonesHidden={zonesHidden}
+    >
+      <PlaySharePanel runtime={runtime} />
+      <BackupPanel runtime={runtime} />
+      <AccountPanel
+        identity={identity}
+        onKeepLocalData={async () => {
+          await identity.signOut();
+        }}
+        onOpenConflicts={onOpenConflicts}
+        onRemoveLocalData={async () => {
+          await identity.signOut();
+          await runtime.destroyLocalData();
+        }}
+        snapshot={syncSnapshot}
+        sync={sync}
+      />
+    </MoreMenu>
+  );
   return (
     <header className={phone ? "topbar phone-topbar" : "topbar"}>
       <div className="chalk-mark" aria-hidden="true">
@@ -7421,6 +7471,19 @@ function Header({
           <span className="slash">/</span>
           <span className="demo-title">{DEMO_HEADER_TITLE}</span>
           <span className="demo-play-name">{demoPlayName}</span>
+        </>
+      ) : activeView === "Playbooks" ? (
+        // The Playbook is managed here, not the open Play: its name, type,
+        // undo and save belong to the editor and wait there.
+        <>
+          <span className="topbar-fill" />
+          <HelpMenu
+            actions={actions}
+            onDismiss={onCloseMenu}
+            onToggle={() => onMenu("help")}
+            open={openMenu === "help"}
+          />
+          {moreMenu}
         </>
       ) : (
         <>
@@ -7495,30 +7558,7 @@ function Header({
             onToggle={() => onMenu("help")}
             open={openMenu === "help"}
           />
-          <MoreMenu
-            actions={actions}
-            focused={focused}
-            onDismiss={onCloseMenu}
-            onToggle={() => onMenu("more")}
-            open={openMenu === "more"}
-            zonesHidden={zonesHidden}
-          >
-            <PlaySharePanel runtime={runtime} />
-            <BackupPanel runtime={runtime} />
-            <AccountPanel
-              identity={identity}
-              onKeepLocalData={async () => {
-                await identity.signOut();
-              }}
-              onOpenConflicts={onOpenConflicts}
-              onRemoveLocalData={async () => {
-                await identity.signOut();
-                await runtime.destroyLocalData();
-              }}
-              snapshot={syncSnapshot}
-              sync={sync}
-            />
-          </MoreMenu>
+          {moreMenu}
           <ExportMenu
             actions={actions}
             onDismiss={onCloseMenu}
