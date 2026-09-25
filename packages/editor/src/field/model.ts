@@ -138,7 +138,10 @@ export type FieldHandleRef =
 export type FieldGesture =
   | { readonly kind: "idle" }
   | {
-      /** Pressed on an item; not a drag until the pointer clears 2 px. */
+      /**
+       * Pressed on an item; not a drag until the pointer clears 2 px, or a
+       * finger's tap slop.
+       */
       readonly kind: "pressing";
       readonly pointerId: number;
       readonly items: readonly FieldItemRef[];

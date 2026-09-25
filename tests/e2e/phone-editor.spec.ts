@@ -485,7 +485,9 @@ for (const viewport of WORKSPACES) {
           men.map((man) => man.getAttribute("data-scene-player")!),
         );
       // The quarterback first, so his draw-a-route mark is standing over the
-      // center when the center is tapped next; then every other man in turn.
+      // center when the center is tapped next — and, held sideways, so the
+      // Quick calls tray comes up under the finger that picked him, where
+      // WebKit hands it the lift. Then every other man in turn.
       const order = [
         "q",
         "ol2",

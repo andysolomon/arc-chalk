@@ -345,6 +345,14 @@ const destinations: readonly { readonly view: View; readonly label: string }[] =
 /** The original's own wait before a held press becomes a menu. */
 const LONG_PRESS_MS = 480;
 /**
+ * What the field reads from a pointer's release: the same whether React
+ * delivered it to the field or the window caught one the field missed.
+ */
+type FieldPointerEvent = Pick<
+  PointerEvent,
+  "button" | "clientX" | "clientY" | "pointerId" | "pointerType" | "shiftKey"
+>;
+/**
  * The frame the renderer draws into, which is what the camera looks at. Taken
  * from the renderer rather than written out again, so the two cannot drift.
  */
@@ -3763,7 +3771,7 @@ export function ChalkApp({
     }
     if (interactionRef.current.gesture.kind !== "pressing") cancelLongPress();
   };
-  const onFieldPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+  const onFieldPointerUp = (event: FieldPointerEvent) => {
     const rejected = stylusRejects(stylusRef.current, event.pointerType);
     noteStylus(stylusUp(stylusRef.current, event.pointerType));
     if (rejected) return;
@@ -3853,7 +3861,7 @@ export function ChalkApp({
       point: fieldPointFromClient(event.clientX, event.clientY),
     });
   };
-  const onFieldPointerCancel = (event: React.PointerEvent<SVGSVGElement>) => {
+  const onFieldPointerCancel = (event: FieldPointerEvent) => {
     const rejected = stylusRejects(stylusRef.current, event.pointerType);
     noteStylus(stylusUp(stylusRef.current, event.pointerType));
     if (rejected) return;
@@ -3863,6 +3871,55 @@ export function ChalkApp({
     dispatchField({ type: "pointer-cancel" });
     flushLivePaint();
   };
+  /** Whether a pointer is one the field is still holding down. */
+  const fieldHoldsPointer = (pointerId: number): boolean => {
+    const { gesture, drawing } = interactionRef.current;
+    return (
+      touchesRef.current.has(pointerId) ||
+      ("pointerId" in gesture && gesture.pointerId === pointerId) ||
+      drawing?.initialDrag?.pointerId === pointerId
+    );
+  };
+  const fieldReleaseRef = useRef({
+    up: onFieldPointerUp,
+    cancel: onFieldPointerCancel,
+    holds: fieldHoldsPointer,
+  });
+  useEffect(() => {
+    fieldReleaseRef.current = {
+      up: onFieldPointerUp,
+      cancel: onFieldPointerCancel,
+      holds: fieldHoldsPointer,
+    };
+  });
+  // The field captures every press, but WebKit does not always keep the lift
+  // with it. On a phone held sideways a press on a man brings the Quick calls
+  // tray up under the finger, and the lift is delivered to the tray. Unheard,
+  // the field would hold that press, and the finger it believes is still
+  // down, for good — every tap after it taken for the second finger of a
+  // pinch. So a lift the field missed is handed to it from the window.
+  useEffect(() => {
+    const missed = (event: PointerEvent): boolean => {
+      const field = fieldSvgRef.current;
+      if (!field) return false;
+      if (event.target instanceof Node && field.contains(event.target)) {
+        return false;
+      }
+      return fieldReleaseRef.current.holds(event.pointerId);
+    };
+    const up = (event: PointerEvent) => {
+      if (missed(event)) fieldReleaseRef.current.up(event);
+    };
+    const cancel = (event: PointerEvent) => {
+      if (missed(event)) fieldReleaseRef.current.cancel(event);
+    };
+    globalThis.addEventListener("pointerup", up);
+    globalThis.addEventListener("pointercancel", cancel);
+    return () => {
+      globalThis.removeEventListener("pointerup", up);
+      globalThis.removeEventListener("pointercancel", cancel);
+    };
+  }, []);
   const commitPlayName = () => {
     void editorStore.commitPlayName().catch(() => undefined);
   };
