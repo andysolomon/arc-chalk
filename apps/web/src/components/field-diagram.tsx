@@ -12,7 +12,11 @@ import { useLayoutEffect } from "react";
 
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { sceneColors, SELECTION_BLUE, selectionKey } from "./field-marks";
-import { routeDotGeometry, routeDotPressStartsRoute } from "./route-dot";
+import {
+  routeDotBodyRadius,
+  routeDotGeometry,
+  routeDotPressStartsRoute,
+} from "./route-dot";
 
 const stickThunderScene = buildSvgRenderScene(
   buildRenderScene(stickThunderPlay),
@@ -662,8 +666,9 @@ export function FieldDiagram({
                     fill="transparent"
                     onPointerDown={(event) => {
                       // The handle owns this press: it starts a route rather
-                      // than letting the field begin a move. A press on the
-                      // man himself, or closer to someone else, does not.
+                      // than letting the field begin a move. A press within
+                      // the reach the field gives a man, him or anyone
+                      // else, does not.
                       if (event.button !== 0) return;
                       const matrix = event.currentTarget.getScreenCTM();
                       if (matrix) {
@@ -675,7 +680,13 @@ export function FieldDiagram({
                           !routeDotPressStartsRoute(
                             local.x,
                             local.y,
-                            routeDot,
+                            {
+                              ...routeDot,
+                              bodyRadius: routeDotBodyRadius(
+                                routeDotZoom,
+                                event.pointerType,
+                              ),
+                            },
                             player.id,
                             scene.players,
                           )
