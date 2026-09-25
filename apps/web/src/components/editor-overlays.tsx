@@ -1656,7 +1656,7 @@ export function DefenseBrowser({
           <span>
             {withAssignments
               ? "Brings the call’s dashed zone drops and red blitz paths in with the alignment."
-              : "Just the front and secondary — letter symbols only, so you can draw your own coverage on top."}
+              : "Just the front and secondary — a triangle for each man, so you can draw your own coverage on top."}
           </span>
         </div>
       </div>

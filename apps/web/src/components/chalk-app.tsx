@@ -1267,10 +1267,10 @@ const playerSymbolChoices: ReadonlyArray<{
 }> = [
   { symbol: "circle", glyph: "○", name: "Circle — receiver" },
   { symbol: "square", glyph: "□", name: "Square — center" },
-  { symbol: "triangle", glyph: "△", name: "Triangle" },
+  { symbol: "triangle", glyph: "△", name: "Triangle — defender" },
   { symbol: "oval", glyph: "⬭", name: "Oval — back" },
   { symbol: "x", glyph: "✕", name: "X" },
-  { symbol: "none", glyph: "A", name: "Letter only — defender" },
+  { symbol: "none", glyph: "A", name: "Letter only" },
 ];
 
 const playerFillChoices: ReadonlyArray<{
@@ -2215,8 +2215,8 @@ function Inspector({
       </button>
       <Hint about="defensive calls">
         Start with a call — each one replaces the last and leaves the offense
-        untouched. Just the front and secondary — letter symbols only, so you
-        can draw your own coverage on top. Press Z to add your own drop.
+        untouched. Just the front and secondary — a triangle for each man, so
+        you can draw your own coverage on top. Press Z to add your own drop.
       </Hint>
     </>
   );
