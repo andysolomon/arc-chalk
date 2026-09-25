@@ -3503,6 +3503,10 @@ export function ChalkApp({
       abandonTouchGesture();
     noteStylus(stylusDown(stylusRef.current, event.pointerType));
     paintLoop.reset();
+    // A press is where the pointer is now. The field takes it from here, so
+    // the leave of a man it was over may never arrive; what the press picks
+    // is what offers the dot, not a hover left behind.
+    setHoveredPlayerId(undefined);
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -6116,6 +6120,10 @@ export function ChalkApp({
               onDoubleClick={onFieldDoubleClick}
               onHoverPlayer={setHoveredPlayerId}
               onStartRoute={(playerId, event) => {
+                // The dot goes as the route starts, and the leave its man
+                // would have had goes with it. Without this he keeps
+                // offering it after the Coach has tapped away.
+                setHoveredPlayerId(undefined);
                 dispatchField({
                   type: "start-route",
                   playerId,
