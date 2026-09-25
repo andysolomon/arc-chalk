@@ -335,6 +335,42 @@ for (const viewport of WORKSPACES) {
         page.locator("header.topbar .play-type"),
         viewport,
       );
+
+      // Where, then what (ADR 0057): the destinations and More share the
+      // first row; the play's name, with room to be read, shares the second
+      // with what acts on it, and Save closes the header at its trailing edge.
+      const tabsBox = await insideViewport(
+        page,
+        page.getByRole("navigation", { name: "Workspace views" }),
+        viewport,
+      );
+      const moreBox = await insideViewport(
+        page,
+        header.getByRole("button", { name: "More actions", exact: true }),
+        viewport,
+      );
+      const saveBox = await insideViewport(
+        page,
+        header.getByRole("button", { name: "Save", exact: true }),
+        viewport,
+      );
+      const nameBox = await insideViewport(
+        page,
+        header.getByRole("textbox", { name: "Play name" }),
+        viewport,
+      );
+      expect(nameBox.width).toBeGreaterThanOrEqual(96);
+      if (portrait) {
+        expect(Math.abs(moreBox.y - tabsBox.y)).toBeLessThanOrEqual(1);
+        expect(nameBox.y).toBeGreaterThanOrEqual(tabsBox.y + tabsBox.height);
+        expect(Math.abs(saveBox.y - nameBox.y)).toBeLessThanOrEqual(1);
+        expect(
+          Math.abs(saveBox.x + saveBox.width - (moreBox.x + moreBox.width)),
+        ).toBeLessThanOrEqual(1);
+      } else {
+        expect(Math.abs(nameBox.y - tabsBox.y)).toBeLessThanOrEqual(1);
+        expect(saveBox.x).toBeGreaterThan(moreBox.x);
+      }
       await insideViewport(
         page,
         page.getByRole("button", { name: "Inspector", exact: true }),
