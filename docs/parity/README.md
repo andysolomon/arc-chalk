@@ -46,6 +46,7 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 
 | State                          | Gap measured                                                                                                                        | Date                                                |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| All desktop states             | Pixel-identical before and after at 1440 × 960 and 1180 × 820, pill closed and open: ADR 0057 is phone and coarse-pointer only      | 2026-09-25 (ADR 0057 phone header)                  |
 | Editor                         | 20,095 px Linux, from 20,173 on `main` same machine — the formation row's inert `+` removed                                         | 2026-09-25 (ADR 0043)                               |
 | Shortcuts                      | 44,893 px Linux, from 44,593 on `main` — the original draws the `+` beside the sheet; both above the macOS ratchet, CI delta passes | 2026-09-25 (ADR 0043)                               |
 | Other desktop states           | Formations / Defenses / More / Export / Save / Palette each at or below `main`; Present and Print identical; Demo +3 px             | 2026-09-25 (ADR 0043)                               |
