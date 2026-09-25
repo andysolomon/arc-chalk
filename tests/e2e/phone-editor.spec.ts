@@ -564,7 +564,10 @@ for (const viewport of WORKSPACES) {
     }) => {
       await enterEditor(page);
       const routes = await page.locator("[data-scene-path]").count();
-      const man = page.locator("[data-scene-player='q']");
+      // The Z, split out alone: held sideways, the tray that opens for a
+      // picked man lands where the quarterback was, under the lifting finger,
+      // and nobody stands within a finger's reach of the Z.
+      const man = page.locator("[data-scene-player='z']");
       const centerOf = async () => {
         const at = (await man
           .locator("circle, rect, path")
@@ -576,11 +579,7 @@ for (const viewport of WORKSPACES) {
       await page.touchscreen.tap(picked.x, picked.y);
       // Picking him brings up his tray, and the field fits itself to what is
       // left of the stage — so he is found again once it has settled.
-      await expect(
-        page
-          .getByRole("navigation", { name: "Quick calls" })
-          .getByText("Q · Routes"),
-      ).toBeVisible();
+      await expect(page.locator('[data-route-dot="z"]')).toHaveCount(1);
       const dot = page.locator(".route-dot");
       await expect(dot).toBeVisible();
       let center = await centerOf();
@@ -597,7 +596,8 @@ for (const viewport of WORKSPACES) {
       expect(center.y - (mark.y + mark.height)).toBeGreaterThanOrEqual(18);
 
       // A thumb comes down a touch above his middle, under the handle's
-      // target, and drags him to the side: he moves, and nothing is drawn.
+      // target, and drags him in from the sideline: he moves, and nothing is
+      // drawn.
       const before = await man.getAttribute("transform");
       const press = { x: center.x, y: center.y - 14 };
       expect(
@@ -606,7 +606,7 @@ for (const viewport of WORKSPACES) {
           press,
         ),
       ).toBe("route-dot-hit");
-      await fingerDrag(page, 81, press, { x: press.x + 50, y: press.y });
+      await fingerDrag(page, 81, press, { x: press.x - 50, y: press.y });
       await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
       await expect(man).not.toHaveAttribute("transform", before!);
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
