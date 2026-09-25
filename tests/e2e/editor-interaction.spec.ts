@@ -328,6 +328,61 @@ test("retains a blue-dot drag on release, finishes on Enter, and undoes once", a
   await expect(page.locator("[data-scene-path]")).toHaveCount(6);
 });
 
+test("draws a route by hand off the blue dot with Free draw off, and keeps it in hand (ADR 0055)", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const start = await playerCenter(page, "z");
+  await page.mouse.click(start.x, start.y);
+  await expect(
+    page
+      .getByRole("group", { name: "Draw by hand" })
+      .getByRole("switch", { name: "Free draw" }),
+  ).toHaveAttribute("aria-checked", "false");
+  const dot = page.locator('[data-route-dot="z"]');
+  const box = (await dot.boundingBox())!;
+  const press = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+  // A stem, then a wheel bending in toward the ball — the shape of a hand.
+  await page.mouse.move(press.x, press.y);
+  await page.mouse.down();
+  await page.mouse.move(press.x, press.y - 90, { steps: 8 });
+  for (let step = 1; step <= 10; step += 1) {
+    const angle = (step / 10) * (Math.PI / 2);
+    await page.mouse.move(
+      press.x - 80 * (1 - Math.cos(angle)),
+      press.y - 90 - 80 * Math.sin(angle),
+    );
+  }
+  // While it is drawn it is ink under the pointer, not a dashed aim line.
+  const preview = page.locator("[data-drawing-preview]");
+  await expect(preview).toHaveAttribute("data-drawing-mode", "breaks");
+  await expect(preview).not.toHaveAttribute("stroke-dasharray", /.+/);
+  await page.mouse.up();
+
+  // Lifting keeps the line in hand, shaped as drawn, for Done or a break.
+  await expect(preview).toHaveCount(1);
+  await expect(preview).toHaveAttribute("d", / L .* L .* L /);
+  const bar = page.getByRole("group", { name: "Route in hand" });
+  await expect(bar.getByRole("button", { name: "Breaks" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await bar.getByRole("button", { name: "Finish the route — ⏎" }).click();
+
+  await expect(preview).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(7);
+  // The wheel arrives as a curve, not a single straight stem.
+  await expect(page.locator("[data-scene-path]").last()).toHaveAttribute(
+    "d",
+    / Q /,
+  );
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Draw route");
+  await undo.click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+});
+
 test("ends a route from Done over the field, without Enter or a double click (ADR 0054)", async ({
   page,
 }) => {

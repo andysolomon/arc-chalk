@@ -16,6 +16,13 @@ export const FREEHAND_TOLERANCE_PX = 2.5;
 /** A turn sharper than this is a cut the Coach meant; gentler is a bend. */
 export const FREEHAND_CORNER_DEGREES = 40;
 
+/**
+ * How far a stroke may wander from the straight line between its ends and
+ * still be a straight pull. A finger drawing a stem wobbles a few pixels; a
+ * wheel, a sail or a swing leaves it by far more.
+ */
+export const FREEHAND_STRAIGHT_PX = 6;
+
 interface Pixel {
   readonly x: number;
   readonly y: number;
@@ -81,6 +88,28 @@ export function simplifyStroke(
     ranges.push([first, farthest], [farthest, last]);
   }
   return points.filter((_, index) => keep[index]);
+}
+
+/**
+ * Whether a stroke ran straight from its anchor to where it ended: every
+ * point it passed stays within the tolerance of that one segment, measured
+ * on screen. A stroke that doubles back runs past its own end, so it is
+ * never straight however narrow it is.
+ */
+export function isStraightStroke(
+  anchor: Coordinate,
+  traced: readonly Coordinate[],
+  scale: SnapScreenScale,
+  tolerancePx: number = FREEHAND_STRAIGHT_PX,
+): boolean {
+  const end = traced.at(-1);
+  if (!end) return true;
+  const from = toPixels(anchor, scale);
+  const to = toPixels(end, scale);
+  return traced.every(
+    (point) =>
+      distanceToSegment(toPixels(point, scale), from, to) <= tolerancePx,
+  );
 }
 
 /** How far the line turns at a vertex, in degrees: 0 is straight on. */
