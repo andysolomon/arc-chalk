@@ -2544,9 +2544,12 @@ export function ChalkApp({
   const publishLiveVisualsRef = useRef<
     (model: FieldInteractionModel, metrics?: PaintLoopSample) => void
   >(() => undefined);
-  const pendingPointerRef = useRef<FieldInteractionEvent | undefined>(
-    undefined,
-  );
+  /**
+   * Moves waiting for the next paint. A drag only needs the latest point.
+   * A free stroke needs every sample: the fit runs through the hand's path,
+   * and keeping only the last point in the frame straightens the bend.
+   */
+  const pendingPointersRef = useRef<FieldInteractionEvent[]>([]);
   const [paintLoop] = useState(() =>
     createPaintLoop({
       now: () => performance.now(),
@@ -3375,9 +3378,9 @@ export function ChalkApp({
     liveStore.notify(model);
   };
   const flushLivePaint = (): void => {
-    const pending = pendingPointerRef.current;
-    pendingPointerRef.current = undefined;
-    if (pending) dispatchFieldRef.current(pending);
+    const pending = pendingPointersRef.current;
+    pendingPointersRef.current = [];
+    for (const event of pending) dispatchFieldRef.current(event);
     const model = interactionRef.current;
     const metrics = paintLoop.sample();
     publishLiveVisuals(model, metrics.frames > 0 ? metrics : undefined);
@@ -3477,7 +3480,14 @@ export function ChalkApp({
   };
   const fieldPointFromClient = (clientX: number, clientY: number) =>
     unprojectPoint(framePointFromClient(clientX, clientY), scene.viewport);
-  const fieldPointerInput = (event: React.PointerEvent) => ({
+  const fieldPointerInput = (event: {
+    clientX: number;
+    clientY: number;
+    pointerId: number;
+    shiftKey: boolean;
+    button: number;
+    pointerType: string;
+  }) => ({
     point: fieldPointFromClient(event.clientX, event.clientY),
     pointerId: event.pointerId,
     shiftKey: event.shiftKey,
@@ -3584,6 +3594,10 @@ export function ChalkApp({
       abandonTouchGesture();
     noteStylus(stylusDown(stylusRef.current, event.pointerType));
     paintLoop.reset();
+    // A press is where the pointer is now. The field takes it from here, so
+    // the leave of a man it was over may never arrive; what the press picks
+    // is what offers the dot, not a hover left behind.
+    setHoveredPlayerId(undefined);
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -3713,10 +3727,20 @@ export function ChalkApp({
     // gesture of its own to end — but a route left part-drawn would follow it
     // anyway, which is the one thing a rejected palm can still reach.
     if (touchNavigates(stylusRef.current, event.pointerType)) return;
-    pendingPointerRef.current = {
-      type: "pointer-move",
-      input: fieldPointerInput(event),
-    };
+    const drawing = interactionRef.current.drawing;
+    const keepEverySample =
+      drawing?.mode === "free" &&
+      (drawing.pointerDown || drawing.initialDrag !== undefined);
+    const samples = event.nativeEvent.getCoalescedEvents?.() ?? [];
+    const moves = (samples.length > 0 ? samples : [event]).map(
+      (sample): FieldInteractionEvent => ({
+        type: "pointer-move",
+        input: fieldPointerInput(sample),
+      }),
+    );
+    pendingPointersRef.current = keepEverySample
+      ? [...pendingPointersRef.current, ...moves]
+      : moves.slice(-1);
     scheduleLivePaint(event.timeStamp);
     // Asked after the move, not before it: this very event is what turns a
     // still press into a drag, and reading the gesture first would always find
@@ -5151,16 +5175,16 @@ export function ChalkApp({
       }
       if (meta && !typing && (key === "]" || key === "[")) {
         event.preventDefault();
-        // Built from the live document and selection rather than from the
-        // render that registered this listener, which may be older.
-        const command = reorderSelectionCommand(
-          editorStore.getSnapshot().document,
-          interactionRef.current.selection,
-          key === "]" ? 1 : -1,
-        );
-        if (command) {
-          void editorStore.applyCommand(command).catch(() => undefined);
-        }
+        // Built when this save runs, not from the document the key found.
+        // The menu's reorder may still be in the queue, and a command
+        // captured now would paint that older order back over it.
+        const direction = key === "]" ? 1 : -1;
+        const selection = interactionRef.current.selection;
+        void editorStore
+          .applyEdit((document) =>
+            reorderSelectionCommand(document, selection, direction),
+          )
+          .catch(() => undefined);
         return;
       }
       if (meta && !typing && (key === "c" || key === "v" || key === "d")) {
@@ -6271,6 +6295,10 @@ export function ChalkApp({
               onDoubleClick={onFieldDoubleClick}
               onHoverPlayer={setHoveredPlayerId}
               onStartRoute={(playerId, event) => {
+                // The dot goes as the route starts, and the leave its man
+                // would have had goes with it. Without this he keeps
+                // offering it after the Coach has tapped away.
+                setHoveredPlayerId(undefined);
                 dispatchField({
                   type: "start-route",
                   playerId,

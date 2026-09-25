@@ -328,6 +328,35 @@ test("retains a blue-dot drag on release, finishes on Enter, and undoes once", a
   await expect(page.locator("[data-scene-path]")).toHaveCount(6);
 });
 
+test("puts the blue dot away when a click on the grass clears the field", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const start = await playerCenter(page, "q");
+  await page.mouse.click(start.x, start.y);
+  const box = (await page.locator('[data-route-dot="q"]').boundingBox())!;
+  await drag(
+    page,
+    { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+    { x: start.x + 80, y: start.y - 120 },
+  );
+  await page.keyboard.press("Enter");
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(7);
+
+  // The dot left under the pointer as the route began, so its man never
+  // heard the pointer leave him. The grass still puts everything down.
+  const grass = await fieldPoint(page, 150, 120);
+  await page.mouse.click(grass.x, grass.y);
+  await expect(page.locator("[data-selected-path]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-player].selected")).toHaveCount(0);
+  await expect(page.locator("[data-route-dot]")).toHaveCount(0);
+
+  // Hover still offers it: a pointer that comes back over him brings it.
+  await page.mouse.move(start.x, start.y);
+  await expect(page.locator('[data-route-dot="q"]')).toHaveCount(1);
+});
+
 test("ends a route from Done over the field, without Enter or a double click (ADR 0054)", async ({
   page,
 }) => {
@@ -1019,14 +1048,17 @@ test("brings a line forward from the menu and from the keyboard", async ({
     .getByRole("menu")
     .getByRole("button", { name: "Bring forward" })
     .click();
-  expect((await drawnOrder())[1]).toBe("rx");
+  const drawn = page.locator("[data-scene-path]");
+  // The reorder is saved before it is painted. A one-shot read loses the race
+  // on a busy WebKit and still sees the order from before this step.
+  await expect(drawn.nth(1)).toHaveAttribute("data-scene-path", "rx");
 
   // The same step from the keyboard, which is what ADR 0016 asks of anything
   // a pointer alone can reach.
   await page.keyboard.press("Meta+]");
-  expect((await drawnOrder())[2]).toBe("rx");
+  await expect(drawn.nth(2)).toHaveAttribute("data-scene-path", "rx");
   await page.keyboard.press("Meta+[");
-  expect((await drawnOrder())[1]).toBe("rx");
+  await expect(drawn.nth(1)).toHaveAttribute("data-scene-path", "rx");
 });
 
 test("opens the same menu on a press held still", async ({ page }) => {
