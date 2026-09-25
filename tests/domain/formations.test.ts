@@ -174,6 +174,27 @@ describe("what position a man is playing", () => {
     ]);
   });
 
+  it("takes back a lineman dragged off the line, and names the rest from the centre", () => {
+    const at = (
+      lateralYards: number,
+      depthYards = -1.5,
+      symbol: "circle" | "square" = "circle",
+    ) => ({ label: "", symbol, position: { lateralYards, depthYards } });
+    // The left guard stood in the backfield has not become a back, and the
+    // tackle beside the hole he left is still the tackle.
+    expect(
+      assignRoles([at(-4), at(-3, -7), at(0, -1.5, "square"), at(2), at(4)]),
+    ).toEqual(["LT", "LG", "C", "RG", "RT"]);
+    // When the centre is the one who left, the ball is in the hole he left.
+    expect(
+      assignRoles([at(-4), at(-2), at(-3, -7, "square"), at(2), at(4)]),
+    ).toEqual(["LT", "LG", "C", "RG", "RT"]);
+    // Out wide on the line is just as far off it.
+    expect(
+      assignRoles([at(-4), at(-2), at(0, -1.5, "square"), at(2), at(20)]),
+    ).toEqual(["LT", "LG", "C", "RG", "RT"]);
+  });
+
   it("calls a deep man in the middle a back and a wide one a slot", () => {
     const deep = (lateralYards: number) => ({
       label: "",
@@ -247,6 +268,47 @@ describe("moving the men onto another set", () => {
     expect(plan.vacancies.map(({ role }) => role)).toEqual(["H"]);
     expect(plan.orphans).toHaveLength(1);
     expect(assignRoles(plan.orphans)).toEqual(["TE"]);
+  });
+
+  it("puts a lineman dragged into the backfield back on the line, in his own slot", () => {
+    const start = playOn(setNamed("Gun Doubles Right"));
+    const startRoles = assignRoles(start.players);
+    for (const target of [
+      setNamed("Gun Doubles Right"),
+      setNamed("Gun Trips Right"),
+    ]) {
+      const slotOf = (role: string) =>
+        target.slots.find((slot) => slot.role === role)!.position;
+      for (const role of ["LT", "LG", "C", "RG", "RT"]) {
+        const lineman = idOfRole(start, role);
+        const dragged: PlayDocument = {
+          ...start,
+          players: start.players.map((player) =>
+            player.id === lineman
+              ? { ...player, position: { lateralYards: -3, depthYards: -7 } }
+              : player,
+          ),
+        };
+        const plan = planRealignment(dragged, target);
+        expect(plan.orphans).toEqual([]);
+        expect(plan.vacancies).toEqual([]);
+
+        // Every man, the one who was moved included, stands where the set
+        // puts the position he was playing, and the back he was standing
+        // beside is still the back.
+        const { play, addedPlayerIds } = applyFormation(
+          dragged,
+          target,
+          makeId,
+        );
+        expect(addedPlayerIds).toEqual([]);
+        for (const [index, player] of start.players.entries()) {
+          expect(positionOf(play, player.id)).toEqual(
+            slotOf(startRoles[index]!),
+          );
+        }
+      }
+    }
   });
 
   it("carries every route with the man running it, control points and forks included", () => {

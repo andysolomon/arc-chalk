@@ -1361,6 +1361,44 @@ test("keeps eleven on when a set wants a man the side has no room for", async ({
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
 });
 
+test("puts a lineman dragged into the backfield back on the line when another set is picked", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const guard = await playerAt(page, "ol1");
+
+  // The left guard stood in the backfield beside the back is still the left
+  // guard; he has not become a back.
+  await drag(
+    page,
+    await playerCenter(page, "ol1"),
+    await fieldPoint(page, 430, 530),
+  );
+  await expect
+    .poll(async () => (await playerAt(page, "ol1")).y)
+    .toBeGreaterThan(500);
+
+  // Let go of him, so the inspector is back on the Play and its set.
+  await page.keyboard.press("Escape");
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  const browser = page.getByRole("dialog", { name: "Formations" });
+  await browser.getByText("Gun Trips Right", { exact: true }).click();
+  await expect(browser).toBeHidden();
+
+  // He goes back to the guard's spot, and the back he was standing beside
+  // keeps the back's.
+  const toast = page.getByRole("status");
+  await expect(toast).toContainText("Gun Trips Right");
+  await expect(toast).not.toContainText("left in place");
+  await expect
+    .poll(async () => {
+      const at = await playerAt(page, "ol1");
+      return Math.hypot(at.x - guard.x, at.y - guard.y);
+    })
+    .toBeLessThan(0.5);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+});
+
 test("names the set on the field, and shows where another one would put the men", async ({
   page,
 }) => {
