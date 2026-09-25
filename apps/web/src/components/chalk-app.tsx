@@ -298,7 +298,7 @@ import {
   downloadFrameSequence,
   openProgressionStrip,
 } from "./print-progression";
-import { RailIcon } from "./rail-icons";
+import { HistoryIcon, RailIcon } from "./rail-icons";
 import { renderToStaticMarkup } from "react-dom/server";
 
 export { FieldDiagram };
@@ -5594,6 +5594,7 @@ export function ChalkApp({
       onDismiss={() => setOpenMenu(null)}
       onToggle={() => toggleMenu("classify")}
       open={openMenu === "classify"}
+      phone={phoneWorkspace}
       play={editor.document}
       playbook={playbook.snapshot.playbook}
     />
@@ -7441,25 +7442,29 @@ function Header({
           {/* Where a narrow header breaks into its second row (issue #68). */}
           <span className="top-break" aria-hidden="true" />
           <span className="top-spacer" />
+          {/* A phone draws Undo and Redo as arrows and names them for a
+              screen reader (ADR 0057); wider screens keep the words. */}
           <button
-            className="quiet"
+            aria-label={phone ? "Undo" : undefined}
+            className="quiet undo"
             disabled={!undo.canUndo}
             onClick={onUndo}
             title={
               undo.undoLabel ? `Undo ${undo.undoLabel}` : "Nothing to undo"
             }
           >
-            Undo
+            {phone ? <HistoryIcon direction="undo" /> : "Undo"}
           </button>
           <button
-            className="quiet"
+            aria-label={phone ? "Redo" : undefined}
+            className="quiet redo"
             disabled={!undo.canRedo}
             onClick={onRedo}
             title={
               undo.redoLabel ? `Redo ${undo.redoLabel}` : "Nothing to redo"
             }
           >
-            Redo
+            {phone ? <HistoryIcon direction="redo" /> : "Redo"}
           </button>
           <span className="divider" />
           <NewPlayMenu
