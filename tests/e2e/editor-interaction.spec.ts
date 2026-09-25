@@ -328,7 +328,7 @@ test("retains a blue-dot drag on release, finishes on Enter, and undoes once", a
   await expect(page.locator("[data-scene-path]")).toHaveCount(6);
 });
 
-test("draws a route by hand off the blue dot with Free draw off, and keeps it in hand (ADR 0055)", async ({
+test("draws a route by hand off the blue dot with Free draw off, and keeps it in hand (ADR 0056)", async ({
   page,
 }) => {
   await openEditor(page);
@@ -381,6 +381,35 @@ test("draws a route by hand off the blue dot with Free draw off, and keeps it in
   await expect(undo).toHaveAttribute("title", "Undo Draw route");
   await undo.click();
   await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+});
+
+test("puts the blue dot away when a click on the grass clears the field", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const start = await playerCenter(page, "q");
+  await page.mouse.click(start.x, start.y);
+  const box = (await page.locator('[data-route-dot="q"]').boundingBox())!;
+  await drag(
+    page,
+    { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+    { x: start.x + 80, y: start.y - 120 },
+  );
+  await page.keyboard.press("Enter");
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(7);
+
+  // The dot left under the pointer as the route began, so its man never
+  // heard the pointer leave him. The grass still puts everything down.
+  const grass = await fieldPoint(page, 150, 120);
+  await page.mouse.click(grass.x, grass.y);
+  await expect(page.locator("[data-selected-path]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-player].selected")).toHaveCount(0);
+  await expect(page.locator("[data-route-dot]")).toHaveCount(0);
+
+  // Hover still offers it: a pointer that comes back over him brings it.
+  await page.mouse.move(start.x, start.y);
+  await expect(page.locator('[data-route-dot="q"]')).toHaveCount(1);
 });
 
 test("ends a route from Done over the field, without Enter or a double click (ADR 0054)", async ({
@@ -1074,14 +1103,17 @@ test("brings a line forward from the menu and from the keyboard", async ({
     .getByRole("menu")
     .getByRole("button", { name: "Bring forward" })
     .click();
-  expect((await drawnOrder())[1]).toBe("rx");
+  const drawn = page.locator("[data-scene-path]");
+  // The reorder is saved before it is painted. A one-shot read loses the race
+  // on a busy WebKit and still sees the order from before this step.
+  await expect(drawn.nth(1)).toHaveAttribute("data-scene-path", "rx");
 
   // The same step from the keyboard, which is what ADR 0016 asks of anything
   // a pointer alone can reach.
   await page.keyboard.press("Meta+]");
-  expect((await drawnOrder())[2]).toBe("rx");
+  await expect(drawn.nth(2)).toHaveAttribute("data-scene-path", "rx");
   await page.keyboard.press("Meta+[");
-  expect((await drawnOrder())[1]).toBe("rx");
+  await expect(drawn.nth(1)).toHaveAttribute("data-scene-path", "rx");
 });
 
 test("opens the same menu on a press held still", async ({ page }) => {
@@ -1189,6 +1221,51 @@ test("puts the men in another set, carries their routes, and takes it all back a
     .poll(async () => Math.abs((await playerAt(page, "z")).x - before.x))
     .toBeLessThan(0.5);
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
+});
+
+test("puts a dragged man back in the set he picked, from under the picker (ADR 0055)", async ({
+  page,
+}) => {
+  await openEditor(page);
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  const browser = page.getByRole("dialog", { name: "Formations" });
+  await browser
+    .getByRole("textbox", { name: "Search formations" })
+    .fill("trips");
+  await browser.getByText("Gun Trips Right", { exact: true }).click();
+  await expect(browser).toBeHidden();
+
+  // Once a set is picked the row is there to stay, and says there is nothing
+  // to put back while everyone stands where the set put him.
+  const inspector = page.getByRole("complementary", {
+    name: "Play inspector",
+  });
+  const reset = inspector.getByRole("button", {
+    name: "Reset offense to Gun Trips Right",
+  });
+  await expect(reset).toBeDisabled();
+
+  const home = await playerAt(page, "z");
+  const start = await playerCenter(page, "z");
+  await drag(page, start, { x: start.x - 40, y: start.y + 25 });
+  await expect
+    .poll(async () => Math.abs((await playerAt(page, "z")).x - home.x))
+    .toBeGreaterThan(1);
+
+  // Letting go of him brings the Play's own panel back, reset and all. A Z
+  // brought in still reads as Trips — the split is his to tighten — but he
+  // is not where the set put him, so there is something to put back.
+  await page.keyboard.press("Escape");
+  await expect(reset).toBeEnabled();
+  await reset.click();
+  await expect(page.getByRole("status")).toContainText("1 man back in place");
+  await expect
+    .poll(async () => Math.abs((await playerAt(page, "z")).x - home.x))
+    .toBeLessThan(0.01);
+  await expect(page.locator("[data-formation-status]")).toHaveText(
+    "GUN TRIPS RIGHT · 11",
+  );
+  await expect(reset).toBeDisabled();
 });
 
 test("keeps eleven on when a set wants a man the side has no room for", async ({

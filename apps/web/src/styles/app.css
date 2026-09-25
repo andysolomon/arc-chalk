@@ -2440,7 +2440,7 @@ button.play-type.open {
   stroke: #f2f2f2;
 }
 .hash {
-  stroke: #ececec;
+  stroke: #c7c7c7;
   stroke-width: 1;
 }
 .line-of-scrimmage {
@@ -2448,7 +2448,7 @@ button.play-type.open {
   stroke-width: 2;
 }
 .yard-numbers {
-  fill: #e9e9e9;
+  fill: #cccccc;
   font-family: "Geist Mono", monospace;
   font-size: 26px;
   font-weight: 600;
@@ -2939,6 +2939,14 @@ button.play-type.open {
   background: #fff;
   color: var(--ink);
   box-shadow: 0 0 0 1px var(--line);
+}
+/* A set's name can outrun its half of the Reset row; the title says it all. */
+.reset-row .segments button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reset-row .segments button:not(:disabled) {
+  color: var(--ink);
 }
 .inspector p {
   margin: 8px 0 0;
