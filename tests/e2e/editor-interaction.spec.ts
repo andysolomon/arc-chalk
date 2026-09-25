@@ -1048,14 +1048,17 @@ test("brings a line forward from the menu and from the keyboard", async ({
     .getByRole("menu")
     .getByRole("button", { name: "Bring forward" })
     .click();
-  expect((await drawnOrder())[1]).toBe("rx");
+  const drawn = page.locator("[data-scene-path]");
+  // The reorder is saved before it is painted. A one-shot read loses the race
+  // on a busy WebKit and still sees the order from before this step.
+  await expect(drawn.nth(1)).toHaveAttribute("data-scene-path", "rx");
 
   // The same step from the keyboard, which is what ADR 0016 asks of anything
   // a pointer alone can reach.
   await page.keyboard.press("Meta+]");
-  expect((await drawnOrder())[2]).toBe("rx");
+  await expect(drawn.nth(2)).toHaveAttribute("data-scene-path", "rx");
   await page.keyboard.press("Meta+[");
-  expect((await drawnOrder())[1]).toBe("rx");
+  await expect(drawn.nth(1)).toHaveAttribute("data-scene-path", "rx");
 });
 
 test("opens the same menu on a press held still", async ({ page }) => {
