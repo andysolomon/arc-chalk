@@ -16,8 +16,7 @@ const box = async (locator: Locator) => {
 
 const enterEditorOnPhone = async (page: Page) => {
   await page.goto("/");
-  await expect(page.getByText("Read only")).toBeVisible();
-  await page.getByRole("button", { name: "Edit on this screen" }).click();
+  await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Drawing tools" }),
   ).toBeVisible();

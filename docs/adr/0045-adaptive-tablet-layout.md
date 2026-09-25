@@ -25,7 +25,8 @@ one row down to 668 px. Below the editor's own floor (`EDITOR_MIN_SCREEN`, 668 �
 the reading shell shows the Play — and now also carries the three destinations and an
 explicit **Edit on this screen** control, so a narrow Split View can still reach
 Playbooks and Game Day and a Coach who means to draw on it can. The choice is his for
-the session; nothing is inferred from the screen being small.
+the session; nothing is inferred from the screen being small. _(Superseded by ADR 0055:
+a screen below the floor now opens straight into the phone workspace.)_
 
 **Touch boxes are real boxes.** The pseudo-element expansion is gone. Under
 `(pointer: coarse)` primary actions — the tool rail, header buttons and tabs, menu
