@@ -8,6 +8,7 @@ import {
   assignmentSchema,
   conceptSourceSchema,
   coordinateSchema,
+  defensiveCallSourceSchema,
   entityIdSchema,
   formationSourceSchema,
   fieldProfileSchema,
@@ -19,6 +20,7 @@ import {
   playerSchema,
   textLabelSchema,
   type Assignment,
+  type FormationSlotBinding,
   type PlayDocument,
 } from "./schema";
 
@@ -75,6 +77,10 @@ const setConceptSourceSchema = z.object({
 const setFormationSourceSchema = z.object({
   kind: z.literal("set-formation-source"),
   formationSource: z.optional(formationSourceSchema),
+});
+const setDefensiveCallSourceSchema = z.object({
+  kind: z.literal("set-defensive-call-source"),
+  defensiveCallSource: z.optional(defensiveCallSourceSchema),
 });
 const insertPlayersSchema = z.object({
   kind: z.literal("insert-players"),
@@ -166,6 +172,7 @@ const primitivePlayCommandSchemas = [
   setFieldProfileSchema,
   setConceptSourceSchema,
   setFormationSourceSchema,
+  setDefensiveCallSourceSchema,
   insertPlayersSchema,
   removePlayersSchema,
   movePlayersSchema,
@@ -387,6 +394,20 @@ function applyPrimitive(
           ...(play.formationSource === undefined
             ? {}
             : { formationSource: play.formationSource }),
+        },
+      };
+    case "set-defensive-call-source":
+      return {
+        document: withOptional(
+          play,
+          "defensiveCallSource",
+          command.defensiveCallSource,
+        ),
+        inverse: {
+          kind: "set-defensive-call-source",
+          ...(play.defensiveCallSource === undefined
+            ? {}
+            : { defensiveCallSource: play.defensiveCallSource }),
         },
       };
     case "insert-players":
@@ -737,6 +758,8 @@ export function describePlayCommand(command: PlayCommand): string {
       return "Change Concept source";
     case "set-formation-source":
       return "Change Formation source";
+    case "set-defensive-call-source":
+      return "Change defensive call source";
     case "insert-players":
       return plural(command.players.length, "Add Player", "Add Players");
     case "remove-players":
@@ -918,18 +941,33 @@ function dependentCleanup(
     }
   }
 
-  const boundSlots = play.formationSource?.slotBindings ?? [];
-  const keptSlots = boundSlots.filter(
-    ({ playerId }) => !removedPlayerIds.has(playerId),
-  );
+  // A deleted man leaves his slot empty — in the set, and in the call.
+  const kept = (bindings: readonly FormationSlotBinding[]) =>
+    bindings.filter(({ playerId }) => !removedPlayerIds.has(playerId));
+  const formationSlots = kept(play.formationSource?.slotBindings ?? []);
   const formationSource =
-    play.formationSource && keptSlots.length !== boundSlots.length
+    play.formationSource &&
+    formationSlots.length !== play.formationSource.slotBindings.length
       ? [
           {
             kind: "set-formation-source" as const,
             formationSource: {
               ...play.formationSource,
-              slotBindings: keptSlots,
+              slotBindings: formationSlots,
+            },
+          },
+        ]
+      : [];
+  const callSlots = kept(play.defensiveCallSource?.slotBindings ?? []);
+  const defensiveCallSource =
+    play.defensiveCallSource &&
+    callSlots.length !== play.defensiveCallSource.slotBindings.length
+      ? [
+          {
+            kind: "set-defensive-call-source" as const,
+            defensiveCallSource: {
+              ...play.defensiveCallSource,
+              slotBindings: callSlots,
             },
           },
         ]
@@ -937,6 +975,7 @@ function dependentCleanup(
 
   return [
     ...formationSource,
+    ...defensiveCallSource,
     ...(labelIds.length > 0
       ? [{ kind: "remove-labels" as const, labelIds }]
       : []),
@@ -1104,6 +1143,14 @@ export function diffPlayDocuments(
       ...(to.formationSource === undefined
         ? {}
         : { formationSource: to.formationSource }),
+    });
+  }
+  if (!sameValue(from.defensiveCallSource, to.defensiveCallSource)) {
+    commands.push({
+      kind: "set-defensive-call-source",
+      ...(to.defensiveCallSource === undefined
+        ? {}
+        : { defensiveCallSource: to.defensiveCallSource }),
     });
   }
 
