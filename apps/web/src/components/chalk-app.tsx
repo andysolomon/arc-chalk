@@ -2166,9 +2166,6 @@ function Inspector({
         <span>{formation?.name ?? "Custom alignment"}</span>
         <span>{formation?.personnelLabel ?? "–"} &nbsp;›</span>
       </button>
-      <button className="round-add" aria-label="Save current formation">
-        +
-      </button>
       <div className="segment-row">
         <span>Ball on</span>
         <div className="segments">

@@ -2896,17 +2896,6 @@ button.play-type.open {
   font-size: 12px;
   cursor: pointer;
 }
-.round-add {
-  width: 26px;
-  height: 26px;
-  margin-top: 6px;
-  border: 0;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 1px var(--line);
-  color: var(--muted);
-  cursor: pointer;
-}
 .segment-row {
   display: flex;
   align-items: center;
@@ -4237,7 +4226,6 @@ button.library-dot.target.small {
   .status-controls > button:not(.save-state),
   .status-zoom button,
   .chip,
-  .round-add,
   .library-heading button,
   .back-button {
     min-height: 32px;
