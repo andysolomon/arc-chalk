@@ -72,12 +72,11 @@ for (const [label, viewport] of VIEWPORTS) {
       ).toBeVisible();
 
       if (viewport.width < 668) {
-        // Below the floor: reading, with the way in named.
-        await expect(page.getByText("Read only")).toBeVisible();
+        // Below the floor: the phone workspace, straight away.
         await expect(
-          page.getByRole("navigation", { name: "Drawing tools" }),
-        ).toHaveCount(0);
-        await page.getByRole("button", { name: "Edit on this screen" }).click();
+          page.locator(".chalk-shell.phone-workspace"),
+        ).toBeVisible();
+        await expect(page.getByText("Read only")).toHaveCount(0);
         await expect(
           page.getByRole("navigation", { name: "Drawing tools" }),
         ).toBeVisible();

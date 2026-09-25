@@ -331,6 +331,17 @@ export const formationSourceSchema = z.object({
   slotBindings: z.array(formationSlotBindingSchema),
 });
 
+/**
+ * The defensive call a Play's defenders were put on the field from, and which
+ * man stands in which of its slots. A call is placed rather than realigned, so
+ * once a defender is dragged nothing on the field says which call it was; this
+ * is what lets the Coach put them back.
+ */
+export const defensiveCallSourceSchema = z.object({
+  callId: entityIdSchema,
+  slotBindings: z.array(formationSlotBindingSchema),
+});
+
 const releasedPlayDocumentFields = {
   id: entityIdSchema,
   name: nameSchema,
@@ -367,6 +378,7 @@ const currentPlayDocumentSchema = z.object({
   notes: z.string(),
   conceptSource: z.optional(conceptSourceSchema),
   formationSource: z.optional(formationSourceSchema),
+  defensiveCallSource: z.optional(defensiveCallSourceSchema),
   fieldProfile: fieldProfileSchema,
   players: z.array(playerSchema),
   assignments: z.array(assignmentSchema),
@@ -478,32 +490,40 @@ export const playDocumentSchema = currentPlayDocumentSchema.check(
         }
       }
     }
-    if (play.formationSource) {
+    // A set and a call both say which man stands in which slot, and the same
+    // three things can go wrong with either.
+    for (const [key, noun, within, source] of [
+      ["formationSource", "Formation", "Formation", play.formationSource],
+      [
+        "defensiveCallSource",
+        "Defensive call",
+        "defensive call",
+        play.defensiveCallSource,
+      ],
+    ] as const) {
+      if (!source) continue;
       const slotIds = new Set<string>();
       const boundPlayerIds = new Set<string>();
-      for (const [
-        index,
-        binding,
-      ] of play.formationSource.slotBindings.entries()) {
+      for (const [index, binding] of source.slotBindings.entries()) {
         if (slotIds.has(binding.slotId)) {
           addCustomIssue(
             payload,
-            ["formationSource", "slotBindings", index, "slotId"],
-            `Formation slot is bound more than once: ${binding.slotId}`,
+            [key, "slotBindings", index, "slotId"],
+            `${noun} slot is bound more than once: ${binding.slotId}`,
           );
         }
         if (boundPlayerIds.has(binding.playerId)) {
           addCustomIssue(
             payload,
-            ["formationSource", "slotBindings", index, "playerId"],
-            `Player is bound to more than one Formation slot: ${binding.playerId}`,
+            [key, "slotBindings", index, "playerId"],
+            `Player is bound to more than one ${within} slot: ${binding.playerId}`,
           );
         }
         if (!playerIds.has(binding.playerId)) {
           addCustomIssue(
             payload,
-            ["formationSource", "slotBindings", index, "playerId"],
-            `Formation binding references missing Player: ${binding.playerId}`,
+            [key, "slotBindings", index, "playerId"],
+            `${noun} binding references missing Player: ${binding.playerId}`,
           );
         }
         slotIds.add(binding.slotId);
@@ -931,7 +951,9 @@ export type AssignmentAction = z.infer<typeof assignmentActionSchema>;
 export type Assignment = z.infer<typeof assignmentSchema>;
 export type FieldProfile = z.infer<typeof fieldProfileSchema>;
 export type ConceptSource = z.infer<typeof conceptSourceSchema>;
+export type FormationSlotBinding = z.infer<typeof formationSlotBindingSchema>;
 export type FormationSource = z.infer<typeof formationSourceSchema>;
+export type DefensiveCallSource = z.infer<typeof defensiveCallSourceSchema>;
 export type PlayDocumentV1 = z.infer<typeof playDocumentV1Schema>;
 export type PlayDocumentV2 = z.infer<typeof playDocumentV2Schema>;
 export type PlayDocument = z.infer<typeof playDocumentSchema>;

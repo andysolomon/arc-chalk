@@ -58,6 +58,16 @@ describe("what the status bar says on the left", () => {
         drawing: { depthBuffer: "", mode: "breaks" },
       }),
     ).toContain("Done, enter or double-click: finish");
+    // Clicking breaks, the line can still be drawn on by hand.
+    expect(
+      editorStatusHint({
+        view: "editor",
+        tool: "select",
+        atFit: true,
+        selectionCount: 0,
+        drawing: { depthBuffer: "", mode: "breaks" },
+      }),
+    ).toContain("drag from the end: draw it by hand");
   });
 
   it("says how a free-drawn line ends: when the pointer lifts", () => {
