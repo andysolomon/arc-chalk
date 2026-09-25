@@ -111,6 +111,55 @@ const enterEditor = async (page: Page) => {
   await waitForPhoneWorkspace(page);
 };
 
+/**
+ * One finger pressed, dragged and lifted. The press goes to whatever is under
+ * it — a handle's target included — and the rest to the field, which holds
+ * the gesture once it starts.
+ */
+const fingerDrag = async (
+  page: Page,
+  pointerId: number,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+) => {
+  const send = (type: string, at: { x: number; y: number }, under: boolean) =>
+    page.evaluate(
+      ({ type, at, under, pointerId }) => {
+        const target = under
+          ? document.elementFromPoint(at.x, at.y)
+          : document.querySelector("svg.field-diagram");
+        if (!target) throw new Error("Nothing under the finger.");
+        target.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            pointerId,
+            pointerType: "touch",
+            isPrimary: true,
+            button: type === "pointermove" ? -1 : 0,
+            buttons: type === "pointerup" ? 0 : 1,
+            clientX: at.x,
+            clientY: at.y,
+          }),
+        );
+      },
+      { type, at, under, pointerId },
+    );
+  await send("pointerdown", from, true);
+  for (let step = 1; step <= 6; step += 1) {
+    await send(
+      "pointermove",
+      {
+        x: from.x + ((to.x - from.x) * step) / 6,
+        y: from.y + ((to.y - from.y) * step) / 6,
+      },
+      false,
+    );
+  }
+  await send("pointerup", to, false);
+};
+
 for (const viewport of VIEWPORTS) {
   test.describe(`phone editor at ${viewport.name}`, () => {
     test.use({
@@ -597,6 +646,67 @@ for (const viewport of WORKSPACES) {
         "true",
       );
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+    });
+
+    test("moves a picked man under a finger that lands a little high, and still draws from his dot", async ({
+      page,
+    }) => {
+      await enterEditor(page);
+      const routes = await page.locator("[data-scene-path]").count();
+      // The Z, split out alone: nobody stands within a finger's reach of
+      // him, so the drag measures only his own handle.
+      const man = page.locator("[data-scene-player='z']");
+      const centerOf = async () => {
+        const at = (await man
+          .locator("circle, rect, path")
+          .first()
+          .boundingBox())!;
+        return { x: at.x + at.width / 2, y: at.y + at.height / 2 };
+      };
+      const picked = await centerOf();
+      await page.touchscreen.tap(picked.x, picked.y);
+      // Picking him brings up his tray, and the field fits itself to what is
+      // left of the stage — so he is found again once it has settled.
+      await expect(page.locator('[data-route-dot="z"]')).toHaveCount(1);
+      const dot = page.locator(".route-dot");
+      await expect(dot).toBeVisible();
+      let center = await centerOf();
+      await expect
+        .poll(async () => {
+          const was = center;
+          center = await centerOf();
+          return Math.hypot(center.x - was.x, center.y - was.y);
+        })
+        .toBeLessThan(0.5);
+      // The dot sits clear of where a finger on him lands, about twice as far
+      // up as it used to.
+      const mark = (await dot.boundingBox())!;
+      expect(center.y - (mark.y + mark.height)).toBeGreaterThanOrEqual(18);
+
+      // A thumb comes down a touch above his middle, under the handle's
+      // target, and drags him in from the sideline: he moves, and nothing is
+      // drawn.
+      const before = await man.getAttribute("transform");
+      const press = { x: center.x, y: center.y - 14 };
+      expect(
+        await page.evaluate(
+          ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute("class"),
+          press,
+        ),
+      ).toBe("route-dot-hit");
+      await fingerDrag(page, 81, press, { x: press.x - 50, y: press.y });
+      await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+      await expect(man).not.toHaveAttribute("transform", before!);
+      await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
+
+      // The dot itself still starts his route.
+      const moved = (await dot.boundingBox())!;
+      const grip = {
+        x: moved.x + moved.width / 2,
+        y: moved.y + moved.height / 2,
+      };
+      await fingerDrag(page, 82, grip, { x: grip.x + 40, y: grip.y - 60 });
+      await expect(page.locator("[data-drawing-preview]")).toHaveCount(1);
     });
 
     test("puts the blue dot away when a tap on the grass clears the field", async ({
