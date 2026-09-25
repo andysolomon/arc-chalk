@@ -26,7 +26,6 @@ import {
   type DemoPlayback,
   type DemoTour,
   defensiveLineKinds,
-  defensiveRouteKinds,
   evaluatePlayAt,
   formatPlaybackClock,
   isLineman,
@@ -34,7 +33,8 @@ import {
   planPlay,
   playbackShowsAnimation,
   resolvePathTiming,
-  offensiveRouteKinds,
+  lineKindNames,
+  lineKindsFor,
   labelSizeChoices,
   playErasureCommand,
   playErasures,
@@ -89,6 +89,7 @@ import {
   applyLabelRoleCommand,
   applyPlayerRoutePresetCommand,
   applyRoutePresetCommand,
+  canDrawFrom,
   spotBallCommand,
   conceptIsOn,
   applyLinePresetCommand,
@@ -1752,9 +1753,9 @@ function RouteInspector({
   onToggle,
   open,
   path,
+  kinds,
   segmentIndex,
   timing,
-  unit,
 }: {
   branchIndex?: number;
   coaching: Readonly<Record<RouteCoachingField, string>>;
@@ -1777,8 +1778,11 @@ function RouteInspector({
   path: MovementPath;
   segmentIndex?: number;
   timing: Readonly<Record<RouteTimingField, string>>;
-  /** The unit of the man running the line — a shadow defender's drop is still a drop. */
-  unit: PlayUnit;
+  /**
+   * What the man running the line can be given — a shadow defender's drop is
+   * still a drop, and a lineman's block is only ever a block.
+   */
+  kinds: readonly MovementPath["kind"][];
 }) {
   // With no break picked, a choice forks off the end, which is where the
   // original puts it too.
@@ -1807,7 +1811,6 @@ function RouteInspector({
     segmentIndex !== undefined
       ? (line[segmentIndex]?.segmentStyle?.ending ?? style.ending)
       : style.ending;
-  const kinds = unit === "defense" ? defensiveRouteKinds : offensiveRouteKinds;
   const scope =
     segmentIndex !== undefined
       ? `Segment ${segmentIndex}`
@@ -1840,14 +1843,14 @@ function RouteInspector({
         <span className="scope-tag">{scope}</span>
       </div>
       <div className="segments">
-        {kinds.map((choice) => (
+        {kinds.map((kind) => (
           <button
-            className={path.kind === choice.kind ? "active" : undefined}
-            key={choice.kind}
-            onClick={() => onKind(choice.kind)}
+            className={path.kind === kind ? "active" : undefined}
+            key={kind}
+            onClick={() => onKind(kind)}
             type="button"
           >
-            {choice.name}
+            {lineKindNames[kind]}
           </button>
         ))}
       </div>
@@ -3230,13 +3233,22 @@ export function ChalkApp({
   /**
    * The original offers the draw-a-route dot on the selected or hovered
    * Player, under the select tool, when nothing is being drawn or dragged.
+   * Only a man who runs routes gets one: a defender or a lineman has none.
    */
-  const routeDotPlayerId =
+  const routeDotCandidate =
     activeTool === "select" &&
     !interaction.drawing &&
     interaction.gesture.kind === "idle"
       ? (interaction.selection.find(({ kind }) => kind === "player")?.id ??
         hoveredPlayerId)
+      : undefined;
+  const routeDotMan =
+    routeDotCandidate === undefined
+      ? undefined
+      : editor.document.players.find(({ id }) => id === routeDotCandidate);
+  const routeDotPlayerId =
+    routeDotMan && canDrawFrom("route", routeDotMan)
+      ? routeDotMan.id
       : undefined;
 
   const dispatchField = (event: FieldInteractionEvent): void => {
@@ -3394,6 +3406,12 @@ export function ChalkApp({
    */
   const startDrawingFrom = (playerId: string, kind: FieldDrawingKind): void => {
     if (interactionRef.current.drawing) return;
+    // A key asks for a line his inspector may not offer: R on a defender, M
+    // or R on a lineman, Z on offense. Nothing starts, and nothing closes.
+    const man = editorStore
+      .getSnapshot()
+      .document.players.find(({ id }) => id === playerId);
+    if (!man || !canDrawFrom(kind, man)) return;
     setActiveTool("select");
     if (inspectorFloats) setInspectorOpen(false);
     dispatchField({ type: "start-drawing", kind, playerId, mode: drawingMode });
@@ -6386,11 +6404,12 @@ export function ChalkApp({
                   path={selectedPath}
                   segmentIndex={interaction.selectedSegmentIndex}
                   timing={routeTiming(selectedPath)}
-                  unit={
-                    editor.document.players.find(
+                  kinds={(() => {
+                    const owner = editor.document.players.find(
                       ({ id }) => id === selectedPath.playerId,
-                    )?.unit ?? editor.document.unit
-                  }
+                    );
+                    return owner ? lineKindsFor(owner) : [selectedPath.kind];
+                  })()}
                 />
               ) : selectedPlayer ? (
                 <PlayerInspector

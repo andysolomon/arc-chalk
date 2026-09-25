@@ -1,6 +1,7 @@
 import {
   buildFieldLandmarks,
   buildPathGeometry,
+  canRunLine,
   canonicalSha256,
   canonicalStringify,
   collegeFieldProfile,
@@ -10,6 +11,7 @@ import {
   legacyCanvasToYards,
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
+  lineKindsFor,
   migrateLegacyPlay,
   migrateLegacyFieldProfile,
   migratePlayDocument,
@@ -446,5 +448,57 @@ describe("who is on the line", () => {
 
   it("never claims a defender", () => {
     expect(isLineman({ ...of("ol2"), unit: "defense" })).toBe(false);
+  });
+
+  it("counts a man lettered for a spot on the line wherever he stands", () => {
+    const centre = of("ol2");
+    for (const label of ["LT", "LG", "C", "rg", " RT "]) {
+      const lettered = {
+        ...centre,
+        label,
+        position: { ...centre.position, depthYards: -6 },
+      };
+      expect(isLineman(lettered)).toBe(true);
+    }
+    // A corner lettered C is still a corner.
+    expect(isLineman({ ...centre, label: "C", unit: "defense" })).toBe(false);
+  });
+});
+
+describe("what each position can be given", () => {
+  const of = (id: string) =>
+    stickThunderPlay.players.find((player) => player.id === id)!;
+  const corner = {
+    unit: "defense" as const,
+    label: "C",
+    position: { lateralYards: 20, depthYards: 6 },
+  };
+
+  it("lets a defender drop, blitz and stunt, and never run a route", () => {
+    expect(lineKindsFor(corner)).toEqual(["zone", "blitz", "stunt"]);
+    for (const kind of ["route", "motion", "block", "ball"] as const) {
+      expect(canRunLine(corner, kind)).toBe(false);
+    }
+  });
+
+  it("lets a lineman block and nothing else", () => {
+    expect(lineKindsFor(of("ol2"))).toEqual(["block"]);
+    for (const kind of ["route", "motion", "ball", "zone", "blitz"] as const) {
+      expect(canRunLine(of("ol2"), kind)).toBe(false);
+    }
+  });
+
+  it("lets every other offensive man run, motion, block and throw, and never blitz", () => {
+    for (const id of ["q", "x", "f", "h", "y", "z"]) {
+      expect(lineKindsFor(of(id))).toEqual([
+        "route",
+        "motion",
+        "block",
+        "ball",
+      ]);
+      for (const kind of ["zone", "blitz", "stunt"] as const) {
+        expect(canRunLine(of(id), kind)).toBe(false);
+      }
+    }
   });
 });

@@ -586,6 +586,23 @@ describe("drawing a concept", () => {
 describe("how a man blocks, and how a defender plays", () => {
   const linemanIds = (play: PlayDocument) =>
     linemenOf(play).map(({ id }) => id);
+  /** Trips with a Mike linebacker across from it, for the calls a defender takes. */
+  const withMike: PlayDocument = {
+    ...trips,
+    players: [
+      ...trips.players,
+      {
+        id: "mike",
+        unit: "defense",
+        position: { lateralYards: 0, depthYards: 5 },
+        symbol: "none",
+        label: "M",
+        sublabel: "",
+        fill: "none",
+        color: "ink",
+      },
+    ],
+  };
 
   it("offers the calls the original offers, on the whole line in its own order", () => {
     expect(blockPresets.map(({ key }) => key)).toEqual([
@@ -733,10 +750,10 @@ describe("how a man blocks, and how a defender plays", () => {
   });
 
   it("gives a drop the ground it owns and a rush none, the way the call says", () => {
-    const defender = idOfRole(trips, "X");
+    const defender = "mike";
     const drop = run(
-      trips,
-      applyLinePresetCommand(trips, [defender], "deep3", makeId),
+      withMike,
+      applyLinePresetCommand(withMike, [defender], "deep3", makeId),
     );
     expect(drop.paths[0]!.kind).toBe("zone");
     expect(drop.paths[0]!.coverageArea?.type).toBe("deep");
@@ -751,8 +768,8 @@ describe("how a man blocks, and how a defender plays", () => {
     );
 
     const rush = run(
-      trips,
-      applyLinePresetCommand(trips, [defender], "blitz", makeId),
+      withMike,
+      applyLinePresetCommand(withMike, [defender], "blitz", makeId),
     );
     expect(rush.paths[0]!.kind).toBe("blitz");
     expect(rush.paths[0]!.coverageArea).toBeUndefined();
@@ -764,10 +781,10 @@ describe("how a man blocks, and how a defender plays", () => {
   });
 
   it("replaces every kind of defensive line, since they are all the same call", () => {
-    const defender = idOfRole(trips, "X");
+    const defender = "mike";
     const zoned = run(
-      trips,
-      applyLinePresetCommand(trips, [defender], "hook", makeId),
+      withMike,
+      applyLinePresetCommand(withMike, [defender], "hook", makeId),
     );
     const rushing = run(
       zoned,
@@ -775,6 +792,48 @@ describe("how a man blocks, and how a defender plays", () => {
     );
     expect(rushing.paths).toHaveLength(1);
     expect(rushing.paths[0]!.kind).toBe("blitz");
+  });
+
+  it("gives nobody a call his position cannot run", () => {
+    // A receiver never drops into a zone or blitzes, a defender never blocks,
+    // and a lineman never drops or blitzes.
+    const receiver = idOfRole(withMike, "X");
+    const lineman = linemanIds(withMike)[0]!;
+    expect(
+      applyLinePresetCommand(withMike, [receiver], "blitz", makeId),
+    ).toBeUndefined();
+    expect(
+      applyLinePresetCommand(withMike, [receiver], "deep3", makeId),
+    ).toBeUndefined();
+    expect(
+      applyLinePresetCommand(withMike, [lineman], "blitz", makeId),
+    ).toBeUndefined();
+    expect(
+      applyLinePresetCommand(withMike, ["mike"], "drive", makeId),
+    ).toBeUndefined();
+
+    // Asked of a mixed group, the call lands only on the men who can run it.
+    const mixed = run(
+      withMike,
+      applyLinePresetCommand(withMike, [lineman, "mike"], "drive", makeId),
+    );
+    expect(mixed.paths.map(({ playerId }) => playerId)).toEqual([lineman]);
+  });
+
+  it("puts no route on a man who does not run one", () => {
+    const lineman = linemanIds(withMike)[0]!;
+    for (const man of [lineman, "mike"]) {
+      expect(
+        applyPlayerRoutePresetCommand(withMike, man, "slant", () => "new"),
+      ).toBeUndefined();
+    }
+    // Nor does a call off the tree reshape a block or a drop into a route.
+    const blocked = run(
+      withMike,
+      applyLinePresetCommand(withMike, [lineman], "drive", makeId),
+    );
+    const block = blocked.paths.find(({ playerId }) => playerId === lineman)!;
+    expect(applyRoutePresetCommand(blocked, block.id, "go")).toBeUndefined();
   });
 
   it("has nothing to say about a call it does not have, or a man who is not there", () => {
