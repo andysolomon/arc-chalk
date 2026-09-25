@@ -52,9 +52,10 @@ import {
   baseAlignment,
   addCoachPlayType,
   formatClassification,
+  unitName,
+  UNCLASSIFIED_PLAY_TYPE_NAME,
   type Concept,
   type LabelRole,
-  type DefensiveCall,
   type FieldProfile,
   type Formation,
   type MovementPath,
@@ -267,7 +268,6 @@ import {
   Disclosure,
   type FieldLayerToggle,
   Hint,
-  LayersPopover,
   LayerToggles,
   PresetPicker,
 } from "./inspector-sections";
@@ -284,8 +284,11 @@ import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { FieldDiagram } from "./field-diagram";
 import { SELECTION_BLUE, sceneColors, selectionKey } from "./field-marks";
 import { PlaybackBar } from "./playback-bar";
-import { SettingsOverlay } from "./settings-overlay";
+import { SettingsOverlay, type SettingsTab } from "./settings-overlay";
+import { PlaySidebar, type SidebarRowSpec } from "./play-sidebar";
+import { rosterFor, type Roster, type RosterRow } from "./assignments-roster";
 import {
+  ClassificationPanel,
   PlayClassificationControl,
   type AddPlayTypeOutcome,
 } from "./play-classification-control";
@@ -1094,6 +1097,7 @@ const labelColorChoices: ReadonlyArray<TextLabel["color"]> = [
  * every parity golden captures.
  */
 function LabelInspector({
+  bare = false,
   label,
   onAppearance,
   onDelete,
@@ -1104,6 +1108,8 @@ function LabelInspector({
   text,
   textInputRef,
 }: {
+  /** Without its own heading — the phone sheet's head names it instead. */
+  bare?: boolean;
   label: TextLabel;
   /** The draft the Coach is typing, which leads the committed text. */
   text: string;
@@ -1118,18 +1124,20 @@ function LabelInspector({
   const boxed = label.box !== "none";
   return (
     <div className="label-inspector">
-      <div className="section-heading label-heading">
-        <button
-          aria-label="Back to the play"
-          className="back-button"
-          onClick={onDeselect}
-          title="Back to the play — esc"
-          type="button"
-        >
-          ←
-        </button>
-        <span>Text</span>
-      </div>
+      {bare ? null : (
+        <div className="section-heading label-heading">
+          <button
+            aria-label="Back to the play"
+            className="back-button"
+            onClick={onDeselect}
+            title="Back to the play — esc"
+            type="button"
+          >
+            ←
+          </button>
+          <span>Text</span>
+        </div>
+      )}
       <input
         aria-label="Label text"
         className="label-text"
@@ -1329,6 +1337,7 @@ const quickAssignmentCalls: readonly {
  */
 function QuickCallGrid({
   calls,
+  columns = 2,
   heading,
   hint,
   kind,
@@ -1336,7 +1345,9 @@ function QuickCallGrid({
   running,
 }: {
   calls: readonly { readonly key: string; readonly name: string }[];
-  heading: string;
+  /** Three across for the short route names, two for the calls. */
+  columns?: 2 | 3;
+  heading?: string;
   hint?: string;
   /** A route reshapes his stem; everything else is a whole call he is given. */
   kind: "route" | "line";
@@ -1346,8 +1357,8 @@ function QuickCallGrid({
 }) {
   return (
     <>
-      <span className="section-heading">{heading}</span>
-      <div className="button-grid pairs">
+      {heading ? <span className="section-heading">{heading}</span> : null}
+      <div className={`button-grid${columns === 2 ? " pairs" : ""}`}>
         {calls.map(({ key, name }) => (
           <button
             aria-pressed={running.has(key)}
@@ -1417,14 +1428,15 @@ function QuickTray({
 }
 
 /**
- * The original's Player panel: the man himself, then every line he has and the
- * button that gives him another one. Which of those it offers follows what he
- * is — a lineman blocks and has no route to run, a defender is given a call.
- * Coaching comes first — his lines, the calls he could be given — and how he
- * is drawn folds away under Appearance (issue #64).
+ * The Player panel (ADR 0058): the man himself, then only the kind of
+ * assignment that pertains to him — routes and alternates for a receiver or
+ * back, blocking for a lineman, a call for a defender — with the quick calls
+ * he can be given right there, and how he is drawn folded under Appearance.
+ * Nothing about the play, the formation or the field lives here.
  */
 function PlayerInspector({
   activePresets,
+  bare = false,
   freeDraw,
   scopeBadge,
   lines,
@@ -1443,10 +1455,13 @@ function PlayerInspector({
   onToggle,
   open,
   player,
+  role,
   text,
 }: {
   /** Every call he is already running, so a button can say so. */
   activePresets: ReadonlySet<string>;
+  /** Without its own heading — the phone sheet's head names him instead. */
+  bare?: boolean;
   /** Start a line of this kind by hand from his stance (ADR 0052). */
   onDraw: (kind: FieldDrawingKind) => void;
   /** Whether a line by hand is traced under the pointer or clicked in breaks. */
@@ -1476,6 +1491,8 @@ function PlayerInspector({
   onToggle: (id: string) => void;
   open: Readonly<Record<string, boolean>>;
   player: Player;
+  /** What he plays, said the way the roster says it: Tight end, Mike. */
+  role: string;
   text: Readonly<Record<"label" | "sublabel", string>>;
   scopeBadge?: string;
 }) {
@@ -1498,38 +1515,54 @@ function PlayerInspector({
   const fillName =
     playerFillChoices.find(({ fill }) => fill === player.fill)?.name ??
     player.fill;
+  const letter = player.label.trim();
+  const quickBlocksSummary = quickBlockCalls
+    .slice(0, 4)
+    .map(({ name }) => name)
+    .join(" · ");
 
   return (
-    <div className="label-inspector">
-      <div className="section-heading label-heading">
-        <button
-          aria-label="Back to the play"
-          className="back-button"
-          onClick={onDeselect}
-          title="Back to the play — esc"
-          type="button"
-        >
-          ←
-        </button>
-        <span>Player</span>
-        {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
+    <div className="label-inspector player-inspector">
+      {bare ? null : (
+        <div className="section-heading label-heading player-heading">
+          <button
+            aria-label="Back to the play"
+            className="back-button"
+            onClick={onDeselect}
+            title="Back to the play — esc"
+            type="button"
+          >
+            ←
+          </button>
+          <span aria-hidden="true" className="player-chip">
+            {letter}
+          </span>
+          <span className="player-role">{role || "Player"}</span>
+          {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
+          <span className="unit-tag" data-unit={player.unit}>
+            {unitName(player.unit)}
+          </span>
+        </div>
+      )}
+      <div className="player-name-row">
+        <input
+          aria-label="Letter"
+          className="player-letter"
+          onBlur={() => onTextCommitted("label")}
+          onChange={(event) => onText("label", event.target.value)}
+          placeholder="X"
+          spellCheck={false}
+          value={text.label}
+        />
+        <input
+          aria-label="Tag under"
+          onBlur={() => onTextCommitted("sublabel")}
+          onChange={(event) => onText("sublabel", event.target.value)}
+          placeholder="Tag under — FLAT, STICK…"
+          spellCheck={false}
+          value={text.sublabel}
+        />
       </div>
-      <input
-        aria-label="Letter"
-        onBlur={() => onTextCommitted("label")}
-        onChange={(event) => onText("label", event.target.value)}
-        placeholder="Letter — X, Y, Z, Q…"
-        spellCheck={false}
-        value={text.label}
-      />
-      <input
-        aria-label="Tag under"
-        onBlur={() => onTextCommitted("sublabel")}
-        onChange={(event) => onText("sublabel", event.target.value)}
-        placeholder="Tag under — FLAT, STICK…"
-        spellCheck={false}
-        value={text.sublabel}
-      />
       <span className="section-heading">{heading}</span>
       {lines.length === 0 ? (
         <p>{nothingYet}</p>
@@ -1625,21 +1658,37 @@ function PlayerInspector({
       {!defense && !lineman && (
         <QuickCallGrid
           calls={routePresetNames}
+          columns={3}
           heading="Quick routes"
           kind="route"
           onApply={onQuickCall}
           running={activePresets}
         />
       )}
-      {!defense && (
+      {!defense && !lineman && (
+        // A back or a tight end blocks too, but it is the second thing he is
+        // asked for, so the calls fold until they are wanted.
+        <Disclosure
+          id="player-quick-blocks"
+          onToggle={onToggle}
+          open={open["player-quick-blocks"] ?? false}
+          summary={quickBlocksSummary}
+          title="Quick blocks"
+        >
+          <QuickCallGrid
+            calls={quickBlockCalls}
+            hint="Backs and tight ends block too — a block sits alongside his route rather than replacing it."
+            kind="line"
+            onApply={onQuickCall}
+            running={activePresets}
+          />
+        </Disclosure>
+      )}
+      {lineman && (
         <QuickCallGrid
           calls={quickBlockCalls}
           heading="Quick blocks"
-          hint={
-            lineman
-              ? "Bar endings for contact, dashed for a pull, a tick where he chips before releasing. Click the one he has to take it off."
-              : "Backs and tight ends block too — a block sits alongside his route rather than replacing it."
-          }
+          hint="Bar endings for contact, dashed for a pull, a tick where he chips before releasing. Click the one he has to take it off."
           kind="line"
           onApply={onQuickCall}
           running={activePresets}
@@ -1656,8 +1705,8 @@ function PlayerInspector({
         />
       )}
       {!defense && !lineman && (
-        <div className="help-row">
-          <button onClick={onAddAlternate} type="button">
+        <div className="help-row alternate-row">
+          <button className="alternate" onClick={onAddAlternate} type="button">
             + Alternate route — new stem from stance
           </button>
           <Hint about="alternates and choices">
@@ -1735,8 +1784,11 @@ function PlayerInspector({
  * it runs fold away under Appearance and Advanced (issue #64).
  */
 function RouteInspector({
+  bare = false,
   branchIndex,
   coaching,
+  lineTitle,
+  ownerLetter,
   scopeBadge,
   nodeIndex,
   onAddChoice,
@@ -1758,8 +1810,14 @@ function RouteInspector({
   segmentIndex,
   timing,
 }: {
+  /** Without its own heading — the phone sheet's head names it instead. */
+  bare?: boolean;
   branchIndex?: number;
   coaching: Readonly<Record<RouteCoachingField, string>>;
+  /** What the line is called in his list: Base stem, Alternate 1, Block. */
+  lineTitle?: string;
+  /** Whose line it is. */
+  ownerLetter?: string;
   scopeBadge?: string;
   nodeIndex?: number;
   onAddChoice: () => void;
@@ -1828,21 +1886,28 @@ function RouteInspector({
     timing.delay !== "" || timing.hold !== "" || timing.speed !== "";
 
   return (
-    <div className="label-inspector">
-      <div className="section-heading label-heading">
-        <button
-          aria-label="Back to the play"
-          className="back-button"
-          onClick={onDeselect}
-          title="Back to the play — esc"
-          type="button"
-        >
-          ←
-        </button>
-        <span>Route</span>
-        {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
-        <span className="scope-tag">{scope}</span>
-      </div>
+    <div className="label-inspector route-inspector">
+      {bare ? null : (
+        <div className="section-heading label-heading route-heading">
+          <button
+            aria-label="Back to the play"
+            className="back-button"
+            onClick={onDeselect}
+            title="Back to the play — esc"
+            type="button"
+          >
+            ←
+          </button>
+          <span>{lineKindNames[path.kind]}</span>
+          {ownerLetter || lineTitle ? (
+            <span className="route-owner">
+              {[ownerLetter, lineTitle].filter(Boolean).join(" · ")}
+            </span>
+          ) : null}
+          {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
+          <span className="scope-tag scope-tag-blue">{scope}</span>
+        </div>
+      )}
       <div className="segments">
         {kinds.map((kind) => (
           <button
@@ -2117,193 +2182,151 @@ function ResetRow({
   );
 }
 
+/** The play's own men as rows the Coach can pick from, grouped by position. */
+function RosterList({
+  onSelectPlayer,
+  roster,
+  selectedId,
+}: {
+  onSelectPlayer: (playerId: string) => void;
+  roster: Roster;
+  selectedId?: string;
+}) {
+  return (
+    <div className="roster">
+      {roster.groups.map((group) => (
+        <section className="roster-group" key={group.id}>
+          <div className="section-heading roster-heading">{group.name}</div>
+          {group.rows.map((row) => (
+            <button
+              aria-label={`${row.letter || row.role}: ${row.summary ?? row.nothingYet} — ${row.role}`}
+              aria-pressed={row.player.id === selectedId}
+              className="roster-row"
+              data-roster-player={row.player.id}
+              key={row.player.id}
+              onClick={() => onSelectPlayer(row.player.id)}
+              title={`${row.role || "Player"} — open his assignments`}
+              type="button"
+            >
+              <span aria-hidden="true" className="roster-symbol">
+                {row.letter}
+              </span>
+              <span
+                className={`roster-summary${row.summary === undefined ? " empty" : ""}`}
+              >
+                {row.summary ?? row.nothingYet}
+              </span>
+              <span className="roster-role">{row.role}</span>
+              <span aria-hidden="true" className="roster-chevron">
+                ›
+              </span>
+            </button>
+          ))}
+        </section>
+      ))}
+      {roster.total === 0 ? (
+        <p className="roster-empty">
+          Nobody on the field yet. Pick a formation from the sidebar to start.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A phone's peeked sheet: one chip per man, his letter over the word that
+ * says what he does, in a strip a thumb scrolls sideways.
+ */
+function ManChips({
+  onSelectPlayer,
+  roster,
+  selectedId,
+}: {
+  onSelectPlayer: (playerId: string) => void;
+  roster: Roster;
+  selectedId?: string;
+}) {
+  return (
+    <div aria-label="Men" className="man-chips" role="group">
+      {roster.rows.map((row) => (
+        <button
+          aria-label={`${row.letter || row.role} — ${row.summary ?? row.nothingYet}`}
+          aria-pressed={row.player.id === selectedId}
+          className="man-chip"
+          key={row.player.id}
+          onClick={() => onSelectPlayer(row.player.id)}
+          type="button"
+        >
+          <span className="man-chip-letter">{row.letter || "·"}</span>
+          <span
+            className={`man-chip-word${row.summary === undefined ? " empty" : ""}`}
+          >
+            {row.summary ?? "—"}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The right inspector is assignments only (ADR 0058): what each man on the
+ * play's own unit is asked to do. Idle, it lists the play call — concept and
+ * line call — and the roster; a picked man, line or note gets his own panel.
+ * Formation, ball, shadow, library, layers and print live in the sidebar and
+ * in Settings, not here. On a phone it is a sheet with two heights: peeked,
+ * a strip of men above the tools; full, the roster or the picked man.
+ */
 function Inspector({
-  ballSpots,
-  call,
-  scopeBadge,
   currentConcept,
   currentLineCall,
-  defenderCount,
-  layers,
-  layersPopover,
-  library,
-  librarySummary,
+  labelEditor,
   linemanCount,
   onCollapse,
+  onDeselect,
   onOpenPresets,
-  onSpotBall,
-  onToggle,
-  onToggleLayer,
-  open,
-  formation,
-  formationHint,
-  labelEditor,
-  onOpenDefenses,
-  onOpenFormations,
-  onOpenPalette,
-  onOpenShortcuts,
+  onSelectPlayer,
+  onSheetSnap,
+  roster,
+  scopeBadge,
+  selected,
   sheet = false,
-  shadowOn,
-  onToggleShadow,
-  resets,
-  onReset,
+  sheetSnap = "full",
   unit,
 }: {
-  ballSpots: readonly {
-    readonly spot: BallSpot;
-    readonly name: string;
-    readonly title: string;
-    readonly on: boolean;
-    readonly available: boolean;
-  }[];
-  call?: DefensiveCall;
-  scopeBadge?: string;
   /** The concept drawn on the field now, if one is. */
   currentConcept?: string;
   currentLineCall?: string;
-  defenderCount: number;
-  /** The field layers, for the sheet's own "Show on the field" fold. */
-  layers: readonly FieldLayerToggle[];
-  layersPopover?: React.ReactNode;
-  library?: React.ReactNode;
-  /** One line about the open Play's family, for the folded Library heading. */
-  librarySummary: string;
-  onCollapse: () => void;
-  onOpenPresets: (group: "concept" | "line") => void;
-  onSpotBall: (spot: BallSpot) => void;
-  onToggle: (id: string) => void;
-  onToggleLayer: (id: string) => void;
-  /** Which folded sections the Coach has opened, remembered per device. */
-  open: Readonly<Record<string, boolean>>;
-  linemanCount: number;
-  formation?: Formation;
-  formationHint: string;
+  /** The panel for what is picked out, when something is. */
   labelEditor?: React.ReactNode;
-  onOpenDefenses: () => void;
-  onOpenFormations: () => void;
-  onOpenPalette: () => void;
-  onOpenShortcuts: () => void;
-  /**
-   * A sheet over a phone's field (issue #92): the bar is the sheet's handle,
-   * and a tap anywhere along it puts the sheet away. The layer switches then
-   * fold into the sheet itself, since the bar no longer holds them.
-   */
+  linemanCount: number;
+  onCollapse: () => void;
+  onDeselect: () => void;
+  onOpenPresets: (group: "concept" | "line") => void;
+  onSelectPlayer: (playerId: string) => void;
+  onSheetSnap?: (snap: "peek" | "full") => void;
+  roster: Roster;
+  scopeBadge?: string;
+  /** What is picked out, for the sheet's head and the pager. */
+  selected?:
+    | { readonly kind: "player"; readonly row?: RosterRow }
+    | { readonly kind: "path"; readonly name: string }
+    | { readonly kind: "label" };
+  /** A sheet over a phone's field. */
   sheet?: boolean;
+  sheetSnap?: "peek" | "full";
   unit: PlayDocument["unit"];
-  /** Whether the other unit's shadow is on the field (ADR 0053). */
-  shadowOn: boolean;
-  onToggleShadow: () => void;
-  /** Putting each side of the ball back (ADR 0055). */
-  resets: Readonly<Record<PlayerSideOfBall, SideResets>>;
-  onReset: (side: PlayerSideOfBall, target: AlignmentResetTarget) => void;
 }) {
   const defense = unit === "defense";
-  const shadowName = defense ? "Shadow offense" : "Shadow defense";
-  const layersShown = layers.filter(({ on }) => on).length;
-  const bar = sheet ? (
-    <div className="inspector-bar">
-      <button
-        aria-label="Hide the inspector"
-        className="inspector-sheet-handle"
-        onClick={onCollapse}
-        title="Hide the inspector"
-        type="button"
-      >
-        <span>Inspector</span>
-        <span aria-hidden="true" className="inspector-sheet-caret">
-          ›
-        </span>
-      </button>
-    </div>
-  ) : (
-    <div className="inspector-bar">
-      {layersPopover}
-      <span className="top-spacer" />
-      <button
-        aria-label="Hide the inspector"
-        className="inspector-bar-button inspector-collapse"
-        onClick={onCollapse}
-        title="Hide the inspector — ⌥1"
-        type="button"
-      >
-        ›
-      </button>
-    </div>
-  );
-  if (labelEditor) {
-    return (
-      <aside className="inspector" aria-label="Play inspector">
-        {bar}
-        {labelEditor}
-      </aside>
-    );
-  }
-  const formationPicker = (
-    <>
-      <button
-        className="wide-picker"
-        data-current-formation={formation?.id}
-        onClick={onOpenFormations}
-        title="Browse formations — ⇧⌘F"
-      >
-        <span>{formation?.name ?? "Custom alignment"}</span>
-        <span>{formation?.personnelLabel ?? "–"} &nbsp;›</span>
-      </button>
-      <div className="segment-row">
-        <span>Ball on</span>
-        <div className="segments">
-          {ballSpots.map((spot) => (
-            <button
-              aria-pressed={spot.on}
-              className={spot.on ? "active" : undefined}
-              disabled={!spot.available}
-              key={spot.spot}
-              onClick={() => onSpotBall(spot.spot)}
-              title={spot.title}
-            >
-              {spot.name}
-            </button>
-          ))}
-        </div>
+  const count = `${roster.assigned} of ${roster.total}`;
+  const selectedId =
+    selected?.kind === "player" ? selected.row?.player.id : undefined;
+  const playCall = defense ? null : (
+    <section className="inspector-section play-call">
+      <div className="section-heading">
+        Play call
+        {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
       </div>
-      <ResetRow onReset={onReset} resets={resets.offense} side="offense" />
-      <Hint about="the formation">{formationHint}</Hint>
-    </>
-  );
-  const defensePicker = (
-    <>
-      <button
-        className="wide-picker"
-        data-current-defense={call?.formation.id}
-        onClick={onOpenDefenses}
-        title="Browse defenses — ⇧⌘D"
-      >
-        <span>
-          {call
-            ? call.formation.name
-            : defenderCount > 0
-              ? "Custom front"
-              : "No defense yet"}
-        </span>
-        <span>
-          {call
-            ? call.formation.description
-            : defenderCount > 0
-              ? `${defenderCount} men`
-              : "–"}{" "}
-          &nbsp;›
-        </span>
-      </button>
-      <ResetRow onReset={onReset} resets={resets.defense} side="defense" />
-      <Hint about="defensive calls">
-        Start with a call — each one replaces the last and leaves the offense
-        untouched. Just the front and secondary — a triangle for each man, so
-        you can draw your own coverage on top. Press Z to add your own drop.
-      </Hint>
-    </>
-  );
-  const conceptRows = (
-    <>
       <button
         className="wide-picker preset-summary"
         onClick={() => onOpenPresets("concept")}
@@ -2322,128 +2345,189 @@ function Inspector({
         <span>{currentLineCall ?? "No line call yet"}</span>
         <span>Line call &nbsp;›</span>
       </button>
-      <Hint about="concepts and line calls">
-        A concept draws every route by role — X, Z, H, Y and the back each get
-        their job — and replaces their routes; blocking and coverage stay. A
-        line call gives all {linemanCount} linemen one call at once.
-      </Hint>
-    </>
+    </section>
   );
-  const shadowLook = defense
-    ? (formation?.name ?? "Custom alignment")
-    : call
-      ? call.formation.name
-      : defenderCount > 0
-        ? "Custom front"
-        : "No defense yet";
-  const shadowSummary = shadowOn ? shadowLook : `${shadowLook} · hidden`;
-  return (
-    <aside className="inspector" aria-label="Play inspector">
-      {bar}
-      <InspectorSection
-        badge={scopeBadge}
-        title={defense ? "Defensive call" : "Play setup"}
+  const rosterList = (
+    <RosterList
+      onSelectPlayer={onSelectPlayer}
+      roster={roster}
+      selectedId={selectedId}
+    />
+  );
+
+  if (!sheet) {
+    if (labelEditor) {
+      return (
+        <aside className="inspector" aria-label="Play inspector">
+          {labelEditor}
+        </aside>
+      );
+    }
+    return (
+      <aside className="inspector" aria-label="Play inspector">
+        <div className="inspector-bar assignments-bar">
+          <strong>Assignments</strong>
+          <span className="assignments-count">{count}</span>
+          <span className="top-spacer" />
+          <button
+            aria-label="Hide the inspector"
+            className="inspector-bar-button inspector-collapse"
+            onClick={onCollapse}
+            title="Hide the inspector — ⌥1"
+            type="button"
+          >
+            ›
+          </button>
+        </div>
+        {playCall}
+        {rosterList}
+      </aside>
+    );
+  }
+
+  // The sheet. Peeked: its head and the strip of men. Full: the roster, or
+  // the picked thing with a pager through the unit.
+  const snap = (next: "peek" | "full") => onSheetSnap?.(next);
+  const calls = [currentConcept, currentLineCall].filter(Boolean).join(" · ");
+  if (sheetSnap === "peek") {
+    return (
+      <aside
+        aria-label="Play inspector"
+        className="inspector sheet sheet-peek"
+        data-sheet="peek"
       >
-        {defense ? defensePicker : formationPicker}
-        {defense ? null : conceptRows}
-      </InspectorSection>
-      <Disclosure
-        id="opponent"
-        onToggle={onToggle}
-        open={open.opponent ?? false}
-        summary={shadowSummary}
-        title={shadowName}
+        <button
+          aria-label="Show all assignments"
+          className="sheet-handle"
+          onClick={() => snap("full")}
+          title="Show all assignments"
+          type="button"
+        >
+          <span aria-hidden="true" className="sheet-grab" />
+          <strong>Assignments</strong>
+          <span className="assignments-count">{count}</span>
+          <span className="top-spacer" />
+          {calls ? <span className="sheet-calls">{calls}</span> : null}
+          <span aria-hidden="true" className="sheet-caret">
+            ⌃
+          </span>
+        </button>
+        <ManChips
+          onSelectPlayer={onSelectPlayer}
+          roster={roster}
+          selectedId={selectedId}
+        />
+      </aside>
+    );
+  }
+  const fieldButton = (
+    <button
+      aria-label="Show the field"
+      className="sheet-field"
+      onClick={() => snap("peek")}
+      title="Put the sheet away and show the field"
+      type="button"
+    >
+      Field <span aria-hidden="true">⌄</span>
+    </button>
+  );
+  if (labelEditor && selected) {
+    const index =
+      selectedId === undefined
+        ? -1
+        : roster.rows.findIndex(({ player }) => player.id === selectedId);
+    const previous = index > 0 ? roster.rows[index - 1] : undefined;
+    const next =
+      index >= 0 && index < roster.rows.length - 1
+        ? roster.rows[index + 1]
+        : undefined;
+    const title =
+      selected.kind === "player" ? (
+        <>
+          <span aria-hidden="true" className="player-chip">
+            {selected.row?.letter}
+          </span>
+          <span className="player-role">{selected.row?.role ?? "Player"}</span>
+        </>
+      ) : selected.kind === "path" ? (
+        <span className="player-role">{selected.name}</span>
+      ) : (
+        <span className="player-role">Text</span>
+      );
+    return (
+      <aside
+        aria-label="Play inspector"
+        className="inspector sheet sheet-full"
+        data-sheet="full"
       >
-        <div className="segment-row shadow-row">
-          <span>{shadowName}</span>
-          <div className="segments">
+        <div className="sheet-head">
+          <span aria-hidden="true" className="sheet-grab" />
+          <button
+            aria-label={`All ${roster.total} — back to the roster`}
+            className="sheet-back"
+            onClick={onDeselect}
+            type="button"
+          >
+            <span aria-hidden="true">‹</span> All {roster.total}
+          </button>
+          <span className="sheet-title">{title}</span>
+          {fieldButton}
+        </div>
+        <div className="sheet-body">{labelEditor}</div>
+        {selected.kind === "player" && index >= 0 ? (
+          <div aria-label="Next man" className="sheet-pager" role="group">
             <button
-              aria-pressed={shadowOn}
-              className={shadowOn ? "active" : undefined}
-              onClick={() => {
-                if (!shadowOn) onToggleShadow();
-              }}
-              title={`Draw the ${shadowName.toLowerCase()} under the play`}
+              className="sheet-prev"
+              disabled={!previous}
+              onClick={() => previous && onSelectPlayer(previous.player.id)}
               type="button"
             >
-              Shown
+              <span aria-hidden="true">‹</span>{" "}
+              {previous ? (
+                <>
+                  <strong>{previous.letter}</strong> {previous.summary ?? ""}
+                </>
+              ) : null}
             </button>
+            <span className="sheet-pager-count">
+              {index + 1} of {roster.total}
+            </span>
             <button
-              aria-pressed={!shadowOn}
-              className={shadowOn ? undefined : "active"}
-              onClick={() => {
-                if (shadowOn) onToggleShadow();
-              }}
-              title={`Take the ${shadowName.toLowerCase()} off the field — it stays in the play`}
+              className="sheet-next"
+              disabled={!next}
+              onClick={() => next && onSelectPlayer(next.player.id)}
               type="button"
             >
-              Hidden
+              {next ? (
+                <>
+                  {next.summary ?? ""} <strong>{next.letter}</strong>
+                </>
+              ) : null}{" "}
+              <span aria-hidden="true">›</span>
             </button>
           </div>
-        </div>
-        {defense ? formationPicker : defensePicker}
-        <Hint about="the shadow">
-          {defense
-            ? "The offense here is a look to draw the call against, not the play. Hide it to read the call alone; it stays in the play, off the field."
-            : "The defense here is a look to draw against, not the play. Hide it to read the concept alone; it stays in the play, off the field."}
-        </Hint>
-      </Disclosure>
-      <Disclosure
-        badge={scopeBadge}
-        id="library"
-        onToggle={onToggle}
-        open={open.library ?? false}
-        summary={librarySummary}
-        title="Library"
-      >
-        {library}
-      </Disclosure>
-      {sheet ? (
-        <Disclosure
-          id="layers"
-          onToggle={onToggle}
-          open={open.layers ?? false}
-          summary={
-            layersShown < layers.length
-              ? `${layersShown} of ${layers.length}`
-              : "All shown"
-          }
-          title="Show on the field"
-        >
-          <LayerToggles layers={layers} onToggle={onToggleLayer} />
-        </Disclosure>
-      ) : null}
-      <InspectorSection title="Help">
-        <div className="help-row">
-          <button onClick={onOpenPalette} type="button">
-            Commands ⌘K
-          </button>
-          <button onClick={onOpenShortcuts} type="button">
-            Shortcuts ?
-          </button>
-        </div>
-      </InspectorSection>
-    </aside>
-  );
-}
-
-function InspectorSection({
-  badge,
-  children,
-  title,
-}: {
-  badge?: string;
-  children: React.ReactNode;
-  title: string;
-}) {
+        ) : null}
+      </aside>
+    );
+  }
   return (
-    <section className="inspector-section">
-      <div className="section-heading">
-        {title}
-        {badge ? <span className="scope-tag">{badge}</span> : null}
+    <aside
+      aria-label="Play inspector"
+      className="inspector sheet sheet-full"
+      data-sheet="full"
+    >
+      <div className="sheet-head">
+        <span aria-hidden="true" className="sheet-grab" />
+        <strong>Assignments</strong>
+        <span className="assignments-count">{count}</span>
+        <span className="top-spacer" />
+        {fieldButton}
       </div>
-      {children}
-    </section>
+      <div className="sheet-body">
+        {playCall}
+        {rosterList}
+      </div>
+    </aside>
   );
 }
 
@@ -2510,6 +2594,15 @@ export function ChalkApp({
   // mode"; it does not carry a third piece of state for focus.
   const [railOpen, setRailOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  /** The left sidebar (ADR 0058): docked on a desktop, a drawer on a phone. */
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  /** Which sidebar row's control is open — a popover, or a page in the drawer. */
+  const [sidebarPopover, setSidebarPopover] = useState<string | null>(null);
+  /** A phone's assignments sheet: peeked above the tools, or full height. */
+  const [sheetSnap, setSheetSnap] = useState<"peek" | "full">("peek");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("field");
+  /** How many game plans the Playbook holds, for the sidebar's count. */
+  const [planCount, setPlanCount] = useState<number>();
   /**
    * How the Coach left the chrome on this device — panels, unfolded
    * inspector sections, starred and recent presets (issue #64). Loaded once;
@@ -2713,6 +2806,8 @@ export function ChalkApp({
    * with it — a tap past it, or the pick he opened it for.
    */
   const inspectorFloats = compact || phoneWorkspace;
+  /** The sidebar is a drawer over the field's left edge on the same screens. */
+  const sidebarFloats = compact || phoneWorkspace;
   /** Whether space is down, which turns any drag into a pan. */
   const spaceHeldRef = useRef(false);
   /** A space-drag consumed the key, so keyup must not also play. */
@@ -3179,10 +3274,10 @@ export function ChalkApp({
       (item) => item.kind === "player",
     )?.id;
     if (playerId === undefined) return;
-    // Over the field a chosen call is the answer: the sheet or drawer that
-    // was covering it goes, and on a phone the quick tray is there for the
-    // next one.
-    if (inspectorFloats) setInspectorOpen(false);
+    // Over a tablet's field a chosen call is the answer, and the drawer that
+    // was covering it goes. A phone's sheet stays: the chip and the field
+    // behind it show the call, and the next man is a page away.
+    if (inspectorFloats && !phoneWorkspace) setInspectorOpen(false);
     runPanelCommand(
       kind === "route"
         ? applyPlayerRoutePresetCommand(document, playerId, presetKey, () =>
@@ -3211,7 +3306,7 @@ export function ChalkApp({
   const runLinePreset = (pathId: string, presetKey: string): void => {
     const document = editorStore.getSnapshot().document;
     const line = document.paths.find(({ id }) => id === pathId);
-    if (inspectorFloats) setInspectorOpen(false);
+    if (inspectorFloats && !phoneWorkspace) setInspectorOpen(false);
     runPanelCommand(
       line?.kind === "route"
         ? applyRoutePresetCommand(document, pathId, presetKey)
@@ -3419,7 +3514,10 @@ export function ChalkApp({
       .document.players.find(({ id }) => id === playerId);
     if (!man || !canDrawFrom(kind, man)) return;
     setActiveTool("select");
-    if (inspectorFloats) setInspectorOpen(false);
+    // The field has to be there to draw on: a phone's sheet drops to its
+    // peek, a tablet's drawer goes.
+    if (phoneWorkspace) setSheetSnap("peek");
+    else if (inspectorFloats) setInspectorOpen(false);
     dispatchField({ type: "start-drawing", kind, playerId, mode: drawingMode });
   };
   const startDrawingFromSelection = (kind: FieldDrawingKind): void => {
@@ -3947,12 +4045,13 @@ export function ChalkApp({
   const redo = () => {
     void editorStore.redo().catch(() => undefined);
   };
-  const focused = !railOpen && !inspectorOpen;
+  const focused = !railOpen && !inspectorOpen && !sidebarOpen;
   const toggleMenu = (menu: Exclude<Menu, null>) =>
     setOpenMenu((current) => (current === menu ? null : menu));
   const setPanels = (shown: boolean) => {
     setRailOpen(shown);
     setInspectorOpen(shown);
+    setSidebarOpen(shown);
   };
 
   /**
@@ -4225,7 +4324,9 @@ export function ChalkApp({
     if (!call) return;
     setOverlay(null);
     setPreviewFormationId(undefined);
-    if (inspectorFloats) setInspectorOpen(false);
+    setSidebarPopover(null);
+    if (sidebarFloats) setSidebarOpen(false);
+    if (inspectorFloats && !phoneWorkspace) setInspectorOpen(false);
     // On an offensive play the call is the shadow: a hidden shadow he just
     // chose a look for comes back, or the pick would land unseen.
     if (editor.document.unit !== "defense") showShadow();
@@ -4392,8 +4493,10 @@ export function ChalkApp({
     if (!formation) return;
     setOverlay(null);
     setPreviewFormationId(undefined);
-    // The set was the errand; over a phone's field the sheet has done its job.
-    if (inspectorFloats) setInspectorOpen(false);
+    // The set was the errand; the drawer that reached it has done its job.
+    setSidebarPopover(null);
+    if (sidebarFloats) setSidebarOpen(false);
+    if (inspectorFloats && !phoneWorkspace) setInspectorOpen(false);
     // On a defensive play the formation is the shadow (ADR 0053).
     if (editor.document.unit === "defense") showShadow();
     const { command, result } = applyFormationCommand(
@@ -4806,6 +4909,12 @@ export function ChalkApp({
     showPanels: () => setPanels(true),
     toggleInspector: () => setInspectorOpen((shown) => !shown),
     toggleRail: () => setRailOpen((shown) => !shown),
+    toggleSidebar: () => setSidebarOpen((shown) => !shown),
+    account: () => {
+      setOpenMenu(null);
+      setSettingsTab("account");
+      setOverlay("settings");
+    },
     toggleZones: () => setZonesHidden((hidden) => !hidden),
     toggleShadow,
     settings: () => {
@@ -5020,7 +5129,10 @@ export function ChalkApp({
       const was = compactRef.current;
       compactRef.current = query.matches;
       setCompact(query.matches);
-      if (query.matches && !was) setInspectorOpen(false);
+      if (query.matches && !was) {
+        setInspectorOpen(false);
+        setSidebarOpen(false);
+      }
     };
     read();
     query.addEventListener("change", read);
@@ -5038,7 +5150,10 @@ export function ChalkApp({
       // Whatever corner of the field he had been working in on a bigger
       // screen, a phone shows the Play whole to begin with. He can still go
       // in for a closer look; he should not have to come back out first.
-      if (tooSmall) setCamera(fitCamera(EDITOR_FRAME));
+      if (tooSmall) {
+        setCamera(fitCamera(EDITOR_FRAME));
+        setSidebarOpen(false);
+      }
     };
     read();
     query.addEventListener("change", read);
@@ -5264,12 +5379,16 @@ export function ChalkApp({
         event.altKey &&
         !meta &&
         !typing &&
-        (event.code === "Digit1" || event.code === "Digit2")
+        (event.code === "Digit1" ||
+          event.code === "Digit2" ||
+          event.code === "Digit3")
       ) {
-        // ⌥1 and ⌥2 fold the inspector and the tools, as their titles say.
+        // ⌥1, ⌥2 and ⌥3 fold the inspector, the tools and the sidebar, as
+        // their titles say.
         event.preventDefault();
         if (event.code === "Digit1") setInspectorOpen((shown) => !shown);
-        else setRailOpen((shown) => !shown);
+        else if (event.code === "Digit2") setRailOpen((shown) => !shown);
+        else setSidebarOpen((shown) => !shown);
         return;
       }
       if (typing || meta || event.altKey) return;
@@ -5396,21 +5515,45 @@ export function ChalkApp({
   // the tools, the top bar. What it opened itself (a browser, a menu, its own
   // handle) is not past it.
   useEffect(() => {
-    if (!inspectorOpen || !inspectorFloats) return;
+    if (phoneWorkspace ? sheetSnap !== "full" : !inspectorOpen) return;
+    if (!inspectorFloats) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (
         target?.closest(
-          ".inspector, .inspector-stub, .overlay, .menu-panel, .context-backdrop, .toast",
+          ".inspector, .inspector-stub, .overlay, .menu-panel, .context-backdrop, .toast, .play-sidebar, .sidebar-scrim, .quick-tray",
         )
       ) {
         return;
       }
-      setInspectorOpen(false);
+      // A phone's sheet never leaves: it goes back to its peek.
+      if (phoneWorkspace) setSheetSnap("peek");
+      else setInspectorOpen(false);
     };
     globalThis.addEventListener("pointerdown", onPointerDown);
     return () => globalThis.removeEventListener("pointerdown", onPointerDown);
-  }, [inspectorOpen, inspectorFloats]);
+  }, [inspectorOpen, inspectorFloats, phoneWorkspace, sheetSnap]);
+
+  // The sidebar's drawer goes away on a tap past it too; on a desktop only
+  // its popover does.
+  useEffect(() => {
+    const drawer = sidebarFloats && sidebarOpen;
+    if (!drawer && sidebarPopover === null) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (
+        target?.closest(
+          ".play-sidebar, .sidebar-open, .sidebar-stub, .overlay, .menu-panel, .context-backdrop, .toast",
+        )
+      ) {
+        return;
+      }
+      setSidebarPopover(null);
+      if (drawer) setSidebarOpen(false);
+    };
+    globalThis.addEventListener("pointerdown", onPointerDown);
+    return () => globalThis.removeEventListener("pointerdown", onPointerDown);
+  }, [sidebarFloats, sidebarOpen, sidebarPopover]);
 
   useEffect(() => {
     let cancelled = false;
@@ -5424,6 +5567,7 @@ export function ChalkApp({
       // A device left on Game Day comes back to it (issue #67).
       if (state.gameDay) setActiveView("GameDay");
       setRailOpen(state.railOpen);
+      setSidebarOpen((state.sidebarOpen ?? true) && !compactRef.current);
       setFreeDraw(state.freeDraw === true);
       chromeLoadedRef.current = true;
     });
@@ -5448,12 +5592,26 @@ export function ChalkApp({
     const current = chromeRef.current;
     if (
       current.inspectorOpen === inspectorOpen &&
-      current.railOpen === railOpen
+      current.railOpen === railOpen &&
+      (current.sidebarOpen ?? true) === sidebarOpen
     ) {
       return;
     }
-    rememberChrome({ inspectorOpen, railOpen });
-  }, [inspectorOpen, railOpen, rememberChrome]);
+    rememberChrome({ inspectorOpen, railOpen, sidebarOpen });
+  }, [inspectorOpen, railOpen, sidebarOpen, rememberChrome]);
+  useEffect(() => {
+    let cancelled = false;
+    if (overlay === "game-plans") return;
+    void runtime.library
+      .listGamePlans()
+      .then((plans) => {
+        if (!cancelled) setPlanCount(plans.length);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [overlay, runtime.library]);
   const toggleDisclosure = (id: string) =>
     rememberChrome({
       open: { ...chromeRef.current.open, [id]: !chromeRef.current.open[id] },
@@ -5548,14 +5706,6 @@ export function ChalkApp({
       },
     }));
   };
-  const layersPopover = (
-    <LayersPopover
-      layers={fieldLayers}
-      onOpenChange={(shown) => setOpenMenu(shown ? "layers" : null)}
-      onToggle={toggleFieldLayer}
-      open={openMenu === "layers"}
-    />
-  );
   const librarySummary = playbook.conceptName
     ? `${playbook.conceptName} · ${playbook.familySize} ${playbook.familySize === 1 ? "version" : "versions"}`
     : `${playbook.snapshot.members.length} ${playbook.snapshot.members.length === 1 ? "play" : "plays"}`;
@@ -5755,10 +5905,7 @@ export function ChalkApp({
       playName={editor.draftPlayName}
       resetPlayName={editorStore.resetPlayNameDraft}
       runtime={runtime}
-      identity={identity}
-      sync={sync}
-      syncSnapshot={syncSnapshot}
-      onOpenConflicts={() => setOverlay("conflicts")}
+      onOpenSidebar={() => setSidebarOpen(true)}
       phone={phoneWorkspace}
       recentOutputs={recentOutputs}
       wristband={{
@@ -5878,6 +6025,366 @@ export function ChalkApp({
     >
       {localSaveStatus(editor.localSave)}
     </button>
+  );
+
+  /** The play's own men and what each is asked to do (ADR 0058). */
+  const roster = useMemo(() => rosterFor(editor.document), [editor.document]);
+  const selectedRosterRow = selectedPlayer
+    ? roster.rows.find(({ player }) => player.id === selectedPlayer.id)
+    : undefined;
+  const selectedLineOwner = selectedPath
+    ? editor.document.players.find(({ id }) => id === selectedPath.playerId)
+    : undefined;
+  const selectedLineName =
+    selectedPath && selectedLineOwner
+      ? playerLines(selectedLineOwner).find(({ id }) => id === selectedPath.id)
+          ?.name
+      : undefined;
+  const selectedThing:
+    | { readonly kind: "player"; readonly row?: RosterRow }
+    | { readonly kind: "path"; readonly name: string }
+    | { readonly kind: "label" }
+    | undefined = selectedPlayer
+    ? {
+        kind: "player",
+        ...(selectedRosterRow ? { row: selectedRosterRow } : {}),
+      }
+    : selectedPath
+      ? { kind: "path", name: lineKindNames[selectedPath.kind] }
+      : selectedLabel
+        ? { kind: "label" }
+        : undefined;
+  /** A row of the roster is the man on the field: the same pick. */
+  const selectRosterPlayer = (playerId: string) => {
+    if (activeTool !== "select") selectTool("select");
+    focusInteraction({
+      selection: [{ kind: "player", id: playerId }],
+      selectedBranchIndex: undefined,
+      selectedSegmentIndex: undefined,
+      selectedNodeIndex: undefined,
+    });
+    if (phoneWorkspace) setSheetSnap("full");
+  };
+
+  const defensePlay = editor.document.unit === "defense";
+  const shadowName = defensePlay ? "Shadow offense" : "Shadow defense";
+  const defenderCount = editor.document.players.filter(
+    ({ unit }) => unit === "defense",
+  ).length;
+  const callName = onFieldCall
+    ? onFieldCall.formation.name
+    : defenderCount > 0
+      ? "Custom front"
+      : "No defense yet";
+  const formationName = onFieldFormation?.name ?? "Custom alignment";
+  const openFormations = () => {
+    setSidebarPopover(null);
+    if (sidebarFloats) setSidebarOpen(false);
+    setOverlay("formations");
+  };
+  const openDefenses = () => {
+    setSidebarPopover(null);
+    if (sidebarFloats) setSidebarOpen(false);
+    setOverlay("defenses");
+  };
+  const formationPicker = (
+    <button
+      className="wide-picker"
+      data-current-formation={onFieldFormation?.id}
+      onClick={openFormations}
+      title="Browse formations — ⇧⌘F"
+      type="button"
+    >
+      <span>{formationName}</span>
+      <span>{onFieldFormation?.personnelLabel ?? "–"} &nbsp;›</span>
+    </button>
+  );
+  const defensePicker = (
+    <button
+      className="wide-picker"
+      data-current-defense={onFieldCall?.formation.id}
+      onClick={openDefenses}
+      title="Browse defenses — ⇧⌘D"
+      type="button"
+    >
+      <span>{callName}</span>
+      <span>
+        {onFieldCall
+          ? onFieldCall.formation.description
+          : defenderCount > 0
+            ? `${defenderCount} men`
+            : "–"}{" "}
+        &nbsp;›
+      </span>
+    </button>
+  );
+  const shadowLook = defensePlay ? formationName : callName;
+  const layersShown = fieldLayers.filter(({ on }) => on).length;
+  const libraryPanel = (
+    <LibraryPanel
+      currentPlayId={editor.document.id}
+      onBrowse={() => setOverlay("playbook")}
+      onCancelVariation={playbook.cancelVariation}
+      onCommitVariation={playbook.commitVariation}
+      onDelete={playbook.removePlay}
+      onDetach={playbook.detach}
+      onLoad={(playId) => {
+        if (interactionRef.current.drawing) {
+          dispatchFieldRef.current({ type: "escape" });
+        }
+        void playbook.loadPlay(playId);
+      }}
+      onNoteCommit={playbook.noteCommit}
+      onPush={playbook.push}
+      onScope={playbook.setScope}
+      onStartVariation={playbook.startVariation}
+      onToggleOpen={playbook.toggleOpen}
+      onTogglePick={playbook.togglePick}
+      onVariationDraft={playbook.setVariationDraft}
+      pickIds={playbook.pickIds}
+      report={playbook.report}
+      savedFlash={playbook.savedFlash}
+      scope={playbook.scope}
+      snapshot={playbook.snapshot}
+      storedOpen={playbook.storedOpen}
+      variationDraft={playbook.variationDraft}
+      variationOpen={playbook.variationOpen}
+    />
+  );
+  const sidebarThisPlay: readonly SidebarRowSpec[] = [
+    {
+      id: "formation",
+      icon: "formation",
+      label: defensePlay ? "Defensive call" : "Formation",
+      value: defensePlay ? callName : formationName,
+      title: defensePlay ? "Browse defenses — ⇧⌘D" : "Browse formations — ⇧⌘F",
+      onOpen: defensePlay ? openDefenses : openFormations,
+      data: defensePlay
+        ? { "current-defense": onFieldCall?.formation.id }
+        : { "current-formation": onFieldFormation?.id },
+      below: (
+        <div className="sidebar-below">
+          <ResetRow
+            onReset={resetMen}
+            resets={
+              defensePlay ? alignmentResets.defense : alignmentResets.offense
+            }
+            side={defensePlay ? "defense" : "offense"}
+          />
+        </div>
+      ),
+    },
+    {
+      id: "ball",
+      icon: "ball",
+      label: "Ball on",
+      value: ballSpotActions.find(({ on }) => on)?.name ?? "Middle",
+      detail: (
+        <>
+          <div className="segments">
+            {ballSpotActions.map((spot) => (
+              <button
+                aria-pressed={spot.on}
+                className={spot.on ? "active" : undefined}
+                disabled={!spot.available}
+                key={spot.spot}
+                onClick={() => spotTheBall(spot.spot)}
+                title={spot.title}
+                type="button"
+              >
+                {spot.name}
+              </button>
+            ))}
+          </div>
+          <Hint about="the formation">{formationHint}</Hint>
+        </>
+      ),
+    },
+    {
+      id: "shadow",
+      icon: "shadow",
+      label: shadowName,
+      value: shadowOnField ? shadowLook : "hidden",
+      detail: (
+        <>
+          <div className="segment-row shadow-row">
+            <span>{shadowName}</span>
+            <div className="segments">
+              <button
+                aria-pressed={shadowOnField}
+                className={shadowOnField ? "active" : undefined}
+                onClick={() => {
+                  if (!shadowOnField) toggleShadow();
+                }}
+                title={`Draw the ${shadowName.toLowerCase()} under the play`}
+                type="button"
+              >
+                Shown
+              </button>
+              <button
+                aria-pressed={!shadowOnField}
+                className={shadowOnField ? undefined : "active"}
+                onClick={() => {
+                  if (shadowOnField) toggleShadow();
+                }}
+                title={`Take the ${shadowName.toLowerCase()} off the field — it stays in the play`}
+                type="button"
+              >
+                Hidden
+              </button>
+            </div>
+          </div>
+          {defensePlay ? formationPicker : defensePicker}
+          <ResetRow
+            onReset={resetMen}
+            resets={
+              defensePlay ? alignmentResets.offense : alignmentResets.defense
+            }
+            side={defensePlay ? "offense" : "defense"}
+          />
+          <Hint about="the shadow">
+            {defensePlay
+              ? "The offense here is a look to draw the call against, not the play. Hide it to read the call alone; it stays in the play, off the field."
+              : "The defense here is a look to draw against, not the play. Hide it to read the concept alone; it stays in the play, off the field."}
+          </Hint>
+        </>
+      ),
+    },
+    {
+      id: "type",
+      icon: "type",
+      label: "Play type",
+      // The header pill already answers to "Play type".
+      name: `Type of play, ${editor.document.playType?.name ?? UNCLASSIFIED_PLAY_TYPE_NAME}`,
+      value: editor.document.playType?.name ?? UNCLASSIFIED_PLAY_TYPE_NAME,
+      detail: (
+        <ClassificationPanel
+          concepts={playbook.snapshot.concepts}
+          formations={allFormations}
+          onAddPlayType={addPlayType}
+          onApply={(command) => {
+            void editorStore
+              .applyCommand(command)
+              .then(() => playbook.refresh())
+              .catch(() => undefined);
+          }}
+          onDismiss={() => setSidebarPopover(null)}
+          play={editor.document}
+          playbook={playbook.snapshot.playbook}
+        />
+      ),
+    },
+    {
+      id: "layers",
+      icon: "layers",
+      label: "Show on field",
+      value:
+        layersShown < fieldLayers.length
+          ? `${layersShown} of ${fieldLayers.length}`
+          : "All shown",
+      detail: <LayerToggles layers={fieldLayers} onToggle={toggleFieldLayer} />,
+    },
+    {
+      id: "library",
+      icon: "library",
+      label: "Library",
+      value: librarySummary,
+      detail: libraryPanel,
+    },
+  ];
+  const sidebarPlaybook: readonly SidebarRowSpec[] = [
+    {
+      id: "plays",
+      icon: "plays",
+      label: "Plays",
+      value: String(playbook.snapshot.members.length),
+      current: activeView === "Playbooks" && playbooksTab === "plays",
+      onOpen: () => {
+        setPlaybooksTab("plays");
+        goToView("Playbooks");
+      },
+    },
+    {
+      id: "plans",
+      icon: "plans",
+      label: "Game plans",
+      ...(planCount === undefined ? {} : { value: String(planCount) }),
+      current: activeView === "Playbooks" && playbooksTab === "plans",
+      onOpen: () => {
+        setPlaybooksTab("plans");
+        goToView("Playbooks");
+      },
+    },
+    {
+      id: "gameday",
+      icon: "gameday",
+      label: "Game Day",
+      current: activeView === "GameDay",
+      onOpen: () => goToView("GameDay"),
+    },
+  ];
+  const sidebarFooter: readonly SidebarRowSpec[] = [
+    {
+      id: "print",
+      icon: "print",
+      label: "Print & export",
+      title: "Print preview and every output",
+      onOpen: () => actions.output?.(),
+    },
+    {
+      id: "settings",
+      icon: "settings",
+      label: "Settings",
+      title: "Field, Playbook, History, Print & export, Account",
+      onOpen: () => {
+        setSidebarPopover(null);
+        if (sidebarFloats) setSidebarOpen(false);
+        setOverlay("settings");
+      },
+    },
+    {
+      id: "help",
+      icon: "help",
+      label: "Help",
+      // The header's Help menu already answers to "Help".
+      name: "Help and shortcuts",
+      hint: "⌘K",
+      detail: (
+        <div className="help-row">
+          <button
+            onClick={() => {
+              setSidebarPopover(null);
+              setOverlay("palette");
+            }}
+            type="button"
+          >
+            Commands ⌘K
+          </button>
+          <button
+            onClick={() => {
+              setSidebarPopover(null);
+              setOverlay("shortcuts");
+            }}
+            type="button"
+          >
+            Shortcuts ?
+          </button>
+        </div>
+      ),
+    },
+  ];
+  const sidebar = (
+    <PlaySidebar
+      drawer={sidebarFloats}
+      footer={sidebarFooter}
+      onClose={() => setSidebarOpen(false)}
+      onCollapse={sidebarFloats ? undefined : () => setSidebarOpen(false)}
+      onOpen={setSidebarPopover}
+      open={sidebarPopover}
+      playbook={sidebarPlaybook}
+      status={phoneWorkspace ? saveStateButton : undefined}
+      thisPlay={sidebarThisPlay}
+    />
   );
 
   const labelDensity = resolveTypeDensity(presentation).label;
@@ -6089,6 +6596,28 @@ export function ChalkApp({
       {header}
       <div className="workspace">
         {quickTray}
+        {sidebarOpen ? (
+          <>
+            {sidebarFloats ? (
+              <button
+                aria-label="Close the sidebar"
+                className="sidebar-scrim"
+                onClick={() => setSidebarOpen(false)}
+                type="button"
+              />
+            ) : null}
+            {sidebar}
+          </>
+        ) : phoneWorkspace ? null : (
+          <button
+            className="sidebar-stub"
+            onClick={() => setSidebarOpen(true)}
+            title="Show the sidebar — ⌥3"
+            type="button"
+          >
+            Sidebar
+          </button>
+        )}
         {railOpen ? (
           <nav className="tool-rail" aria-label="Drawing tools">
             {tools.map((tool) => (
@@ -6352,15 +6881,17 @@ export function ChalkApp({
                 </button>
               </div>
             ) : null}
-            {phoneWorkspace && !inspectorOpen ? inspectorStub : null}
           </div>
           {phoneWorkspace ? null : playbackBar}
         </main>
-        {inspectorOpen ? (
+        {inspectorOpen || phoneWorkspace ? (
           <Inspector
             labelEditor={
               selectedPath ? (
                 <RouteInspector
+                  bare={phoneWorkspace}
+                  lineTitle={selectedLineName}
+                  ownerLetter={selectedLineOwner?.label.trim() || undefined}
                   onToggle={toggleDisclosure}
                   open={chrome.open}
                   branchIndex={interaction.selectedBranchIndex}
@@ -6466,6 +6997,8 @@ export function ChalkApp({
                 />
               ) : selectedPlayer ? (
                 <PlayerInspector
+                  bare={phoneWorkspace}
+                  role={selectedRosterRow?.role ?? ""}
                   onToggle={toggleDisclosure}
                   open={chrome.open}
                   activePresets={playerPresets(selectedPlayer)}
@@ -6556,6 +7089,7 @@ export function ChalkApp({
                 />
               ) : selectedLabel ? (
                 <LabelInspector
+                  bare={phoneWorkspace}
                   label={selectedLabel}
                   onAppearance={(appearance) =>
                     runLabelCommand(
@@ -6602,70 +7136,22 @@ export function ChalkApp({
                 />
               ) : undefined
             }
-            ballSpots={ballSpotActions}
-            call={onFieldCall}
-            scopeBadge={playbook.scopeBadge}
             currentConcept={currentConcept}
             currentLineCall={currentLineCall}
-            layers={fieldLayers}
-            layersPopover={layersPopover}
-            librarySummary={librarySummary}
-            onCollapse={() => setInspectorOpen(false)}
-            sheet={phoneWorkspace}
-            onOpenPresets={openPresets}
-            onToggle={toggleDisclosure}
-            onToggleLayer={toggleFieldLayer}
-            onToggleShadow={toggleShadow}
-            onReset={resetMen}
-            resets={alignmentResets}
-            open={chrome.open}
-            shadowOn={shadowOnField}
-            unit={editor.document.unit}
-            library={
-              <LibraryPanel
-                currentPlayId={editor.document.id}
-                onBrowse={() => setOverlay("playbook")}
-                onCancelVariation={playbook.cancelVariation}
-                onCommitVariation={playbook.commitVariation}
-                onDelete={playbook.removePlay}
-                onDetach={playbook.detach}
-                onLoad={(playId) => {
-                  if (interactionRef.current.drawing) {
-                    dispatchFieldRef.current({ type: "escape" });
-                  }
-                  void playbook.loadPlay(playId);
-                }}
-                onNoteCommit={playbook.noteCommit}
-                onPush={playbook.push}
-                onScope={playbook.setScope}
-                onStartVariation={playbook.startVariation}
-                onToggleOpen={playbook.toggleOpen}
-                onTogglePick={playbook.togglePick}
-                onVariationDraft={playbook.setVariationDraft}
-                pickIds={playbook.pickIds}
-                report={playbook.report}
-                savedFlash={playbook.savedFlash}
-                scope={playbook.scope}
-                snapshot={playbook.snapshot}
-                storedOpen={playbook.storedOpen}
-                variationDraft={playbook.variationDraft}
-                variationOpen={playbook.variationOpen}
-              />
-            }
             linemanCount={linemen.length}
-            defenderCount={
-              editor.document.players.filter(({ unit }) => unit === "defense")
-                .length
-            }
-            formation={onFieldFormation}
-            formationHint={formationHint}
-            onSpotBall={spotTheBall}
-            onOpenDefenses={() => setOverlay("defenses")}
-            onOpenFormations={() => setOverlay("formations")}
-            onOpenPalette={() => setOverlay("palette")}
-            onOpenShortcuts={() => setOverlay("shortcuts")}
+            onCollapse={() => setInspectorOpen(false)}
+            onDeselect={() => dispatchField({ type: "escape" })}
+            onOpenPresets={openPresets}
+            onSelectPlayer={selectRosterPlayer}
+            onSheetSnap={setSheetSnap}
+            roster={roster}
+            scopeBadge={playbook.scopeBadge}
+            selected={selectedThing}
+            sheet={phoneWorkspace}
+            sheetSnap={sheetSnap}
+            unit={editor.document.unit}
           />
-        ) : phoneWorkspace ? null : (
+        ) : (
           inspectorStub
         )}
       </div>
@@ -6838,9 +7324,37 @@ export function ChalkApp({
       ) : null}
       {overlay === "settings" ? (
         <SettingsOverlay
+          account={
+            <AccountPanel
+              expanded
+              identity={identity}
+              onKeepLocalData={async () => {
+                await identity.signOut();
+              }}
+              onOpenConflicts={() => setOverlay("conflicts")}
+              onRemoveLocalData={async () => {
+                await identity.signOut();
+                await runtime.destroyLocalData();
+              }}
+              snapshot={syncSnapshot}
+              sync={sync}
+            />
+          }
+          accountSummary={
+            identitySession.status === "signed_in"
+              ? `Signed in · ${syncSnapshot.status}`
+              : "Local only"
+          }
           fieldProfile={settingsFieldProfile}
           fieldProfileName={editor.document.fieldProfile.name}
           onClose={() => setOverlay(null)}
+          onTab={setSettingsTab}
+          tab={settingsTab}
+          version={
+            typeof __CHALK_VERSION__ === "string" && __CHALK_VERSION__
+              ? __CHALK_VERSION__
+              : undefined
+          }
           onPageKind={(pageKind) =>
             setPresentation((current) => ({ ...current, pageKind }))
           }
@@ -7401,10 +7915,7 @@ function Header({
   playName,
   resetPlayName,
   runtime,
-  identity,
-  sync,
-  syncSnapshot,
-  onOpenConflicts,
+  onOpenSidebar,
   phone,
   recentOutputs,
   setPlayName,
@@ -7437,10 +7948,8 @@ function Header({
   playName: string;
   resetPlayName: () => void;
   runtime: ChalkRuntime;
-  identity: IdentityPort;
-  sync?: SyncOrchestrator;
-  syncSnapshot: SyncSnapshot;
-  onOpenConflicts: () => void;
+  /** Opens the sidebar as a drawer — the ≡ at a phone header's left (ADR 0058). */
+  onOpenSidebar: () => void;
   /** A screen below the floor: the two-row header of issue #92. */
   phone: boolean;
   setPlayName: (name: string) => void;
@@ -7450,6 +7959,17 @@ function Header({
 }) {
   return (
     <header className={phone ? "topbar phone-topbar" : "topbar"}>
+      {phone ? (
+        <button
+          aria-label="Open the sidebar"
+          className="sidebar-open"
+          onClick={onOpenSidebar}
+          title="Playbook, this play, settings"
+          type="button"
+        >
+          <span aria-hidden="true">≡</span>
+        </button>
+      ) : null}
       <div className="chalk-mark" aria-hidden="true">
         <i />
       </div>
@@ -7559,19 +8079,6 @@ function Header({
           >
             <PlaySharePanel runtime={runtime} />
             <BackupPanel runtime={runtime} />
-            <AccountPanel
-              identity={identity}
-              onKeepLocalData={async () => {
-                await identity.signOut();
-              }}
-              onOpenConflicts={onOpenConflicts}
-              onRemoveLocalData={async () => {
-                await identity.signOut();
-                await runtime.destroyLocalData();
-              }}
-              snapshot={syncSnapshot}
-              sync={sync}
-            />
           </MoreMenu>
           <ExportMenu
             actions={actions}

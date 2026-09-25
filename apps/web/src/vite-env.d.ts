@@ -9,3 +9,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** The build's version, from the release that built it; "" in a dev build. */
+declare const __CHALK_VERSION__: string;

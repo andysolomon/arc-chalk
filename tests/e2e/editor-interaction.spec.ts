@@ -99,11 +99,13 @@ async function openEditor(page: Page): Promise<void> {
 }
 
 /**
- * The defensive call on an offensive play sits under the folded Opponent
- * look section (issue #64); its one-line summary says what is on the field.
+ * The defensive call on an offensive play is the sidebar's Shadow defense
+ * row (issue #64, ADR 0058); its value says what is on the field.
  */
 const opponentLook = (page: import("@playwright/test").Page) =>
-  page.locator('[data-disclosure="opponent"] .disclosure-summary');
+  page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: /^Shadow defense/ });
 
 test("drags a Player and his route as one undoable step", async ({ page }) => {
   await openEditor(page);
@@ -687,7 +689,7 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
   await openEditor(page);
 
   // Selecting an existing note opens the Text panel in place of the idle one.
-  await expect(page.getByText("Play setup", { exact: true })).toBeVisible();
+  await expect(page.getByText("Play call", { exact: true })).toBeVisible();
   const note = page.locator('[data-scene-label="l2"]');
   const box = (await note.boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -695,7 +697,7 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
   await expect(page.getByRole("textbox", { name: "Label text" })).toHaveValue(
     "2-3 Yds",
   );
-  await expect(page.getByText("Play setup", { exact: true })).toBeHidden();
+  await expect(page.getByText("Play call", { exact: true })).toBeHidden();
 
   await page.getByRole("button", { name: "Alert", exact: true }).click();
   await expect(
@@ -709,7 +711,7 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
 
   // Escape steps back to the play and the idle panels return.
   await page.keyboard.press("Escape");
-  await expect(page.getByText("Play setup", { exact: true })).toBeVisible();
+  await expect(page.getByText("Play call", { exact: true })).toBeVisible();
 });
 
 test("will not paste a twelfth man onto a full side", async ({ page }) => {
@@ -810,7 +812,7 @@ test("restyles a route, then one segment of it on its own", async ({
   // Selecting a route opens the Route panel in place of the idle one.
   const onSegment = await fieldPoint(page, 262, 405);
   await page.mouse.click(onSegment.x, onSegment.y);
-  await expect(page.getByText("Play setup", { exact: true })).toBeHidden();
+  await expect(page.getByText("Play call", { exact: true })).toBeHidden();
   // "Route" is both the panel's heading and one of its kind buttons.
   await expect(
     page.locator(".label-heading").getByText("Route", { exact: true }),
@@ -1006,9 +1008,7 @@ test("gives a man a second line off his stance and keeps the first", async ({
 
   const x = await playerCenter(page, "x");
   await page.mouse.click(x.x, x.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
   await expect(page.locator(".line-row")).toHaveCount(1);
   await expect(page.locator(".line-row span").first()).toHaveText(
     "Base stem · solid",
@@ -1135,9 +1135,7 @@ test("greys what a man cannot be sent behind, and closes on Escape", async ({
   await expect(menu).toBeHidden();
   // Escape closed the menu and left what he had picked alone.
   await revealInspector(page);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
 });
 
 test("brings a line forward from the menu and from the keyboard", async ({
@@ -1207,9 +1205,7 @@ test("opens the same menu on a press held still", async ({ page }) => {
   // A press that lets go is a tap, and picks him without offering anything.
   await press("pointerdown", z);
   await press("pointerup", z);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
   // Waited out rather than checked at once: what is being tested is a timer,
   // and a menu that has not appeared yet looks exactly like one that never will.
   await page.waitForTimeout(700);
@@ -1297,12 +1293,11 @@ test("puts a dragged man back in the set he picked, from under the picker (ADR 0
   await browser.getByText("Gun Trips Right", { exact: true }).click();
   await expect(browser).toBeHidden();
 
-  // Once a set is picked the row is there to stay, and says there is nothing
-  // to put back while everyone stands where the set put him.
-  const inspector = page.getByRole("complementary", {
-    name: "Play inspector",
-  });
-  const reset = inspector.getByRole("button", {
+  // Once a set is picked the row is there to stay, under the sidebar's
+  // Formation row (ADR 0058), and says there is nothing to put back while
+  // everyone stands where the set put him.
+  const sidebar = page.getByRole("navigation", { name: "Sidebar" });
+  const reset = sidebar.getByRole("button", {
     name: "Reset offense to Gun Trips Right",
   });
   await expect(reset).toBeDisabled();
@@ -1562,9 +1557,7 @@ test("redraws one man's line as a call off the route tree", async ({
   await openEditor(page);
   const z = await playerCenter(page, "z");
   await page.mouse.click(z.x, z.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
 
   const before = await page.locator('[data-scene-path="rz"]').getAttribute("d");
 
@@ -1600,9 +1593,7 @@ test("puts a call off the tree on the man himself, drawn or redrawn", async ({
   // Coach with no way to give him a route but to add an alternate first.
   const q = await playerCenter(page, "q");
   await page.mouse.click(q.x, q.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
 
   const slant = page.getByRole("button", { name: "Slant", exact: true });
   await expect(slant).toBeVisible();
@@ -1611,9 +1602,7 @@ test("puts a call off the tree on the man himself, drawn or redrawn", async ({
   // The grid stays up, so the next call is one click away rather than a
   // trip back to the man.
   await expect(slant).toHaveAttribute("aria-pressed", "true");
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
 
   // Asking for another reshapes the stem he now has rather than piling a
   // second line on top of it.
@@ -1625,7 +1614,8 @@ test("puts a call off the tree on the man himself, drawn or redrawn", async ({
   ).toHaveAttribute("aria-pressed", "true");
 
   // A block sits alongside his route rather than replacing it, and the same
-  // button takes it off again.
+  // button takes it off again. A receiver's blocks are folded (ADR 0058).
+  await page.getByRole("button", { name: /^Quick blocks/ }).click();
   const drive = page.getByRole("button", { name: "Drive", exact: true });
   await drive.click();
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 2);
@@ -1690,6 +1680,11 @@ test("spots the ball on a hash and takes the whole Play with it", async ({
   const before = await playerAt(page, "z");
   const routes = await page.locator("[data-scene-path]").count();
 
+  // The ball's spot is behind the sidebar's Ball on row (ADR 0058).
+  await page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: /^Ball on/ })
+    .click();
   const middle = page.getByRole("button", { name: "Middle", exact: true });
   const rightHash = page.getByRole("button", { name: "R hash", exact: true });
   await expect(middle).toHaveAttribute("aria-pressed", "true");
@@ -1826,9 +1821,7 @@ test("keeps the field under the pointer once the Coach has zoomed in", async ({
   await openEditor(page);
   const q = await playerCenter(page, "q");
   await page.mouse.click(q.x, q.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
 
   // Shown on his own, he is now drawn somewhere else on screen entirely.
   await page.keyboard.press("Control+2");
@@ -1836,17 +1829,13 @@ test("keeps the field under the pointer once the Coach has zoomed in", async ({
     .poll(async () => (await cameraOf(page)).width)
     .toBeLessThan(VIEWBOX_WIDTH);
   await page.keyboard.press("Escape");
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeHidden();
+  await expect(page.locator(".player-heading")).toBeHidden();
 
   // Pressing where he is drawn must still be pressing him, which it only is
   // if a client pixel is read through the camera rather than the whole frame.
   const zoomedQ = await playerCenter(page, "q");
   await page.mouse.click(zoomedQ.x, zoomedQ.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Letter" })).toHaveValue("Q");
 
   // And how near his own drawn edge a press has to be does not grow with the
@@ -1856,9 +1845,7 @@ test("keeps the field under the pointer once the Coach has zoomed in", async ({
   const at = await playerAt(page, "q");
   const beside = await fieldPoint(page, at.x + 10, at.y);
   await page.mouse.click(beside.x, beside.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeHidden();
+  await expect(page.locator(".player-heading")).toBeHidden();
 });
 
 test("flips the strength, so the picture and the words agree", async ({
@@ -1974,7 +1961,11 @@ test("lets a control the Coach tabbed to have its own Enter and Space", async ({
   await openEditor(page);
   // The field wants both keys — Enter finishes a route, Space pans it — and
   // swallowing them left every button in the app dead to anyone working
-  // without a pointer.
+  // without a pointer. Shortcuts is behind the sidebar's Help row (ADR 0058).
+  await page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: /^Help/ })
+    .click();
   const shortcuts = page.getByRole("button", {
     name: "Shortcuts ?",
     exact: true,
@@ -1985,6 +1976,11 @@ test("lets a control the Coach tabbed to have its own Enter and Space", async ({
   ).toBeVisible();
   await page.keyboard.press("Escape");
 
+  // Choosing Shortcuts put the Help popover away; open it again for Space.
+  await page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: /^Help/ })
+    .click();
   await shortcuts.press(" ");
   await expect(
     page.getByRole("dialog", { name: "Keyboard shortcuts" }),
