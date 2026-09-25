@@ -53,7 +53,7 @@ export function editorStatusHint(input: EditorStatusHintInput): string {
     const depth = input.drawing.depthBuffer;
     return depth !== ""
       ? `depth ${depth} yds — click to place the point at that depth · ⌫ edits the number · esc cancels`
-      : "click: add break · type a number: exact depth · Done, enter or double-click: finish · ⌫: remove last point · shift: toggle snap";
+      : "click: add break · drag from the end: draw it by hand · type a number: exact depth · Done, enter or double-click: finish · ⌫: remove last point · shift: toggle snap";
   }
   if (input.selectionCount > 1) {
     return "drag any selected item to move the group · shift-click: add/remove · ⌫ delete · ⌘D duplicate";
