@@ -753,16 +753,26 @@ describe("how a man blocks, and how a defender plays", () => {
     const defender = "mike";
     const drop = run(
       withMike,
-      applyLinePresetCommand(withMike, [defender], "deep3", makeId),
+      applyLinePresetCommand(withMike, [defender], "hook", makeId),
     );
     expect(drop.paths[0]!.kind).toBe("zone");
-    expect(drop.paths[0]!.coverageArea?.type).toBe("deep");
-    // The two radii are written in the frame of the axis each belongs to.
+    expect(drop.paths[0]!.coverageArea?.type).toBe("hook");
+    // The two radii are written in the frame of the axis each belongs to. A
+    // hook with nobody beside it keeps the size the call gives it.
     expect(drop.paths[0]!.coverageArea!.radiusLateralYards).toBeCloseTo(
-      104 / (976 / (160 / 3)),
+      52 / (976 / (160 / 3)),
       9,
     );
     expect(drop.paths[0]!.coverageArea!.radiusDepthYards).toBeCloseTo(
+      27 / 12,
+      9,
+    );
+    const deep = run(
+      withMike,
+      applyLinePresetCommand(withMike, [defender], "deep3", makeId),
+    );
+    expect(deep.paths[0]!.coverageArea?.type).toBe("deep");
+    expect(deep.paths[0]!.coverageArea!.radiusDepthYards).toBeCloseTo(
       44 / 12,
       9,
     );

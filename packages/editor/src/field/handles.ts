@@ -1,7 +1,6 @@
 import {
   classifyZoneCoverage,
-  legacyDepthSpanToYards,
-  legacyLateralSpanToYards,
+  ZONE_COVERAGE_RADIUS_BOUNDS,
   type Coordinate,
   type MovementPath,
   type PathPoint,
@@ -36,18 +35,9 @@ import type {
 // Handles on the selected route
 // ---------------------------------------------------------------------------
 
-/**
- * The original's zone bounds, converted on the axis each one belongs to: a
- * drop is between 12 and 230 lateral pixels wide and 9 to 150 deep.
- */
-const ZONE_LATERAL_YARDS = Object.freeze({
-  min: legacyLateralSpanToYards(12),
-  max: legacyLateralSpanToYards(230),
-});
-const ZONE_DEPTH_YARDS = Object.freeze({
-  min: legacyDepthSpanToYards(9),
-  max: legacyDepthSpanToYards(150),
-});
+/** The original's zone bounds, which the zone shell keeps to as well. */
+const ZONE_LATERAL_YARDS = ZONE_COVERAGE_RADIUS_BOUNDS.lateralYards;
+const ZONE_DEPTH_YARDS = ZONE_COVERAGE_RADIUS_BOUNDS.depthYards;
 
 /** Inside this many pixels of the chord's midpoint, a curve straightens. */
 const CONTROL_STRAIGHTEN_PX = 5;

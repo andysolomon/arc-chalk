@@ -36,6 +36,10 @@ _Avoid_: Default formation, starting template
 The other unit's men, lines and notes drawn on a Play that is not theirs — the defense under an offensive play, the offense under a defensive one. A Coach shows or hides it; it never changes what the Play is.
 _Avoid_: Opponent, scout team, the other play
 
+**Zone shell**:
+A defense's zone drops taken together rather than one defender at a time. The deep defenders share the field's width — one owns the middle, two take halves, three thirds, four quarters — and underneath bubbles sit side by side instead of stacking. Calling or clearing a zone re-lays the drops at its level in the same step.
+_Avoid_: Coverage template, zone preset
+
 **Play Type**:
 An optional Coach-managed classification within a Play's Unit, seeded with useful football types but open to custom definitions. A Play never requires classification below Unit.
 _Avoid_: Category, Unit, mandatory hierarchy

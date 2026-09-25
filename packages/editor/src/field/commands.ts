@@ -24,6 +24,7 @@ import {
   resolvePathTiming,
   routePresetNames,
   routePresetPoints,
+  settleZoneShell,
   spotBall,
   stockFormations,
   legacyCanvasToYards,
@@ -284,6 +285,16 @@ export function buildDeleteCommand(
     const batch = deletePathsCommand(working, remainingPaths);
     commands.push(...batch.commands);
     working = applyPlayCommand(working, batch);
+    // A drop taken out of the zone shell leaves ground its neighbours close
+    // over, in the same step.
+    const closing = diffPlayDocuments(
+      working,
+      settleZoneShell(document, working),
+    );
+    if (closing.commands.length > 0) {
+      commands.push(...closing.commands);
+      working = applyPlayCommand(working, closing);
+    }
   }
   const remainingLabels = labelIds.filter((id) =>
     working.labels.some((label) => label.id === id),
@@ -1661,7 +1672,8 @@ const replacedKindsFor = (kind: LinePreset["kind"]): ReadonlySet<string> =>
  * line and pulls it off again. Each man's shape is drawn from where he
  * stands, so one call keeps every one of them his own alignment. A man who
  * cannot run the call — a block asked of a defender, a blitz of a receiver —
- * is left as he was.
+ * is left as he was. A zone drop lands where the zone shell puts it, and the
+ * drops beside it are re-laid in the same step (ADR 0059).
  */
 export function applyLinePresetCommand(
   document: PlayDocument,
@@ -1699,7 +1711,7 @@ export function applyLinePresetCommand(
         )
       : document;
 
-  const next: PlayDocument = already
+  const called: PlayDocument = already
     ? cleared
     : {
         ...cleared,
@@ -1710,6 +1722,9 @@ export function applyLinePresetCommand(
           ),
         ],
       };
+  // The defenders already dropping make room for a zone called on one of
+  // them, or close over one taken off, at that level of the shell.
+  const next = settleZoneShell(document, called);
 
   const command = diffPlayDocuments(
     document,
