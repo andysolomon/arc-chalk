@@ -23,9 +23,11 @@ import {
   drawTarget,
   dropLastStroke,
   finishDrawing,
+  grabsLineEnd,
   hasTracedStroke,
   holdDrawPoint,
   holdStroke,
+  liftStroke,
   routeDragAim,
   startDrawing,
   traceDrawPoint,
@@ -45,7 +47,6 @@ import { editHandle, handleLabels } from "./handles";
 import {
   DRAW_CURVE_THRESHOLD_PX,
   MARQUEE_THRESHOLD_PX,
-  MOVE_THRESHOLD_PX,
   moveThresholdPx,
   type FieldGesture,
   type FieldInteractionContext,
@@ -101,9 +102,14 @@ function pointerDown(
 
   // Mid-drawing, every press places the next break — even over a Player. A
   // free line's press takes hold of the pointer instead: the stroke runs
-  // from the last break to wherever the pointer goes until it lifts.
+  // from the last break to wherever the pointer goes until it lifts. So
+  // does a press on the end of a line clicked in breaks, which picks the
+  // line up to draw on from it by hand.
   if (model.drawing) {
-    if (model.drawing.mode === "free") {
+    if (
+      model.drawing.mode === "free" ||
+      grabsLineEnd(model.drawing, input, context)
+    ) {
       return {
         model: holdStroke(model, model.drawing, input.point, context),
       };
@@ -237,25 +243,16 @@ function pointerMove(
       return { model };
     // The press lands on the dot, upfield of the man. Follow the drag from
     // his stance instead, or the first segment is straight ahead before the
-    // finger has chosen a direction. A free line traces that drag as it goes.
+    // finger has chosen a direction. Either way the drag is the hand drawing
+    // his route, so it is traced as it goes — a straight pull still lands
+    // one clean break when it lifts.
     if (drawing.initialDrag) {
       const stance = drawing.points[0] ?? drawing.cursor;
       const aim = routeDragAim(stance, drawing.initialDrag.point, input.point);
-      if (drawing.mode === "free") {
-        return { model: traceDrawPoint(model, drawing, aim, context) };
-      }
-      return {
-        model: {
-          ...model,
-          drawing: {
-            ...drawing,
-            cursor: drawTarget(drawing, aim, input.shiftKey, context),
-          },
-        },
-      };
+      return { model: traceDrawPoint(model, drawing, aim, context) };
     }
-    // A free stroke follows the held pointer; lifted, the pointer only aims.
-    if (drawing.mode === "free" && drawing.pointerDown) {
+    // A stroke follows the held pointer; lifted, the pointer only aims.
+    if (drawing.strokeFrom !== undefined) {
       return { model: traceDrawPoint(model, drawing, input.point, context) };
     }
     const last = drawing.points.at(-1)!;
@@ -365,39 +362,26 @@ function pointerUp(
         ...model.drawing,
         initialDrag: undefined,
         pointerDown: false,
+        strokeFrom: undefined,
       },
     };
     return hasTracedStroke(model.drawing)
       ? finishDrawing(released, context)
       : { model: released };
   }
+  // Clicking breaks, a stroke off the dot or off the end of the line keeps
+  // the shape the hand drew, and the line stays in hand for the next break.
   if (model.drawing && initialDrag) {
     if (initialDrag.pointerId !== input.pointerId) return { model };
-    const released = {
-      ...model.drawing,
-      initialDrag: undefined,
-      pointerDown: false,
-    };
     const stance = model.drawing.points[0] ?? input.point;
     const aimed = {
       ...input,
       point: routeDragAim(stance, initialDrag.point, input.point),
     };
-    const next =
-      screenDistancePx(initialDrag.point, input.point, context.screenScale) >=
-      MOVE_THRESHOLD_PX
-        ? addDrawPoint(model, released, aimed, context)
-        : { ...model, drawing: released };
-    return {
-      model: {
-        ...next,
-        drawing: {
-          ...next.drawing!,
-          initialDrag: undefined,
-          pointerDown: false,
-        },
-      },
-    };
+    return { model: liftStroke(model, model.drawing, aimed, context) };
+  }
+  if (model.drawing?.strokeFrom !== undefined) {
+    return { model: liftStroke(model, model.drawing, input, context) };
   }
   if (model.drawing?.pointerDown) {
     // Releasing keeps the drawing alive; the next press places the next break.
@@ -528,6 +512,7 @@ export function fieldInteraction(
                   ...model.drawing,
                   initialDrag: undefined,
                   pointerDown: false,
+                  strokeFrom: undefined,
                 },
               }),
         },

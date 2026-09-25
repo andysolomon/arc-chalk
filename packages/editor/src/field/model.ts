@@ -190,16 +190,18 @@ export type FieldDrawingKind = "route" | "motion" | "block" | "zone" | "blitz";
 
 /**
  * How the Coach lays a line down. With breaks, each press places one; the
- * line between is straight, or bent by holding the press. Free, the line is
- * traced: it follows the pointer while it is held down and is finished the
+ * line between is straight, or bent by holding the press — and a drag off
+ * the blue dot or off the end of the line is traced where the hand goes,
+ * the line staying in hand for the next break. Free, every press traces:
+ * the line follows the pointer while it is held down and is finished the
  * moment it lifts, the way a pen leaves the whiteboard.
  */
 export type FieldDrawingMode = "breaks" | "free";
 
 /**
  * A point of the line in hand. A traced point is one the pointer passed over
- * while free drawing; the finish fits a clean line through those, where a
- * clicked break is kept exactly where it was put.
+ * while tracing; the finish fits a clean line through those, where a clicked
+ * break is kept exactly where it was put.
  */
 export interface FieldDrawingPoint extends PathPoint {
   readonly traced?: boolean;
@@ -224,6 +226,12 @@ export interface FieldDrawingState {
   readonly pointerDown: boolean;
   /** The initial blue-dot drag places a break on release, not on press. */
   readonly initialDrag?: FieldPointerInput | undefined;
+  /**
+   * While a held pointer is tracing, the index of the point its stroke set
+   * out from; absent between strokes. It is how a stroke lifted in breaks
+   * mode is told apart from the line it continues.
+   */
+  readonly strokeFrom?: number | undefined;
 }
 
 /**

@@ -624,7 +624,17 @@ export function FieldDiagram({
               data-scene-player={player.id}
               key={player.id}
               onPointerEnter={
-                onHoverPlayer ? () => onHoverPlayer(player.id) : undefined
+                onHoverPlayer
+                  ? (event) => {
+                      // A finger has no hover: it arrives already pressing,
+                      // and the press decides what is picked. Its leave is
+                      // not promised either — the field takes the pointer —
+                      // so counting it would strand the dot on this man.
+                      if (event.pointerType !== "touch") {
+                        onHoverPlayer(player.id);
+                      }
+                    }
+                  : undefined
               }
               onPointerLeave={
                 onHoverPlayer ? () => onHoverPlayer(undefined) : undefined
