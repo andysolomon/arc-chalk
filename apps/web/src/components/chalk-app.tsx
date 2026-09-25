@@ -800,7 +800,7 @@ function FieldInteractionOverlay({
     );
     // A stroke being traced is drawn as ink under the pointer, with no aim
     // line running ahead of it and no dot at each of its many samples.
-    const tracing = drawing.mode === "free" && drawing.pointerDown;
+    const tracing = drawing.strokeFrom !== undefined;
     return (
       <g className="drawing-overlay" pointerEvents="none">
         <path
@@ -1580,7 +1580,7 @@ function PlayerInspector({
             title={`Draw his ${choice.label.toLowerCase()} from his stance — ${choice.shortcut}, then ${
               freeDraw
                 ? "draw it on the field with the pointer held down; lifting finishes"
-                : "click the field for each break; Done or Enter finishes"
+                : "click the field for each break, or drag from the end of the line to draw it by hand; Done or Enter finishes"
             }`}
             type="button"
           >
@@ -1599,7 +1599,7 @@ function PlayerInspector({
           title={
             freeDraw
               ? "Free draw is on: trace his line with the pointer held down; lifting finishes it. Switch off to click each break"
-              : "Free draw is off: click each break. Switch on to trace his line with the pointer held down"
+              : "Free draw is off: click each break, or drag from the blue dot or the end of the line to draw it by hand. Switch on to trace every line and finish it when the pointer lifts"
           }
           type="button"
         >
@@ -2549,8 +2549,8 @@ export function ChalkApp({
   >(() => undefined);
   /**
    * Moves waiting for the next paint. A drag only needs the latest point.
-   * A free stroke needs every sample: the fit runs through the hand's path,
-   * and keeping only the last point in the frame straightens the bend.
+   * A traced stroke needs every sample: the fit runs through the hand's
+   * path, and keeping only the last point in the frame straightens the bend.
    */
   const pendingPointersRef = useRef<FieldInteractionEvent[]>([]);
   const [paintLoop] = useState(() =>
@@ -3687,7 +3687,14 @@ export function ChalkApp({
     flushLivePaint();
     cancelLongPress();
     // A mouse has a button for this; every other pointer holds still instead.
-    if (event.pointerType === "mouse" || event.button !== 0) return;
+    // Not while a line is in hand: a finger resting on his stance before it
+    // draws is starting the line, not asking about the man.
+    if (
+      event.pointerType === "mouse" ||
+      event.button !== 0 ||
+      interactionRef.current.drawing
+    )
+      return;
     const { clientX, clientY, pointerType } = event;
     longPressRef.current = setTimeout(() => {
       longPressRef.current = undefined;
@@ -3746,9 +3753,11 @@ export function ChalkApp({
     // anyway, which is the one thing a rejected palm can still reach.
     if (touchNavigates(stylusRef.current, event.pointerType)) return;
     const drawing = interactionRef.current.drawing;
+    // Any stroke being traced — free, off the dot, or off the end of a line
+    // clicked in breaks — keeps every sample; bending a break needs the last.
     const keepEverySample =
-      drawing?.mode === "free" &&
-      (drawing.pointerDown || drawing.initialDrag !== undefined);
+      drawing !== undefined &&
+      (drawing.strokeFrom !== undefined || drawing.initialDrag !== undefined);
     const samples = event.nativeEvent.getCoalescedEvents?.() ?? [];
     const moves = (samples.length > 0 ? samples : [event]).map(
       (sample): FieldInteractionEvent => ({

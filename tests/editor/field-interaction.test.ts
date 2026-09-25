@@ -1522,6 +1522,298 @@ describe("field interaction free drawing", () => {
   });
 });
 
+describe("field interaction drawing by hand between breaks", () => {
+  const drawingContext = (overrides: Partial<FieldInteractionContext> = {}) =>
+    contextFor(stickThunderPlay, {
+      snap: { enabled: true, grid: "off" },
+      createId: (prefix) => `${prefix}_drawn`,
+      ...overrides,
+    });
+  /** A stem up the field, then a wheel bending out toward the sideline. */
+  const wheelFrom = (origin: Coordinate): Coordinate[] => [
+    ...Array.from({ length: 8 }, (_, index) => ({
+      lateralYards: origin.lateralYards,
+      depthYards: origin.depthYards + index + 1,
+    })),
+    ...Array.from({ length: 10 }, (_, index) => {
+      const angle = ((index + 1) / 10) * (Math.PI / 2);
+      return {
+        lateralYards: origin.lateralYards + 6 * (1 - Math.cos(angle)),
+        depthYards: origin.depthYards + 8 + 6 * Math.sin(angle),
+      };
+    }),
+  ];
+  const drawnPath = (command: PlayCommand) =>
+    applyPlayCommand(stickThunderPlay, command).paths.find(
+      ({ id }) => id === "path_drawn",
+    )!;
+
+  it("traces a bent pull off the blue dot, keeps it in hand, and commits the curve on Done", () => {
+    const context = drawingContext();
+    const q = positionOf(stickThunderPlay, "q");
+    // The dot sits upfield of the man; the drag is followed from his stance.
+    const press = {
+      lateralYards: q.lateralYards,
+      depthYards: q.depthYards + 1,
+    };
+    const wheel = wheelFrom(press);
+
+    const held = run(context, [
+      {
+        type: "start-route",
+        playerId: "q",
+        input: { pointerId: 1, point: press },
+      },
+      ...wheel.map((point) => move(point)),
+    ]);
+    expect(held.model.drawing).toMatchObject({
+      mode: "breaks",
+      pointerDown: true,
+      strokeFrom: 0,
+    });
+    expect(
+      held.model.drawing!.points.filter((point) => point.traced).length,
+    ).toBeGreaterThan(10);
+
+    // Lifting keeps the shape the hand drew and the line in hand: the next
+    // press would place the next break, and nothing is committed yet.
+    const lifted = run(context, [up(wheel.at(-1)!)], held.model);
+    expect(lifted.commands).toHaveLength(0);
+    expect(lifted.model.drawing).toMatchObject({
+      mode: "breaks",
+      pointerDown: false,
+    });
+    expect(lifted.model.drawing!.strokeFrom).toBeUndefined();
+    expect(lifted.model.drawing!.initialDrag).toBeUndefined();
+    expect(lifted.model.drawing!.points.some((point) => point.traced)).toBe(
+      true,
+    );
+
+    const finished = run(context, [{ type: "finish-drawing" }], lifted.model);
+    expect(finished.commands).toHaveLength(1);
+    const drawn = drawnPath(finished.commands[0]!);
+    expect(drawn.points[0]).toMatchObject(q);
+    // The wheel arrives as a curve, fitted, not as the samples it was.
+    expect(drawn.points.some((point) => point.control !== undefined)).toBe(
+      true,
+    );
+    expect(drawn.points.length).toBeLessThan(wheel.length);
+    expect(drawn.points.some((point) => "traced" in point)).toBe(false);
+    expect(drawn.points.at(-1)!.lateralYards).toBeCloseTo(
+      q.lateralYards + 6,
+      6,
+    );
+    expect(drawn.points.at(-1)!.depthYards).toBeCloseTo(q.depthYards + 14, 6);
+  });
+
+  it("lands a straight pull off the dot as one snapped break, wobble and all", () => {
+    const context = drawingContext();
+    const q = positionOf(stickThunderPlay, "q");
+    const press = {
+      lateralYards: q.lateralYards,
+      depthYards: q.depthYards + 1,
+    };
+    // A finger's stem: a little side to side, and drifting a touch off true.
+    const stem = Array.from({ length: 10 }, (_, index) => ({
+      lateralYards:
+        press.lateralYards +
+        (0.3 * (index + 1)) / 10 +
+        (index % 2 === 0 ? 0.08 : -0.08),
+      depthYards: press.depthYards + index + 1,
+    }));
+    const release = stem.at(-1)!;
+
+    const session = run(context, [
+      {
+        type: "start-route",
+        playerId: "q",
+        input: { pointerId: 1, point: press },
+      },
+      ...stem.map((point) => move(point)),
+      up(release),
+    ]);
+    const points = session.model.drawing!.points;
+    expect(points).toHaveLength(2);
+    expect(points[1]!.traced).toBeUndefined();
+    // Snap holds the break on the 45° ray: straight up from his stance.
+    expect(points[1]!.lateralYards).toBeCloseTo(q.lateralYards, 6);
+    expect(points[1]!.depthYards).toBeGreaterThan(q.depthYards + 8);
+  });
+
+  it("draws on from the end of the line by hand, keeping the breaks before it", () => {
+    const context = drawingContext({ snap: { enabled: false, grid: "off" } });
+    const y = positionOf(stickThunderPlay, "y");
+    const stem = { lateralYards: y.lateralYards, depthYards: y.depthYards + 6 };
+    // From the break, a sail bending across toward the middle of the field.
+    const sail = Array.from({ length: 12 }, (_, index) => {
+      const angle = ((index + 1) / 12) * (Math.PI / 2);
+      return {
+        lateralYards: stem.lateralYards - 8 * (1 - Math.cos(angle)),
+        depthYards: stem.depthYards + 8 * Math.sin(angle),
+      };
+    });
+
+    const session = run(context, [
+      start("route", "y"),
+      move(stem),
+      down(stem),
+      up(stem),
+      // The press lands on the break just placed, and takes the line up.
+      down(stem),
+      ...sail.map((point) => move(point)),
+    ]);
+    expect(session.model.drawing!.strokeFrom).toBe(1);
+
+    const lifted = run(context, [up(sail.at(-1)!)], session.model);
+    expect(lifted.commands).toHaveLength(0);
+    const kept = lifted.model.drawing!.points[1]!;
+    expect(kept.lateralYards).toBeCloseTo(stem.lateralYards, 6);
+    expect(kept.depthYards).toBeCloseTo(stem.depthYards, 6);
+    expect(kept.traced).toBeUndefined();
+
+    const finished = run(context, [{ type: "finish-drawing" }], lifted.model);
+    const drawn = drawnPath(finished.commands[0]!);
+    expect(drawn.points[1]!.lateralYards).toBeCloseTo(stem.lateralYards, 6);
+    expect(drawn.points[1]!.depthYards).toBeCloseTo(stem.depthYards, 6);
+    expect(drawn.points.slice(2).some((point) => point.control)).toBe(true);
+    expect(drawn.points.at(-1)!.lateralYards).toBeCloseTo(
+      stem.lateralYards - 8,
+      6,
+    );
+  });
+
+  it("draws from his stance by hand when the line has only just begun", () => {
+    const context = drawingContext();
+    const y = positionOf(stickThunderPlay, "y");
+    const wheel = wheelFrom(y);
+    const session = run(context, [
+      start("motion", "y"),
+      down(y),
+      ...wheel.map((point) => move(point)),
+      up(wheel.at(-1)!),
+    ]);
+    expect(session.commands).toHaveLength(0);
+    expect(session.model.drawing!.kind).toBe("motion");
+    expect(
+      session.model.drawing!.points.filter((point) => point.traced).length,
+    ).toBeGreaterThan(10);
+
+    // Backspace takes the whole stroke back, as it does a free one.
+    const undone = run(context, [{ type: "delete" }], session.model);
+    expect(undone.model.drawing!.points).toEqual([
+      { lateralYards: y.lateralYards, depthYards: y.depthYards },
+    ]);
+  });
+
+  it("still places a break for a click near the end, and for a typed depth", () => {
+    const context = drawingContext({ snap: { enabled: false, grid: "off" } });
+    const y = positionOf(stickThunderPlay, "y");
+    const stem = { lateralYards: y.lateralYards, depthYards: y.depthYards + 6 };
+    // Half a yard across is within reach of the end, but a click there that
+    // never moves is a click, and it places the break it always did.
+    const beside = {
+      lateralYards: stem.lateralYards + 0.5,
+      depthYards: stem.depthYards,
+    };
+    const clicked = run(context, [
+      start("route", "y"),
+      move(stem),
+      down(stem),
+      up(stem),
+      down(beside),
+      up(beside),
+    ]);
+    expect(clicked.model.drawing!.points).toHaveLength(3);
+    expect(clicked.model.drawing!.points[2]!.lateralYards).toBeCloseTo(
+      beside.lateralYards,
+      6,
+    );
+    expect(clicked.model.drawing!.strokeFrom).toBeUndefined();
+
+    // A typed depth is waiting for the next press, even one on his stance.
+    const typed = run(context, [
+      start("route", "y"),
+      { type: "depth-digit", digit: "9" },
+      down(y),
+    ]);
+    expect(typed.model.drawing!.strokeFrom).toBeUndefined();
+    expect(typed.model.drawing!.points.at(-1)!.depthYards).toBe(9);
+  });
+
+  it("finishes a free line only on a stroke that drew, not on a tap after switching", () => {
+    const context = drawingContext();
+    const q = positionOf(stickThunderPlay, "q");
+    const press = {
+      lateralYards: q.lateralYards,
+      depthYards: q.depthYards + 1,
+    };
+    const wheel = wheelFrom(press);
+    const kept = run(context, [
+      {
+        type: "start-route",
+        playerId: "q",
+        input: { pointerId: 1, point: press },
+      },
+      ...wheel.map((point) => move(point)),
+      up(wheel.at(-1)!),
+      { type: "set-drawing-mode", mode: "free" },
+    ]);
+    const traced = kept.model.drawing!.points.length;
+
+    // A tap is not a stroke, whatever the line traced before it.
+    const tap = { lateralYards: -12, depthYards: 10 };
+    const tapped = run(context, [down(tap), up(tap)], kept.model);
+    expect(tapped.commands).toHaveLength(0);
+    expect(tapped.model.drawing!.points).toHaveLength(traced);
+
+    // A stroke that draws is the finish, and it carries the first one too.
+    const end = wheel.at(-1)!;
+    const on = Array.from({ length: 6 }, (_, index) => ({
+      lateralYards: q.lateralYards + 6 + index + 1,
+      depthYards: end.depthYards,
+    }));
+    const drawn = run(
+      context,
+      [down(on[0]!), ...on.slice(1).map((point) => move(point)), up(on[5]!)],
+      tapped.model,
+    );
+    expect(drawn.commands).toHaveLength(1);
+    const route = drawnPath(drawn.commands[0]!);
+    expect(route.points.some((point) => point.control)).toBe(true);
+    expect(route.points.at(-1)!.lateralYards).toBeCloseTo(
+      on[5]!.lateralYards,
+      6,
+    );
+  });
+
+  it("keeps what was traced when the platform takes the pointer mid-stroke", () => {
+    const context = drawingContext();
+    const q = positionOf(stickThunderPlay, "q");
+    const press = {
+      lateralYards: q.lateralYards,
+      depthYards: q.depthYards + 1,
+    };
+    const wheel = wheelFrom(press);
+    const session = run(context, [
+      {
+        type: "start-route",
+        playerId: "q",
+        input: { pointerId: 1, point: press },
+      },
+      ...wheel.slice(0, 12).map((point) => move(point)),
+      { type: "pointer-cancel" },
+    ]);
+    expect(session.model.drawing).toMatchObject({ pointerDown: false });
+    expect(session.model.drawing!.strokeFrom).toBeUndefined();
+    expect(session.model.drawing!.initialDrag).toBeUndefined();
+    // A move after the cancel only aims; it does not keep tracing.
+    const after = run(context, [move(wheel.at(-1)!)], session.model);
+    expect(after.model.drawing!.points).toHaveLength(
+      session.model.drawing!.points.length,
+    );
+  });
+});
+
 describe("field interaction route handles", () => {
   const handleContext = (overrides: Partial<FieldInteractionContext> = {}) =>
     contextFor(stickThunderPlay, {
