@@ -28,6 +28,10 @@ _Avoid_: Drawing, concept variation, canvas document
 A reusable, role-aware alignment template that a Coach copies into a Play. A Play remembers its source Formation, but later Formation changes affect it only through an explicit previewed reapplication.
 _Avoid_: Live template, player preset
 
+**Base alignment**:
+The set and the defensive call a Coach can reset a side of the ball to when he wants a clean start rather than the one he chose — Gun Doubles Right on offense, 4-3 Cover 3 on defense. Resetting to it chooses it; nobody is added.
+_Avoid_: Default formation, starting template
+
 **Shadow**:
 The other unit's men, lines and notes drawn on a Play that is not theirs — the defense under an offensive play, the offense under a defensive one. A Coach shows or hides it; it never changes what the Play is.
 _Avoid_: Opponent, scout team, the other play

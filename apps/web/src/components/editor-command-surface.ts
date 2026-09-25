@@ -1,4 +1,6 @@
 import {
+  baseDefensiveCall,
+  baseFormation,
   demoTours,
   stockDefensiveCalls,
   stockFormations,
@@ -64,6 +66,11 @@ export type ActionId =
   | "ballRight"
   | "alignDepth"
   | "alignSplits"
+  /** Putting a side of the ball back in its set or call, or in base (ADR 0055). */
+  | "resetOffense"
+  | "resetOffenseBase"
+  | "resetDefense"
+  | "resetDefenseBase"
   | "clearRoutesOffense"
   | "clearRoutesDefense"
   | "clearAllLines"
@@ -426,6 +433,29 @@ export function paletteCommands(
     { id: "flipStrength", label: "Flip strength" },
     { id: "alignDepth", label: "Same depth — selected players" },
     { id: "alignSplits", label: "Even splits — selected players" },
+    {
+      id: "resetOffense",
+      label: "Reset offense to its formation",
+      title:
+        "Every offensive man back in the formation the play was set in — routes go with him",
+    },
+    {
+      id: "resetOffenseBase",
+      label: `Reset offense to base — ${baseFormation.name}`,
+      title:
+        "The base formation, without adding anyone — routes go with each man",
+    },
+    {
+      id: "resetDefense",
+      label: "Reset defense to its call",
+      title:
+        "Every defender back in the call the play was set in — drops go with him",
+    },
+    {
+      id: "resetDefenseBase",
+      label: `Reset defense to base — ${baseDefensiveCall.name}`,
+      title: "The base call, letter by letter — drops go with each man",
+    },
     ...conceptNames.map((name): MenuEntry => ({
       id: `concept:${name}`,
       label: `Concept — ${name}`,
