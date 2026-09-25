@@ -46,6 +46,9 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 
 | State                          | Gap measured                                                                                                                        | Date                                                |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Editor                         | 20,095 px Linux, from 20,173 on `main` same machine — the formation row's inert `+` removed                                         | 2026-09-25 (ADR 0043)                               |
+| Shortcuts                      | 44,893 px Linux, from 44,593 on `main` — the original draws the `+` beside the sheet; both above the macOS ratchet, CI delta passes | 2026-09-25 (ADR 0043)                               |
+| Other desktop states           | Formations / Defenses / More / Export / Save / Palette each at or below `main`; Present and Print identical; Demo +3 px             | 2026-09-25 (ADR 0043)                               |
 | Print                          | 2.21% (30,549 px) Linux, from 11,937 — the Print & export workspace beside the sheet; ratchet raised 0.0081 → 0.0225 under ADR 0047 | 2026-09-13 (ADR 0047 output workflow)               |
 | Export menu                    | 17,877 px Linux, unchanged by ADR 0047 (Recent appears only after an output runs)                                                   | 2026-09-13 (ADR 0047)                               |
 | Present                        | 7.56% (104,524 px) Linux, from 104,148 on `main` same machine — Previous/Next and a labeled Back in the bar; under the 9% ratchet   | 2026-09-13 (ADR 0046 Game Day)                      |
