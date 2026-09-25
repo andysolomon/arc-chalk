@@ -5,6 +5,7 @@ import {
   assignRoles,
   assignmentForPath,
   ballSpotNames,
+  canRunLine,
   depthLimitForUnit,
   flippedPlayerLabels,
   flipStrengthWords,
@@ -647,7 +648,10 @@ export function setRouteStyleCommand(
 
 /**
  * Changing what a line is changes how it reads: the kind carries its own
- * look, and the piecemeal overrides go with the meaning they described.
+ * look, and the piecemeal overrides go with the meaning they described. A
+ * line only becomes what its man can do — a defender's drop never turns into
+ * a route, a lineman's block into anything but a block, a receiver's route
+ * into a blitz.
  */
 export function setRouteKindCommand(
   document: PlayDocument,
@@ -656,6 +660,8 @@ export function setRouteKindCommand(
 ): PlayCommand | undefined {
   const path = document.paths.find(({ id }) => id === pathId);
   if (!path || path.kind === kind) return undefined;
+  const owner = document.players.find(({ id }) => id === path.playerId);
+  if (!owner || !canRunLine(owner, kind)) return undefined;
   const points = path.points.map((point) => {
     if (point.segmentStyle === undefined) return point;
     const cleared = { ...point };
@@ -904,7 +910,8 @@ function insideSidelines(
  * like the last line he has, shifted away from the middle of the field and
  * pushed downfield — and it carries only that shape. The bends, the
  * per-segment styles and the endings of the line it came from are left
- * behind, because this is another call rather than a copy of that one.
+ * behind, because this is another call rather than a copy of that one. Only
+ * a man who runs routes has one to add.
  */
 export function addAlternateRouteCommand(
   document: PlayDocument,
@@ -912,7 +919,7 @@ export function addAlternateRouteCommand(
   createId: () => string,
 ): PlayCommand | undefined {
   const player = document.players.find(({ id }) => id === playerId);
-  if (!player) return undefined;
+  if (!player || !canRunLine(player, "route")) return undefined;
   // Exactly where he stands, not a rounding of it: the stem starts on the man.
   const stance = player.position;
   // Every line he already has, not just his routes: any of them means the new
@@ -1335,7 +1342,8 @@ export function applyRoutePresetCommand(
   const path = document.paths.find(({ id }) => id === pathId);
   if (!path) return undefined;
   const player = document.players.find(({ id }) => id === path.playerId);
-  if (!player) return undefined;
+  // A call off the route tree is a route, so only a man who runs one takes it.
+  if (!player || !canRunLine(player, "route")) return undefined;
 
   const continuing = mode === "continue" && path.points.length > 1;
   const anchor = continuing ? path.points.at(-1)! : player.position;
@@ -1405,7 +1413,7 @@ export function applyPlayerRoutePresetCommand(
   createId: () => string,
 ): PlayCommand | undefined {
   const player = document.players.find(({ id }) => id === playerId);
-  if (!player) return undefined;
+  if (!player || !canRunLine(player, "route")) return undefined;
 
   const base = baseRouteOf(document, playerId);
   if (base) return applyRoutePresetCommand(document, base.id, presetKey);
@@ -1651,7 +1659,9 @@ const replacedKindsFor = (kind: LinePreset["kind"]): ReadonlySet<string> =>
  * A call put on the men given. Asking for the one they are all already
  * running takes it off, which is how the same button puts a call on the whole
  * line and pulls it off again. Each man's shape is drawn from where he
- * stands, so one call keeps every one of them his own alignment.
+ * stands, so one call keeps every one of them his own alignment. A man who
+ * cannot run the call — a block asked of a defender, a blitz of a receiver —
+ * is left as he was.
  */
 export function applyLinePresetCommand(
   document: PlayDocument,
@@ -1661,7 +1671,10 @@ export function applyLinePresetCommand(
 ): PlayCommand | undefined {
   const preset = linePresetByKey(presetKey);
   if (!preset) return undefined;
-  const players = document.players.filter(({ id }) => playerIds.includes(id));
+  const players = document.players.filter(
+    (player) =>
+      playerIds.includes(player.id) && canRunLine(player, preset.kind),
+  );
   if (players.length === 0) return undefined;
 
   const owners = new Set(players.map(({ id }) => id));
