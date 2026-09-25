@@ -96,7 +96,8 @@ export function PlayClassificationControl({
   );
 }
 
-function ClassificationPanel({
+/** The panel on its own, for the sidebar's Play type row (ADR 0058). */
+export function ClassificationPanel({
   concepts,
   formations,
   onAddPlayType,

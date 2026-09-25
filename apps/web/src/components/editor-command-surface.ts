@@ -25,6 +25,8 @@ export type ActionId =
   /** The other unit's shadow on or off the field (ADR 0053); H on the rail. */
   | "toggleShadow"
   | "settings"
+  | "account"
+  | "toggleSidebar"
   | "mirror"
   | "flipStrength"
   /** A Play is started as one unit or the other, never switched (ADR 0053). */
@@ -410,8 +412,10 @@ export function paletteCommands(
     },
     { id: "focus", label: "Focus mode", shortcut: "F" },
     { id: "settings", label: "Settings" },
+    { id: "account", label: "Account" },
     { id: "toggleInspector", label: "Inspector on / off", shortcut: "⌥1" },
     { id: "toggleRail", label: "Tools on / off", shortcut: "⌥2" },
+    { id: "toggleSidebar", label: "Sidebar on / off", shortcut: "⌥3" },
     { id: "present", label: "Present the play" },
     { id: "print", label: "Print preview" },
     { id: "fitToSelection", label: "Fit to selection", shortcut: "⌘2" },
@@ -520,6 +524,7 @@ export const shortcutRows: readonly (readonly [string, string])[] = [
   ["Focus mode — both panels", "F"],
   ["Inspector on / off", "⌥1"],
   ["Tools on / off", "⌥2"],
+  ["Sidebar on / off", "⌥3"],
   ["Fit to selection", "⌘2"],
   ["Leave present / print", "esc"],
   ["Formations", "⇧⌘F"],

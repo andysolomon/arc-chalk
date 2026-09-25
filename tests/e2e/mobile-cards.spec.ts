@@ -14,16 +14,15 @@ const box = async (locator: Locator) => {
   return rect!;
 };
 
+/** Opens the editor and the sidebar drawer, where formations and the library are (ADR 0058). */
 const enterEditorOnPhone = async (page: Page) => {
   await page.goto("/");
   await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Drawing tools" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Inspector" }).click();
-  await expect(
-    page.getByRole("complementary", { name: "Play inspector" }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Open the sidebar" }).click();
+  await expect(page.getByRole("navigation", { name: "Sidebar" })).toBeVisible();
 };
 
 test.describe("phone overlay cards", () => {
@@ -56,14 +55,9 @@ test.describe("phone overlay cards", () => {
     page,
   }) => {
     await enterEditorOnPhone(page);
-    const inspector = page.getByRole("complementary", {
-      name: "Play inspector",
-    });
-    const library = inspector.getByRole("button", { name: /^Library/ });
-    if ((await library.getAttribute("aria-expanded")) === "false") {
-      await library.click();
-    }
-    await inspector.getByRole("button", { name: "Browse Playbook" }).click();
+    const sidebar = page.getByRole("navigation", { name: "Sidebar" });
+    await sidebar.getByRole("button", { name: /^Library/ }).click();
+    await sidebar.getByRole("button", { name: "Browse Playbook" }).click();
     const book = page.getByRole("dialog", { name: "Playbook" });
     await expect(book).toBeVisible();
     await expect(book.locator(".playbook-scroll")).toHaveAttribute(

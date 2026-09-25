@@ -227,7 +227,7 @@ for (const viewport of VIEWPORTS) {
     }) => {
       await page.goto("/");
       await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
-      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
+      await page.getByRole("button", { name: "Open the sidebar" }).tap();
       await page.getByTitle("Browse formations — ⇧⌘F").tap();
       const book = page.getByRole("dialog", { name: "Formations" });
       await expect(book).toBeVisible();

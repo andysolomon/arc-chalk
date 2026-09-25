@@ -918,82 +918,8 @@ button.play-type.open {
 .rail-stub:hover {
   background: #f2f2f2;
 }
-/* Settings overlay — what used to be four folded disclosures on the right
-   inspector (Field, Playbook settings, History, Print & export) lives here
-   now, opened from the More menu. Same shape as the shortcuts overlay so it
-   reads as one of the editor's dialogs. */
-.settings-overlay {
-  align-items: flex-start;
-  justify-content: center;
-}
-.settings-panel {
-  width: 560px;
-  max-width: 92vw;
-  max-height: 86vh;
-  margin-top: 6vh;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  border-radius: 10px;
-  background: var(--paper);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.08),
-    0 18px 40px -12px rgba(0, 0, 0, 0.28);
-}
-.settings-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 14px;
-  line-height: 20px;
-}
-.settings-title {
-  font-size: 14px;
-  font-weight: 600;
-}
-.settings-close {
-  padding: 2px 4px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  cursor: pointer;
-}
-.settings-close:hover {
-  color: var(--ink);
-}
-.settings-body {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-.settings-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.settings-section-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--line);
-}
-.settings-section-heading h2 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-}
-.settings-summary {
-  font-size: 11px;
-  color: var(--muted);
-  text-align: right;
-}
+/* Settings — a tabbed modal (ADR 0058); its rules sit with the sidebar's
+   at the end of the sheet. */
 .snapshot-list {
   margin: 6px 0 0;
   padding: 0;
@@ -2633,7 +2559,7 @@ button.play-type.open {
 }
 
 .inspector {
-  width: 292px;
+  width: 300px;
   flex: none;
   overflow-y: auto;
   background: var(--canvas);
@@ -4566,9 +4492,9 @@ button.library-dot.target.small {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
+  height: 36px;
   padding: 0 8px;
-  border-radius: 6px;
+  border-radius: 7px;
   background: #fff;
   box-shadow: 0 0 0 1px var(--line);
 }
@@ -6421,4 +6347,1034 @@ button.shell-quiet:hover {
   .game-plan-call-actions {
     flex-wrap: wrap;
   }
+}
+
+/* =========================================================================
+   ADR 0058 — assignments-only inspector, play sidebar, tabbed settings
+   ------------------------------------------------------------------------- */
+
+/* The sidebar: docked at the workspace's left edge on a desktop. */
+.play-sidebar {
+  position: relative;
+  z-index: 4;
+  width: 236px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 10px;
+  background: var(--paper);
+  box-shadow: 1px 0 rgba(0, 0, 0, 0.06);
+}
+.sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar-heading {
+  padding: 12px 8px 4px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sidebar-row-wrap {
+  position: relative;
+}
+.sidebar-row {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.sidebar-row:hover {
+  background: #f5f5f5;
+}
+.sidebar-row.active {
+  background: #f2f2f2;
+}
+.sidebar-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-flex;
+  color: var(--muted);
+}
+.sidebar-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-value {
+  max-width: 88px;
+  flex: none;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-hint {
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+}
+.sidebar-chevron {
+  display: none;
+  color: #c9c9c9;
+}
+.sidebar-spacer {
+  flex: 1;
+}
+.sidebar-collapse {
+  align-self: flex-end;
+  width: 24px;
+  height: 24px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sidebar-collapse:hover {
+  background: #f2f2f2;
+  color: var(--ink);
+}
+/* The Reset row sits under the Formation row once a set is chosen. */
+.sidebar-below {
+  padding: 0 8px;
+}
+.sidebar-below .segment-row {
+  margin-top: 2px;
+  margin-bottom: 4px;
+}
+.sidebar-below .segment-row:empty {
+  display: none;
+}
+/* A row's control, beside the row. */
+.sidebar-popover {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 8px);
+  z-index: 12;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 12px 28px -8px rgba(0, 0, 0, 0.22);
+}
+.sidebar-row-wrap[data-row="library"] .sidebar-popover {
+  width: 320px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.sidebar-popover .menu-panel {
+  position: static;
+  width: auto;
+  padding: 0;
+  box-shadow: none;
+}
+.sidebar-popover .segment-row {
+  margin-top: 0;
+}
+.sidebar-popover p,
+.sidebar-popover .hint-body {
+  margin: 0;
+  color: #777;
+  font-size: 11px;
+  line-height: 15px;
+}
+.sidebar-popover .wide-picker + .segment-row {
+  margin-top: 4px;
+}
+/* The handle that brings the sidebar back, like the tools' stub. */
+.sidebar-stub {
+  width: 28px;
+  flex: none;
+  border: 0;
+  background: var(--canvas);
+  box-shadow: 1px 0 rgba(0, 0, 0, 0.06);
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  cursor: pointer;
+}
+.sidebar-stub:hover {
+  background: #f2f2f2;
+}
+/* The ≡ at a phone header's left. */
+.sidebar-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sidebar-open:hover {
+  background: #f2f2f2;
+}
+/* The ≡ leads the first row, before the destinations (ADR 0058): a 44 px
+   box like every other control in the phone header. */
+.topbar.phone-topbar > .sidebar-open {
+  order: 0;
+  width: 44px;
+  height: 44px;
+  flex: none;
+}
+
+/* Below the docked inspector's floor the sidebar is a drawer over the field's
+   left edge, and on a phone it is the drawer the ≡ opens. */
+.sidebar-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  border: 0;
+  background: rgba(23, 23, 23, 0.35);
+  cursor: pointer;
+}
+.play-sidebar.sidebar-drawer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 9;
+  width: 304px;
+  max-width: 88vw;
+  padding: 0 8px max(10px, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  box-shadow:
+    1px 0 rgba(0, 0, 0, 0.08),
+    12px 0 28px -12px rgba(0, 0, 0, 0.22);
+}
+.sidebar-drawer-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 0 4px 0 8px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.sidebar-close {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sidebar-back {
+  height: 44px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.sidebar-page-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.sidebar-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px;
+}
+.sidebar-page .menu-panel {
+  position: static;
+  width: auto;
+  padding: 0;
+  box-shadow: none;
+}
+.sidebar-page .segments button,
+.sidebar-page .layer-toggles button,
+.sidebar-page .help-row button,
+.sidebar-page .wide-picker {
+  min-height: 44px;
+}
+.sidebar-drawer .sidebar-row {
+  height: 44px;
+  border-radius: 8px;
+  font-size: 15px;
+}
+.sidebar-drawer .sidebar-chevron {
+  display: inline;
+}
+.sidebar-drawer .sidebar-value {
+  max-width: 140px;
+  font-size: 14px;
+}
+.sidebar-drawer .sidebar-heading {
+  font-size: 11px;
+}
+.sidebar-status {
+  padding: 12px 8px 4px;
+}
+.sidebar-status .save-state {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ready);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+.sidebar-status .save-state::before {
+  content: "●";
+  margin-right: 8px;
+  font-size: 9px;
+  vertical-align: 1px;
+}
+.sidebar-status .save-state.error {
+  color: var(--red);
+}
+@media (max-width: 1023px) {
+  .sidebar-stub {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 7;
+  }
+  .sidebar-stub ~ .rail-stub {
+    left: 28px;
+  }
+}
+@media (pointer: coarse) {
+  .sidebar-row {
+    min-height: 44px;
+  }
+  .sidebar-stub {
+    width: 44px;
+  }
+  .sidebar-stub ~ .rail-stub {
+    left: 44px;
+  }
+}
+
+/* The inspector is assignments only. */
+.assignments-bar {
+  height: 38px;
+  gap: 8px;
+}
+.assignments-bar strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.assignments-count {
+  color: var(--muted);
+  font-size: 12px;
+}
+.play-call {
+  padding: 14px 16px 0;
+}
+.play-call .wide-picker {
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+.roster {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px 16px;
+}
+.roster-group {
+  padding-top: 12px;
+}
+.roster-heading {
+  margin-bottom: 4px;
+  padding: 0 8px;
+}
+.roster-row {
+  width: 100%;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.roster-row:hover {
+  background: #f5f5f5;
+}
+.roster-row[aria-pressed="true"] {
+  background: var(--selected-tint);
+}
+.roster-symbol {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.4px var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+.roster-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.roster-summary.empty {
+  color: #c9c9c9;
+}
+.roster-role {
+  flex: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.roster-chevron {
+  flex: none;
+  color: #c9c9c9;
+}
+.roster-empty {
+  margin: 8px;
+  color: #777;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+/* The Player panel's head: him, what he plays, whose unit. */
+.player-chip {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.player-role {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.unit-tag {
+  margin-left: auto;
+  color: var(--unit-offense);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.unit-tag[data-unit="defense"] {
+  color: var(--unit-defense);
+}
+.label-heading .scope-tag + .unit-tag {
+  margin-left: 0;
+}
+.player-name-row {
+  display: flex;
+  gap: 6px;
+}
+.player-name-row input {
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  color: var(--ink);
+  font-size: 13px;
+  outline: none;
+}
+.player-name-row input:focus {
+  box-shadow: 0 0 0 1px #005fcc;
+}
+.player-name-row .player-letter {
+  width: 56px;
+  flex: none;
+  font-weight: 600;
+  text-align: center;
+}
+.player-name-row input + input {
+  flex: 1;
+}
+.alternate-row .alternate {
+  background: transparent;
+  box-shadow: none;
+  outline: 1px dashed rgba(0, 0, 0, 0.22);
+  outline-offset: -1px;
+}
+.route-heading .route-owner {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.route-heading .scope-tag-blue {
+  font-weight: 600;
+}
+
+/* A phone's assignments sheet: peeked above the tools, or full height. */
+.phone-workspace .inspector.sheet {
+  position: absolute;
+  top: auto;
+  right: 0;
+  bottom: 56px;
+  left: 0;
+  z-index: 8;
+  width: auto;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px 16px 0 0;
+  background: var(--paper);
+  box-shadow:
+    0 -1px 0 var(--line),
+    0 -12px 28px -12px rgba(0, 0, 0, 0.25);
+}
+.phone-workspace .quick-tray ~ .inspector.sheet {
+  bottom: 112px;
+}
+/* Full, the sheet takes the whole workspace, tools and tray included; a line
+   by hand drops it back to its peek so the field and Done are there. */
+.phone-workspace .inspector.sheet-full,
+.phone-workspace .quick-tray ~ .inspector.sheet-full {
+  top: 0;
+  bottom: 0;
+}
+.sheet-grab {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  margin-left: -18px;
+  border-radius: 2px;
+  background: #d9d9d9;
+}
+.sheet-handle {
+  position: relative;
+  width: 100%;
+  min-height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+.sheet-handle strong,
+.sheet-head strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+.sheet-calls {
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheet-caret {
+  color: var(--muted);
+  font-size: 14px;
+}
+.man-chips {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  padding: 0 12px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.man-chips::-webkit-scrollbar {
+  display: none;
+}
+.man-chip {
+  width: 52px;
+  height: 56px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.man-chip[aria-pressed="true"] {
+  background: var(--selected-tint);
+  box-shadow: 0 0 0 2px var(--blue);
+}
+.man-chip-letter {
+  font-size: 14px;
+  font-weight: 700;
+}
+.man-chip-word {
+  max-width: 46px;
+  overflow: hidden;
+  color: var(--unit-accent, var(--unit-offense));
+  font-size: 8.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.man-chip-word.empty {
+  color: #c9c9c9;
+}
+.sheet-head {
+  position: relative;
+  min-height: 48px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 4px;
+  box-shadow: 0 1px 0 var(--line);
+}
+.sheet-back,
+.sheet-field {
+  min-height: 44px;
+  flex: none;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.sheet-field {
+  margin-left: auto;
+  font-weight: 600;
+}
+.sheet-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.sheet-title .player-chip {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+.sheet-title .player-role {
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.sheet-body .label-inspector {
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+.sheet-body .play-call {
+  padding: 12px 16px 0;
+}
+.sheet .roster-row {
+  height: 44px;
+  font-size: 15px;
+}
+.sheet .roster-symbol {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+.sheet-body .player-name-row input,
+.sheet-body .wide-picker {
+  height: 44px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.sheet-body .button-grid button,
+.sheet-body .draw-row button,
+.sheet-body .help-row button {
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.sheet-body .line-row {
+  height: 48px;
+  border-radius: 10px;
+}
+.sheet-body .disclosure-toggle,
+.sheet-body .segments button {
+  min-height: 44px;
+}
+.sheet-pager {
+  min-height: 60px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 -1px 0 var(--line);
+}
+.sheet-pager button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.sheet-pager button strong {
+  color: var(--ink);
+}
+.sheet-pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.sheet-pager-count {
+  flex: 1;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+/* Held sideways there is no depth for the strip: the peek is a pill in the
+   field's bottom corner, where the canvas around a fitted field is empty, and
+   the full sheet's rows stand shorter. */
+@media (max-height: 439px) {
+  .phone-workspace .man-chips {
+    display: none;
+  }
+  .phone-workspace .inspector.sheet-peek {
+    left: auto;
+    right: 10px;
+    bottom: 66px;
+    width: auto;
+    border-radius: 999px;
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  .phone-workspace .quick-tray ~ .inspector.sheet-peek {
+    bottom: 122px;
+  }
+  .phone-workspace .sheet-peek .sheet-handle {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+  .phone-workspace .sheet-peek .sheet-handle strong {
+    font-size: 13px;
+  }
+  .phone-workspace .sheet-peek .sheet-grab,
+  .phone-workspace .sheet-peek .sheet-calls {
+    display: none;
+  }
+  .phone-workspace .sheet-head {
+    min-height: 44px;
+    padding: 8px 12px 2px;
+  }
+  .phone-workspace .sheet-pager {
+    min-height: 48px;
+    padding: 4px 12px;
+  }
+}
+
+/* Settings: a modal with the tabs down its left. */
+.settings-overlay {
+  align-items: flex-start;
+  justify-content: center;
+}
+.settings-panel {
+  width: 720px;
+  max-width: 92vw;
+  height: 440px;
+  max-height: 86vh;
+  margin-top: 6vh;
+  display: flex;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.settings-side {
+  width: 200px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 12px;
+  background: #fafafa;
+  box-shadow: 1px 0 rgba(0, 0, 0, 0.06);
+}
+.settings-title {
+  padding: 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.settings-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-tab {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.settings-tab:hover {
+  background: #f2f2f2;
+}
+.settings-tab.active {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  font-weight: 600;
+}
+.settings-tab-name {
+  flex: 1;
+}
+.settings-tab-value {
+  max-width: 110px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.settings-head {
+  height: 48px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  box-shadow: 0 1px 0 var(--line);
+}
+.settings-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.settings-summary {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.settings-close {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.settings-close:hover {
+  background: #f5f5f5;
+}
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 22px;
+  overflow-y: auto;
+}
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.settings-section p {
+  margin: 0;
+  color: #777;
+  font-size: 11px;
+  line-height: 15px;
+}
+.settings-field {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.settings-field-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.settings-section .settings-about-name {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.settings-account .backup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* On a phone Settings is a page: the head, pill tabs across, the body. */
+.phone-workspace .settings-overlay {
+  align-items: stretch;
+}
+.phone-workspace .settings-panel {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  flex-direction: column;
+  border-radius: 0;
+}
+.phone-workspace .settings-main {
+  display: contents;
+}
+.phone-workspace .settings-head {
+  order: 0;
+  height: 52px;
+  padding: 0 12px;
+}
+.phone-workspace .settings-side {
+  order: 1;
+  width: auto;
+  padding: 8px 12px;
+  background: var(--paper);
+  box-shadow: 0 1px 0 var(--line);
+}
+.phone-workspace .settings-title {
+  display: none;
+}
+.phone-workspace .settings-tabs {
+  flex-direction: row;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.phone-workspace .settings-tab {
+  height: 34px;
+  flex: none;
+  padding: 0 14px;
+  border-radius: 17px;
+  box-shadow: 0 0 0 1px var(--line);
+  font-size: 14px;
+}
+.phone-workspace .settings-tab.active {
+  background: var(--ink);
+  box-shadow: none;
+  color: #fff;
+}
+.phone-workspace .settings-tab-value {
+  display: none;
+}
+.phone-workspace .settings-body {
+  order: 2;
+  padding: 16px;
+}
+.phone-workspace .settings-close {
+  min-height: 44px;
+  box-shadow: none;
+  color: var(--blue);
+  font-size: 15px;
+}
+.phone-workspace .settings-field {
+  grid-template-columns: 1fr;
+}
+.phone-workspace .settings-body .segments button,
+.phone-workspace .settings-body .page-kinds button {
+  min-height: 38px;
 }

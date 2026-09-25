@@ -137,6 +137,13 @@ export function MoreMenu({
       label: "Settings…",
       title: "Field profile, Playbook settings, History and Print & export",
     },
+    // Account is a tab of Settings (ADR 0058); this is the shortcut to it.
+    {
+      id: "account",
+      label: "Account…",
+      title:
+        "Sign in, sync and this device's data — the Account tab of Settings",
+    },
     ...newPlayEntries,
     // The header's Present button is off a phone's header (issue #92); the
     // menu carries it the way it carries the two new plays.

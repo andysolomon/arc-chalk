@@ -35,10 +35,19 @@ import { expect, test, type Page } from "@playwright/test";
  * not a chrome regression; the Editor itself dropped. The raise is recorded
  * here rather than waved through.
  */
+/**
+ * Raised on 2026-09-25 under ADR 0058 (product decision: the assignments-only
+ * inspector and the play sidebar). The sidebar is a 236 px column the original
+ * does not have, so every state that shows the editor behind it carries it.
+ * Measured on the same Linux machine, branch against main: Editor 18,105 →
+ * 31,601 px; More 20,265 → 32,954; Export 19,507 → 32,926; Save 18,334 →
+ * 31,752; palette 19,381 → 32,875; shortcuts 40,564 → 53,575; Formations
+ * 27,738 → 31,592; Defenses 22,221 → 25,856. Present, Print and Demo did not
+ * move. Each ratchet below is that branch measurement.
+ */
 const parityGap: Readonly<Record<string, number>> = {
-  // 1.6526% (22,846 px), from 1.7134% (23,685 px). The field is now the
-  // original's 1000×620 rectangle.
-  editor: 0.0166,
+  // 2.2860% (31,601 px) with the sidebar, from 1.6526% (22,846 px).
+  editor: 0.0229,
   // 8.9932% (124,322 px), from 17.96% (248,333 px). The remaining Present
   // gap is the animation scrubber and the "1 / 5 · STICK — THUNDER"
   // variation line, both waiting on later phases.
@@ -51,16 +60,16 @@ const parityGap: Readonly<Record<string, number>> = {
   // 1000×620; what remains is the original's cursor having already walked
   // the first clicks before Pause, and the 1.3% Player shift.
   demo: 0.0205,
-  moreMenu: 0.0167, // 1.6666% (23,038 px), from 1.7273%
-  exportMenu: 0.016, // 1.5982% (22,095 px), from 1.6536%
-  saveMenu: 0.0167, // 1.6645% (23,010 px), from 1.7252%
-  commandPalette: 0.0167, // 1.6640% (23,004 px), from 1.7182%
-  shortcuts: 0.0242, // 2.4176% (33,420 px), from 2.5044%
+  moreMenu: 0.0239, // 2.3838% (32,954 px), from 1.6666% (23,038 px)
+  exportMenu: 0.0239, // 2.3818% (32,926 px), from 1.5982% (22,095 px)
+  saveMenu: 0.023, // 2.2968% (31,752 px), from 1.6645% (23,010 px)
+  commandPalette: 0.0238, // 2.3781% (32,875 px), from 1.6640% (23,004 px)
+  shortcuts: 0.0388, // 3.8755% (53,575 px), from 2.4176% (33,420 px)
   // Raised 317 px with the field-aspect slice: more of the Play shows around
   // the panel. Card name-row and thumbnail-dot arithmetic now match the
   // original; any remaining gap is the Play behind the panel.
-  formations: 0.0201, // 2.0059% (27,730 px), from 1.9830% (27,413 px)
-  defenses: 0.016, // 1.5938% (22,033 px), from 1.5709% (21,716 px)
+  formations: 0.0229, // 2.2853% (31,592 px), from 2.0059% (27,730 px)
+  defenses: 0.0188, // 1.8703% (25,856 px), from 1.5938% (22,033 px)
 };
 
 /**
@@ -261,11 +270,11 @@ test.describe("production editor overlays against the canonical original", () =>
   });
 
   test("Defenses browser matches the original", async ({ page }) => {
-    // The defensive call on an offensive Play sits under the folded Shadow
-    // defense section (issue #64, ADR 0043, ADR 0053); the rail's Shadow
-    // button answers to the same name, so the click is scoped to the inspector.
+    // The defensive call on an offensive Play sits behind the sidebar's
+    // Shadow defense row (issue #64, ADR 0043, ADR 0053, ADR 0058); the
+    // rail's Shadow button answers to the same name, so the click is scoped.
     await page
-      .getByRole("complementary", { name: "Play inspector" })
+      .getByRole("navigation", { name: "Sidebar" })
       .getByRole("button", { name: /^Shadow defense/ })
       .click();
     await page.getByTitle("Browse defenses — ⇧⌘D").click();
@@ -284,6 +293,11 @@ test.describe("production editor overlays against the canonical original", () =>
   });
 
   test("shortcut reference matches the original", async ({ page }) => {
+    // Shortcuts is behind the sidebar's Help row (ADR 0058).
+    await page
+      .getByRole("navigation", { name: "Sidebar" })
+      .getByRole("button", { name: /^Help/ })
+      .click();
     await page
       .getByRole("button", { name: "Shortcuts ?", exact: true })
       .click();

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<svg viewBox="0 0 400 260" style="display:block;width:100%;height:auto;background:#fff" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="bar" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="userSpaceOnUse"><line x1="4" x2="4" y1="0" y2="8" stroke="context-stroke" stroke-width="1.6"></line></marker>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L8,4 L0,8 z" fill="context-stroke"></path></marker>
+  </defs>
+  <sc-for list="{{ yards }}" as="y" hint-placeholder-count="6">
+    <line x1="0" x2="400" y1="{{ y.y }}" y2="{{ y.y }}" stroke="rgba(0,0,0,.08)"></line>
+    <text x="14" y="{{ y.ty }}" font-size="9" fill="rgba(0,0,0,.28)" font-family="ui-monospace, Menlo, monospace">{{ y.n }}</text>
+    <text x="374" y="{{ y.ty }}" font-size="9" fill="rgba(0,0,0,.28)" font-family="ui-monospace, Menlo, monospace">{{ y.n }}</text>
+  </sc-for>
+  <line x1="150" x2="150" y1="0" y2="260" stroke="rgba(0,0,0,.07)" stroke-dasharray="2 6"></line>
+  <line x1="250" x2="250" y1="0" y2="260" stroke="rgba(0,0,0,.07)" stroke-dasharray="2 6"></line>
+  <line x1="0" x2="400" y1="150" y2="150" stroke="rgba(0,0,0,.35)" stroke-width="1.2"></line>
+  <sc-for list="{{ defense }}" as="d" hint-placeholder-count="11">
+    <path d="{{ d.d }}" fill="none" stroke="#7a2e5a" stroke-width="1.3" opacity="{{ shadowOpacity }}"></path>
+    <text x="{{ d.x }}" y="{{ d.ty }}" font-size="6.5" text-anchor="middle" fill="#7a2e5a" opacity="{{ shadowOpacity }}" font-weight="600" font-family="system-ui, sans-serif">{{ d.n }}</text>
+  </sc-for>
+  <sc-for list="{{ routes }}" as="r" hint-placeholder-count="5">
+    <polyline points="{{ r.pts }}" fill="none" stroke="{{ r.color }}" stroke-width="{{ r.w }}" stroke-linejoin="round" stroke-linecap="round" marker-end="{{ r.mk }}" stroke-dasharray="{{ r.dash }}"></polyline>
+  </sc-for>
+  <sc-for list="{{ offense }}" as="p" hint-placeholder-count="11">
+    <rect x="{{ p.rx }}" y="{{ p.ry }}" width="{{ p.size }}" height="{{ p.size }}" rx="{{ p.r }}" fill="{{ p.fill }}" stroke="{{ p.stroke }}" stroke-width="{{ p.sw }}"></rect>
+    <text x="{{ p.x }}" y="{{ p.ty }}" font-size="9" font-weight="700" text-anchor="middle" fill="{{ p.ink }}" font-family="system-ui, sans-serif">{{ p.l }}</text>
+    <text x="{{ p.x }}" y="{{ p.tagY }}" font-size="6" font-weight="600" text-anchor="middle" fill="#2e6bb0" font-family="system-ui, sans-serif">{{ p.tag }}</text>
+  </sc-for>
+</svg>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:400,&quot;height&quot;:260},&quot;selected&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;routeSelected&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;shadow&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const sel = this.props.selected ?? "";
+    const routeSel = this.props.routeSelected ?? false;
+    const shadow = this.props.shadow ?? true;
+    const yards = [30, 35, 40, 45, 40, 35].map((n, i) => ({ y: 30 + i * 40, ty: 27 + i * 40, n }));
+    const tri = (x, y) => `M${x},${y - 6} L${x + 6},${y + 4} L${x - 6},${y + 4} z`;
+    const D = [["E", 118, 128], ["T", 168, 128], ["T", 232, 128], ["E", 282, 128], ["W", 140, 96], ["M", 200, 96], ["S", 260, 96], ["C", 40, 108], ["C", 360, 108], ["F", 130, 50], ["F", 270, 50]];
+    const defense = D.map(([n, x, y]) => ({ n, x, ty: y + 2, d: tri(x, y) }));
+    const O = [
+      ["T", 158, 150, "line", ""], ["G", 179, 150, "line", ""], ["C", 200, 150, "center", ""], ["G", 221, 150, "line", ""], ["T", 242, 150, "line", ""],
+      ["X", 40, 150, "skill", "GO"], ["H", 100, 158, "skill", "FLAT"], ["Y", 300, 158, "skill", "STICK"], ["Z", 360, 150, "skill", "SLANT"],
+      ["Q", 200, 196, "back", ""], ["F", 232, 190, "back", "SWING"],
+    ];
+    const offense = O.map(([l, x, y, kind, tag], i) => {
+      const isSel = sel !== "" && sel === l && (l !== "T" && l !== "G" || false);
+      const size = 18, r = kind === "center" ? 2 : 9;
+      return { l, x, ty: y + 3.2, rx: x - size / 2, ry: y - size / 2, size, r, fill: isSel ? "#0072f5" : "#fff", ink: isSel ? "#fff" : "#171717", stroke: isSel ? "#0072f5" : "#171717", sw: isSel ? 2 : 1.4, tag, tagY: y + 18 };
+    });
+    const R = [
+      ["X", "40,141 40,92"], ["H", "100,149 92,136 34,132"], ["Y", "300,149 300,122 336,118"], ["Z", "360,141 360,112 322,92"], ["F", "241,190 268,186 334,172"],
+      ["blk", "158,141 150,132", "b"], ["blk", "179,141 172,132", "b"], ["blk", "200,141 200,131", "b"], ["blk", "221,141 228,132", "b"], ["blk", "242,141 250,132", "b"],
+    ];
+    const routes = R.map(([who, pts, b]) => {
+      const hot = who === sel;
+      return { pts, color: hot ? "#0072f5" : "#171717", w: hot && routeSel ? 2.6 : hot ? 2 : 1.4, dash: "0", mk: b ? "url(#bar)" : "url(#arr)" };
+    });
+    return { yards, defense, offense, routes, shadowOpacity: shadow ? 0.55 : 0 };
+  }
+}
+</script>
+</body>
+</html>
