@@ -5016,16 +5016,16 @@ export function ChalkApp({
       }
       if (meta && !typing && (key === "]" || key === "[")) {
         event.preventDefault();
-        // Built from the live document and selection rather than from the
-        // render that registered this listener, which may be older.
-        const command = reorderSelectionCommand(
-          editorStore.getSnapshot().document,
-          interactionRef.current.selection,
-          key === "]" ? 1 : -1,
-        );
-        if (command) {
-          void editorStore.applyCommand(command).catch(() => undefined);
-        }
+        // Built when this save runs, not from the document the key found.
+        // The menu's reorder may still be in the queue, and a command
+        // captured now would paint that older order back over it.
+        const direction = key === "]" ? 1 : -1;
+        const selection = interactionRef.current.selection;
+        void editorStore
+          .applyEdit((document) =>
+            reorderSelectionCommand(document, selection, direction),
+          )
+          .catch(() => undefined);
         return;
       }
       if (meta && !typing && (key === "c" || key === "v" || key === "d")) {
