@@ -210,7 +210,14 @@ export function migrateLegacyPlay(legacy: LegacyPlay): PlayDocument {
       fieldProfile: highSchoolFieldProfile,
       players: legacy.doc.players.map((player) => ({
         id: player.id,
-        unit: player.side === "def" ? "defense" : unitFor(legacy.cat),
+        // A man marked for a side plays on it; an unmarked one plays the
+        // Play's own unit, as the original assumed.
+        unit:
+          player.side === "def"
+            ? "defense"
+            : player.side === "off"
+              ? "offense"
+              : unitFor(legacy.cat),
         position: legacyCanvasToYards(player),
         symbol: playerSymbol(player.symbol),
         label: player.label ?? "",
