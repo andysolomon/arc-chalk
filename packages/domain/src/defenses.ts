@@ -173,6 +173,15 @@ export function applyDefensiveCall(
       players: [...players, ...added],
       paths: [...paths, ...drawn],
       labels,
+      // Remembered so the Coach can put the men back once he has moved them:
+      // the field stops saying which call it was the moment one of them moves.
+      defensiveCallSource: {
+        callId: call.formation.id,
+        slotBindings: [...bySlot].map(([slotId, playerId]) => ({
+          slotId,
+          playerId,
+        })),
+      },
     },
   };
 }
