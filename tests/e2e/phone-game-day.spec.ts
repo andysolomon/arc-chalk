@@ -52,7 +52,7 @@ async function preparePlanOnPhone(page: Page): Promise<number> {
     .getByRole("button", { name: "Playbooks", exact: true })
     .tap();
   await page
-    .getByRole("navigation", { name: "Playbooks pages" })
+    .getByRole("navigation", { name: "Book pages" })
     .getByRole("button", { name: "Game plans", exact: true })
     .tap();
   const workspace = page.getByRole("region", { name: "Game plans" });

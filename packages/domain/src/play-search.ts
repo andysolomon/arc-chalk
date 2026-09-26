@@ -1,4 +1,4 @@
-import type { PlayUnit } from "./schema";
+import type { MovementPath, PlayUnit } from "./schema";
 
 /**
  * Compact, rebuildable Play search records. Geometry, revision history, and
@@ -18,6 +18,12 @@ export interface SearchablePlay {
   readonly playerRoles: readonly string[];
   readonly assignmentText: readonly string[];
   readonly notes: string;
+  /**
+   * The kinds of line drawn on the Play — a motion, a blitz — so a book can
+   * be narrowed to the Plays that carry one. Unset on a record built before
+   * the field existed; it is read as unknown, never as none.
+   */
+  readonly lineKinds?: readonly MovementPath["kind"][];
 }
 
 export interface PlaySearchFilters {

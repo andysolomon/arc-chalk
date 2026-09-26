@@ -1,4 +1,5 @@
-export const PLAY_THUMBNAIL_RENDERER_VERSION = 1;
+/** Bumped when the card art changes, so every cached picture is drawn again. */
+export const PLAY_THUMBNAIL_RENDERER_VERSION = 2;
 
 export type PlayThumbnailTheme = "light" | "dark" | "high-contrast";
 

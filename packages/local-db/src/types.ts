@@ -5,6 +5,7 @@ import type {
   GamePlan,
   GamePlanRevision,
   GamePlanRevisionSummary,
+  MovementPath,
   PlayDocument,
   PlayRevision,
   PlayUnit,
@@ -152,10 +153,18 @@ export interface PlaySearchProjection {
   readonly playerRoles: readonly string[];
   readonly assignmentText: readonly string[];
   readonly notes: string;
+  readonly lineKinds?: readonly MovementPath["kind"][];
   readonly documentHash: string;
   readonly fieldProfileRevision?: number;
   readonly updatedAtMs: number;
 }
+
+/**
+ * What a search projection says about a Play. Bumped when `projectionFor`
+ * learns to say more, so a device whose projections were built by an
+ * earlier release rebuilds them once rather than searching a partial record.
+ */
+export const SEARCH_PROJECTION_VERSION = 2;
 
 export interface PlaybookSummary {
   readonly id: string;
