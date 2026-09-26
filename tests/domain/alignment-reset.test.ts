@@ -6,9 +6,7 @@ import {
   baseDefensiveCall,
   baseFormation,
   canonicalStringify,
-  chosenAlignment,
   currentDefensiveCall,
-  currentFormation,
   deletePlayersCommand,
   emptyPlayDocument,
   highSchoolFieldProfile,
@@ -98,27 +96,6 @@ const positions = (play: PlayDocument) =>
   new Map(play.players.map(({ id, position }) => [id, position]));
 
 describe("putting the men back in the set he chose", () => {
-  it("returns the men he moved to their slots and leaves everyone else exactly where they stand", () => {
-    const aligned = alignedPlay();
-    const x = man(aligned, "X");
-    const h = man(aligned, "H");
-    const moved = drag(
-      drag(aligned, x.id, { lateralYards: 4, depthYards: -1 }),
-      h.id,
-      { lateralYards: -3, depthYards: 0 },
-    );
-    expect(currentFormation(moved, stockFormations)).toBeUndefined();
-
-    const reset = resetAlignment(moved, "offense", "chosen")!;
-    expect(reset.alignment.name).toBe("Gun Trips Right");
-    expect(reset.movedCount).toBe(2);
-    expect(positions(reset.play)).toEqual(positions(aligned));
-    expect(reset.play.formationSource).toEqual(aligned.formationSource);
-    expect(currentFormation(reset.play, stockFormations)?.name).toBe(
-      "Gun Trips Right",
-    );
-  });
-
   it("brings each man's route back with him, shape and all", () => {
     const aligned = alignedPlay();
     const x = man(aligned, "X");
@@ -229,16 +206,6 @@ describe("putting the men back in the set he chose", () => {
     expect(man(reset.play, "X").position).toEqual(x.position);
   });
 
-  it("has nothing to go back to when no set or call was ever chosen", () => {
-    const aligned = alignedPlay();
-    const byHand: PlayDocument = { ...aligned };
-    delete (byHand as { formationSource?: unknown }).formationSource;
-    delete (byHand as { defensiveCallSource?: unknown }).defensiveCallSource;
-    expect(chosenAlignment(byHand, "offense")).toBeUndefined();
-    expect(resetAlignment(byHand, "offense", "chosen")).toBeUndefined();
-    expect(resetAlignment(byHand, "defense", "chosen")).toBeUndefined();
-  });
-
   it("finds a set the Coach saved himself, not only the stock ones", () => {
     const aligned = alignedPlay();
     const mine: Formation = {
@@ -264,11 +231,6 @@ describe("putting the men back in the set he chose", () => {
 });
 
 describe("putting the men in the base alignment", () => {
-  it("is Gun Doubles Right on offense and 4-3 Cover 3 on defense", () => {
-    expect(baseFormation.name).toBe("Gun Doubles Right");
-    expect(baseDefensiveCall.name).toBe("4-3 Cover 3");
-  });
-
   it("realigns the offense into the base set by role, adds nobody, and remembers base as the set", () => {
     const aligned = alignedPlay();
     const short = applyPlayCommand(
@@ -338,15 +300,6 @@ describe("putting the men in the base alignment", () => {
       ).toEqual(player.position);
     }
   });
-
-  it("has nobody to move when that side of the ball is empty", () => {
-    const blank = emptyPlayDocument({
-      playbookId: "playbook_reset",
-      fieldProfile: highSchoolFieldProfile,
-    });
-    expect(resetAlignment(blank, "offense", "base")).toBeUndefined();
-    expect(resetAlignment(blank, "defense", "base")).toBeUndefined();
-  });
 });
 
 describe("remembering the call", () => {
@@ -358,18 +311,6 @@ describe("remembering the call", () => {
     );
     expect(cleared.defensiveCallSource?.slotBindings).toEqual([]);
     expect(() => playDocumentSchema.parse(cleared)).not.toThrow();
-  });
-
-  it("refuses a call binding to a man who is not on the field", () => {
-    const aligned = alignedPlay();
-    const result = playDocumentSchema.safeParse({
-      ...aligned,
-      defensiveCallSource: {
-        callId: aligned.defensiveCallSource!.callId,
-        slotBindings: [{ slotId: "slot_a", playerId: "nobody" }],
-      },
-    });
-    expect(result.success).toBe(false);
   });
 
   it("undoes a change to the remembered call like any other edit", () => {

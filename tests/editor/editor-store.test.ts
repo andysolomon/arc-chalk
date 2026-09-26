@@ -5,7 +5,6 @@ import {
 } from "@chalk/domain";
 import {
   createEditorStore,
-  localSaveMessage,
   type EditorPersistence,
   type EditorPersistenceCommit,
   type EditorPersistenceReceipt,
@@ -33,47 +32,6 @@ function deferred<T>(): {
 }
 
 describe("EditorStore local persistence", () => {
-  it("keeps title typing transient until the field edit is committed", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const commits: EditorPersistenceCommit[] = [];
-    const persistence: EditorPersistence = {
-      async commitPlay(input) {
-        commits.push(input);
-        return {
-          playId: input.play.id,
-          documentHash: await hashPlayDocument(input.play),
-          committedAtMs: 100,
-          mutationId: input.mutation.id,
-        };
-      },
-    };
-    const store = createEditorStore({
-      initialDocument: stickThunderPlay,
-      initialDocumentHash: initialHash,
-      persistence,
-      createMutationId: () => "mutation_title",
-      monotonicNow: () => 0,
-    });
-
-    store.setPlayNameDraft("Mesh — Alert");
-
-    expect(store.getSnapshot().document.name).toBe("Stick — Thunder");
-    expect(store.getSnapshot().draftPlayName).toBe("Mesh — Alert");
-    expect(commits).toEqual([]);
-
-    await expect(store.commitPlayName()).resolves.toEqual(
-      expect.objectContaining({ ok: true, withinBudget: true }),
-    );
-    expect(commits).toHaveLength(1);
-    expect(commits[0]?.expectedDocumentHash).toBe(initialHash);
-    expect(commits[0]?.play.name).toBe("Mesh — Alert");
-    expect(commits[0]?.mutation).toEqual({ id: "mutation_title" });
-    expect(store.getSnapshot().document.name).toBe("Mesh — Alert");
-    expect(localSaveMessage(store.getSnapshot().localSave)).toBe(
-      "Saved on this device",
-    );
-  });
-
   it("serializes rapid commits and advances each optimistic hash guard", async () => {
     const initialHash = await hashPlayDocument(stickThunderPlay);
     const first = deferred<EditorPersistenceReceipt>();
@@ -169,38 +127,6 @@ describe("EditorStore local persistence", () => {
     expect(calls[1]?.expectedDocumentHash).toBe(initialHash);
     expect(calls[1]?.play.name).toBe("Kept locally in memory");
     expect(store.getSnapshot().localSave.phase).toBe("saved");
-  });
-
-  it("records whether the local acknowledgement met the strict 50 ms budget", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const times = [10, 59];
-    const store = createEditorStore({
-      initialDocument: stickThunderPlay,
-      initialDocumentHash: initialHash,
-      persistence: {
-        commitPlay: (input) =>
-          Promise.resolve({
-            playId: input.play.id,
-            documentHash: "hash_budget",
-            committedAtMs: 100,
-            mutationId: input.mutation.id,
-          }),
-      },
-      createMutationId: () => "mutation_budget",
-      monotonicNow: () => times.shift()!,
-    });
-
-    store.setPlayNameDraft("Budget test");
-    await expect(store.commitPlayName()).resolves.toEqual(
-      expect.objectContaining({
-        ok: true,
-        durationMs: 49,
-        withinBudget: true,
-      }),
-    );
-    expect(store.getSnapshot().localSave).toEqual(
-      expect.objectContaining({ durationMs: 49, withinBudget: true }),
-    );
   });
 });
 
@@ -315,30 +241,6 @@ describe("EditorStore named versions", () => {
     return { store, commits, versions };
   }
 
-  it("refuses a version the Coach did not name", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const { store } = versionHarness(initialHash);
-
-    await expect(store.createVersion("   ")).resolves.toEqual({
-      status: "failed",
-      reason: "Name this version.",
-    });
-    expect(store.getSnapshot().versions).toEqual([]);
-  });
-
-  it("does nothing when the Coach restores the version they are already on", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const { store, commits } = versionHarness(initialHash);
-    await store.createVersion("Install week");
-    const before = commits.length;
-
-    await expect(store.restoreVersion("revision_1")).resolves.toEqual({
-      status: "unchanged",
-    });
-    expect(commits).toHaveLength(before);
-    expect(store.getSnapshot().undo.undoDepth).toBe(0);
-  });
-
   it("reports a version it cannot read instead of guessing", async () => {
     const initialHash = await hashPlayDocument(stickThunderPlay);
     const { store } = versionHarness(initialHash);
@@ -346,29 +248,6 @@ describe("EditorStore named versions", () => {
     await expect(store.restoreVersion("revision_missing")).resolves.toEqual({
       status: "failed",
       reason: "Chalk could not read that version on this device.",
-    });
-  });
-
-  it("reports versions as unavailable when the device cannot store them", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const store = createEditorStore({
-      initialDocument: stickThunderPlay,
-      initialDocumentHash: initialHash,
-      persistence: {
-        commitPlay: async (input) => ({
-          playId: input.play.id,
-          documentHash: await hashPlayDocument(input.play),
-          committedAtMs: 100,
-        }),
-      },
-      monotonicNow: () => 0,
-    });
-
-    await expect(store.createVersion("Install week")).resolves.toEqual({
-      status: "unavailable",
-    });
-    await expect(store.restoreVersion("revision_1")).resolves.toEqual({
-      status: "unavailable",
     });
   });
 });

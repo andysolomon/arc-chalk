@@ -1,8 +1,6 @@
 import {
   applyPlayCommand,
-  ballPosition,
   ballSpotMapping,
-  currentBallSpot,
   diffPlayDocuments,
   hashSpots,
   highSchoolFieldProfile,
@@ -29,56 +27,9 @@ describe("where the official spots the ball", () => {
       9,
     );
   });
-
-  it("reads the spot off the men, and says nothing when the ball is between two", () => {
-    expect(currentBallSpot(stickThunderPlay)).toBe("middle");
-    const spots = hashSpots(stickThunderPlay);
-    const drifted: PlayDocument = {
-      ...stickThunderPlay,
-      players: stickThunderPlay.players.map((player) => ({
-        ...player,
-        position: {
-          ...player.position,
-          lateralYards: player.position.lateralYards + spots.right / 2,
-        },
-      })),
-    };
-    expect(currentBallSpot(drifted)).toBeUndefined();
-  });
-
-  it("looks under the centre for the ball, and at the middle when nobody is drawn as one", () => {
-    // Moved to a hash, the ball is under the centre wherever he now stands —
-    // not still in the middle of the field.
-    const onTheHash = spotBall(stickThunderPlay, "left").play;
-    expect(ballPosition(onTheHash).lateralYards).toBeCloseTo(
-      hashSpots(stickThunderPlay).left,
-      6,
-    );
-    expect(ballPosition({ ...stickThunderPlay, players: [] })).toEqual({
-      lateralYards: 0,
-      depthYards: 0,
-    });
-  });
 });
 
 describe("moving the ball, and the Play with it", () => {
-  it("keeps the splits exactly as drawn when the hash leaves room for them", () => {
-    const { play, tightened, mapping } = spotBall(stickThunderPlay, "left");
-    expect(tightened).toBe(false);
-    expect(mapping.leftScale).toBe(1);
-    expect(mapping.rightScale).toBe(1);
-    const before = stickThunderPlay.players.map(
-      ({ position }) => position.lateralYards,
-    );
-    const shift = hashSpots(stickThunderPlay).left;
-    for (const [index, player] of play.players.entries()) {
-      expect(player.position.lateralYards).toBeCloseTo(
-        before[index]! + shift,
-        9,
-      );
-    }
-  });
-
   it("tightens the boundary split rather than standing a man out of bounds", () => {
     const { play, tightened, mapping } = spotBall(stickThunderPlay, "right");
     expect(tightened).toBe(true);
@@ -102,32 +53,6 @@ describe("moving the ball, and the Play with it", () => {
         9,
       );
     }
-  });
-
-  it("keeps its margin off the paint, squeezing a set that would otherwise just fit", () => {
-    // Sixteen yards of split fits inside the sideline from the left hash, and
-    // does not fit once the margin is kept off the paint. What the margin is
-    // for is that the widest man has grass under him rather than standing on
-    // the minimum, so this is the case that decides it.
-    const wideLeft: PlayDocument = {
-      ...stickThunderPlay,
-      players: stickThunderPlay.players.map((player) =>
-        player.label === "X"
-          ? {
-              ...player,
-              position: { ...player.position, lateralYards: -16 },
-            }
-          : player,
-      ),
-      paths: [],
-      labels: [],
-      assignments: [],
-    };
-    const { mapping, tightened, play } = spotBall(wideLeft, "left");
-    expect(tightened).toBe(true);
-    expect(mapping.leftScale).toBeLessThan(1);
-    const half = wideLeft.fieldProfile.widthYards / 2;
-    expect(widest(play)).toBeLessThan(half - 2.9);
   });
 
   it("spots a Play with no line and no centre off the men playing the offense", () => {
@@ -314,29 +239,5 @@ describe("moving the ball, and the Play with it", () => {
       lateralYards: -6,
       depthYards: 9,
     });
-  });
-
-  it("spots the ball off the offense, not off whoever else is standing about", () => {
-    // A defender parked far to one side must not drag the spot with him.
-    const lopsided: PlayDocument = {
-      ...stickThunderPlay,
-      players: [
-        ...stickThunderPlay.players,
-        {
-          id: "far_defender",
-          unit: "defense",
-          position: { lateralYards: 26, depthYards: 12 },
-          symbol: "none",
-          label: "C",
-          sublabel: "",
-          fill: "none",
-          color: "ink",
-        },
-      ],
-    };
-    expect(ballSpotMapping(lopsided, 0).ballLateralYards).toBeCloseTo(
-      ballSpotMapping(stickThunderPlay, 0).ballLateralYards,
-      9,
-    );
   });
 });

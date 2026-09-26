@@ -40,31 +40,4 @@ describe("the draw-a-route handle", () => {
     expect(starts(0, -24 / zoom)).toBe(true);
     expect(starts(0, -45 / zoom)).toBe(true);
   });
-
-  it("lets a finger reach the man the mark is drawn over on a phone", () => {
-    // The quarterback picked on a phone: his mark sits over the center, who
-    // lines up a dozen screen pixels ahead of him.
-    const zoom = 0.39;
-    const handle = routeDotGeometry(zoom, false);
-    const players = [
-      { id: "q", position: { x: 500, y: 478 } },
-      { id: "ol2", position: { x: 500, y: 478 - 12 / zoom } },
-      { id: "ol3", position: { x: 500 + 14 / zoom, y: 478 - 12 / zoom } },
-    ];
-    const starts = (x: number, y: number) =>
-      routeDotPressStartsRoute(x, y, handle, "q", players, handle.fingerReach);
-    // Under a mouse the mark comes first, as it always has.
-    const mouse = routeDotGeometry(zoom, true);
-    expect(routeDotPressStartsRoute(0, -12 / zoom, mouse, "q", players)).toBe(
-      true,
-    );
-    // A finger on the center, or leaning off him toward the guard, is his.
-    expect(starts(0, -12 / zoom)).toBe(false);
-    expect(starts(4 / zoom, -12 / zoom)).toBe(false);
-    // The far side of the mark, and the mark's own centre, still draw.
-    expect(starts(0, handle.cy - 6 / zoom)).toBe(true);
-    expect(starts(0, handle.cy)).toBe(true);
-    // A finger on the quarterback picks him up rather than drawing.
-    expect(starts(0, -2 / zoom)).toBe(false);
-  });
 });

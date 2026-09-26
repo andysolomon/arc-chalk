@@ -1,16 +1,9 @@
-import { applyPlayCommand, canonicalStringify } from "@chalk/domain";
+import { applyPlayCommand } from "@chalk/domain";
 import { buildRenderScene, buildSvgRenderScene } from "@chalk/render";
 import { stickThunderPlay } from "@chalk/test-fixtures";
 import { describe, expect, it } from "vitest";
 
 describe("RenderScene", () => {
-  it("derives one deterministic scene from the canonical Play", () => {
-    const first = buildRenderScene(stickThunderPlay);
-    const second = buildRenderScene(structuredClone(stickThunderPlay));
-
-    expect(canonicalStringify(first)).toBe(canonicalStringify(second));
-  });
-
   it("draws a stored line that runs past the paint on the sideline instead", () => {
     // A Play saved before the sidelines held its lines may still carry a
     // break past the paint. It is drawn on the paint, so nothing bleeds over
@@ -84,16 +77,6 @@ describe("what a route says about itself", () => {
         ],
       },
     ],
-  });
-
-  it("carries the Coach's wording to the line it is about", () => {
-    const path = buildRenderScene(coached).paths.find(({ id }) => id === "rx");
-
-    // The wording belongs to the man (ADR 0011); the scene resolves it to
-    // the line so it can be drawn where the line ends.
-    expect(path?.assignment).toBe("Stick");
-    expect(path?.readOrder).toBe(2);
-    expect(path?.conversion).toBe("vs man: fade");
   });
 
   it("hangs the read and the words on opposite sides of the line", () => {

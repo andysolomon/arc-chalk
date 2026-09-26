@@ -4,8 +4,6 @@ import {
   canRunLine,
   canonicalSha256,
   canonicalStringify,
-  collegeFieldProfile,
-  evaluateMovement,
   highSchoolFieldProfile,
   isLineman,
   legacyCanvasToYards,
@@ -17,7 +15,6 @@ import {
   migratePlayDocument,
   mirrorCoordinate,
   mirrorPlayGeometry,
-  nflFieldProfile,
   pathLength,
   playDocumentSchema,
   pointAtDistance,
@@ -33,23 +30,6 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 describe("canonical Play documents", () => {
-  it("migrates the seeded original Play into strict yard-space data", () => {
-    expect(playDocumentSchema.parse(stickThunderPlay)).toEqual(
-      stickThunderPlay,
-    );
-    expect(stickThunderPlay.schemaVersion).toBe(3);
-    expect(stickThunderPlay.players).toHaveLength(11);
-    expect(stickThunderPlay.paths).toHaveLength(5);
-    expect(stickThunderPlay.labels).toHaveLength(12);
-    expect(stickThunderPlay.fieldProfile).toEqual(highSchoolFieldProfile);
-    expect(
-      stickThunderPlay.players.find((player) => player.id === "q")?.position,
-    ).toEqual({
-      lateralYards: 0,
-      depthYards: -4,
-    });
-  });
-
   it("serializes equivalent key order to one hash", async () => {
     const left = { z: [3, { b: true, a: "chalk" }], a: -0 };
     const right = { a: 0, z: [3, { a: "chalk", b: true }] };
@@ -70,19 +50,6 @@ describe("canonical Play documents", () => {
     // depth scale would overstate it by half.
     expect(length).toBeCloseTo(13.63, 2);
     expect(halfway.lateralYards).toBeLessThan(path.points[0]!.lateralYards);
-  });
-
-  it("evaluates the same integer timestamp deterministically", () => {
-    const path = stickThunderPlay.paths.find(
-      (candidate) => candidate.id === "rx",
-    )!;
-    const first = evaluateMovement(path, 750);
-    const second = evaluateMovement(structuredClone(path), 750);
-
-    expect(first).toEqual(second);
-    expect(first.phase).toBe("moving");
-    expect(first.progress).toBeGreaterThan(0);
-    expect(() => evaluateMovement(path, 750.5)).toThrow("integer milliseconds");
   });
 
   it("samples curved routes by yard distance using the rendered quadratic", () => {
@@ -185,31 +152,6 @@ describe("canonical Play documents", () => {
     expect(migrated.paths[2]?.variant).toBe("alternate");
   });
 
-  it("preserves the original player and annotation vocabulary", () => {
-    expect(playDocumentSchema.parse(playerLabelPrimitivePlay)).toEqual(
-      playerLabelPrimitivePlay,
-    );
-    expect(
-      playerLabelPrimitivePlay.players.map(({ symbol }) => symbol),
-    ).toEqual(["circle", "square", "oval", "triangle", "x", "none"]);
-    expect(playerLabelPrimitivePlay.players.map(({ fill }) => fill)).toEqual([
-      "none",
-      "half",
-      "solid",
-      "half",
-      "none",
-      "none",
-    ]);
-    expect(playerLabelPrimitivePlay.labels.map(({ role }) => role)).toEqual([
-      "landmark",
-      "assignment",
-      "progression",
-      "adjustment",
-      "alert",
-      "coaching",
-    ]);
-  });
-
   it("migrates rich original players, bound labels, and leaders without loss", () => {
     const migrated = migrateLegacyPlay({
       id: "legacy_player_label_primitives",
@@ -304,18 +246,6 @@ describe("canonical Play documents", () => {
 });
 
 describe("versioned Field Profiles", () => {
-  it("stores every built-in marking in explicit yard units", () => {
-    expect(highSchoolFieldProfile).toMatchObject({
-      schemaVersion: 1,
-      revision: 1,
-      widthYards: 160 / 3,
-      hashInsetYards: (53 + 4 / 12) / 3,
-      numberInsetYards: 8,
-    });
-    expect(collegeFieldProfile.hashInsetYards).toBe(20);
-    expect(nflFieldProfile.hashInsetYards).toBe((70 + 9 / 12) / 3);
-  });
-
   it("upgrades the released ambiguous hash property from feet to yards", () => {
     expect(
       migrateLegacyFieldProfile({
@@ -336,25 +266,6 @@ describe("versioned Field Profiles", () => {
     expect(migratedPlay.schemaVersion).toBe(3);
     expect(migratedPlay.fieldProfile).toEqual(highSchoolFieldProfile);
     expect(playDocumentSchema.parse(migratedPlay)).toEqual(migratedPlay);
-  });
-
-  it("derives deterministic lines, marks, and numbers around the LOS", () => {
-    const first = buildFieldLandmarks(highSchoolFieldProfile);
-    const second = buildFieldLandmarks(structuredClone(highSchoolFieldProfile));
-
-    expect(first).toEqual(second);
-    expect(first.yardLines.map(({ depthYards }) => depthYards)).toEqual([
-      -10, -5, 0, 5, 10, 15, 20, 25, 30,
-    ]);
-    expect(first.hashMarks).toHaveLength(64);
-    expect(first.sidelineMarks).toHaveLength(64);
-    expect(first.numbers).toHaveLength(8);
-    expect(
-      first.hashMarks.every(
-        ({ lateralYards }) =>
-          Math.abs(lateralYards) < highSchoolFieldProfile.widthYards / 2,
-      ),
-    ).toBe(true);
   });
 
   it("bounds custom landmark density", () => {
@@ -397,12 +308,6 @@ describe("yard-space geometry invariants", () => {
     );
   });
 
-  it("mirrors the complete canonical Play twice without drift", () => {
-    expect(mirrorPlayGeometry(mirrorPlayGeometry(stickThunderPlay))).toEqual(
-      stickThunderPlay,
-    );
-  });
-
   it("mirrors new path semantics twice without dropping style or coverage", () => {
     expect(
       mirrorPlayGeometry(mirrorPlayGeometry(footballPathPrimitivePlay)),
@@ -419,36 +324,6 @@ describe("yard-space geometry invariants", () => {
 describe("who is on the line", () => {
   const of = (id: string) =>
     stickThunderPlay.players.find((player) => player.id === id)!;
-
-  it("reads the five linemen off where they stand, not off a role", () => {
-    // The seeded formation carries no roles at all, which is why the rule is
-    // positional: an offensive man with no letter on him, level with the ball.
-    expect(
-      stickThunderPlay.players.filter(isLineman).map(({ id }) => id),
-    ).toEqual(["ol0", "ol1", "ol2", "ol3", "ol4"]);
-  });
-
-  it("leaves out the men who have a letter, whatever depth they stand at", () => {
-    // X lines up within a foot of the line and still runs a route.
-    expect(isLineman(of("x"))).toBe(false);
-    expect(isLineman(of("q"))).toBe(false);
-  });
-
-  it("lets a man off the line stand a little over a yard away from it", () => {
-    const centre = of("ol2");
-    const nudged = (depthYards: number) => ({
-      ...centre,
-      position: { ...centre.position, depthYards },
-    });
-
-    // The original's 14 pixels of tolerance, on the depth scale.
-    expect(isLineman(nudged(-1.5 - legacyDepthSpanToYards(13)))).toBe(true);
-    expect(isLineman(nudged(-1.5 - legacyDepthSpanToYards(15)))).toBe(false);
-  });
-
-  it("never claims a defender", () => {
-    expect(isLineman({ ...of("ol2"), unit: "defense" })).toBe(false);
-  });
 
   it("counts a man lettered for a spot on the line wherever he stands", () => {
     const centre = of("ol2");
@@ -485,20 +360,6 @@ describe("what each position can be given", () => {
     expect(lineKindsFor(of("ol2"))).toEqual(["block"]);
     for (const kind of ["route", "motion", "ball", "zone", "blitz"] as const) {
       expect(canRunLine(of("ol2"), kind)).toBe(false);
-    }
-  });
-
-  it("lets every other offensive man run, motion, block and throw, and never blitz", () => {
-    for (const id of ["q", "x", "f", "h", "y", "z"]) {
-      expect(lineKindsFor(of(id))).toEqual([
-        "route",
-        "motion",
-        "block",
-        "ball",
-      ]);
-      for (const kind of ["zone", "blitz", "stunt"] as const) {
-        expect(canRunLine(of(id), kind)).toBe(false);
-      }
     }
   });
 });

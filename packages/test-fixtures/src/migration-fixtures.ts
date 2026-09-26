@@ -1,11 +1,9 @@
 import {
   playDocumentV1Schema,
   playDocumentV2Schema,
-  playEnvelopeV1Schema,
   stickThunderPlay,
   type PlayDocumentV1,
   type PlayDocumentV2,
-  type PlayEnvelopeV1,
 } from "@chalk/domain";
 
 const releasedPaths = stickThunderPlay.paths.map((path, index) => ({
@@ -43,12 +41,4 @@ export const releasedPlayDocumentV2: PlayDocumentV2 =
     schemaVersion: 2,
     ...releasedFields,
     fieldProfile: structuredClone(stickThunderPlay.fieldProfile),
-  });
-
-export const releasedPlayEnvelopeV1: PlayEnvelopeV1 =
-  playEnvelopeV1Schema.parse({
-    schemaVersion: 1,
-    kind: "chalk-play",
-    exportedAtMs: 1_786_000_000_000,
-    play: releasedPlayDocumentV2,
   });

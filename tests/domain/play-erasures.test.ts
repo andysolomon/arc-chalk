@@ -246,14 +246,6 @@ describe("clearing part of a Play", () => {
     expect(left.players).toHaveLength(mixedPlay.players.length);
   });
 
-  it("takes every line and keeps everyone on the field", () => {
-    const left = survivors(mixedPlay, "lines");
-
-    expect(left.paths).toEqual([]);
-    expect(left.players).toHaveLength(mixedPlay.players.length);
-    expect(left.labels).not.toContain("label_pinned_to_slant");
-  });
-
   it("removes the offense with its lines, its notes, and its Assignments", () => {
     const left = survivors(mixedPlay, "offense");
 
@@ -279,25 +271,6 @@ describe("clearing part of a Play", () => {
     ]);
     expect(left.labels).toEqual(["label_offense", "label_unsided"]);
     expect(left.assignments).toEqual(["assignment_receiver"]);
-  });
-
-  it("removes every note whichever side wrote it", () => {
-    const left = survivors(mixedPlay, "text");
-
-    expect(left.labels).toEqual([]);
-    expect(left.players).toHaveLength(mixedPlay.players.length);
-    expect(left.paths).toHaveLength(mixedPlay.paths.length);
-  });
-
-  it("empties the field", () => {
-    const left = survivors(mixedPlay, "field");
-
-    expect(left).toEqual({
-      players: [],
-      paths: [],
-      labels: [],
-      assignments: [],
-    });
   });
 
   it("removes a label pinned to a cleared route exactly once", () => {

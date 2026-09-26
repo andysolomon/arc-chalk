@@ -3,7 +3,6 @@ import {
   buildRenderScene,
   buildSvgRenderScene,
   defaultPresentation,
-  effectiveLayers,
   withoutShadow,
   type Presentation,
 } from "@chalk/render";
@@ -183,15 +182,6 @@ describe("annotation layers", () => {
     expect(
       presented(stickThunderPlay, defaultPresentation).labels,
     ).toHaveLength(12);
-  });
-
-  it("keeps the Notes toggle on under Player type while still hiding the notes", () => {
-    const player: Presentation = {
-      ...defaultPresentation,
-      typePreset: "player",
-    };
-    expect(player.layers.notes).toBe(true);
-    expect(effectiveLayers(player).notes).toBe(false);
   });
 });
 

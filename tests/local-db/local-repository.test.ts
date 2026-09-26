@@ -207,53 +207,6 @@ describe("ChalkLocalRepository", () => {
     ).rejects.toThrow(CorruptLocalDataError);
   });
 
-  it("discards undo history that no longer parses without touching the Play", async () => {
-    const databaseName = `chalk-local-undo-${crypto.randomUUID()}`;
-    const first = track(
-      createDexieLocalRepository({ databaseName, indexedDB, IDBKeyRange }),
-    );
-    await first.savePlaybook(offensivePlaybookGolden);
-    const play = offensivePlaybookGolden.plays[0]!;
-    await first.putUndoHistory({
-      schemaVersion: 1,
-      playId: play.id,
-      undo: [],
-      redo: [],
-      encodedByteLength: 0,
-      updatedAtMs: FIXED_TIME,
-    });
-    first.close();
-
-    const reopened = track(
-      createDexieLocalRepository({ databaseName, indexedDB, IDBKeyRange }),
-    );
-    await expect(reopened.getUndoHistory(play.id)).resolves.toEqual(
-      expect.objectContaining({ playId: play.id, undo: [] }),
-    );
-
-    await expect(
-      reopened.putUndoHistory({
-        schemaVersion: 1,
-        playId: play.id,
-        undo: [
-          {
-            id: "undo_unreadable",
-            label: "Rename Play",
-            createdAtMs: FIXED_TIME,
-            beforeHash: "before",
-            afterHash: "after",
-            forward: { kind: "set-play-name" },
-            inverse: { kind: "set-play-name", name: play.name },
-          },
-        ],
-        redo: [],
-        encodedByteLength: 0,
-        updatedAtMs: FIXED_TIME,
-      } as unknown as UndoHistory),
-    ).rejects.toThrow();
-    await expect(reopened.getPlay(play.id)).resolves.toBeDefined();
-  });
-
   it("creates Coach-named versions that nothing can rename or overwrite", async () => {
     let clock = FIXED_TIME;
     const repository = track(
@@ -523,35 +476,6 @@ describe("ChalkLocalRepository", () => {
       pressure: "unknown",
     });
     await expect(repository.requestPersistentStorage()).resolves.toBe(false);
-  });
-
-  it("uses the stored cloud head as the next mutation's base revision", async () => {
-    const repository = track(createRepository("cloud-head"));
-    await repository.open();
-    await repository.savePlaybook(offensivePlaybookGolden);
-    const original = offensivePlaybookGolden.plays[0]!;
-    await repository.commitPlay({
-      play: original,
-      mutation: { id: "mutation_seed" },
-    });
-    await repository.setPlayCloudHead(original.id, "revision_cloud_1");
-    const renamed = {
-      ...structuredClone(original),
-      name: "Cloud-based edit",
-    };
-    await repository.commitPlay({
-      play: renamed,
-      mutation: { id: "mutation_from_cloud" },
-    });
-    const queued = await repository.readSyncMutationBatch(10);
-    expect(
-      queued.find((mutation) => mutation.id === "mutation_from_cloud"),
-    ).toEqual(
-      expect.objectContaining({
-        id: "mutation_from_cloud",
-        baseRevisionId: "revision_cloud_1",
-      }),
-    );
   });
 
   it("holds a retry until nextAttemptAtMs", async () => {

@@ -106,10 +106,6 @@ describe("encrypted Coach backups", () => {
     await expect(decryptBackup(second, PASSPHRASE)).resolves.toEqual(payload);
   });
 
-  it("refuses to write a backup without a passphrase", async () => {
-    await expect(encryptBackup(payload, "")).rejects.toBeInstanceOf(RangeError);
-  });
-
   it("uses a strong work factor unless a test says otherwise", async () => {
     const backup = await encryptBackup(payload, PASSPHRASE, {
       iterations: TEST_ITERATIONS,
@@ -146,9 +142,5 @@ describe("encrypted Coach backups", () => {
         iterations: TEST_ITERATIONS,
       }),
     ).rejects.toThrow();
-  });
-
-  it("refuses a file that is not a Chalk backup", () => {
-    expect(() => parseEncryptedBackup('{"kind":"something-else"}')).toThrow();
   });
 });

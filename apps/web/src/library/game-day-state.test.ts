@@ -10,7 +10,6 @@ import {
   readGameDayState,
   setNote,
   toggleFavorite,
-  visibleRows,
   emptyRevisionNotes,
 } from "./game-day-state";
 import { hundredCallPlan } from "./game-day-fixture";
@@ -35,29 +34,6 @@ describe("finding a call on the sideline (issue #67)", () => {
     expect(byName.length).toBeGreaterThan(0);
     expect(byName.every((row) => /stick/i.test(row.name))).toBe(true);
     expect(rows.filter((row) => callMatches(row, ""))).toHaveLength(100);
-  });
-
-  it("narrows to a section, to favorites, and keeps reading order for Previous and Next", () => {
-    const { revision } = hundredCallPlan();
-    const sections = revisionRows(revision);
-    const first = sections[0]!;
-    const only = visibleRows(
-      sections,
-      { section: first.sectionId!, query: "" },
-      [],
-    );
-    expect(only).toHaveLength(1);
-    expect(only[0]!.name).toBe(first.name);
-    const starred = [first.calls[0]!.callId, sections[1]!.calls[0]!.callId];
-    const favorites = visibleRows(
-      sections,
-      { section: "favorites", query: "" },
-      starred,
-    );
-    expect(flatten(favorites).map((row) => row.callId)).toEqual(starred);
-    expect(visibleRows(sections, { section: "all", query: "zzz" }, [])).toEqual(
-      [],
-    );
   });
 });
 

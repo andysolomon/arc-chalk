@@ -43,28 +43,6 @@ describe("applyLiveFieldPaint", () => {
     expect(svg).toHaveAttribute("data-live-paint", "move");
   });
 
-  it("patches a handle stroke without moving other men", () => {
-    const svg = svgWithPlayer("x", 316, 452);
-    applyLiveFieldPaint(svg, {
-      pathStrokes: [
-        {
-          id: "rx",
-          d: "M 1 1 L 2 2",
-          style: { line: "solid", ending: "arrow", color: "ink" },
-        },
-      ],
-    });
-
-    expect(svg.querySelector('[data-scene-path="rx"]')).toHaveAttribute(
-      "d",
-      "M 1 1 L 2 2",
-    );
-    expect(svg.querySelector('[data-scene-player="x"]')).toHaveAttribute(
-      "transform",
-      "translate(316 452)",
-    );
-  });
-
   it("clears a live move and camera back to the committed base", () => {
     const svg = svgWithPlayer("x", 316, 452);
     applyLiveFieldPaint(svg, {

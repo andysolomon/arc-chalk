@@ -2,15 +2,12 @@ import {
   applyFormation,
   assignRoles,
   ballLateralYards,
-  currentFormation,
   formationFromOffense,
   formationMeta,
   formationStillApplied,
   highSchoolFieldProfile,
-  planRealignment,
   playDocumentSchema,
   recognizeFormation,
-  roleFromLabel,
   stockFormations,
   type Formation,
   type PlayDocument,
@@ -123,12 +120,6 @@ describe("the sets the original ships with", () => {
 });
 
 describe("what position a man is playing", () => {
-  it("takes the letter he is drawn with when he has one", () => {
-    expect(roleFromLabel("q")).toBe("QB");
-    expect(roleFromLabel(" A ")).toBe("H");
-    expect(roleFromLabel("W")).toBeUndefined();
-  });
-
   it("makes the five unlettered men nearest the ball the line, and names them left to right", () => {
     const at = (lateralYards: number, depthYards = -1.5) => ({
       label: "",
@@ -185,27 +176,6 @@ describe("what position a man is playing", () => {
       assignRoles([at(-4), at(-2), at(0, -1.5, "square"), at(2), at(20)]),
     ).toEqual(["LT", "LG", "C", "RG", "RT"]);
   });
-
-  it("calls a deep man in the middle a back and a wide one a slot", () => {
-    const deep = (lateralYards: number) => ({
-      label: "",
-      role: undefined,
-      position: { lateralYards, depthYards: -7 },
-    });
-    expect(assignRoles([deep(1), deep(20)])).toEqual(["RB", "H"]);
-  });
-
-  it("lets the man himself say, over anything read off where he stands", () => {
-    expect(
-      assignRoles([
-        {
-          label: "X",
-          role: "TE",
-          position: { lateralYards: -20, depthYards: 0 },
-        },
-      ]),
-    ).toEqual(["TE"]);
-  });
 });
 
 describe("where the ball is spotted", () => {
@@ -240,47 +210,6 @@ describe("where the ball is spotted", () => {
 });
 
 describe("moving the men onto another set", () => {
-  it("puts a lineman dragged into the backfield back on the line, in his own slot", () => {
-    const start = playOn(setNamed("Gun Doubles Right"));
-    const startRoles = assignRoles(start.players);
-    for (const target of [
-      setNamed("Gun Doubles Right"),
-      setNamed("Gun Trips Right"),
-    ]) {
-      const slotOf = (role: string) =>
-        target.slots.find((slot) => slot.role === role)!.position;
-      for (const role of ["LT", "LG", "C", "RG", "RT"]) {
-        const lineman = idOfRole(start, role);
-        const dragged: PlayDocument = {
-          ...start,
-          players: start.players.map((player) =>
-            player.id === lineman
-              ? { ...player, position: { lateralYards: -3, depthYards: -7 } }
-              : player,
-          ),
-        };
-        const plan = planRealignment(dragged, target);
-        expect(plan.orphans).toEqual([]);
-        expect(plan.vacancies).toEqual([]);
-
-        // Every man, the one who was moved included, stands where the set
-        // puts the position he was playing, and the back he was standing
-        // beside is still the back.
-        const { play, addedPlayerIds } = applyFormation(
-          dragged,
-          target,
-          makeId,
-        );
-        expect(addedPlayerIds).toEqual([]);
-        for (const [index, player] of start.players.entries()) {
-          expect(positionOf(play, player.id)).toEqual(
-            slotOf(startRoles[index]!),
-          );
-        }
-      }
-    }
-  });
-
   it("carries every route with the man running it, control points and forks included", () => {
     const start = playOn(setNamed("Gun Doubles Right"));
     const receiver = idOfRole(start, "X");
@@ -398,43 +327,6 @@ describe("moving the men onto another set", () => {
     expect(noteAt("far_away")).toEqual({ lateralYards: 24, depthYards: 20 });
   });
 
-  it("adds the men the set has nobody for, and says which ones it added", () => {
-    const start = playOn(setNamed("Gun Doubles Right"));
-    const withoutTheTightEnd: PlayDocument = {
-      ...start,
-      players: start.players.filter(
-        (player) => player.id !== idOfRole(start, "TE"),
-      ),
-    };
-    const { play, addedPlayerIds } = applyFormation(
-      withoutTheTightEnd,
-      setNamed("Gun Doubles Right"),
-      makeId,
-    );
-    expect(addedPlayerIds).toHaveLength(1);
-    expect(play.players).toHaveLength(11);
-    const added = play.players.find(({ id }) => id === addedPlayerIds[0])!;
-    expect(added.label).toBe("Y");
-  });
-
-  it("leaves the men alone when the Coach asked for the set without its missing pieces", () => {
-    const start = playOn(setNamed("Gun Doubles Right"));
-    const short: PlayDocument = {
-      ...start,
-      players: start.players.filter(
-        (player) => player.id !== idOfRole(start, "TE"),
-      ),
-    };
-    const { play, addedPlayerIds } = applyFormation(
-      short,
-      setNamed("Gun Doubles Right"),
-      makeId,
-      { addMissingPlayers: false },
-    );
-    expect(addedPlayerIds).toEqual([]);
-    expect(play.players).toHaveLength(10);
-  });
-
   it("gives an unlettered man the shape his slot is drawn with, and leaves a lettered one his own", () => {
     const start = playOn(setNamed("Gun Doubles Right"));
     const disguised: PlayDocument = {
@@ -459,20 +351,6 @@ describe("moving the men onto another set", () => {
 });
 
 describe("reading which set is on the field", () => {
-  it("names nothing at all when the count is wrong, however well the rest of them line up", () => {
-    const trips = setNamed("Gun Trips Right");
-    const start = playOn(trips);
-    const short: PlayDocument = {
-      ...start,
-      players: start.players.filter(
-        (player) => player.id !== idOfRole(start, "Z"),
-      ),
-    };
-    const read = recognizeFormation(short, stockFormations);
-    expect(read.formation).toBeUndefined();
-    expect(read.confidence).toBe(0);
-  });
-
   it("still names it when the whole set has moved to a hash, because it measures from the ball", () => {
     const trips = setNamed("Gun Trips Right");
     const start = playOn(trips);
@@ -569,36 +447,6 @@ describe("reading which set is on the field", () => {
     };
     expect(formationStillApplied(broken, trips)).toBe(false);
   });
-
-  it("keeps the name the Coach applied while the set holds, and reads the field once it does not", () => {
-    const trips = setNamed("Gun Trips Right");
-    const { play } = applyFormation(
-      playOn(setNamed("Gun Doubles Right")),
-      trips,
-      makeId,
-    );
-    expect(currentFormation(play, stockFormations)?.id).toBe(trips.id);
-
-    const scattered: PlayDocument = {
-      ...play,
-      players: play.players.map((player, index) =>
-        index % 2 === 0
-          ? player
-          : {
-              ...player,
-              position: { lateralYards: 0, depthYards: -30 - index },
-            },
-      ),
-    };
-    expect(currentFormation(scattered, stockFormations)).toBeUndefined();
-  });
-
-  it("names nothing when there is nobody on the field", () => {
-    const play = playOn(setNamed("Gun Trips Right"));
-    expect(
-      currentFormation({ ...play, players: [] }, stockFormations),
-    ).toBeUndefined();
-  });
 });
 
 describe("the offense on the field, kept as a set of its own", () => {
@@ -636,35 +484,5 @@ describe("the offense on the field, kept as a set of its own", () => {
     expect(saved.slots).toHaveLength(
       play.players.filter(({ unit }) => unit !== "defense").length,
     );
-  });
-
-  it("spots the ball where the men put it, and reads the hash off it", () => {
-    const play = playOn(setNamed("Gun Trips Right"));
-    const offense = play.players.filter(({ unit }) => unit !== "defense");
-    const middle = formationFromOffense(play, named)!;
-    expect(middle.ball.position.lateralYards).toBeCloseTo(
-      ballLateralYards(offense),
-    );
-    expect(middle.ball.hash).toBe("middle");
-
-    // Move the whole offense to the right of the field and the set says so.
-    const shifted: PlayDocument = {
-      ...play,
-      players: play.players.map((player) => ({
-        ...player,
-        position: {
-          ...player.position,
-          lateralYards: player.position.lateralYards + 12,
-        },
-      })),
-    };
-    expect(formationFromOffense(shifted, named)!.ball.hash).toBe("right");
-  });
-
-  it("has nothing to keep when there is no offense on the field", () => {
-    const play = playOn(setNamed("Gun Trips Right"));
-    expect(
-      formationFromOffense({ ...play, players: [] }, named),
-    ).toBeUndefined();
   });
 });

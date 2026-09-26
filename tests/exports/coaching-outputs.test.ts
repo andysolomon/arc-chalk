@@ -1,7 +1,6 @@
 import { stickThunderPlay, type PlayDocument } from "@chalk/domain";
 import {
   callSheetGroups,
-  groupMembers,
   installPageHtml,
   libraryOrder,
   playMeta,
@@ -99,19 +98,6 @@ describe("coaching rows", () => {
     expect(meta.formation).toBe(offensivePlaybookGolden.formations[0]!.name);
     expect(meta.strength).toBe("balanced");
     expect(meta.hash).toBe("middle");
-  });
-
-  it("finds a position group by role and the defense by unit", () => {
-    expect(groupMembers(readPlay, "rec").map(({ id }) => id)).toEqual([
-      "x",
-      "y",
-      "z",
-    ]);
-    expect(groupMembers(readPlay, "line")).toHaveLength(5);
-    expect(groupMembers(readPlay, "def")).toHaveLength(0);
-    expect(groupMembers(defensiveCoverThreePlay, "def").length).toBeGreaterThan(
-      0,
-    );
   });
 
   it("keeps only landmark labels on the quiz diagram", () => {

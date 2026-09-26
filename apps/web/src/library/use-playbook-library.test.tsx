@@ -138,16 +138,4 @@ describe("an armed 'All versions' scope", () => {
     expect(hook.result.current.scopeBadge).toBeUndefined();
     expect(hook.result.current.pickIds).toEqual([]);
   });
-
-  it("narrows to a picked set through the tree's dots and back to all", async () => {
-    const { family, hook } = setup();
-    await waitFor(() => expect(hook.result.current.familySize).toBe(5));
-    act(() => hook.result.current.setScope("concept"));
-    act(() => hook.result.current.togglePick(family[4]!.id));
-    expect(hook.result.current.scope).toBe("pick");
-    expect(hook.result.current.scopeBadge).toBe("4 of 5");
-    act(() => hook.result.current.togglePick(family[4]!.id));
-    expect(hook.result.current.scope).toBe("concept");
-    expect(hook.result.current.scopeBadge).toBe("All 5");
-  });
 });

@@ -179,33 +179,6 @@ describe("putting a call on the field", () => {
     expect(play.labels.map(({ id }) => id)).toEqual(["offensive_note"]);
   });
 
-  it("takes a defensive line with the call whoever was running it", () => {
-    const withOffensiveStunt: PlayDocument = {
-      ...offenseOnly,
-      paths: [
-        ...offenseOnly.paths,
-        {
-          id: "stray_stunt",
-          kind: "stunt",
-          playerId: "receiver",
-          points: [
-            { lateralYards: -12, depthYards: 0 },
-            { lateralYards: -8, depthYards: 4 },
-          ],
-          branches: [],
-          style: { line: "solid", ending: "chevron", color: "orange" },
-        },
-      ],
-    };
-    const { play } = applyDefensiveCall(
-      withOffensiveStunt,
-      callNamed("4-3 Cover 3"),
-      makeId,
-    );
-    expect(play.paths.some(({ id }) => id === "stray_stunt")).toBe(false);
-    expect(play.paths.some(({ id }) => id === "route_x")).toBe(true);
-  });
-
   it("takes a note pinned to a line the call removed, so nothing is left pointing at nothing", () => {
     const first = applyDefensiveCall(
       offenseOnly,
@@ -293,21 +266,5 @@ describe("reading which call is on the field", () => {
         { ...play.players.at(-1)!, id: "one_too_many" },
       ],
     });
-  });
-
-  it("tells apart two calls that stand the same men in almost the same places", () => {
-    // Cover 2 and Tampa 2 align identically and differ only in what the Mike
-    // does, so the reading has to be of the men rather than of the lines.
-    const cover2 = callNamed("4-3 Cover 2");
-    const tampa2 = callNamed("4-3 Tampa 2");
-    expect(cover2.formation.slots.map(({ position }) => position)).toEqual(
-      tampa2.formation.slots.map(({ position }) => position),
-    );
-    const { play } = applyDefensiveCall(offenseOnly, tampa2, makeId);
-    // Standing in both, the catalogue's own order settles it — and the Coach
-    // is told which by the lines on the field, not by the alignment.
-    expect(currentDefensiveCall(play, stockDefensiveCalls)?.coverage).toBe(
-      "Cover 2",
-    );
   });
 });

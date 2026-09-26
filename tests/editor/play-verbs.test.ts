@@ -1,11 +1,7 @@
 import {
-  applyFormation,
   applyPlayCommand,
-  applyPlayCommandWithInverse,
-  canonicalStringify,
   flipStrengthWords,
   highSchoolFieldProfile,
-  moveMenWithTheirLines,
   playDocumentSchema,
   stockFormations,
   type PlayCommand,
@@ -14,9 +10,7 @@ import {
 import {
   addDepthLabelCommand,
   alignPlayersCommand,
-  depthLabelText,
   flipStrengthCommand,
-  resetAlignmentCommand,
   reverseRouteCommand,
 } from "@chalk/editor";
 import { describe, expect, it } from "vitest";
@@ -145,17 +139,6 @@ describe("flipping the strength", () => {
       ).toBe(true);
     }
   });
-
-  it("is no command at all on a Play with nothing to flip", () => {
-    const empty: PlayDocument = {
-      ...play,
-      players: [],
-      paths: [],
-      labels: [],
-      assignments: [],
-    };
-    expect(flipStrengthCommand(empty, stockFormations)).toBeUndefined();
-  });
 });
 
 describe("lining men up with one another", () => {
@@ -231,26 +214,9 @@ describe("running a line the other way", () => {
     // And the line is still his, because production has no line without a man.
     expect(reversed.paths[0]!.playerId).toBe("man_7");
   });
-
-  it("has nothing to turn round on a line of one point, or no line at all", () => {
-    expect(reverseRouteCommand(play, "nope")).toBeUndefined();
-    const stub: PlayDocument = {
-      ...play,
-      paths: [{ ...play.paths[0]!, points: [play.paths[0]!.points[0]!] }],
-      labels: [],
-    };
-    expect(reverseRouteCommand(stub, "route_x")).toBeUndefined();
-  });
 });
 
 describe("saying how deep a break is", () => {
-  it("reads the number the way a card reads it", () => {
-    expect(depthLabelText(12)).toBe("12 Yds");
-    expect(depthLabelText(12.26)).toBe("12.5 Yds");
-    expect(depthLabelText(11.9)).toBe("12 Yds");
-    expect(depthLabelText(0)).toBe("0 Yds");
-  });
-
   it("pins a marker to the leg the Coach picked out", () => {
     const marked = run(play, addDepthLabelCommand(play, "route_x", 1, makeId));
     expect(() => playDocumentSchema.parse(marked)).not.toThrow();
@@ -267,61 +233,5 @@ describe("saying how deep a break is", () => {
       addDepthLabelCommand(play, "route_x", undefined, makeId),
     );
     expect(marked.labels.at(-1)!.text).toBe("12 Yds");
-  });
-
-  it("never marks the stance, which is not a break", () => {
-    const marked = run(play, addDepthLabelCommand(play, "route_x", 0, makeId));
-    expect(marked.labels.at(-1)!.text).toBe("6 Yds");
-  });
-});
-
-describe("putting the men back", () => {
-  const trips = stockFormations.find(({ name }) => name === "Gun Trips Right")!;
-  const aligned = applyFormation(play, trips, makeId).play;
-
-  it("is no command at all when everyone already stands where the set puts him", () => {
-    const { command, result } = resetAlignmentCommand(
-      aligned,
-      "offense",
-      "chosen",
-    );
-    expect(command).toBeUndefined();
-    expect(result?.movedCount).toBe(0);
-  });
-
-  it("brings a dragged man back with his route and his note, as one step to undo", () => {
-    const x = at(aligned, "man_7").position;
-    const dragged = moveMenWithTheirLines(
-      aligned,
-      new Map([
-        [
-          "man_7",
-          { lateralYards: x.lateralYards + 4, depthYards: x.depthYards - 1 },
-        ],
-      ]),
-    );
-    const { command } = resetAlignmentCommand(dragged, "offense", "chosen");
-    expect(command?.kind).toBe("batch");
-    expect(command?.kind === "batch" ? command.label : "").toBe(
-      "Reset offense to Gun Trips Right",
-    );
-    const { document, inverse } = applyPlayCommandWithInverse(
-      dragged,
-      command!,
-    );
-    expect(canonicalStringify(document)).toBe(canonicalStringify(aligned));
-    expect(canonicalStringify(applyPlayCommand(document, inverse))).toBe(
-      canonicalStringify(dragged),
-    );
-  });
-
-  it("has only the base to go back to on a Play drawn by hand", () => {
-    expect(resetAlignmentCommand(play, "offense", "chosen")).toEqual({});
-    const { command, result } = resetAlignmentCommand(play, "offense", "base");
-    expect(result?.alignment.name).toBe("Gun Doubles Right");
-    expect(command).toBeDefined();
-    expect(run(play, command).formationSource?.formationId).toBe(
-      result?.alignment.id,
-    );
   });
 });

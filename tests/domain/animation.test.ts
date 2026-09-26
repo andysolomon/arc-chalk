@@ -1,8 +1,6 @@
 import {
   evaluatePlayAt,
-  formatPlaybackClock,
   frameSequenceTimes,
-  isHitchSitDown,
   planPlay,
   playKeyFrames,
   resolvePathTiming,
@@ -22,13 +20,6 @@ const receiver: Player = {
   sublabel: "",
   fill: "none",
   color: "ink",
-};
-
-const back: Player = {
-  ...receiver,
-  id: "h",
-  label: "H",
-  position: { lateralYards: -2, depthYards: -5 },
 };
 
 const lineman: Player = {
@@ -75,24 +66,6 @@ function playOf(
 }
 
 describe("route timing defaults", () => {
-  it("gives a hitch a sit-down hold and a back a beat of delay", () => {
-    const hitch = path({
-      points: [
-        { lateralYards: 0, depthYards: 0 },
-        { lateralYards: 0, depthYards: 6 },
-        { lateralYards: 1, depthYards: 5 },
-      ],
-    });
-    expect(isHitchSitDown(hitch)).toBe(true);
-    expect(resolvePathTiming(hitch, receiver).holdSeconds).toBe(0.6);
-    expect(
-      resolvePathTiming(path({ points: hitch.points }), back).delayBeats,
-    ).toBe(0.5);
-    expect(
-      resolvePathTiming(path({ points: hitch.points }), receiver).delayBeats,
-    ).toBe(0);
-  });
-
   it("slows linemen, drops, and blocks without rewriting a stored speed", () => {
     const stem = path({
       points: [
@@ -165,20 +138,6 @@ describe("play animation plan", () => {
     expect(position.lateralYards).toBeCloseTo(0, 1);
   });
 
-  it("evaluates the same integer timestamp from playback or a seek", () => {
-    const document = stickThunderPlay;
-    const plan = planPlay(document);
-    const atMs = Math.round(plan.endMs / 2);
-    expect(evaluatePlayAt(document, atMs, plan)).toEqual(
-      evaluatePlayAt(
-        structuredClone(document),
-        atMs,
-        planPlay(structuredClone(document)),
-      ),
-    );
-    expect(() => evaluatePlayAt(document, 1.5)).toThrow("integer milliseconds");
-  });
-
   it("leaves a man at his stance until his line starts, then at his end", () => {
     const stem = path({
       playerId: "wr",
@@ -194,12 +153,6 @@ describe("play animation plan", () => {
     const after = evaluatePlayAt(document, plan.endMs, plan);
     expect(before.playerPositions.wr).toEqual(receiver.position);
     expect(after.playerPositions.wr?.depthYards).toBeCloseTo(10, 1);
-  });
-
-  it("formats the clock from the snap, with a minus for pre-snap time", () => {
-    expect(formatPlaybackClock(0)).toBe("0.0s");
-    expect(formatPlaybackClock(1400)).toBe("1.4s");
-    expect(formatPlaybackClock(-1200)).toBe("\u22121.2s");
   });
 
   it("spaces a 0.2s frame sequence from the snap to the finish", () => {

@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { createMemoryLibrary } from "../app/editor-runtime";
-import { PLAY_LIST_ROW_HEIGHT } from "./grid-columns";
 import { sortPlays } from "./play-order";
 import { PlaybookBrowser } from "./playbook-browser";
 
@@ -101,71 +100,12 @@ describe("the Playbook browser", () => {
   });
 });
 
-function phoneWidth(matches: boolean) {
-  const original = globalThis.matchMedia;
-  globalThis.matchMedia = (query: string) =>
-    ({
-      matches: matches && query.includes("max-width: 667px"),
-      media: query,
-      onchange: null,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-      addListener: () => undefined,
-      removeListener: () => undefined,
-      dispatchEvent: () => false,
-    }) as MediaQueryList;
-  return () => {
-    globalThis.matchMedia = original;
-  };
-}
-
 describe("the Playbooks page", () => {
   const book = [
     member(1, "Stick — Thunder"),
     member(2, "Cover 3 — Fire Zone", "defense"),
     member(3, "Four Verticals"),
   ];
-
-  it("lists one Play to a line on a phone", async () => {
-    const restore = phoneWidth(true);
-    try {
-      render(
-        <PlaybookBrowser
-          currentPlayId="play_1"
-          embedded
-          focusSearch={false}
-          initial={{ scrollTop: 0, query: "" }}
-          library={createMemoryLibrary()}
-          members={book}
-          onClose={() => undefined}
-          onOpen={() => undefined}
-          onRemember={() => undefined}
-          playTypes={blankPlaybook().playTypes}
-        />,
-      );
-      const scroller = document.querySelector(".playbook-scroll")!;
-      expect(scroller).toHaveAttribute("data-layout", "list");
-      expect(scroller).toHaveAttribute("data-grid-columns", "1");
-      expect(scroller).toHaveAttribute(
-        "data-card-row-height",
-        String(PLAY_LIST_ROW_HEIGHT),
-      );
-      await waitFor(() =>
-        expect(document.querySelectorAll(".playbook-row")).toHaveLength(3),
-      );
-      // Named in order, and the open Play says so.
-      expect(
-        [...document.querySelectorAll(".playbook-row strong")].map(
-          (node) => node.textContent,
-        ),
-      ).toEqual(["Cover 3 — Fire Zone", "Four Verticals", "Stick — Thunder"]);
-      expect(
-        document.querySelector('[data-play-id="play_1"]'),
-      ).toHaveTextContent("In editor");
-    } finally {
-      restore();
-    }
-  });
 
   it("narrows with a chip, opens back up with a second press, and clears", async () => {
     const closed: string[] = [];

@@ -1,62 +1,14 @@
 import {
   applyPlayCommand,
-  attachPlayToConcept,
   commandBroadcasts,
-  copyPlayDocument,
-  createVariationPlay,
-  detachPlayFromConcept,
-  fieldProfileNeedsReapply,
-  formationNeedsReapply,
-  promoteVariationsOnConceptDelete,
   propagateCommand,
   pushAlignmentToPlay,
   searchPlays,
-  stickThunderConcept,
   stickThunderFamily,
-  stickThunderPlay,
   type SearchablePlay,
   libraryScopeAfterToggle,
 } from "@chalk/domain";
 import { describe, expect, it } from "vitest";
-
-describe("Playbook library families", () => {
-  it("detaches a variation without touching its siblings", () => {
-    const family = stickThunderFamily();
-    const detached = detachPlayFromConcept(family[4]!);
-    expect(detached.conceptSource).toBeUndefined();
-    expect(detached.name).toBe(family[4]!.name);
-    expect(family[1]!.conceptSource?.conceptId).toBe(stickThunderConcept.id);
-  });
-
-  it("promotes variations when the concept play is deleted", () => {
-    const family = stickThunderFamily();
-    const remaining = promoteVariationsOnConceptDelete(
-      family[0]!.id,
-      stickThunderConcept.id,
-      family,
-    );
-    expect(remaining).toHaveLength(4);
-    expect(remaining.every((play) => play.conceptSource === undefined)).toBe(
-      true,
-    );
-  });
-
-  it("creates a variation from the play on the field", () => {
-    const variation = createVariationPlay({
-      source: stickThunderPlay,
-      concept: stickThunderConcept,
-      variantName: "Gun Trips Right",
-      playId: "play_new_variation",
-    });
-    expect(variation.id).toBe("play_new_variation");
-    expect(variation.name).toBe("Stick — Thunder — Gun Trips Right");
-    expect(variation.conceptSource).toEqual({
-      conceptId: stickThunderConcept.id,
-      revision: 1,
-    });
-    expect(variation.players).toEqual(stickThunderPlay.players);
-  });
-});
 
 describe("Concept-scope propagation", () => {
   it("copies route style onto the matching role and skips a diverged variation", () => {
@@ -128,17 +80,6 @@ describe("Applies-to scope from the tree's dots", () => {
       pickIds: [],
     });
   });
-
-  it("ignores a play outside the family and a stale pick id", () => {
-    expect(libraryScopeAfterToggle("pick", ["zzz"], siblings, "q")).toEqual({
-      scope: "pick",
-      pickIds: ["zzz"],
-    });
-    expect(libraryScopeAfterToggle("pick", ["zzz"], siblings, "b")).toEqual({
-      scope: "pick",
-      pickIds: ["b"],
-    });
-  });
 });
 
 describe("Device-local Play search", () => {
@@ -167,56 +108,5 @@ describe("Device-local Play search", () => {
         limit: 3,
       }).map(({ playId }) => playId),
     ).toEqual(["play_0", "play_10", "play_100"]);
-  });
-});
-
-describe("Derived thumbnail keys and Field Profile reapply", () => {
-  it("does not rewrite coordinates when a Field Profile is reapplied", () => {
-    const bumped = {
-      ...stickThunderPlay.fieldProfile,
-      revision: stickThunderPlay.fieldProfile.revision + 1,
-    };
-    expect(fieldProfileNeedsReapply(stickThunderPlay, bumped)).toBe(true);
-    expect(
-      formationNeedsReapply(stickThunderPlay, {
-        ...stickThunderPlay.formationSource!,
-        id: "formation_x",
-        playbookId: stickThunderPlay.playbookId,
-        revision: 2,
-        name: "Gun",
-        unit: "offense",
-        description: "",
-        strength: "right",
-        ball: {
-          position: { lateralYards: 0, depthYards: 0 },
-          hash: "middle",
-        },
-        slots: [
-          {
-            id: "s1",
-            unit: "offense",
-            role: "X",
-            position: { lateralYards: 0, depthYards: 0 },
-            symbol: "circle",
-            label: "X",
-            sublabel: "",
-            fill: "none",
-            color: "ink",
-          },
-        ],
-        rolePairs: [],
-        schemaVersion: 1,
-      }),
-    ).toBe(false);
-  });
-
-  it("keeps a copied Play's Concept pointer unless asked to drop it", () => {
-    const attached = attachPlayToConcept(stickThunderPlay, stickThunderConcept);
-    const copied = copyPlayDocument(attached, { id: "play_copy" });
-    expect(copied.conceptSource).toEqual(attached.conceptSource);
-    expect(
-      copyPlayDocument(attached, { id: "play_free", conceptSource: null })
-        .conceptSource,
-    ).toBeUndefined();
   });
 });

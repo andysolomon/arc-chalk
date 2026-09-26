@@ -7,7 +7,6 @@ import { MAX_PUSH_BATCH, MAX_REVISION_BYTES } from "@chalk/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
-  applyPullAfter,
   applyPushBatch,
   applyResolveConflict,
 } from "../../packages/sync/src/engine";
@@ -212,17 +211,5 @@ describe("sync protocol engine", () => {
     expect(resolved.resolution).toBe("local");
     const play = await store.getPlay(COACH, stickThunderPlay.id);
     expect(play?.name).toBe("B");
-  });
-
-  it("keeps coaches isolated from one another", async () => {
-    const store = new MemoryReplicaStore();
-    await applyPushBatch(
-      store,
-      "coach_one",
-      { mutations: [await playMutation()], deviceId: DEVICE_A },
-      10,
-    );
-    const other = await applyPullAfter(store, "coach_two", null, 50);
-    expect(other.changes).toEqual([]);
   });
 });

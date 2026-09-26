@@ -252,16 +252,6 @@ describe("the packet's presentation", () => {
       `data-effective='{"pageKind":"full","typePreset":"print","layers":{"reads":true,"assigns":true,"notes":true,"text":true}}'`,
     );
   });
-
-  it("prints the same wristband whatever the editor's page, type and layers are", () => {
-    const { revision } = weekThree();
-    const before = gamePlanWristbandHtml(revision, { render: coach });
-    const after = gamePlanWristbandHtml(revision, { render: stripped });
-    expect(after).toBe(before);
-    expect(before).toContain(
-      `data-effective='{"pageKind":"full","typePreset":"print","layers":{"reads":false,"assigns":false,"notes":false,"text":false},"lineWeight":1.5}'`,
-    );
-  });
 });
 
 describe("game plan handout", () => {

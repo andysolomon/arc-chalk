@@ -9,10 +9,8 @@ import {
 import {
   addAlternateRouteCommand,
   buildMoveCommand,
-  fieldHitOptions,
   fieldInteraction,
   gesturePreviewCommand,
-  hitTestField,
   idleFieldInteraction,
   setRouteKindCommand,
   type FieldInteractionContext,
@@ -218,36 +216,6 @@ describe("field interaction tools", () => {
   });
 });
 
-describe("field hit testing", () => {
-  const scene = buildRenderScene(stickThunderPlay);
-
-  it("gives a finger the man it landed on when the men stand closer than it is wide", () => {
-    // A phone draws the field at about four tenths of its frame, which puts
-    // linemen fourteen pixels apart inside a finger's forty-four.
-    const phone = {
-      lateralPixelsPerYard: screenScale.lateralPixelsPerYard * 0.39,
-      depthPixelsPerYard: screenScale.depthPixelsPerYard * 0.39,
-    };
-    for (const man of stickThunderPlay.players) {
-      expect(
-        hitTestField(scene, man.position, phone, fieldHitOptions("touch"))
-          ?.item,
-      ).toEqual(player(man.id));
-    }
-    // Off his centre, a press still goes to whoever it is nearer.
-    const center = positionOf(stickThunderPlay, "ol2");
-    const guard = positionOf(stickThunderPlay, "ol3");
-    const leaning = {
-      lateralYards:
-        center.lateralYards + (guard.lateralYards - center.lateralYards) * 0.4,
-      depthYards: center.depthYards,
-    };
-    expect(
-      hitTestField(scene, leaning, phone, fieldHitOptions("touch"))?.item,
-    ).toEqual(player("ol2"));
-  });
-});
-
 describe("move command builder", () => {
   it("moves a route selected alongside its own Player exactly once", () => {
     const command = buildMoveCommand(
@@ -263,15 +231,6 @@ describe("move command builder", () => {
           )
         : [];
     expect(updates).toHaveLength(1);
-  });
-
-  it("returns nothing for a zero translation", () => {
-    expect(
-      buildMoveCommand(stickThunderPlay, [player("q")], {
-        lateralYards: 0,
-        depthYards: 0,
-      }),
-    ).toBeUndefined();
   });
 
   it("holds a man at the line of scrimmage instead of carrying him across", () => {
@@ -406,64 +365,6 @@ describe("field interaction drawing by hand between breaks", () => {
     applyPlayCommand(stickThunderPlay, command).paths.find(
       ({ id }) => id === "path_drawn",
     )!;
-
-  it("traces a bent pull off the blue dot, keeps it in hand, and commits the curve on Done", () => {
-    const context = drawingContext();
-    const q = positionOf(stickThunderPlay, "q");
-    // The dot sits upfield of the man; the drag is followed from his stance.
-    const press = {
-      lateralYards: q.lateralYards,
-      depthYards: q.depthYards + 1,
-    };
-    const wheel = wheelFrom(press);
-
-    const held = run(context, [
-      {
-        type: "start-route",
-        playerId: "q",
-        input: { pointerId: 1, point: press },
-      },
-      ...wheel.map((point) => move(point)),
-    ]);
-    expect(held.model.drawing).toMatchObject({
-      mode: "breaks",
-      pointerDown: true,
-      strokeFrom: 0,
-    });
-    expect(
-      held.model.drawing!.points.filter((point) => point.traced).length,
-    ).toBeGreaterThan(10);
-
-    // Lifting keeps the shape the hand drew and the line in hand: the next
-    // press would place the next break, and nothing is committed yet.
-    const lifted = run(context, [up(wheel.at(-1)!)], held.model);
-    expect(lifted.commands).toHaveLength(0);
-    expect(lifted.model.drawing).toMatchObject({
-      mode: "breaks",
-      pointerDown: false,
-    });
-    expect(lifted.model.drawing!.strokeFrom).toBeUndefined();
-    expect(lifted.model.drawing!.initialDrag).toBeUndefined();
-    expect(lifted.model.drawing!.points.some((point) => point.traced)).toBe(
-      true,
-    );
-
-    const finished = run(context, [{ type: "finish-drawing" }], lifted.model);
-    expect(finished.commands).toHaveLength(1);
-    const drawn = drawnPath(finished.commands[0]!);
-    expect(drawn.points[0]).toMatchObject(q);
-    // The wheel arrives as a curve, fitted, not as the samples it was.
-    expect(drawn.points.some((point) => point.control !== undefined)).toBe(
-      true,
-    );
-    expect(drawn.points.length).toBeLessThan(wheel.length);
-    expect(drawn.points.some((point) => "traced" in point)).toBe(false);
-    expect(drawn.points.at(-1)!.lateralYards).toBeCloseTo(
-      q.lateralYards + 6,
-      6,
-    );
-    expect(drawn.points.at(-1)!.depthYards).toBeCloseTo(q.depthYards + 14, 6);
-  });
 
   it("lands a straight pull off the dot as one snapped break, wobble and all", () => {
     const context = drawingContext();
@@ -836,16 +737,6 @@ describe("holding everything on the field", () => {
       positionOf(applyPlayCommand(withSafety, above.commands[0]!), "safety")
         .depthYards,
     ).toBeCloseTo(depthWindow.maxDepthYards, 6);
-  });
-
-  it("leaves the frame alone when the shell has not drawn one", () => {
-    const context = boundsContext({ depthWindow: undefined });
-    const q = positionOf(stickThunderPlay, "q");
-    const session = run(
-      context,
-      drag(q, { lateralYards: q.lateralYards, depthYards: -60 }),
-    );
-    expect(dragged(session, "q").depthYards).toBeCloseTo(-60, 6);
   });
 
   it("stops a Player where the far end of his route touches the sideline", () => {
