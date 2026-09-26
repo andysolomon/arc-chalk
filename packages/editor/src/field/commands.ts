@@ -10,6 +10,7 @@ import {
   flippedPlayerLabels,
   flipStrengthWords,
   canonicalStringify,
+  coverReceiver,
   defensiveLineKinds,
   deletePathsCommand,
   diffPlayDocuments,
@@ -1730,6 +1731,32 @@ export function applyLinePresetCommand(
     document,
     next,
     already ? `${preset.name} — off` : `Applied ${preset.name}`,
+  );
+  return command.commands.length > 0 ? command : undefined;
+}
+
+/**
+ * Gives a defender in man the receiver the Coach picked, or hands him back
+ * to the defense's best match. The store settles the rest in the same step
+ * (ADR 0060): he lines up on his new man, and the other men in man re-sort
+ * around the one taken from them. A receiver he already has, or a man who is
+ * not in man, is no command.
+ */
+export function coverReceiverCommand(
+  document: PlayDocument,
+  defenderId: string,
+  receiverId: string | undefined,
+): PlayCommand | undefined {
+  const next = coverReceiver(document, defenderId, receiverId);
+  if (next === document) return undefined;
+  const defender = document.players.find(({ id }) => id === defenderId);
+  const receiver = document.players.find(({ id }) => id === receiverId);
+  const command = diffPlayDocuments(
+    document,
+    next,
+    receiver
+      ? `${defender?.label.trim() || "Defender"} covers ${receiver.label.trim() || "him"}`
+      : "Cover the best match",
   );
   return command.commands.length > 0 ? command : undefined;
 }

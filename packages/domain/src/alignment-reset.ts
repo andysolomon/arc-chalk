@@ -9,6 +9,7 @@ import {
   playersOnSideOfBall,
   type PlayerSideOfBall,
 } from "./formations";
+import { realignManCoverage } from "./man-coverage";
 import type {
   Coordinate,
   Formation,
@@ -312,13 +313,25 @@ export function resetAlignment(
     return { play: aligned, alignment, movedCount };
   }
 
-  const moved = moveMenWithTheirLines(
+  const carried = moveMenWithTheirLines(
     play,
     new Map(pairs.map(({ player, slot }) => [player.id, placed.get(slot.id)!])),
   );
+  if (side === "offense") return { alignment, movedCount, play: carried };
+
+  // A defender in man goes back where the call puts him, which is on his
+  // man (ADR 0060) rather than on the slot he was drawn in.
+  const moved = realignManCoverage(carried);
+  const at = new Map(moved.players.map(({ id, position }) => [id, position]));
   return {
     alignment,
-    movedCount,
+    movedCount: pairs.filter(({ player }) => {
+      const now = at.get(player.id)!;
+      return (
+        now.lateralYards !== player.position.lateralYards ||
+        now.depthYards !== player.position.depthYards
+      );
+    }).length,
     play:
       target === "base"
         ? {

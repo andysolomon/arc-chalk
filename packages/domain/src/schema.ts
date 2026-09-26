@@ -163,6 +163,17 @@ const movementPathFields = {
   style: pathStyleSchema,
   variant: z.optional(z.enum(["primary", "alternate"])),
   coverageArea: z.optional(coverageAreaSchema),
+  /**
+   * The receiver a man call follows (ADR 0060). `chosen` is set when the
+   * Coach picked him; without it he is the defense's best match, and the
+   * defense matches again when the offense changes.
+   */
+  covers: z.optional(
+    z.object({
+      playerId: entityIdSchema,
+      chosen: z.optional(z.boolean()),
+    }),
+  ),
   rule: z.optional(z.string()),
   /**
    * The shape off the route tree this line was drawn from, and the concept

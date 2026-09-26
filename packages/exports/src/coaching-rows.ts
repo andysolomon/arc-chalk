@@ -5,6 +5,7 @@ import {
   currentFormation,
   formatClassification,
   formationMeta,
+  isManLine,
   offensivePlayers,
   type Concept,
   type Formation,
@@ -79,6 +80,18 @@ function assignmentText(play: PlayDocument, path: MovementPath): string {
 }
 
 /**
+ * What a line is when nothing was written for it. A man call is named for
+ * the receiver it follows (ADR 0060) rather than as a drop.
+ */
+function kindWords(play: PlayDocument, path: MovementPath): string {
+  if (isManLine(path)) {
+    const man = play.players.find(({ id }) => id === path.covers?.playerId);
+    return man?.label.trim() ? `Man on ${man.label.trim()}` : "Man";
+  }
+  return KIND_WORDS[path.kind] ?? "";
+}
+
+/**
  * One row per man who has a line that is not a motion. His words are the
  * Assignment on his main line — the first one with wording, else the first —
  * falling back to his sublabel, then to what kind of line it is.
@@ -104,7 +117,7 @@ export function rowsFor(
       assignment:
         assignmentText(play, main) ||
         (player.sublabel ? player.sublabel.toUpperCase() : "") ||
-        KIND_WORDS[main.kind] ||
+        kindWords(play, main) ||
         "As drawn",
       conversion: main.conversion ?? "",
       note: main.coachingNote ?? "",

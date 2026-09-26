@@ -18,6 +18,7 @@ export * from "./game-plan";
 export * from "./geometry";
 export * from "./image-normalize";
 export * from "./legacy";
+export * from "./man-coverage";
 export * from "./library";
 export * from "./migrations";
 export * from "./play-classification";

@@ -40,6 +40,10 @@ _Avoid_: Opponent, scout team, the other play
 A defense's zone drops taken together rather than one defender at a time. The deep defenders share the field's width — one owns the middle, two take halves, three thirds, four quarters — and underneath bubbles sit side by side instead of stacking. Calling or clearing a zone re-lays the drops at its level in the same step.
 _Avoid_: Coverage template, zone preset
 
+**Man match**:
+The receiver a defender in man covers. By default the defense matches its men in man to the receivers it makes most sense for each to take — corners the wide receivers, the nickel the slot, the safety the tight end, a linebacker the back — and lines each up on his man; the Coach can pick a different man, which is kept while that man is on the field. The defense matches again whenever the offense changes.
+_Avoid_: Man assignment target, coverage pairing
+
 **Play Type**:
 An optional Coach-managed classification within a Play's Unit, seeded with useful football types but open to custom definitions. A Play never requires classification below Unit.
 _Avoid_: Category, Unit, mandatory hierarchy
