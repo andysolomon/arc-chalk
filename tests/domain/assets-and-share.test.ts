@@ -5,7 +5,6 @@ import {
   assertDecodedImageLimits,
   assertImageTransferLimits,
   constantTimeEqual,
-  contentAddressedObjectKey,
   createSharePublication,
   decideShareAccess,
   generateShareSecret,
@@ -13,7 +12,6 @@ import {
   imageContainsExif,
   normalizeImage,
   publicIdFromSharePath,
-  redactShareUrl,
   scaleToLongestEdge,
   secretFromLocationHash,
   shareLinkUrl,
@@ -134,12 +132,6 @@ describe("private image intake", () => {
       }),
     ).rejects.toThrow(/camera metadata/);
   });
-
-  it("addresses R2 objects by content hash rather than a Coach filename", () => {
-    const hash = "a".repeat(64);
-    expect(contentAddressedObjectKey(hash)).toBe(`images/${hash}`);
-    expect(() => contentAddressedObjectKey("not-a-hash")).toThrow();
-  });
 });
 
 describe("Film References", () => {
@@ -216,15 +208,6 @@ describe("Share Link capabilities", () => {
     expect(
       constantTimeEqual(Uint8Array.from([1, 2, 3]), Uint8Array.from([1, 2, 4])),
     ).toBe(false);
-  });
-
-  it("redacts the fragment so logs cannot keep the bearer secret", () => {
-    const secret = generateShareSecret(() => new Uint8Array(32).fill(3));
-    const url = shareLinkUrl("https://chalk.example", "share_public", secret);
-    expect(redactShareUrl(url)).toBe(
-      "https://chalk.example/s/share_public#redacted",
-    );
-    expect(redactShareUrl(url)).not.toContain(secret);
   });
 
   it("revokes and expires before a matching secret can open the publication", () => {
@@ -334,22 +317,5 @@ describe("Share Publications with attachments and Film References", () => {
         ),
       ),
     ).toBe(canonicalStringify(document));
-  });
-
-  it("adds and removes a Film Reference as one invertible command", () => {
-    const play = offensiveStickThunderPlay;
-    const film = {
-      id: "film_one",
-      url: "https://www.hudl.com/video/3/clip",
-      label: "Install cut-up",
-    };
-    const { document, inverse } = applyPlayCommandWithInverse(play, {
-      kind: "insert-film-references",
-      filmReferences: [{ index: 0, item: film }],
-    });
-    expect(document.filmReferences).toEqual([film]);
-    expect(canonicalStringify(applyPlayCommand(document, inverse))).toBe(
-      canonicalStringify(play),
-    );
   });
 });

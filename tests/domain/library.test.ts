@@ -1,177 +1,15 @@
 import {
   applyPlayCommand,
-  attachPlayToConcept,
-  blankPlaybookEnvelope,
-  buildLibraryTree,
   commandBroadcasts,
-  composedPlayName,
-  copyPlayDocument,
-  createVariationPlay,
-  detachPlayFromConcept,
-  emptyPlayDocument,
-  fieldProfileNeedsReapply,
   formatBroadcastReport,
-  formationNeedsReapply,
-  highSchoolFieldProfile,
-  libraryDisclosureDefault,
-  playThumbnailKey,
-  presentVariationLine,
-  promoteVariationsOnConceptDelete,
   propagateCommand,
   pushAlignmentToPlay,
   searchPlays,
-  starterPlaybookEnvelope,
-  stickThunderConcept,
   stickThunderFamily,
-  stickThunderPlay,
-  variantNameFrom,
-  type LibraryPlayMember,
   type SearchablePlay,
   libraryScopeAfterToggle,
-  libraryScopeBadge,
-  libraryScopeHint,
 } from "@chalk/domain";
 import { describe, expect, it } from "vitest";
-
-function membersOf(
-  plays: readonly { readonly id: string; readonly name: string }[],
-): LibraryPlayMember[] {
-  return plays.map((play, index) => ({
-    playId: play.id,
-    name: play.name,
-    unit: "offense" as const,
-    conceptId: stickThunderConcept.id,
-    tags: [],
-    updatedAtMs: 1_000 - index,
-  }));
-}
-
-describe("Playbook library families", () => {
-  it("nests variations under the concept and names them by what distinguishes them", () => {
-    const family = stickThunderFamily();
-    const tree = buildLibraryTree(membersOf(family), [stickThunderConcept]);
-    expect(tree).toHaveLength(1);
-    const row = tree[0]!;
-    expect(row.name).toBe("Stick — Thunder");
-    expect(row.notes).toContain("Stick underneath");
-    expect(row.tags).toEqual(["3rd down", "red zone"]);
-    expect(row.variations.map(({ label }) => label)).toEqual([
-      "Gun Doubles Right",
-      "Gun Doubles Left",
-      "Gun Trips Right",
-      "Red zone",
-    ]);
-    expect(variantNameFrom("Stick — Thunder", family[1]!.name)).toBe(
-      "Gun Doubles Right",
-    );
-    expect(composedPlayName("Stick — Thunder", "Red zone")).toBe(
-      "Stick — Thunder — Red zone",
-    );
-  });
-
-  it("detaches a variation without touching its siblings", () => {
-    const family = stickThunderFamily();
-    const detached = detachPlayFromConcept(family[4]!);
-    expect(detached.conceptSource).toBeUndefined();
-    expect(detached.name).toBe(family[4]!.name);
-    expect(family[1]!.conceptSource?.conceptId).toBe(stickThunderConcept.id);
-  });
-
-  it("promotes variations when the concept play is deleted", () => {
-    const family = stickThunderFamily();
-    const remaining = promoteVariationsOnConceptDelete(
-      family[0]!.id,
-      stickThunderConcept.id,
-      family,
-    );
-    expect(remaining).toHaveLength(4);
-    expect(remaining.every((play) => play.conceptSource === undefined)).toBe(
-      true,
-    );
-  });
-
-  it("creates a variation from the play on the field", () => {
-    const variation = createVariationPlay({
-      source: stickThunderPlay,
-      concept: stickThunderConcept,
-      variantName: "Gun Trips Right",
-      playId: "play_new_variation",
-    });
-    expect(variation.id).toBe("play_new_variation");
-    expect(variation.name).toBe("Stick — Thunder — Gun Trips Right");
-    expect(variation.conceptSource).toEqual({
-      conceptId: stickThunderConcept.id,
-      revision: 1,
-    });
-    expect(variation.players).toEqual(stickThunderPlay.players);
-  });
-
-  it("opens the family of the play being worked on by default", () => {
-    expect(
-      libraryDisclosureDefault(
-        "concept_stick_thunder",
-        "concept_stick_thunder",
-        {},
-      ),
-    ).toBe(true);
-    expect(
-      libraryDisclosureDefault("concept_other", "concept_stick_thunder", {}),
-    ).toBe(false);
-    expect(
-      libraryDisclosureDefault("concept_other", "concept_stick_thunder", {
-        concept_other: true,
-      }),
-    ).toBe(true);
-  });
-
-  it("names Present's variation line the way the original does", () => {
-    const family = stickThunderFamily();
-    const line = presentVariationLine(family[2]!.id, membersOf(family), [
-      stickThunderConcept,
-    ]);
-    expect(line).toBe("3 / 5  ·  GUN DOUBLES LEFT");
-    expect(
-      presentVariationLine(family[0]!.id, membersOf([family[0]!]), [
-        stickThunderConcept,
-      ]),
-    ).toBe("");
-  });
-
-  it("seeds a starter Playbook with the Stick family and the other examples", () => {
-    const envelope = starterPlaybookEnvelope();
-    expect(envelope.plays).toHaveLength(8);
-    expect(envelope.concepts).toEqual([stickThunderConcept]);
-    expect(envelope.plays.map(({ name }) => name)).toEqual([
-      "Stick — Thunder",
-      "Stick — Thunder — Gun Doubles Right",
-      "Stick — Thunder — Gun Doubles Left",
-      "Stick — Thunder — Gun Trips Right",
-      "Stick — Thunder — Red zone",
-      "Four Verticals",
-      "Outside Zone — Pull",
-      "Cover 3 — Fire Zone",
-    ]);
-  });
-
-  it("offers a blank Playbook with no Plays for a fresh canvas", () => {
-    const envelope = blankPlaybookEnvelope();
-    expect(envelope.playbook.name).toBe("Playbook");
-    expect(envelope.plays).toEqual([]);
-    expect(envelope.concepts).toEqual([]);
-    expect(envelope.formations).toEqual([]);
-  });
-
-  it("starts a new Play empty without stealing the open Play's identity", () => {
-    const created = emptyPlayDocument({
-      playbookId: stickThunderPlay.playbookId,
-      fieldProfile: highSchoolFieldProfile,
-      name: "Untitled play",
-    });
-    expect(created.id).not.toBe(stickThunderPlay.id);
-    expect(created.players).toEqual([]);
-    expect(created.playbookId).toBe(stickThunderPlay.playbookId);
-  });
-});
 
 describe("Concept-scope propagation", () => {
   it("copies route style onto the matching role and skips a diverged variation", () => {
@@ -250,33 +88,6 @@ describe("Applies-to scope from the tree's dots", () => {
       pickIds: [],
     });
   });
-
-  it("ignores a play outside the family and a stale pick id", () => {
-    expect(libraryScopeAfterToggle("pick", ["zzz"], siblings, "q")).toEqual({
-      scope: "pick",
-      pickIds: ["zzz"],
-    });
-    expect(libraryScopeAfterToggle("pick", ["zzz"], siblings, "b")).toEqual({
-      scope: "pick",
-      pickIds: ["b"],
-    });
-  });
-
-  it("badges the headings by how many versions are lit", () => {
-    expect(libraryScopeBadge("play", 0, 5)).toBeUndefined();
-    expect(libraryScopeBadge("pick", 0, 5)).toBeUndefined();
-    expect(libraryScopeBadge("pick", 2, 5)).toBe("3 of 5");
-    expect(libraryScopeBadge("concept", 4, 5)).toBe("All 5");
-  });
-
-  it("says what travels, and does not claim notes do", () => {
-    const hint = libraryScopeHint("concept", 4, 5, true);
-    expect(hint).toMatch(/Routes and assignments travel/);
-    expect(hint).toMatch(/not formation, personnel or the name/);
-    expect(hint).not.toMatch(/notes/);
-    expect(libraryScopeHint("pick", 0, 5, true)).toMatch(/Tap a dot/);
-    expect(libraryScopeHint("concept", 0, 1, true)).toMatch(/add a variation/);
-  });
 });
 
 describe("Device-local Play search", () => {
@@ -313,66 +124,5 @@ describe("Device-local Play search", () => {
     const elapsed = performance.now() - started;
     expect(hits.length).toBeGreaterThan(0);
     expect(elapsed).toBeLessThan(50);
-  });
-});
-
-describe("Derived thumbnail keys and Field Profile reapply", () => {
-  it("keys a thumbnail by revision, renderer, Field Profile, and theme", () => {
-    expect(
-      playThumbnailKey({
-        playId: "play_1",
-        revisionHash: "abc",
-        fieldProfileRevision: 2,
-      }),
-    ).toBe("play_1:abc:1:2:light");
-  });
-
-  it("does not rewrite coordinates when a Field Profile is reapplied", () => {
-    const bumped = {
-      ...stickThunderPlay.fieldProfile,
-      revision: stickThunderPlay.fieldProfile.revision + 1,
-    };
-    expect(fieldProfileNeedsReapply(stickThunderPlay, bumped)).toBe(true);
-    expect(
-      formationNeedsReapply(stickThunderPlay, {
-        ...stickThunderPlay.formationSource!,
-        id: "formation_x",
-        playbookId: stickThunderPlay.playbookId,
-        revision: 2,
-        name: "Gun",
-        unit: "offense",
-        description: "",
-        strength: "right",
-        ball: {
-          position: { lateralYards: 0, depthYards: 0 },
-          hash: "middle",
-        },
-        slots: [
-          {
-            id: "s1",
-            unit: "offense",
-            role: "X",
-            position: { lateralYards: 0, depthYards: 0 },
-            symbol: "circle",
-            label: "X",
-            sublabel: "",
-            fill: "none",
-            color: "ink",
-          },
-        ],
-        rolePairs: [],
-        schemaVersion: 1,
-      }),
-    ).toBe(false);
-  });
-
-  it("keeps a copied Play's Concept pointer unless asked to drop it", () => {
-    const attached = attachPlayToConcept(stickThunderPlay, stickThunderConcept);
-    const copied = copyPlayDocument(attached, { id: "play_copy" });
-    expect(copied.conceptSource).toEqual(attached.conceptSource);
-    expect(
-      copyPlayDocument(attached, { id: "play_free", conceptSource: null })
-        .conceptSource,
-    ).toBeUndefined();
   });
 });

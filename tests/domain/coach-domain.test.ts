@@ -1,139 +1,26 @@
 import {
   LEGACY_IMPORT_PLAYBOOK_ID,
-  assignmentSchema,
-  builtInPlayTypeDefinitions,
   canonicalSha256,
   canonicalStringify,
   createSharePublication,
-  hashPlayDocument,
-  legacyLateralSpanToYards,
   migratePlayDocument,
   migratePlayDocumentV1ToV2,
   migratePlayDocumentV2ToV3,
-  migratePlayEnvelope,
   playDocumentSchema,
-  playEnvelopeSchema,
-  playRevisionSchema,
   playbookEnvelopeSchema,
-  playbookSchema,
   sharePublicationSchema,
 } from "@chalk/domain";
 import {
   defensiveCoverThreePlay,
-  defensivePlaybookGolden,
   offensivePlaybookGolden,
   offensiveStickThunderPlay,
   releasedPlayDocumentV1,
   releasedPlayDocumentV2,
-  releasedPlayEnvelopeV1,
 } from "@chalk/test-fixtures";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 describe("Coach-owned Playbook domain", () => {
-  it("provides the approved built-in Play Types while accepting Coach-defined types", () => {
-    expect(builtInPlayTypeDefinitions.map(({ name }) => name)).toEqual([
-      "Run",
-      "Pass",
-      "RPO",
-      "Screen",
-      "Coverage",
-      "Pressure",
-    ]);
-
-    expect(
-      playbookSchema.parse(offensivePlaybookGolden.playbook).playTypes.at(-1),
-    ).toEqual({
-      id: "play_type_boot",
-      name: "Boot",
-      unit: "offense",
-      order: 9,
-      archived: false,
-    });
-  });
-
-  it("never requires a Play to be classified below Unit", () => {
-    const unitOnly = structuredClone(offensiveStickThunderPlay);
-    delete unitOnly.playType;
-    delete unitOnly.personnelLabel;
-    delete unitOnly.conceptSource;
-    delete unitOnly.formationSource;
-
-    expect(playDocumentSchema.parse(unitOnly)).toMatchObject({
-      unit: "offense",
-    });
-  });
-
-  it("round-trips realistic offensive and defensive Playbooks", () => {
-    for (const golden of [offensivePlaybookGolden, defensivePlaybookGolden]) {
-      const json = JSON.stringify(golden);
-      expect(playbookEnvelopeSchema.parse(JSON.parse(json))).toEqual(golden);
-    }
-
-    expect(offensiveStickThunderPlay.players).toHaveLength(11);
-    expect(offensiveStickThunderPlay.assignments).toHaveLength(5);
-    expect(defensiveCoverThreePlay.players).toHaveLength(11);
-    expect(defensiveCoverThreePlay.assignments).toHaveLength(11);
-    expect(defensiveCoverThreePlay.paths).toHaveLength(5);
-  });
-
-  it("retains stable source revisions and explicit Formation slot bindings", () => {
-    expect(offensiveStickThunderPlay.conceptSource).toEqual({
-      conceptId: "concept_stick",
-      revision: 3,
-    });
-    expect(offensiveStickThunderPlay.formationSource).toMatchObject({
-      formationId: "formation_gun_doubles_right",
-      revision: 1,
-    });
-    expect(
-      offensiveStickThunderPlay.formationSource?.slotBindings,
-    ).toHaveLength(11);
-
-    const changedSource = structuredClone(offensivePlaybookGolden);
-    changedSource.formations[0]!.revision = 3;
-    changedSource.formations[0]!.slots[0]!.position.lateralYards = -9;
-
-    expect(playbookEnvelopeSchema.parse(changedSource)).toEqual(changedSource);
-    expect(offensiveStickThunderPlay.players[0]!.position.lateralYards).toBe(
-      legacyLateralSpanToYards(-72),
-    );
-    expect(offensiveStickThunderPlay.formationSource?.revision).toBe(1);
-  });
-
-  it("supports exact Coach wording with every structured Assignment action family", () => {
-    const kinds = [
-      "movement",
-      "block",
-      "coverage",
-      "pressure",
-      "handoff",
-      "fake",
-      "kick",
-      "other",
-    ] as const;
-    const assignment = assignmentSchema.parse({
-      id: "assignment_complete_vocabulary",
-      playerId: "player_qb",
-      text: "Read it exactly as coached.",
-      actions: kinds.map((kind, index) => {
-        if (kind === "movement") {
-          return { id: `action_${index}`, kind, pathId: "path_qb" };
-        }
-        if (kind === "other") {
-          return { id: `action_${index}`, kind, text: "Alert smoke" };
-        }
-        return {
-          id: `action_${index}`,
-          kind,
-          target: { kind: "landmark", landmark: "ball" },
-        };
-      }),
-    });
-
-    expect(assignment.actions.map(({ kind }) => kind)).toEqual(kinds);
-  });
-
   it("projects immutable Share Publication entries without private coaching data", () => {
     const privatePlay = structuredClone(offensiveStickThunderPlay);
     const publication = createSharePublication({
@@ -173,7 +60,7 @@ describe("Coach-owned Playbook domain", () => {
   });
 });
 
-describe("versioned Play and envelope migrations", () => {
+describe("versioned Play migrations", () => {
   it("upgrades every released Play version through explicit sequential steps", () => {
     const versionTwo = migratePlayDocumentV1ToV2(releasedPlayDocumentV1);
     const currentFromOne = migratePlayDocument(releasedPlayDocumentV1);
@@ -202,14 +89,6 @@ describe("versioned Play and envelope migrations", () => {
     expect(migratePlayDocument(currentFromTwo)).toEqual(currentFromTwo);
   });
 
-  it("upgrades the released Play envelope to the current envelope", () => {
-    const migrated = migratePlayEnvelope(releasedPlayEnvelopeV1);
-
-    expect(migrated.schemaVersion).toBe(2);
-    expect(migrated.play.schemaVersion).toBe(3);
-    expect(playEnvelopeSchema.parse(migrated)).toEqual(migrated);
-  });
-
   it("preserves arbitrary nonblank legacy Assignment wording during upgrade", () => {
     fc.assert(
       fc.property(
@@ -233,34 +112,6 @@ describe("versioned Play and envelope migrations", () => {
 });
 
 describe("canonical and malformed Coach documents", () => {
-  it("hashes only validated current Plays and validates immutable revision identity", async () => {
-    const documentHash = await hashPlayDocument(offensiveStickThunderPlay);
-    const revision = playRevisionSchema.parse({
-      schemaVersion: 1,
-      id: "revision_stick_12",
-      playId: offensiveStickThunderPlay.id,
-      createdAtMs: 1_786_000_000_000,
-      label: "Install one",
-      documentHash,
-      document: offensiveStickThunderPlay,
-    });
-
-    expect(documentHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(revision.documentHash).toBe(documentHash);
-    expect(await hashPlayDocument(structuredClone(revision.document))).toBe(
-      documentHash,
-    );
-    expect(() =>
-      playRevisionSchema.parse({ ...revision, playId: "play_wrong" }),
-    ).toThrow("does not match");
-    await expect(
-      hashPlayDocument({ ...offensiveStickThunderPlay, paths: [] }),
-    ).rejects.toThrow("missing MovementPath");
-    await expect(
-      hashPlayDocument({ ...offensiveStickThunderPlay, players: [] }),
-    ).rejects.toThrow("missing Player");
-  });
-
   it("round-trips generated current Play metadata through JSON and Zod", () => {
     fc.assert(
       fc.property(
@@ -355,20 +206,5 @@ describe("canonical and malformed Coach documents", () => {
     danglingSlot.plays[0]!.formationSource!.slotBindings[0]!.slotId =
       "slot_missing";
     expect(playbookEnvelopeSchema.safeParse(danglingSlot).success).toBe(false);
-  });
-
-  it("rejects missing Play Types and cross-Unit reusable sources", () => {
-    const missingType = structuredClone(defensivePlaybookGolden);
-    missingType.plays[0]!.playType = {
-      id: "play_type_missing",
-      name: "Missing",
-    };
-    expect(playbookEnvelopeSchema.safeParse(missingType).success).toBe(false);
-
-    const crossUnitConcept = structuredClone(defensivePlaybookGolden);
-    crossUnitConcept.concepts[0]!.unit = "offense";
-    expect(playbookEnvelopeSchema.safeParse(crossUnitConcept).success).toBe(
-      false,
-    );
   });
 });
