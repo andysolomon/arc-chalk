@@ -1,4 +1,5 @@
 import {
+  applyPlayCommand,
   applyPlayCommandWithInverse,
   canonicalSha256,
   canonicalStringify,
@@ -8,6 +9,7 @@ import {
   diffPlayDocuments,
   playCommandCoalesceKey,
   playDocumentSchema,
+  settleManCoverage,
   type PlayCommand,
   type PlayDocument,
   type UndoEntry,
@@ -221,6 +223,33 @@ export interface CreateEditorStoreOptions {
   readonly coalesceWindowMs?: number;
 }
 
+/**
+ * Every edit settles man coverage in the same step (ADR 0060): a man call
+ * given, a receiver picked, a set changed or a man dragged — whatever the
+ * edit, the defenders in man are matched and lined up against the offense it
+ * leaves, and one undo takes the edit and what it moved back together. An
+ * edit that touches neither the offense nor a man call comes back as it was.
+ */
+function withManCoverageSettled(
+  before: PlayDocument,
+  asked: PlayCommand,
+): { readonly command: PlayCommand; readonly settled: boolean } {
+  const edited = applyPlayCommand(before, asked);
+  const settling = diffPlayDocuments(edited, settleManCoverage(before, edited));
+  if (settling.commands.length === 0) return { command: asked, settled: false };
+  return {
+    settled: true,
+    command: {
+      kind: "batch",
+      label: describePlayCommand(asked),
+      commands: [
+        ...(asked.kind === "batch" ? asked.commands : [asked]),
+        ...settling.commands,
+      ],
+    },
+  };
+}
+
 function describeSaveFailure(error: unknown): string {
   if (error instanceof Error && error.message.trim()) return error.message;
   return String(error);
@@ -416,16 +445,23 @@ export function createEditorStore({
     const { sequence, requestedAtMs } = startSaving();
     return enqueue(async () => {
       const before = state.getState().document;
-      const command = build(before);
+      const { command, settled } = withManCoverageSettled(
+        before,
+        build(before),
+      );
       const { document: next, inverse } = applyPlayCommandWithInverse(
         before,
         command,
       );
       const beforeHash = documentHash;
       const afterHash = await canonicalSha256(next);
-      const coalesceKey = options.coalesce
-        ? playCommandCoalesceKey(command)
-        : undefined;
+      // A keystroke that moved a defender as well is its own step: merging
+      // it would keep the last keystroke's forward and the first one's
+      // inverse, and the defender's move in between would never be undone.
+      const coalesceKey =
+        options.coalesce && !settled
+          ? playCommandCoalesceKey(command)
+          : undefined;
 
       history = recordUndoEntry(
         history,

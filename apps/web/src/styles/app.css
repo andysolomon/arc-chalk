@@ -885,6 +885,61 @@ button.play-type.open {
   font-family: "Geist Mono", monospace;
   font-size: 10px;
 }
+/* The Covers row (ADR 0060): whom a defender in man follows — the best
+   match, or a receiver the Coach picked from the list or on the field. */
+.cover-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cover-row .section-heading {
+  width: 100%;
+  margin: 0;
+}
+.cover-row select {
+  min-width: 0;
+  height: 30px;
+  flex: 1;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+.cover-row button {
+  height: 30px;
+  flex: none;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: #4d4d4d;
+  font-size: 12px;
+  cursor: pointer;
+}
+.cover-row button:hover {
+  background: #f5f5f5;
+  color: var(--ink);
+}
+.cover-row button[aria-pressed="true"] {
+  background: #eaf2ff;
+  box-shadow: 0 0 0 1px #0072f5;
+  color: #0072f5;
+}
+.cover-row select:disabled,
+.cover-row button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.cover-row p {
+  width: 100%;
+  margin: 0;
+}
 .inspector-stub {
   width: 28px;
   flex: none;
@@ -7898,6 +7953,8 @@ button.shell-quiet:hover {
 }
 .sheet-body .button-grid button,
 .sheet-body .draw-row button,
+.sheet-body .cover-row button,
+.sheet-body .cover-row select,
 .sheet-body .help-row button {
   min-height: 44px;
   border-radius: 10px;

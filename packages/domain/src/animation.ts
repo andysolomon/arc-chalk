@@ -6,6 +6,7 @@ import {
   pointAtGeometryDistance,
   type PathGeometry,
 } from "./geometry";
+import { isManLine } from "./man-coverage";
 import type { Coordinate, MovementPath, PlayDocument, Player } from "./schema";
 
 /** One beat of the cadence. Delay in the inspector is counted in these. */
@@ -411,6 +412,59 @@ export function playerPositionAt(
   return position;
 }
 
+/** How far a defender in man trails his receiver, so both still read. */
+export const MAN_SHADOW_YARDS = 2.2;
+
+/**
+ * A defender in man plays the receiver, not the line (ADR 0060). Before the
+ * snap he walks across with any motion; once his line starts he closes on
+ * his man and then stays with him wherever the route takes him, a symbol's
+ * width off on the side he came from, until the play is over.
+ */
+function shadowTheirMen(
+  play: PlayDocument,
+  plan: PlayAnimationPlan,
+  atMs: number,
+  positions: Record<string, Coordinate>,
+): void {
+  for (const item of plan.items) {
+    const { path } = item;
+    const covers = path.covers;
+    if (!covers || item.ball || !isManLine(path)) continue;
+    const defender = play.players.find(({ id }) => id === path.playerId);
+    const man = play.players.find(({ id }) => id === covers.playerId);
+    const now = positions[covers.playerId];
+    if (!defender || !man || !now || defender.unit !== "defense") continue;
+    const stance = defender.position;
+    const moved = {
+      lateralYards: now.lateralYards - man.position.lateralYards,
+      depthYards: now.depthYards - man.position.depthYards,
+    };
+    const across = stance.lateralYards - man.position.lateralYards;
+    const down = stance.depthYards - man.position.depthYards;
+    const apart = Math.hypot(across, down) || 1;
+    const trail = Math.min(apart, MAN_SHADOW_YARDS);
+    const onHim = {
+      lateralYards: man.position.lateralYards + (across / apart) * trail,
+      depthYards: man.position.depthYards + (down / apart) * trail,
+    };
+    const closing = Math.max(
+      0,
+      Math.min(1, (atMs - item.startMs) / item.durationMs),
+    );
+    // Before the snap only the motion across the field is followed.
+    const walked = { lateralYards: moved.lateralYards, depthYards: 0 };
+    positions[defender.id] = {
+      lateralYards:
+        interpolate(stance, onHim, closing).lateralYards +
+        interpolate(walked, moved, closing).lateralYards,
+      depthYards:
+        interpolate(stance, onHim, closing).depthYards +
+        interpolate(walked, moved, closing).depthYards,
+    };
+  }
+}
+
 export function evaluatePlayAt(
   play: PlayDocument,
   atMs: number,
@@ -424,7 +478,11 @@ export function evaluatePlayAt(
   for (const player of play.players) {
     playerPositions[player.id] = playerPositionAt(plan, player, clamped);
   }
+  shadowTheirMen(play, plan, clamped, playerPositions);
   const trails = plan.items.flatMap((item) => {
+    // A defender following his man has left his line behind; tracing it
+    // would draw where he did not go.
+    if (item.path.covers && isManLine(item.path)) return [];
     const distanceYards = distanceAlong(item, clamped);
     const points = trailPoints(item.geometry, distanceYards);
     if (points.length < 2) return [];
