@@ -2,6 +2,7 @@ import {
   backupPayloadSchema,
   canonicalSha256,
   currentFormation,
+  drawLetterOnlyDefendersAsTriangles,
   readBackupPayload,
   conceptSchema,
   formationSchema,
@@ -156,6 +157,8 @@ function positiveLimit(limit: number): number {
 }
 
 const OPEN_SESSION_PREFERENCE = "session.open";
+/** Set once this device has drawn its letter-only defenders as triangles. */
+const DEFENDERS_AS_TRIANGLES_PREFERENCE = "upgrade.defendersAsTriangles";
 const STORAGE_WATCH_FRACTION = 0.8;
 const STORAGE_CRITICAL_FRACTION = 0.95;
 
@@ -841,6 +844,82 @@ class DexieLocalRepository implements ChalkLocalRepository {
           }
           rewritten.push(play.id);
         }
+        return rewritten.sort();
+      },
+    );
+  }
+
+  /**
+   * Draws the letter-only defenders an earlier release saved as triangles,
+   * once per device (ADR 0061). Once it has run, a defender the Coach sets to
+   * Letter only stays that way. Named versions keep what they froze, the
+   * cloud copy follows the Coach's next edit, and a Play that no longer
+   * matches its hash is left for `getPlay` to report.
+   */
+  async upgradeLetterOnlyDefenders(): Promise<readonly string[]> {
+    if (
+      await this.#database.preferences.get(DEFENDERS_AS_TRIANGLES_PREFERENCE)
+    ) {
+      return [];
+    }
+    // Only a Play with a letter-only defender is validated and rehashed, so a
+    // large library does not pay for hashing every Play on this launch.
+    const stored = (await this.#database.plays.toArray()).filter(
+      (record) =>
+        drawLetterOnlyDefendersAsTriangles(record.document) !== record.document,
+    );
+
+    // Migrating and hashing cannot happen inside a Dexie transaction.
+    const upgraded = (
+      await Promise.all(
+        stored.map(async (record) => {
+          let play: StoredPlay;
+          try {
+            play = await this.#validatedPlay(record);
+          } catch (error) {
+            if (error instanceof CorruptLocalDataError) return [];
+            throw error;
+          }
+          const document = drawLetterOnlyDefendersAsTriangles(play.document);
+          if (document === play.document) return [];
+          const documentHash = await canonicalSha256(document);
+          return [
+            {
+              play: { ...play, document, documentHash },
+              previousHash: record.documentHash,
+            },
+          ];
+        }),
+      )
+    ).flat();
+
+    return this.#database.transaction(
+      "rw",
+      [
+        this.#database.plays,
+        this.#database.searchProjections,
+        this.#database.preferences,
+      ],
+      async () => {
+        const rewritten: string[] = [];
+        for (const { play, previousHash } of upgraded) {
+          const existing = await this.#database.plays.get(play.id);
+          // Another tab may have upgraded or edited it first.
+          if (!existing || existing.documentHash !== previousHash) continue;
+          await this.#database.plays.put(play);
+          if (play.deletedAtMs === undefined) {
+            await this.#database.searchProjections.put(
+              projectionFor(play.document, play.documentHash, play.updatedAtMs),
+            );
+          }
+          rewritten.push(play.id);
+        }
+        const completedAtMs = this.#now();
+        await this.#database.preferences.put({
+          key: DEFENDERS_AS_TRIANGLES_PREFERENCE,
+          value: { completedAtMs },
+          updatedAtMs: completedAtMs,
+        });
         return rewritten.sort();
       },
     );
