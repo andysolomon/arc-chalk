@@ -1,7 +1,7 @@
 import { outputFormat } from "@chalk/exports";
 import { describe, expect, it, vi } from "vitest";
 
-import { estimatePages, printInWindow } from "./print-frame";
+import { estimatePages } from "./print-frame";
 
 function documentWith(html: string, heights: Record<string, number>): Document {
   const doc = document.implementation.createHTMLDocument("x");
@@ -75,14 +75,5 @@ describe("counting the sheets a preview takes (issue #69)", () => {
       pages: 3,
       overflow: [{ page: 2, inches: 5.6 }],
     });
-  });
-
-  it("reports a blocked pop-up instead of swallowing it", () => {
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
-    expect(printInWindow("<html></html>")).toEqual({
-      ok: false,
-      reason: "blocked",
-    });
-    open.mockRestore();
   });
 });

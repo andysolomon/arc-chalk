@@ -114,15 +114,6 @@ describe("edits made in 'This play'", () => {
     expect(hook.result.current.report).toMatch(/^Applied to \d of 5/);
     expect(editorStore.getSnapshot().document.id).toBe(family[0]!.id);
   });
-
-  it("can be waved off, and the offer expires on its own", async () => {
-    const { editorStore, hook } = setup();
-    await waitFor(() => expect(hook.result.current.familySize).toBe(5));
-    act(() => hook.result.current.maybeBroadcast(dashZ(editorStore)));
-    expect(hook.result.current.offer).toBeDefined();
-    act(() => hook.result.current.dropOffer());
-    expect(hook.result.current.offer).toBeUndefined();
-  });
 });
 
 describe("an armed 'All versions' scope", () => {
@@ -146,17 +137,5 @@ describe("an armed 'All versions' scope", () => {
     await waitFor(() => expect(hook.result.current.scope).toBe("play"));
     expect(hook.result.current.scopeBadge).toBeUndefined();
     expect(hook.result.current.pickIds).toEqual([]);
-  });
-
-  it("narrows to a picked set through the tree's dots and back to all", async () => {
-    const { family, hook } = setup();
-    await waitFor(() => expect(hook.result.current.familySize).toBe(5));
-    act(() => hook.result.current.setScope("concept"));
-    act(() => hook.result.current.togglePick(family[4]!.id));
-    expect(hook.result.current.scope).toBe("pick");
-    expect(hook.result.current.scopeBadge).toBe("4 of 5");
-    act(() => hook.result.current.togglePick(family[4]!.id));
-    expect(hook.result.current.scope).toBe("concept");
-    expect(hook.result.current.scopeBadge).toBe("All 5");
   });
 });

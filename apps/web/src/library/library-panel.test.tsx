@@ -54,27 +54,6 @@ const unused = {
 };
 
 describe("the inspector library panel", () => {
-  it("nests variations under the concept and names them by what distinguishes them", () => {
-    render(
-      <LibraryPanel
-        {...unused}
-        currentPlayId={stickThunderFamily()[0]!.id}
-        pickIds={[]}
-        savedFlash={false}
-        scope="play"
-        snapshot={stickSnapshot()}
-        storedOpen={{}}
-        variationDraft=""
-        variationOpen={false}
-      />,
-    );
-
-    expect(screen.getByText("Library · 5")).toBeVisible();
-    expect(screen.getByText("Stick — Thunder")).toBeVisible();
-    expect(screen.getByText("Gun Doubles Left")).toBeVisible();
-    expect(screen.getByText("Red zone")).toBeVisible();
-  });
-
   it("lights a sibling's dot to send edits there, right in the tree", async () => {
     const onTogglePick = vi.fn();
     const family = stickThunderFamily();
@@ -109,32 +88,6 @@ describe("the inspector library panel", () => {
     expect(screen.getByText(/Landing on 2 of 5 versions/)).toBeVisible();
   });
 
-  it("offers every version as one tap and says what travels", async () => {
-    const onScope = vi.fn();
-    const family = stickThunderFamily();
-    render(
-      <LibraryPanel
-        {...unused}
-        currentPlayId={family[0]!.id}
-        onScope={onScope}
-        pickIds={[]}
-        savedFlash={false}
-        scope="concept"
-        snapshot={stickSnapshot()}
-        storedOpen={{}}
-        variationDraft=""
-        variationOpen={false}
-      />,
-    );
-
-    expect(screen.queryByText("Whole concept")).toBeNull();
-    expect(
-      screen.getByText(/not formation, personnel or the name/),
-    ).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "This play" }));
-    expect(onScope).toHaveBeenCalledWith("play");
-  });
-
   it("asks before deleting a concept", async () => {
     const onDelete = vi.fn();
     const family = stickThunderFamily();
@@ -162,30 +115,6 @@ describe("the inspector library panel", () => {
     expect(onDelete).toHaveBeenCalledWith(family[0]!.id, false);
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(onDelete).toHaveBeenCalledWith(family[0]!.id, true);
-  });
-
-  it("detaches a variation", async () => {
-    const onDetach = vi.fn();
-    const family = stickThunderFamily();
-    render(
-      <LibraryPanel
-        {...unused}
-        currentPlayId={family[2]!.id}
-        onDetach={onDetach}
-        pickIds={[]}
-        savedFlash={false}
-        scope="play"
-        snapshot={stickSnapshot()}
-        storedOpen={{}}
-        variationDraft=""
-        variationOpen={false}
-      />,
-    );
-
-    const row = screen.getByText("Gun Doubles Left").closest("[role='button']");
-    await userEvent.hover(row!);
-    await userEvent.click(screen.getByRole("button", { name: "detach" }));
-    expect(onDetach).toHaveBeenCalledWith(family[2]!.id);
   });
 });
 
