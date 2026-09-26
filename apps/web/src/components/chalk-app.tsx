@@ -5,6 +5,10 @@ import {
   currentBallSpot,
   createStableId,
   currentDefensiveCall,
+  coverableReceivers,
+  manCoverageFor,
+  type CoverableReceiver,
+  type ReceiverKind,
   currentFormation,
   deletePathsCommand,
   DEFAULT_ZONE_COVERAGE_RADII,
@@ -55,6 +59,7 @@ import {
   unitName,
   UNCLASSIFIED_PLAY_TYPE_NAME,
   type Concept,
+  type Coordinate,
   type LabelRole,
   type FieldProfile,
   type Formation,
@@ -94,6 +99,7 @@ import {
   spotBallCommand,
   conceptIsOn,
   applyLinePresetCommand,
+  coverReceiverCommand,
   flipStrengthCommand,
   groupSelectionCommand,
   reverseRouteCommand,
@@ -105,6 +111,7 @@ import {
   fieldHitOptions,
   fieldInteraction,
   hitTestField,
+  screenDistancePx,
   reorderSelectionCommand,
   flipPlayerLinesCommand,
   flipRouteCommand,
@@ -365,6 +372,9 @@ const EDITOR_FRAME = Object.freeze({
 });
 /** How long the original leaves what just happened on screen. */
 const TOAST_MS = 4200;
+/** What the status bar says while a defender's man is picked on the field. */
+const COVER_PICK_HINT =
+  "cover who? click the receiver he should cover · anywhere else or esc cancels";
 
 /**
  * What a Coach writes on a route beyond drawing it. The read number and the
@@ -1427,6 +1437,90 @@ function QuickTray({
   );
 }
 
+const receiverKindNames: Readonly<Record<ReceiverKind, string>> = {
+  wide: "wide",
+  slot: "slot",
+  tight: "tight end",
+  back: "back",
+};
+
+/** A receiver the way the Covers list says him: his letter, where he plays. */
+function receiverName({ player, kind, side }: CoverableReceiver): string {
+  const letter = player.label.trim() || "Receiver";
+  return kind === "back"
+    ? `${letter} — back`
+    : `${letter} — ${receiverKindNames[kind]} ${side}`;
+}
+
+/** Whom a defender in man covers, for the Covers row (ADR 0060). */
+interface PlayerCoverage {
+  /** The receiver his line follows, if there is one for him. */
+  readonly receiverId?: string;
+  /** Whether the Coach picked him, rather than the defense matching him. */
+  readonly chosen: boolean;
+  /** Everyone he could be given, named the way the field reads them. */
+  readonly receivers: readonly { readonly id: string; readonly name: string }[];
+}
+
+/**
+ * The Covers row: a defender in man is matched to his man by the defense,
+ * and the Coach can give him another — from the list, or by picking the
+ * receiver on the field — or hand him back to the best match.
+ */
+function CoverRow({
+  coverage,
+  onCover,
+  onPickCover,
+  picking,
+}: {
+  coverage: PlayerCoverage;
+  onCover: (receiverId: string | undefined) => void;
+  onPickCover: () => void;
+  picking: boolean;
+}) {
+  const current = coverage.receivers.find(
+    ({ id }) => id === coverage.receiverId,
+  );
+  const best = coverage.chosen
+    ? "Best match"
+    : current
+      ? `Best match — ${current.name}`
+      : "Best match — nobody left";
+  return (
+    <div aria-label="Man coverage" className="cover-row" role="group">
+      <span className="section-heading">Covers</span>
+      <select
+        aria-label="Covers"
+        disabled={coverage.receivers.length === 0}
+        onChange={(event) => onCover(event.target.value || undefined)}
+        title="Who he covers. Best match lines him up on the receiver the defense would give him, and follows the offense when it changes"
+        value={coverage.chosen ? (coverage.receiverId ?? "") : ""}
+      >
+        <option value="">{best}</option>
+        {coverage.receivers.map(({ id, name }) => (
+          <option key={id} value={id}>
+            {name}
+          </option>
+        ))}
+      </select>
+      <button
+        aria-pressed={picking}
+        disabled={coverage.receivers.length === 0}
+        onClick={onPickCover}
+        title="Pick his man on the field — esc cancels"
+        type="button"
+      >
+        Pick on field
+      </button>
+      <p>
+        {coverage.receivers.length === 0
+          ? "Nobody on offense to cover yet. Put a set on the field and he lines up on his man."
+          : "He lines up a yard inside his man and goes where his man goes."}
+      </p>
+    </div>
+  );
+}
+
 /**
  * The Player panel (ADR 0058): the man himself, then only the kind of
  * assignment that pertains to him — routes and alternates for a receiver or
@@ -1437,16 +1531,19 @@ function QuickTray({
 function PlayerInspector({
   activePresets,
   bare = false,
+  coverage,
   freeDraw,
   scopeBadge,
   lines,
   onAddAlternate,
   onApplyPreset,
   onAppearance,
+  onCover,
   onDeselect,
   onDraw,
   onFlip,
   onFreeDraw,
+  onPickCover,
   onQuickCall,
   onRemoveLine,
   onSelectLine,
@@ -1454,6 +1551,7 @@ function PlayerInspector({
   onTextCommitted,
   onToggle,
   open,
+  pickingCover,
   player,
   role,
   mark,
@@ -1463,6 +1561,13 @@ function PlayerInspector({
   activePresets: ReadonlySet<string>;
   /** Without its own heading — the phone sheet's head names him instead. */
   bare?: boolean;
+  /** Whom his man call follows, while he is in man (ADR 0060). */
+  coverage?: PlayerCoverage;
+  /** Gives him the receiver picked, or the best match when there is none. */
+  onCover: (receiverId: string | undefined) => void;
+  /** Picks his receiver on the field instead, the way Arc Play Flag does. */
+  onPickCover: () => void;
+  pickingCover: boolean;
   /** Start a line of this kind by hand from his stance (ADR 0052). */
   onDraw: (kind: FieldDrawingKind) => void;
   /** Whether a line by hand is traced under the pointer or clicked in breaks. */
@@ -1707,6 +1812,14 @@ function PlayerInspector({
           running={activePresets}
         />
       )}
+      {defense && coverage ? (
+        <CoverRow
+          coverage={coverage}
+          onCover={onCover}
+          onPickCover={onPickCover}
+          picking={pickingCover}
+        />
+      ) : null}
       {!defense && !lineman && (
         <div className="help-row alternate-row">
           <button className="alternate" onClick={onAddAlternate} type="button">
@@ -2587,6 +2700,36 @@ export function ChalkApp({
   // Pointer events can outpace React's render loop; the ref is the machine's
   // authoritative model so no event ever reduces against a stale one.
   const interactionRef = useRef<FieldInteractionModel>(interaction);
+  /**
+   * The defender whose man is being picked on the field (ADR 0060), the way
+   * Arc Play Flag targets one: the next press on a receiver gives him that
+   * man, and a press anywhere else, or Escape, puts the pick down. The ref
+   * is what the field and the keys read, since they read everything live.
+   */
+  const [coverPick, setCoverPickState] = useState<string>();
+  const coverPickRef = useRef<string | undefined>(undefined);
+  const setCoverPick = (defenderId: string | undefined): void => {
+    coverPickRef.current = defenderId;
+    setCoverPickState(defenderId);
+  };
+  /**
+   * The defender being picked for, read live — and only while he is still
+   * the one selected: choosing anyone else, or nobody, puts the pick down.
+   */
+  const coverPickingFor = (): string | undefined => {
+    const defenderId = coverPickRef.current;
+    if (defenderId === undefined) return undefined;
+    const selection = interactionRef.current.selection;
+    if (
+      selection.length === 1 &&
+      selection[0]?.kind === "player" &&
+      selection[0].id === defenderId
+    ) {
+      return defenderId;
+    }
+    setCoverPick(undefined);
+    return undefined;
+  };
   const fieldSvgRef = useRef<SVGSVGElement | null>(null);
   const livePreviewRef = useRef<LiveFieldPaint | undefined>(undefined);
   const heldLiveRef = useRef<LiveFieldPaint | undefined>(undefined);
@@ -3164,6 +3307,20 @@ export function ChalkApp({
                 : [],
         ...(path.preset === undefined ? {} : { preset: path.preset }),
       }));
+  /** Whom a defender in man covers, and whom he could (ADR 0060). */
+  const playerCoverage = (player: Player): PlayerCoverage | undefined => {
+    if (player.unit !== "defense") return undefined;
+    const coverage = manCoverageFor(editor.document, player.id);
+    if (!coverage) return undefined;
+    return {
+      ...(coverage.receiver ? { receiverId: coverage.receiver.player.id } : {}),
+      chosen: coverage.chosen,
+      receivers: coverableReceivers(editor.document).map((receiver) => ({
+        id: receiver.player.id,
+        name: receiverName(receiver),
+      })),
+    };
+  };
   /** Every call off a catalogue he is already running, by its key. */
   const playerPresets = (player: Player): ReadonlySet<string> =>
     new Set(
@@ -3651,10 +3808,53 @@ export function ChalkApp({
     cancelLongPress();
     dispatchField({ type: "pointer-cancel" });
   };
+  /**
+   * Picking a defender's man on the field. The field has to be in view for
+   * it, so a phone's sheet drops to its peek and a tablet's drawer closes,
+   * and a hidden shadow offense comes back. Pressing again puts it down.
+   */
+  const startCoverPick = (defenderId: string): void => {
+    if (coverPickRef.current === defenderId) {
+      setCoverPick(undefined);
+      return;
+    }
+    if (phoneWorkspace) setSheetSnap("peek");
+    if (inspectorFloats && !phoneWorkspace) setInspectorOpen(false);
+    if (editor.document.unit === "defense") showShadow();
+    setCoverPick(defenderId);
+  };
+  /**
+   * A press while a man is being picked: the receiver nearest it, within a
+   * finger's reach, is the man; anywhere else puts the pick down.
+   */
+  const pickCoverAt = (point: Coordinate, pointerType?: string): void => {
+    const defenderId = coverPickingFor();
+    setCoverPick(undefined);
+    if (defenderId === undefined) return;
+    const document = editorStore.getSnapshot().document;
+    const reach = fieldHitOptions(pointerType).playerRadiusPx;
+    const scale = fieldScreenScale();
+    let picked: { readonly id: string; readonly px: number } | undefined;
+    for (const { player } of coverableReceivers(document)) {
+      const px = screenDistancePx(player.position, point, scale);
+      if (px <= reach && (!picked || px < picked.px)) {
+        picked = { id: player.id, px };
+      }
+    }
+    if (!picked) return;
+    runLabelCommand(coverReceiverCommand(document, defenderId, picked.id));
+  };
   const onFieldPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     // The hand holding a Pencil rests on the glass. While the tip is down,
     // everything else touching the screen is that hand.
     if (stylusRejects(stylusRef.current, event.pointerType)) return;
+    if (coverPickingFor() !== undefined) {
+      pickCoverAt(
+        fieldPointFromClient(event.clientX, event.clientY),
+        event.pointerType,
+      );
+      return;
+    }
     // And the heel of it usually lands first, so by the time the tip arrives
     // the field may already believe it is being panned. It is not.
     if (penInterrupts(stylusRef.current, event.pointerType))
@@ -5248,6 +5448,15 @@ export function ChalkApp({
           setContextMenu(undefined);
           return;
         }
+        // A man being picked on the field is put down first, while the
+        // defender he was picked for is still the one selected.
+        const picking = coverPickRef.current;
+        if (picking !== undefined) {
+          coverPickRef.current = undefined;
+          setCoverPickState(undefined);
+          const selection = interactionRef.current.selection;
+          if (selection.length === 1 && selection[0]?.id === picking) return;
+        }
         if (overlay !== null || openMenu !== null) {
           setOverlay(null);
           setOpenMenu(null);
@@ -6383,29 +6592,35 @@ export function ChalkApp({
         />
       </div>
     ) : null;
-  const statusHint = editorStatusHint({
-    view:
-      activeView === "Print"
-        ? "print"
-        : activeView === "Demo"
-          ? "demo"
-          : "editor",
-    tool: activeTool,
-    atFit: isAtFit(camera, EDITOR_FRAME),
-    selectionCount: interaction.selection.length,
-    drawing: interaction.drawing
-      ? {
-          depthBuffer: interaction.drawing.depthBuffer,
-          mode: interaction.drawing.mode,
-        }
-      : undefined,
-    labelsTooSmall: labelDensity * (fieldWidthPx / camera.width) < 11,
-    animating: showAnimation,
-    firstUse:
-      playbook.snapshot.members.length === 0 &&
-      editor.document.players.length === 0 &&
-      editor.document.labels.length === 0,
-  });
+  const picking =
+    coverPick !== undefined && selectedPlayer?.id === coverPick
+      ? selectedPlayer
+      : undefined;
+  const statusHint = picking
+    ? COVER_PICK_HINT
+    : editorStatusHint({
+        view:
+          activeView === "Print"
+            ? "print"
+            : activeView === "Demo"
+              ? "demo"
+              : "editor",
+        tool: activeTool,
+        atFit: isAtFit(camera, EDITOR_FRAME),
+        selectionCount: interaction.selection.length,
+        drawing: interaction.drawing
+          ? {
+              depthBuffer: interaction.drawing.depthBuffer,
+              mode: interaction.drawing.mode,
+            }
+          : undefined,
+        labelsTooSmall: labelDensity * (fieldWidthPx / camera.width) < 11,
+        animating: showAnimation,
+        firstUse:
+          playbook.snapshot.members.length === 0 &&
+          editor.document.players.length === 0 &&
+          editor.document.labels.length === 0,
+      });
 
   if (activeView === "Present") {
     return (
@@ -6732,6 +6947,28 @@ export function ChalkApp({
               onDismiss={playbook.dropOffer}
               onJustThis={() => playbook.setScope("play")}
             />
+            {picking ? (
+              // The pick is over the field, where the Coach is looking for
+              // the man: what it is waiting for, and the way out of it.
+              <div
+                aria-label="Picking his man"
+                className="drawing-bar cover-pick-bar"
+                role="group"
+              >
+                <span>
+                  Cover who? Tap the receiver {picking.label.trim() || "he"}{" "}
+                  should cover
+                </span>
+                <button
+                  aria-label="Stop picking — esc"
+                  onClick={() => setCoverPick(undefined)}
+                  title="Stop picking — esc"
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : null}
             {interaction.drawing && !phoneWorkspace ? (
               // A line in hand has its controls over the field, where the
               // pointer already is: Done ends it without a double click or a
@@ -6993,6 +7230,19 @@ export function ChalkApp({
               ) : selectedPlayer ? (
                 <PlayerInspector
                   bare={phoneWorkspace}
+                  coverage={playerCoverage(selectedPlayer)}
+                  onCover={(receiverId) => {
+                    setCoverPick(undefined);
+                    runLabelCommand(
+                      coverReceiverCommand(
+                        editor.document,
+                        selectedPlayer.id,
+                        receiverId,
+                      ),
+                    );
+                  }}
+                  onPickCover={() => startCoverPick(selectedPlayer.id)}
+                  pickingCover={coverPick === selectedPlayer.id}
                   role={selectedRosterRow?.role ?? ""}
                   mark={selectedRosterRow?.mark}
                   onToggle={toggleDisclosure}

@@ -7,6 +7,7 @@ import {
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
 } from "./geometry";
+import { isManLine } from "./man-coverage";
 import type {
   Coordinate,
   CoverageArea,
@@ -190,15 +191,21 @@ export function applyDefensiveCall(
  * Who is on the field, as one string: each man's letter and where he stands,
  * sorted so the order they were added in does not matter. Comparing two of
  * these settles the whole question at once — no pairing to do, and no man who
- * could be counted twice.
+ * could be counted twice. A man in man stands wherever his receiver has put
+ * him (ADR 0060), so for him only his letter and his call are compared.
  */
 function alignmentSignature(
-  men: readonly { readonly label: string; readonly position: Coordinate }[],
+  men: readonly {
+    readonly label: string;
+    readonly position: Coordinate;
+    readonly inMan?: boolean;
+  }[],
 ): string {
   return men
-    .map(
-      ({ label, position }) =>
-        `${label}@${position.lateralYards},${position.depthYards}`,
+    .map(({ label, position, inMan }) =>
+      inMan
+        ? `${label}@man`
+        : `${label}@${position.lateralYards},${position.depthYards}`,
     )
     .sort()
     .join("|");
@@ -208,7 +215,10 @@ function alignmentSignature(
  * Which call is on the field. A defense is placed rather than realigned onto
  * the men already there, so unlike a set there is nothing to match up and no
  * proportional reading to make: the men are either standing exactly where the
- * call puts them, letters and all, or this is not that call any more.
+ * call puts them, letters and all, or this is not that call any more. The
+ * men a call puts in man are the exception — they line up on their
+ * receivers — so a call read with its man calls on is compared by their
+ * letters, and one put on without its lines by where it drew them.
  */
 export function currentDefensiveCall(
   play: PlayDocument,
@@ -217,12 +227,31 @@ export function currentDefensiveCall(
   // No guard for an empty field: nobody on it reads as no letters at all,
   // which is not any call's reading, so the answer falls out of the same
   // comparison rather than needing a second one.
+  const inMan = new Set(
+    play.paths.filter(isManLine).map(({ playerId }) => playerId),
+  );
   const onField = alignmentSignature(
-    play.players.filter(({ unit }) => unit === "defense"),
+    play.players
+      .filter(({ unit }) => unit === "defense")
+      .map((player) => ({ ...player, inMan: inMan.has(player.id) })),
   );
-  return catalogue.find(
-    (call) => alignmentSignature(call.formation.slots) === onField,
-  );
+  return catalogue.find((call) => {
+    const manSlots = new Set(
+      call.assignments
+        .filter(({ kind }) => kind === "man")
+        .map(({ slotId }) => slotId),
+    );
+    return (
+      alignmentSignature(call.formation.slots) === onField ||
+      (manSlots.size > 0 &&
+        alignmentSignature(
+          call.formation.slots.map((slot) => ({
+            ...slot,
+            inMan: manSlots.has(slot.id),
+          })),
+        ) === onField)
+    );
+  });
 }
 
 /** How many of a call's lines each kind accounts for, for what the browser says. */

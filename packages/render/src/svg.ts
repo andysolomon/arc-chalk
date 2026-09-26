@@ -363,6 +363,17 @@ export interface SvgCoverageArea {
  * down. This is the only description of the picture a screen reader gets, so
  * it says the football rather than the geometry.
  */
+/** A man call, and the receiver it follows when it follows one (ADR 0060). */
+function manCallName(path: ScenePath, scene: RenderScene): string {
+  const coveredId = path.covers?.playerId;
+  const man =
+    coveredId === undefined
+      ? undefined
+      : scene.players.find(({ id }) => id === coveredId);
+  if (!man) return "man";
+  return `man on ${man.label.trim() || `${man.unit} player`}`;
+}
+
 function pathAriaLabel(path: ScenePath, scene: RenderScene): string {
   const player = scene.players.find(({ id }) => id === path.playerId);
   const who = player?.label.trim()
@@ -373,7 +384,9 @@ function pathAriaLabel(path: ScenePath, scene: RenderScene): string {
   const what =
     path.kind === "zone" && path.coverageArea
       ? `${path.coverageArea.type} zone`
-      : path.kind;
+      : path.kind === "zone" && path.style.ending === "arrow"
+        ? manCallName(path, scene)
+        : path.kind;
   const told = path.assignment?.trim();
   const order = path.readOrder === undefined ? "" : `, read ${path.readOrder}`;
   return `${who} ${what}${told ? `: ${told}` : ""}${order}`;

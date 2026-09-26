@@ -63,6 +63,7 @@ export interface ScenePath extends Pick<
   | "style"
   | "variant"
   | "coverageArea"
+  | "covers"
   | "readOrder"
   | "conversion"
   | "coachingNote"
@@ -282,6 +283,7 @@ export function buildRenderScene(
           style,
           variant,
           coverageArea,
+          covers,
           readOrder,
           conversion,
           coachingNote,
@@ -297,6 +299,7 @@ export function buildRenderScene(
               style,
               ...(variant === undefined ? {} : { variant }),
               ...(coverageArea === undefined ? {} : { coverageArea }),
+              ...(covers === undefined ? {} : { covers }),
               opacity: fadedOpacity,
             };
           }
@@ -309,6 +312,7 @@ export function buildRenderScene(
             style,
             ...(variant === undefined ? {} : { variant }),
             ...(coverageArea === undefined ? {} : { coverageArea }),
+            ...(covers === undefined ? {} : { covers }),
             ...(layers.reads && readOrder !== undefined ? { readOrder } : {}),
             ...(layers.notes && conversion !== undefined ? { conversion } : {}),
             ...(layers.notes && coachingNote !== undefined
