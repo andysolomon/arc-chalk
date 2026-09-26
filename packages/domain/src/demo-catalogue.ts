@@ -63,11 +63,12 @@ const label = (
   ...extra,
 });
 
-const offensiveLine = (color = "k") =>
+const offensiveLine = (color = "k", extra: Record<string, unknown> = {}) =>
   [428, 464, 500, 536, 572].map((x, index) =>
     player(`ol${index}`, x, 448, "", {
       symbol: x === 500 ? "square" : "circle",
       color,
+      ...extra,
     }),
   );
 
@@ -412,11 +413,12 @@ const blockPlay = playFrom("demo-block", "Outside Zone — Pull", "Run", {
     player("x", 130, 452, "X"),
     player("y", 700, 450, "Y"),
     player("z", 870, 452, "Z"),
-    player("dt", 452, 404, "T", { symbol: "triangle" }),
-    player("dn", 548, 404, "N", { symbol: "triangle" }),
-    player("de", 628, 400, "E", { symbol: "triangle" }),
-    player("dw", 430, 346, "W", { symbol: "triangle" }),
-    player("dm", 528, 342, "M", { symbol: "triangle" }),
+    // The front he blocks is the defense's, drawn as the Play's shadow.
+    player("dt", 452, 404, "T", { symbol: "triangle", side: "def" }),
+    player("dn", 548, 404, "N", { symbol: "triangle", side: "def" }),
+    player("de", 628, 400, "E", { symbol: "triangle", side: "def" }),
+    player("dw", 430, 346, "W", { symbol: "triangle", side: "def" }),
+    player("dm", 528, 342, "M", { symbol: "triangle", side: "def" }),
   ]),
   routes: [
     route(
@@ -716,9 +718,11 @@ const airSteps: readonly DemoStep[] = [
   ),
 ];
 
-const gray = { color: "g" };
+// The offense on a defensive Play is its shadow (ADR 0053): gray, and
+// marked as the offense so it is not counted as the call's own men.
+const gray = { color: "g", side: "off" };
 const defender = { symbol: "triangle" };
-const offense = offensiveLine("g").concat([
+const offense = offensiveLine("g", { side: "off" }).concat([
   player("oq", 500, 504, "Q", gray),
   player("ox", 130, 452, "X", gray),
   player("oh", 262, 452, "H", gray),

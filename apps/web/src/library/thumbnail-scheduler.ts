@@ -24,6 +24,7 @@ export interface ThumbnailRequest {
  */
 export function createThumbnailScheduler(library: ChalkLibrary): {
   urlFor(
+    this: void,
     request: ThumbnailRequest,
     signal?: AbortSignal,
   ): Promise<string | undefined>;
@@ -115,26 +116,39 @@ export function createThumbnailScheduler(library: ChalkLibrary): {
     return remember(key, blob);
   };
 
+  const urlFor = (
+    request: ThumbnailRequest,
+    signal?: AbortSignal,
+  ): Promise<string | undefined> => {
+    const key = keyOf(request);
+    const cached = urls.get(key);
+    if (cached) return Promise.resolve(cached);
+    const running = inflight.get(key);
+    if (running) {
+      // The run in flight is cancelled by the caller that started it. A card
+      // that re-rendered let go of its first request and joined its own run;
+      // if that run comes back empty, a caller still waiting starts another
+      // rather than keeping a blank picture.
+      return running.then((url) =>
+        url !== undefined || signal?.aborted ? url : urlFor(request, signal),
+      );
+    }
+    const work = generate(request, signal)
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return undefined;
+        }
+        throw error;
+      })
+      .finally(() => {
+        inflight.delete(key);
+      });
+    inflight.set(key, work);
+    return work;
+  };
+
   return {
-    urlFor(request, signal) {
-      const key = keyOf(request);
-      const cached = urls.get(key);
-      if (cached) return Promise.resolve(cached);
-      const running = inflight.get(key);
-      if (running) return running;
-      const work = generate(request, signal)
-        .catch((error: unknown) => {
-          if (error instanceof DOMException && error.name === "AbortError") {
-            return undefined;
-          }
-          throw error;
-        })
-        .finally(() => {
-          inflight.delete(key);
-        });
-      inflight.set(key, work);
-      return work;
-    },
+    urlFor,
     dispose() {
       inflight.clear();
       for (const url of urls.values()) URL.revokeObjectURL(url);

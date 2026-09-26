@@ -1456,6 +1456,7 @@ function PlayerInspector({
   open,
   player,
   role,
+  mark,
   text,
 }: {
   /** Every call he is already running, so a button can say so. */
@@ -1493,6 +1494,8 @@ function PlayerInspector({
   player: Player;
   /** What he plays, said the way the roster says it: Tight end, Mike. */
   role: string;
+  /** His letter, or the spot he plays when he has none (LT, C). */
+  mark?: string;
   text: Readonly<Record<"label" | "sublabel", string>>;
   scopeBadge?: string;
 }) {
@@ -1535,7 +1538,7 @@ function PlayerInspector({
             ←
           </button>
           <span aria-hidden="true" className="player-chip">
-            {letter}
+            {mark ?? letter}
           </span>
           <span className="player-role">{role || "Player"}</span>
           {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
@@ -2199,7 +2202,7 @@ function RosterList({
           <div className="section-heading roster-heading">{group.name}</div>
           {group.rows.map((row) => (
             <button
-              aria-label={`${row.letter || row.role}: ${row.summary ?? row.nothingYet} — ${row.role}`}
+              aria-label={`${row.mark}: ${row.summary ?? row.nothingYet} — ${row.role}`}
               aria-pressed={row.player.id === selectedId}
               className="roster-row"
               data-roster-player={row.player.id}
@@ -2209,7 +2212,7 @@ function RosterList({
               type="button"
             >
               <span aria-hidden="true" className="roster-symbol">
-                {row.letter}
+                {row.mark}
               </span>
               <span
                 className={`roster-summary${row.summary === undefined ? " empty" : ""}`}
@@ -2234,48 +2237,12 @@ function RosterList({
 }
 
 /**
- * A phone's peeked sheet: one chip per man, his letter over the word that
- * says what he does, in a strip a thumb scrolls sideways.
- */
-function ManChips({
-  onSelectPlayer,
-  roster,
-  selectedId,
-}: {
-  onSelectPlayer: (playerId: string) => void;
-  roster: Roster;
-  selectedId?: string;
-}) {
-  return (
-    <div aria-label="Men" className="man-chips" role="group">
-      {roster.rows.map((row) => (
-        <button
-          aria-label={`${row.letter || row.role} — ${row.summary ?? row.nothingYet}`}
-          aria-pressed={row.player.id === selectedId}
-          className="man-chip"
-          key={row.player.id}
-          onClick={() => onSelectPlayer(row.player.id)}
-          type="button"
-        >
-          <span className="man-chip-letter">{row.letter || "·"}</span>
-          <span
-            className={`man-chip-word${row.summary === undefined ? " empty" : ""}`}
-          >
-            {row.summary ?? "—"}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/**
  * The right inspector is assignments only (ADR 0058): what each man on the
  * play's own unit is asked to do. Idle, it lists the play call — concept and
  * line call — and the roster; a picked man, line or note gets his own panel.
  * Formation, ball, shadow, library, layers and print live in the sidebar and
  * in Settings, not here. On a phone it is a sheet with two heights: peeked,
- * a strip of men above the tools; full, the roster or the picked man.
+ * a single bar above the tools; full, the roster or the picked man.
  */
 function Inspector({
   currentConcept,
@@ -2385,8 +2352,8 @@ function Inspector({
     );
   }
 
-  // The sheet. Peeked: its head and the strip of men. Full: the roster, or
-  // the picked thing with a pager through the unit.
+  // The sheet. Peeked: its head bar alone, so the field keeps the glass.
+  // Full: the roster, or the picked thing with a pager through the unit.
   const snap = (next: "peek" | "full") => onSheetSnap?.(next);
   const calls = [currentConcept, currentLineCall].filter(Boolean).join(" · ");
   if (sheetSnap === "peek") {
@@ -2412,11 +2379,6 @@ function Inspector({
             ⌃
           </span>
         </button>
-        <ManChips
-          onSelectPlayer={onSelectPlayer}
-          roster={roster}
-          selectedId={selectedId}
-        />
       </aside>
     );
   }
@@ -2445,7 +2407,7 @@ function Inspector({
       selected.kind === "player" ? (
         <>
           <span aria-hidden="true" className="player-chip">
-            {selected.row?.letter}
+            {selected.row?.mark}
           </span>
           <span className="player-role">{selected.row?.role ?? "Player"}</span>
         </>
@@ -2485,7 +2447,7 @@ function Inspector({
               <span aria-hidden="true">‹</span>{" "}
               {previous ? (
                 <>
-                  <strong>{previous.letter}</strong> {previous.summary ?? ""}
+                  <strong>{previous.mark}</strong> {previous.summary ?? ""}
                 </>
               ) : null}
             </button>
@@ -2500,7 +2462,7 @@ function Inspector({
             >
               {next ? (
                 <>
-                  {next.summary ?? ""} <strong>{next.letter}</strong>
+                  {next.summary ?? ""} <strong>{next.mark}</strong>
                 </>
               ) : null}{" "}
               <span aria-hidden="true">›</span>
@@ -4610,6 +4572,11 @@ export function ChalkApp({
 
   const goToView = useCallback(
     (view: View): void => {
+      // The Playbooks header has no name field, so a name still being typed
+      // is kept before the field goes (it commits on blur in the editor).
+      if (view === "Playbooks") {
+        void editorStore.commitPlayName().catch(() => undefined);
+      }
       setActiveView(view);
       setOpenMenu(null);
       setOverlay(null);
@@ -4626,7 +4593,7 @@ export function ChalkApp({
         }
       }
     },
-    [runtime.library],
+    [editorStore, runtime.library],
   );
   /** Help's tutorials open Demo on the tour named (issue #65). */
   const openTour = useCallback(
@@ -6382,7 +6349,16 @@ export function ChalkApp({
       onOpen={setSidebarPopover}
       open={sidebarPopover}
       playbook={sidebarPlaybook}
-      status={phoneWorkspace ? saveStateButton : undefined}
+      status={
+        phoneWorkspace ? (
+          <span
+            className={`sidebar-save ${editor.localSave.phase}`}
+            role="status"
+          >
+            {localSaveMessage(editor.localSave)}
+          </span>
+        ) : undefined
+      }
       thisPlay={sidebarThisPlay}
     />
   );
@@ -6508,51 +6484,70 @@ export function ChalkApp({
       void playbook.loadPlay(playId);
       goToView("Editor");
     };
+    // Deleting the Play a Concept is named for lets the Concept go too; its
+    // versions stay, each its own Play (the library panel asks the same).
+    const deletePlayPrompt = (playId: string) => {
+      const member = playbook.snapshot.members.find(
+        (entry) => entry.playId === playId,
+      );
+      const concept = playbook.snapshot.concepts.find(
+        ({ id }) => id === member?.conceptId,
+      );
+      return concept && concept.name === member?.name
+        ? "Its concept goes with it; the other versions stay as plays of their own. This can’t be undone."
+        : "It will be removed from this Playbook. This can’t be undone.";
+    };
     return (
       <div className="chalk-shell view-playbooks">
         {header}
         <main className="destination" aria-label="Playbooks">
-          <nav className="destination-tabs" aria-label="Playbooks pages">
-            <button
-              aria-pressed={playbooksTab === "plays"}
-              className={playbooksTab === "plays" ? "active" : undefined}
-              onClick={() => setPlaybooksTab("plays")}
-              type="button"
-            >
-              Plays
-            </button>
-            <button
-              aria-pressed={playbooksTab === "plans"}
-              className={playbooksTab === "plans" ? "active" : undefined}
-              onClick={() => setPlaybooksTab("plans")}
-              type="button"
-            >
-              Game plans
-            </button>
-            <span className="top-spacer" />
-            <NewPlayMenu
-              actions={actions}
-              buttonClassName="destination-new"
-              onDismiss={() => setOpenMenu(null)}
-              onToggle={() =>
-                setOpenMenu((current) =>
-                  current === "newPage" ? null : "newPage",
-                )
-              }
-              open={openMenu === "newPage"}
-            />
-          </nav>
+          {/* One bar for the page: which half of the Playbook, and the one
+              thing most often started from it. */}
+          <div className="destination-bar">
+            <nav className="destination-tabs" aria-label="Playbooks pages">
+              <button
+                aria-pressed={playbooksTab === "plays"}
+                className={playbooksTab === "plays" ? "active" : undefined}
+                onClick={() => setPlaybooksTab("plays")}
+                type="button"
+              >
+                Plays
+              </button>
+              <button
+                aria-pressed={playbooksTab === "plans"}
+                className={playbooksTab === "plans" ? "active" : undefined}
+                onClick={() => setPlaybooksTab("plans")}
+                type="button"
+              >
+                Game plans
+              </button>
+            </nav>
+            {playbooksTab === "plays" ? (
+              <NewPlayMenu
+                actions={actions}
+                buttonClassName="destination-new"
+                onDismiss={() => setOpenMenu(null)}
+                onToggle={() =>
+                  setOpenMenu((current) =>
+                    current === "newPage" ? null : "newPage",
+                  )
+                }
+                open={openMenu === "newPage"}
+              />
+            ) : null}
+          </div>
           {playbooksTab === "plays" ? (
             <PlaybookBrowser
               currentPlayId={editor.document.id}
+              deletePrompt={deletePlayPrompt}
               embedded
               focusSearch={precisePointer}
               initial={playbook.browserState}
               library={runtime.library}
               members={playbook.snapshot.members}
               onClose={() => goToView("Editor")}
+              onDelete={(playId) => playbook.removePlay(playId, true)}
               onOpen={openPlay}
-              onOpenGamePlans={() => setPlaybooksTab("plans")}
               onRemember={playbook.rememberBrowser}
               playTypes={playbook.snapshot.playbook.playTypes}
             />
@@ -6999,6 +6994,7 @@ export function ChalkApp({
                 <PlayerInspector
                   bare={phoneWorkspace}
                   role={selectedRosterRow?.role ?? ""}
+                  mark={selectedRosterRow?.mark}
                   onToggle={toggleDisclosure}
                   open={chrome.open}
                   activePresets={playerPresets(selectedPlayer)}
@@ -7957,6 +7953,19 @@ function Header({
   versions: readonly EditorVersionSummary[];
   zonesHidden: boolean;
 }) {
+  const moreMenu = (
+    <MoreMenu
+      actions={actions}
+      focused={focused}
+      onDismiss={onCloseMenu}
+      onToggle={() => onMenu("more")}
+      open={openMenu === "more"}
+      zonesHidden={zonesHidden}
+    >
+      <PlaySharePanel runtime={runtime} />
+      <BackupPanel runtime={runtime} />
+    </MoreMenu>
+  );
   return (
     <header className={phone ? "topbar phone-topbar" : "topbar"}>
       {phone ? (
@@ -7991,6 +8000,19 @@ function Header({
           <span className="slash">/</span>
           <span className="demo-title">{DEMO_HEADER_TITLE}</span>
           <span className="demo-play-name">{demoPlayName}</span>
+        </>
+      ) : activeView === "Playbooks" ? (
+        // The Playbook is managed here, not the open Play: its name, type,
+        // undo and save belong to the editor and wait there.
+        <>
+          <span className="topbar-fill" />
+          <HelpMenu
+            actions={actions}
+            onDismiss={onCloseMenu}
+            onToggle={() => onMenu("help")}
+            open={openMenu === "help"}
+          />
+          {moreMenu}
         </>
       ) : (
         <>
@@ -8069,17 +8091,7 @@ function Header({
             onToggle={() => onMenu("help")}
             open={openMenu === "help"}
           />
-          <MoreMenu
-            actions={actions}
-            focused={focused}
-            onDismiss={onCloseMenu}
-            onToggle={() => onMenu("more")}
-            open={openMenu === "more"}
-            zonesHidden={zonesHidden}
-          >
-            <PlaySharePanel runtime={runtime} />
-            <BackupPanel runtime={runtime} />
-          </MoreMenu>
+          {moreMenu}
           <ExportMenu
             actions={actions}
             onDismiss={onCloseMenu}

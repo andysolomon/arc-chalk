@@ -612,6 +612,40 @@ for (const viewport of WORKSPACES) {
       ).toBeDisabled();
     });
 
+    test("opens the header's menus over the assignments sheet, not under it", async ({
+      page,
+    }) => {
+      await enterEditor(page);
+      const sheet = page.getByRole("complementary", { name: "Play inspector" });
+      await expect(sheet).toHaveAttribute("data-sheet", "peek");
+      await page
+        .getByRole("button", { name: "More actions", exact: true })
+        .tap();
+      const panel = page.locator(".more-panel");
+      await expect(panel).toBeVisible();
+      // Every entry in the menu is the thing a finger would land on — none
+      // is painted under the sheet (ADR 0058). The menu scrolls where it is
+      // taller than the glass, so each one is brought into view first.
+      const items = panel.locator(":scope > button");
+      const count = await items.count();
+      expect(count).toBeGreaterThan(4);
+      for (let index = 0; index < count; index += 1) {
+        const item = items.nth(index);
+        await item.scrollIntoViewIfNeeded();
+        const box = (await item.boundingBox())!;
+        if (box.y + box.height / 2 > viewport.height) continue;
+        const onTop = await page.evaluate(
+          ([x, y]) => {
+            const hit = document.elementFromPoint(x!, y!);
+            return Boolean(hit?.closest(".more-panel"));
+          },
+          [box.x + box.width / 2, box.y + box.height / 2],
+        );
+        expect(onTop, await item.innerText()).toBe(true);
+      }
+      await page.keyboard.press("Escape");
+    });
+
     test("gives a picked man his routes from a tray above the tools", async ({
       page,
     }) => {
