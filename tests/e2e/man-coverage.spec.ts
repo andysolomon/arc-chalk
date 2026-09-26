@@ -2,12 +2,14 @@ import { type Locator, type Page, type TestInfo } from "@playwright/test";
 import { expect, openSeededEditor, test } from "./fixtures";
 
 /**
- * Man coverage (ADR 0060), the way a Coach meets it: a man call put on
- * against the seeded Stick — Thunder offense lines each defender up on the
- * receiver it makes sense for him to take, a new set re-sorts them, the
- * Coach picks a man of his own on the field or from the list, and playback
- * shows each defender staying with his man. The field is saved at each stage
- * as the run's artifact.
+ * Man coverage (ADR 0060, 0061), the way a Coach meets it: a man call put
+ * on against the seeded Stick — Thunder offense gives each defender the
+ * receiver it makes sense for him to take, and a new set re-sorts them. In
+ * Cover 0 the men in man line up on their receivers; with a safety deep
+ * behind them they stay where the call put them. The Coach picks a man of
+ * his own on the field or from the list, and playback shows each defender
+ * staying with his man. The field is saved at each stage as the run's
+ * artifact.
  */
 
 /** Puts a call's defenders on the field, with or without its own lines. */
@@ -87,7 +89,103 @@ async function select(page: Page, defender: Locator): Promise<void> {
   await expect(page.locator(".player-heading")).toBeVisible();
 }
 
-test("matches a man call to the receivers it makes sense for, and meets a new set", async ({
+/** Where every defender stands, by letter, left to right within a letter. */
+async function defenseSpots(page: Page): Promise<string[]> {
+  const spots: string[] = [];
+  for (const defender of await page
+    .locator('[aria-label$=" defense player"]')
+    .all()) {
+    const { x, y } = await spotOf(defender);
+    spots.push(
+      `${await defender.getAttribute("aria-label")}@${x.toFixed(1)},${y.toFixed(1)}`,
+    );
+  }
+  return spots.sort();
+}
+
+/**
+ * How far inside his man each defender on `receivers` stands, toward the
+ * ball, in frame units: positive and alike when they have lined up.
+ */
+async function leverageOn(
+  page: Page,
+  receivers: readonly string[],
+): Promise<number[]> {
+  const centre = await spotOf(man(page, "Q", "offense"));
+  const leverage: number[] = [];
+  for (const receiver of receivers) {
+    const defender = await spotOf(await defenderOn(page, receiver));
+    const his = await spotOf(man(page, receiver, "offense"));
+    leverage.push((defender.x - his.x) * Math.sign(centre.x - his.x));
+  }
+  return leverage;
+}
+
+function expectLinedUp(leverage: readonly number[]): void {
+  for (const inside of leverage) {
+    expect(inside).toBeGreaterThan(0);
+    expect(inside).toBeCloseTo(leverage[0]!, 0);
+  }
+}
+
+/** What the Covers row says about the scheme, for the selected defender. */
+const schemeNote = (page: Page) => page.locator("[data-coverage-scheme]");
+
+/** Selects a defender and presses a call in Quick assignments. */
+async function quickCall(page: Page, defender: Locator, name: string) {
+  await select(page, defender);
+  const button = page
+    .locator(".section-heading", { hasText: "Quick assignments" })
+    .locator("xpath=following-sibling::div[1]")
+    .getByRole("button", { name, exact: true });
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "true");
+}
+
+test("lines each man in man up on his receiver in Cover 0, and meets a new set", async ({
+  page,
+}, testInfo) => {
+  await openSeededEditor(page);
+  await putOnDefense(page, "Bear Front Cover 0", true);
+
+  // Nobody is deep behind them, so the corners, the nickel and the safety
+  // each take the receiver that suits him and line up on him.
+  await expect
+    .poll(() => manCalls(page))
+    .toEqual(["$ man on Y", "C man on F", "C man on Z", "N man on X"]);
+  await select(page, man(page, "$", "defense"));
+  await expect(schemeNote(page)).toHaveAttribute(
+    "data-coverage-scheme",
+    "Cover 0",
+  );
+  await expect(schemeNote(page)).toContainText("lines up a yard inside");
+  expectLinedUp(await leverageOn(page, ["F", "X", "Y", "Z"]));
+  await saveField(page, testInfo, "1-bear-cover-0-against-stick");
+
+  // A new set, and the defense re-sorts and lines up again against it.
+  await page.keyboard.press("Control+Shift+f");
+  const formations = page.getByRole("dialog", { name: "Formations" });
+  await expect(formations).toBeVisible();
+  await formations.getByText("Gun Trips Right").click();
+  await expect(formations).toBeHidden();
+  await expect
+    .poll(() => manCalls(page))
+    .toEqual(["$ man on Y", "C man on X", "C man on Z", "N man on H"]);
+  expectLinedUp(await leverageOn(page, ["H", "X", "Y", "Z"]));
+  // The nickel — not the nose, who wears an N too — follows the slot to the
+  // trips side.
+  const centre = await spotOf(man(page, "Q", "offense"));
+  expect((await spotOf(await defenderOn(page, "H"))).x).toBeGreaterThan(
+    centre.x,
+  );
+  await saveField(page, testInfo, "2-meets-gun-trips-right");
+
+  // The set and the defense's answer to it are one step back.
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => manCalls(page)).toContain("N man on X");
+});
+
+test("gives each man his receiver in Cover 1 without moving him, until the call becomes Cover 0", async ({
   page,
 }, testInfo) => {
   await openSeededEditor(page);
@@ -106,30 +204,25 @@ test("matches a man call to the receivers it makes sense for, and meets a new se
       "N man on X",
       "W man on H",
     ]);
-  // The call is still read as the call it is, though its men have moved.
+  // The call is still read as the call it is.
   await expect(
     page
       .getByRole("navigation", { name: "Sidebar" })
       .getByRole("button", { name: /^Shadow defense/ }),
   ).toContainText("Nickel Cover 1");
 
-  // Each lines up on his man, and every one of them the same way: inside
-  // him, toward the ball, by the same yard.
-  const centre = await spotOf(man(page, "Q", "offense"));
-  const leverage: number[] = [];
-  for (const receiver of ["F", "X", "Y", "Z"]) {
-    const defender = await spotOf(await defenderOn(page, receiver));
-    const his = await spotOf(man(page, receiver, "offense"));
-    leverage.push((defender.x - his.x) * Math.sign(centre.x - his.x));
-  }
-  for (const inside of leverage) {
-    expect(inside).toBeGreaterThan(0);
-    expect(inside).toBeCloseTo(leverage[0]!, 0);
-  }
-  await saveField(page, testInfo, "1-nickel-cover-1-against-stick");
+  // With the free safety deep behind them, nobody in man has moved off the
+  // call: each stands where it put him, and his arrow says whom he has.
+  const asCalled = await defenseSpots(page);
+  await select(page, man(page, "N", "defense"));
+  await expect(schemeNote(page)).toHaveAttribute(
+    "data-coverage-scheme",
+    "Cover 1",
+  );
+  await expect(schemeNote(page)).toContainText("stays where he is put");
+  await saveField(page, testInfo, "1-nickel-cover-1-stays-on-the-call");
 
-  // A new set, and the defense re-sorts against it: the nickel follows the
-  // slot to the trips side and a linebacker takes the back.
+  // A new set re-sorts who has whom, and still moves nobody.
   await page.keyboard.press("Control+Shift+f");
   const formations = page.getByRole("dialog", { name: "Formations" });
   await expect(formations).toBeVisible();
@@ -145,13 +238,23 @@ test("matches a man call to the receivers it makes sense for, and meets a new se
       "N man on H",
       "W man on F",
     ]);
-  const nickel = await spotOf(man(page, "N", "defense"));
-  expect(nickel.x).toBeGreaterThan(centre.x);
-  await saveField(page, testInfo, "2-meets-gun-trips-right");
+  expect(await defenseSpots(page)).toEqual(asCalled);
+  await saveField(page, testInfo, "2-meets-gun-trips-right-in-place");
 
-  // The set and the defense's answer to it are one step back.
+  // Take the free safety out of the deep middle and put him in man too:
+  // the call is Cover 0 now, and everyone in man lines up on his man.
+  await quickCall(page, man(page, "F", "defense"), "Man");
+  await expect(schemeNote(page)).toHaveAttribute(
+    "data-coverage-scheme",
+    "Cover 0",
+  );
+  await expect.poll(() => manCalls(page)).toContain("C man on Z");
+  expectLinedUp(await leverageOn(page, ["H", "X", "Z"]));
+  await saveField(page, testInfo, "3-free-safety-in-man-is-cover-0");
+
+  // One undo puts the safety back deep and everyone back on the call.
   await page.keyboard.press("Control+z");
-  await expect.poll(() => manCalls(page)).toContain("N man on X");
+  await expect.poll(() => defenseSpots(page)).toEqual(asCalled);
 });
 
 test("gives a defender the man the Coach picks, on the field or from the list, and hands him back", async ({
@@ -162,6 +265,7 @@ test("gives a defender the man the Coach picks, on the field or from the list, a
   await expect.poll(() => manCalls(page)).toContain("$ man on Y");
 
   const safety = man(page, "$", "defense");
+  const safetyWas = await spotOf(safety);
   await select(page, safety);
   const covers = page.getByRole("combobox", { name: "Covers" });
   await expect(covers.locator("option:checked")).toHaveText(
@@ -181,12 +285,9 @@ test("gives a defender the man the Coach picks, on the field or from the list, a
   const calls = await manCalls(page);
   expect(calls).not.toContain("C man on Z");
   expect(calls).toContain("M man on Y");
-  const safetyAt = await spotOf(safety);
-  const zAt = await spotOf(man(page, "Z", "offense"));
-  const yAt = await spotOf(man(page, "Y", "offense"));
-  expect(Math.abs(safetyAt.x - zAt.x)).toBeLessThan(
-    Math.abs(safetyAt.x - yAt.x),
-  );
+  // In Cover 1 he is not moved onto Z: he stays where the call put him and
+  // his arrow goes across to his new man.
+  expect(await spotOf(safety)).toEqual(safetyWas);
   await saveField(page, testInfo, "1-safety-picked-onto-z");
 
   // Picking and thinking better of it changes nothing.

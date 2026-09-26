@@ -6,6 +6,7 @@ export * from "./ball-spot";
 export * from "./canonical";
 export * from "./classifications";
 export * from "./commands";
+export * from "./coverage-depths";
 export * from "./defense-catalogue";
 export * from "./defenses";
 export * from "./demo";

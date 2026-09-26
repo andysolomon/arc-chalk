@@ -1306,8 +1306,9 @@ export function resetAlignmentCommand(
   side: PlayerSideOfBall,
   target: AlignmentResetTarget,
   catalogue: readonly Formation[] = stockFormations,
+  calls?: readonly DefensiveCall[],
 ): { readonly command?: PlayCommand; readonly result?: AlignmentReset } {
-  const result = resetAlignment(document, side, target, catalogue);
+  const result = resetAlignment(document, side, target, catalogue, calls);
   if (!result) return {};
   const command = diffPlayDocuments(
     document,
