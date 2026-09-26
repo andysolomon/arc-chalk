@@ -25,19 +25,24 @@ Formations · Plays**. New play stays beside it wherever a page lists Plays.
 one book should not have to open it every time — with a bar of its own: a way back
 to the shelf, the book's name and count, and its two pages, **Plays** and **Game
 plans**, which are what ADR 0044's two pages were. The shelf lists every book on
-the device; Chalk opens one at a time, so a card for another book says what is in
-it and stops there. The book's Plays page lists or tiles them — a phone lists, a
+the device; Chalk opens one at a time, and **Open** on another card makes it the
+open one: the runtime reads from it from then on, its saved sets replace the last
+book's, the editor takes up the Play last changed in it (or a blank one), and a
+reload comes back to it. The book's Plays page lists or tiles them — a phone lists, a
 desk tiles, and a Cards / List switch remembered with the browser state overrides
 either — and filters them by Unit, Type, Formation and Personnel.
 
 **Formations** is the book of sets as a page: every set, shipped and saved, and
 every shipped defensive call, grouped by what each is called from. Its filters are
 Offense / Defense, Playbook, Formation, Set, Personnel and Package. A set's card
-leads to the Plays that stand in it, on the Plays page with that set pinned.
+leads to the Plays that stand in it, on the Plays page with that set pinned, and
+the plus beside its name starts a blank Play of the open book with the set already
+on the field — a call's plus, a blank defensive Play with the call on it.
 
-**Plays** is every Play with Offense / Defense, Type, Playbook, Formation, Set and
+**Plays** is every Play on the device, across its books, with Offense / Defense, Type, Playbook, Formation, Set and
 Personnel, and an **Advanced** row for what else a Play records: Concept, Tag and
-Motion. Nothing is offered that a Play does not carry — there is no QB drop,
+Motion. Opening a Play of another book opens that book first; deleting is offered
+only for Plays of the open book. Nothing is offered that a Play does not carry — there is no QB drop,
 protection, run direction or run hole on a Play, so no chip claims one.
 
 **A filter is a chip that names its choice.** Closed, it reads the axis until
@@ -46,6 +51,15 @@ something is chosen and then the choice, lit. Pressed, it opens a picker with
 to filter the choices by. On a desk the picker is a panel under the chip; on a
 phone it is a sheet up from the bottom with a handle, 48 px rows and a 16 px line,
 so a list of eighteen sets can be read and Safari does not zoom.
+
+**Play art.** A card's picture is drawn the way a play sheet under lights reads:
+turf, yard lines every five yards with the scrimmage line brightest, the men as
+their symbols, every line in its own colour with its head on — an arrow, a
+blocker's bar — and the ground each zone owns as the field's own tinted ellipse,
+in the coverage colours the editor and the Defenses dialog already use. The Play's
+unit is drawn full and the shadow beneath it faded. The picture is projected in
+true yards, downfield up, cropped to the Play. The thumbnail renderer's version is
+bumped so every cached picture is drawn again (ADR 0037).
 
 ## Language
 
@@ -96,8 +110,9 @@ ratchet moves.
 `tests/e2e/playbooks-pages.spec.ts` walks the three pages at 1440 × 960 and on
 the iPad: the book's Cards / List switch and its memory, the Formation and
 Personnel pickers and their counts, the Formations page under Offense and
-Defense, a set's card leading to its Plays, and the Plays page's axes and
-Advanced row. `tests/e2e/phone-playbooks.spec.ts` checks, at 360 × 800 and
+Defense, a set's card leading to its Plays, the Plays page's axes and Advanced
+row, a Play started in a set from the Formations page, the shelf's Open, and the
+play art's turf, yard lines and zone ellipses. `tests/e2e/phone-playbooks.spec.ts` checks, at 360 × 800 and
 390 × 844, the three pages on one row at 44 px, the list by default, the sheet
 from the bottom, and the Formations page two across. Each ends with a screenshot
 in the test's output folder.

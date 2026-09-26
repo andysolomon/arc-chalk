@@ -217,8 +217,9 @@ import { LibraryPanel } from "../library/library-panel";
 import { ScopeBar } from "../library/scope-bar";
 import { PlaybookBrowser } from "../library/playbook-browser";
 import { PlaybooksShelf } from "../library/playbooks-shelf";
+import { canSwitchPlay, createUntitledPlay } from "../library/library-actions";
 import { FormationsPage } from "../library/formations-page";
-import type { PlaybookSummary } from "@chalk/local-db";
+import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
 import { GamePlansWorkspace } from "../library/game-plans-workspace";
 import { GameDayView } from "../library/game-day-view";
 import { defaultOutputSpec, type OutputSpec } from "../output/output-spec";
@@ -2567,6 +2568,10 @@ export function ChalkApp({
   const [playbookSummaries, setPlaybookSummaries] = useState<
     readonly PlaybookSummary[]
   >([]);
+  /** Every Play on the device, across its books, which is what the Plays page lists. */
+  const [everyPlay, setEveryPlay] = useState<readonly PlaySearchProjection[]>(
+    [],
+  );
   const openBookPage = (tab: "plays" | "plans") => {
     setPlaybooksPage("playbooks");
     setBookOpen(true);
@@ -2823,10 +2828,22 @@ export function ChalkApp({
     editorStore.getSnapshot,
   );
   const playbook = usePlaybookLibrary(runtime, editorStore);
+  // The book is read again each time the Coach comes to it, so a Play he
+  // just drew or started from a set is on the page with its set and type.
+  const refreshLibrary = playbook.refresh;
+  useEffect(() => {
+    if (activeView !== "Playbooks") return;
+    void refreshLibrary();
+  }, [activeView, refreshLibrary]);
   useEffect(() => {
     let cancelled = false;
-    void runtime.library.listPlaybooks().then((books) => {
-      if (!cancelled) setPlaybookSummaries(books);
+    void Promise.all([
+      runtime.library.listPlaybooks(),
+      runtime.library.listEveryPlaySummary(),
+    ]).then(([books, plays]) => {
+      if (cancelled) return;
+      setPlaybookSummaries(books);
+      setEveryPlay(plays);
     });
     return () => {
       cancelled = true;
@@ -2916,6 +2933,7 @@ export function ChalkApp({
     );
     void runtime.removeCoachFormation(formationId);
   };
+
   // The committed Play is what React draws. Mid-drag the live paint loop
   // patches only the SVG that moved, so a pointermove never clones the
   // document or rebuilds the field (ADR 0002).
@@ -6531,13 +6549,118 @@ export function ChalkApp({
   if (activeView === "Playbooks") {
     // The Playbook and the Game plans are one destination with two pages;
     // opening a Play from either steps back into the editor with it.
+    /**
+     * The default Field Profile of the open book, which a Play started from
+     * the shelf or a set is drawn on rather than whatever the last Play used.
+     */
+    const openBookFieldProfile = async (): Promise<FieldProfile> => {
+      const book = await runtime.library.getPlaybook();
+      return (
+        book?.fieldProfiles.find(
+          ({ id }) => id === book.defaultFieldProfileId,
+        ) ??
+        book?.fieldProfiles[0] ??
+        editorStore.getSnapshot().document.fieldProfile
+      );
+    };
+
+    /**
+     * Opens another book from the shelf (ADR 0060): the runtime reads from it
+     * from here on, its saved sets replace the last book's, and the editor
+     * takes up the Play the Coach last changed in it — or a blank one when
+     * the book is empty. The book that is already open just opens.
+     */
+    const openBook = async (playbookId: string): Promise<boolean> => {
+      if (playbookId !== runtime.library.playbookId) {
+        if (!canSwitchPlay(editorStore.getSnapshot().localSave.phase)) {
+          return false;
+        }
+        setCoachFormations(await runtime.openPlaybook(playbookId));
+        const snapshot = await runtime.library.loadSnapshot();
+        const recent = [...(snapshot?.members ?? [])].sort(
+          (left, right) => right.updatedAtMs - left.updatedAtMs,
+        )[0];
+        if (recent) {
+          await playbook.loadPlay(recent.playId);
+        } else {
+          await createUntitledPlay(
+            runtime.library,
+            editorStore,
+            "offense",
+            await openBookFieldProfile(),
+          );
+          await playbook.refresh();
+        }
+      }
+      setBookOpen(true);
+      return true;
+    };
+
+    /**
+     * A new Play in a set, from the Formations page: a blank offensive Play of
+     * the open book with the set put on the field, open in the editor. The
+     * defensive twin puts a call on a blank defensive Play.
+     */
+    const startPlayIn = async (
+      pick: { readonly formationId: string } | { readonly callId: string },
+    ): Promise<void> => {
+      if (!canSwitchPlay(editorStore.getSnapshot().localSave.phase)) return;
+      if (interactionRef.current.drawing) {
+        dispatchFieldRef.current({ type: "escape" });
+      }
+      const formation =
+        "formationId" in pick
+          ? allFormations.find(({ id }) => id === pick.formationId)
+          : undefined;
+      const call =
+        "callId" in pick
+          ? stockDefensiveCalls.find(
+              ({ formation }) => formation.id === pick.callId,
+            )
+          : undefined;
+      if (!formation && !call) return;
+      await createUntitledPlay(
+        runtime.library,
+        editorStore,
+        formation ? "offense" : "defense",
+        await openBookFieldProfile(),
+      );
+      const document = editorStore.getSnapshot().document;
+      const { command, result } = formation
+        ? applyFormationCommand(document, formation, createStableId)
+        : applyDefensiveCallCommand(document, call!, createStableId, {
+            withAssignments: callAssignments,
+          });
+      const name = formation?.name ?? call!.formation.name;
+      setToast({ name, text: "— a new play in it" });
+      runPanelCommand(command, {
+        selection: result.addedPlayerIds.map((id) => ({
+          kind: "player" as const,
+          id,
+        })),
+        drawing: undefined,
+      });
+      void playbook.refresh();
+      goToView("Editor");
+    };
     const openPlay = (playId: string) => {
       if (interactionRef.current.drawing) {
         dispatchFieldRef.current({ type: "escape" });
       }
-      void playbook.loadPlay(playId);
+      // A Play of another book opens its book first (ADR 0060).
+      const book = everyPlay.find(
+        (member) => member.playId === playId,
+      )?.playbookId;
+      void (async () => {
+        if (book && book !== runtime.library.playbookId) {
+          if (!(await openBook(book))) return;
+        }
+        await playbook.loadPlay(playId);
+      })();
       goToView("Editor");
     };
+    const inOpenBook = (member: PlaySearchProjection) =>
+      member.playbookId === runtime.library.playbookId;
     // Deleting the Play a Concept is named for lets the Concept go too; its
     // versions stay, each its own Play (the library panel asks the same).
     const deletePlayPrompt = (playId: string) => {
@@ -6669,7 +6792,7 @@ export function ChalkApp({
               <PlaybooksShelf
                 currentPlaybookId={runtime.library.playbookId}
                 members={playbook.snapshot.members}
-                onOpen={() => setBookOpen(true)}
+                onOpen={(id) => void openBook(id)}
                 playbooks={playbookSummaries}
                 savedSets={coachFormations.length}
               />
@@ -6687,6 +6810,8 @@ export function ChalkApp({
                 setPlaysPreset({ formationId, key: Date.now() });
                 setPlaybooksPage("plays");
               }}
+              onStartPlay={(formationId) => void startPlayIn({ formationId })}
+              onStartCallPlay={(callId) => void startPlayIn({ callId })}
               onToggleFavoriteCall={toggleFavoriteCall}
               onToggleFavoriteFormation={toggleFavoriteFormation}
               playbooks={playbookSummaries}
@@ -6704,10 +6829,13 @@ export function ChalkApp({
               initialFilters={
                 playsPreset ? { formationId: playsPreset.formationId } : {}
               }
+              deletable={inOpenBook}
               key={playsPreset?.key ?? 0}
               layoutChoice
               library={runtime.library}
-              members={playbook.snapshot.members}
+              members={
+                everyPlay.length > 0 ? everyPlay : playbook.snapshot.members
+              }
               onClose={() => goToView("Editor")}
               onDelete={(playId) => playbook.removePlay(playId, true)}
               onOpen={openPlay}

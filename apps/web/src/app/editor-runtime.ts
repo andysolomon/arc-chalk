@@ -65,6 +65,8 @@ import { createShareCloud, type ShareCloudPort } from "../share/convex-share";
 const DATABASE_NAME = "chalk-production-beta";
 export const LIBRARY_OPEN_KEY = "libraryOpen.v1";
 export const LIBRARY_BROWSER_KEY = "library.browser.v1";
+/** The book the Coach opened from the shelf, so a reload opens it again (ADR 0060). */
+export const OPEN_PLAYBOOK_KEY = "library.openPlaybook.v1";
 
 /**
  * Which sets and calls the Coach starred. The original kept these beside the
@@ -188,9 +190,12 @@ const readIds = (value: unknown): readonly string[] =>
   Array.isArray(value) ? value.filter((id) => typeof id === "string") : [];
 
 export interface ChalkLibrary {
+  /** The open book. Everything below reads from it; `openPlaybook` on the runtime changes it. */
   readonly playbookId: string;
   loadSnapshot(): Promise<LibrarySnapshot | undefined>;
   listPlaybooks(): Promise<readonly PlaybookSummary[]>;
+  /** Every Play on the device, across its books, for the Plays page. */
+  listEveryPlaySummary(): Promise<readonly PlaySearchProjection[]>;
   getPlay(playId: string): Promise<StoredPlay | undefined>;
   getPlaybook(): Promise<Playbook | undefined>;
   savePlaybook(playbook: Playbook): Promise<void>;
@@ -292,6 +297,13 @@ export interface ChalkRuntime {
   readonly library: ChalkLibrary;
   /** What the Coach had saved and starred when this session opened. */
   readonly coachSets: CoachSets;
+  /**
+   * Opens another book on this device: the library, its sets and its plans
+   * read from it from here on, and a reload comes back to it. Returns the
+   * sets the Coach saved into that book. The open Play is not changed here;
+   * the caller opens one of the book's, or starts one.
+   */
+  openPlaybook(playbookId: string): Promise<readonly Formation[]>;
   /** Fires after a local commit so background sync can drain. */
   subscribeLocalEdit(listener: () => void): () => void;
   /** Keeps a set the Coach named, so it is there the next time he opens Chalk. */
@@ -365,8 +377,12 @@ function safeLocationSearch(): string {
 
 async function mostRecentStoredPlay(
   repository: ChalkLocalRepository,
+  /** Only this book's Plays, when the Coach chose a book from the shelf. */
+  within?: string,
 ): Promise<StoredPlay | undefined> {
-  const playbooks = await repository.listPlaybooks();
+  const playbooks = (await repository.listPlaybooks()).filter(
+    (playbook) => within === undefined || playbook.id === within,
+  );
   let best: { playId: string; updatedAtMs: number } | undefined;
   for (const playbook of playbooks) {
     const members = await repository.listPlaySummaries(playbook.id);
@@ -440,7 +456,14 @@ async function resolveInitialEditorDocument(
     };
   }
 
-  const storedPlay = await mostRecentStoredPlay(repository);
+  // The book the Coach opened last wins; otherwise the Play he last changed
+  // says which book he was in.
+  const chosen = (await repository.getPreference(OPEN_PLAYBOOK_KEY))?.value;
+  const chosenId =
+    typeof chosen === "string" && playbooks.some(({ id }) => id === chosen)
+      ? chosen
+      : undefined;
+  const storedPlay = await mostRecentStoredPlay(repository, chosenId);
   if (storedPlay) {
     return {
       document: storedPlay.document,
@@ -450,7 +473,7 @@ async function resolveInitialEditorDocument(
     };
   }
 
-  const playbookId = playbooks[0]?.id ?? DEFAULT_PLAYBOOK_ID;
+  const playbookId = chosenId ?? playbooks[0]?.id ?? DEFAULT_PLAYBOOK_ID;
   const fieldProfile =
     (await repository.loadPlaybook(playbookId))?.playbook.fieldProfiles[0] ??
     highSchoolFieldProfile;
@@ -485,6 +508,9 @@ export function createMemoryLibrary(
     playbookId: current.playbook.id,
     loadSnapshot() {
       return Promise.resolve(current);
+    },
+    listEveryPlaySummary() {
+      return Promise.resolve(current.members);
     },
     listPlaybooks() {
       return Promise.resolve([
@@ -677,7 +703,8 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     repository,
     preferStarterSeed(),
   );
-  const playbookId = initial.playbookId;
+  // Reassigned by openPlaybook; every closure below reads it when it runs.
+  let playbookId = initial.playbookId;
   const localEditListeners = new Set<() => void>();
 
   const persistence: EditorPersistence = {
@@ -730,7 +757,9 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
   };
 
   const library: ChalkLibrary = {
-    playbookId,
+    get playbookId() {
+      return playbookId;
+    },
     async loadSnapshot() {
       const envelope = await repository.loadPlaybook(playbookId);
       if (!envelope) return undefined;
@@ -741,6 +770,8 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
       };
     },
     listPlaybooks: () => repository.listPlaybooks(),
+    // An empty query with no book filter is every live projection.
+    listEveryPlaySummary: () => repository.searchPlays({}),
     getPlay: (playId) => repository.getPlay(playId),
     async getPlaybook() {
       return (await repository.loadPlaybook(playbookId))?.playbook;
@@ -868,6 +899,14 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
       formations: coachFormations,
       favoriteFormationIds: readIds(favoriteFormations?.value),
       favoriteCallIds: readIds(favoriteCalls?.value),
+    },
+    async openPlaybook(next) {
+      if (!(await repository.loadPlaybook(next))) {
+        throw new Error(`There is no Playbook ${next} on this device.`);
+      }
+      playbookId = next;
+      await rememberJson(OPEN_PLAYBOOK_KEY, next);
+      return repository.listFormations(next);
     },
     async saveCoachFormation(formation) {
       await repository.saveFormation(formation);

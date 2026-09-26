@@ -78,6 +78,7 @@ export type PlaybookFilters = "compact" | "book" | "library";
 export function PlaybookBrowser({
   concepts = [],
   currentPlayId,
+  deletable = () => true,
   deletePrompt,
   embedded = false,
   filters = "compact",
@@ -99,6 +100,8 @@ export function PlaybookBrowser({
   /** The Concepts of the book, for the Advanced row's Concept filter. */
   concepts?: readonly Concept[];
   currentPlayId: string;
+  /** Whether this Play can be deleted from here; a Play of another book cannot. */
+  deletable?: (member: PlaySearchProjection) => boolean;
   /** What deleting this Play also does, said before the Coach confirms. */
   deletePrompt?: (playId: string) => string;
   filters?: PlaybookFilters;
@@ -711,7 +714,7 @@ export function PlaybookBrowser({
                           : undefined
                       }
                       onActions={
-                        embedded && onDelete
+                        embedded && onDelete && deletable(member)
                           ? () => setActionsFor(member.playId)
                           : undefined
                       }

@@ -81,6 +81,8 @@ export function FormationsPage({
   members,
   onRemove,
   onShowPlays,
+  onStartCallPlay,
+  onStartPlay,
   onToggleFavoriteCall,
   onToggleFavoriteFormation,
   playbooks,
@@ -97,6 +99,10 @@ export function FormationsPage({
   onRemove: (formationId: string) => void;
   /** Opens the Plays page on the Plays that stand in this set. */
   onShowPlays: (formationId: string) => void;
+  /** Starts a blank defensive Play with this call on the field. */
+  onStartCallPlay: (callId: string) => void;
+  /** Starts a blank offensive Play in this set. */
+  onStartPlay: (formationId: string) => void;
   onToggleFavoriteCall: (callId: string) => void;
   onToggleFavoriteFormation: (formationId: string) => void;
   playbooks: readonly PlaybookSummary[];
@@ -409,6 +415,7 @@ export function FormationsPage({
                     key={card.id}
                     onRemove={onRemove}
                     onShowPlays={onShowPlays}
+                    onStart={onStartPlay}
                     onToggleFavorite={onToggleFavoriteFormation}
                   />
                 ) : card.call ? (
@@ -416,6 +423,7 @@ export function FormationsPage({
                     call={card.call}
                     card={card}
                     key={card.id}
+                    onStart={onStartCallPlay}
                     onToggleFavorite={onToggleFavoriteCall}
                   />
                 ) : null,
@@ -442,12 +450,14 @@ function SetCard({
   formation,
   onRemove,
   onShowPlays,
+  onStart,
   onToggleFavorite,
 }: {
   card: FormationCard;
   formation: Formation;
   onRemove: (formationId: string) => void;
   onShowPlays: (formationId: string) => void;
+  onStart: (formationId: string) => void;
   onToggleFavorite: (formationId: string) => void;
 }) {
   const shape = formationThumbnail(formation);
@@ -500,6 +510,10 @@ function SetCard({
         >
           {formation.name}
         </button>
+        <StartPlay
+          label={`Start a play in ${formation.name}`}
+          onStart={() => onStart(formation.id)}
+        />
         <FavoriteStar
           favorite={card.favorite}
           onToggle={() => onToggleFavorite(formation.id)}
@@ -528,10 +542,12 @@ function SetCard({
 function CallCard({
   call,
   card,
+  onStart,
   onToggleFavorite,
 }: {
   call: DefensiveCall;
   card: FormationCard;
+  onStart: (callId: string) => void;
   onToggleFavorite: (callId: string) => void;
 }) {
   const shape = defenseThumbnail(call, false);
@@ -571,6 +587,10 @@ function CallCard({
         <strong className="browser-name formation-call-name">
           {call.formation.name}
         </strong>
+        <StartPlay
+          label={`Start a play in ${call.formation.name}`}
+          onStart={() => onStart(call.formation.id)}
+        />
         <FavoriteStar
           favorite={card.favorite}
           onToggle={() => onToggleFavorite(call.formation.id)}
@@ -580,5 +600,29 @@ function CallCard({
         {card.personnel} · {call.coverage} · {call.formation.slots.length} men
       </span>
     </div>
+  );
+}
+
+/**
+ * The plus beside a set's name: a blank Play of the open book with the set
+ * already on the field. It sits in the name row with the star, so like the
+ * star it must not read as picking the card.
+ */
+function StartPlay({ label, onStart }: { label: string; onStart: () => void }) {
+  return (
+    <button
+      aria-label={label}
+      className="browser-add"
+      onClick={(event) => {
+        event.stopPropagation();
+        onStart();
+      }}
+      title={label}
+      type="button"
+    >
+      <svg aria-hidden="true" viewBox="0 0 16 16">
+        <path d="M8 3v10M3 8h10" strokeLinecap="round" strokeWidth="1.7" />
+      </svg>
+    </button>
   );
 }

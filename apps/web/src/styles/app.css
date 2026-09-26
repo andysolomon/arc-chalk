@@ -3462,11 +3462,13 @@ button.library-dot.target.small {
      its content's, so a card never spills into the row below. */
   grid-auto-rows: minmax(0, 1fr);
 }
+/* The picture is a play sheet under lights: the frame is turf, so a card
+   that letterboxes the art shows no paper around it. */
 .playbook-thumb {
   height: 78px;
   overflow: hidden;
   border-radius: 6px;
-  background: #f7f7f7;
+  background: #0c1117;
 }
 .playbook-thumb img {
   display: block;
@@ -3477,6 +3479,7 @@ button.library-dot.target.small {
 .playbook-thumb-wait {
   display: block;
   height: 100%;
+  background: linear-gradient(180deg, #121821, #0c1117);
 }
 /* A card is a frame; the button inside it opens the Play and fills it, and
    the row is a fixed height, so the picture takes what the words leave. */
@@ -3601,8 +3604,7 @@ button.library-dot.target.small {
   height: 50px;
   flex: none;
   border-radius: 6px;
-  background: var(--paper);
-  box-shadow: 0 0 0 1px var(--line);
+  background: #0c1117;
 }
 .playbook-row .playbook-text {
   flex: 1;
@@ -4034,11 +4036,6 @@ button.library-dot.target.small {
 .shelf-open:hover {
   background: #383838;
 }
-.shelf-note {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 11px;
-}
 /* The Formations page is the book of sets as a page: the same cards as the
    dialog over the editor, with the filters above them. */
 .browser.formations-page {
@@ -4085,6 +4082,29 @@ button.library-dot.target.small {
 .formation-call-name {
   cursor: default;
   font-weight: 500;
+}
+.browser-add {
+  display: flex;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.browser-add:hover {
+  background: #f2f2f2;
+  color: var(--ink);
+}
+.browser-add svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
 }
 @media (max-width: 667px) {
   /* The picker is a sheet from the bottom, with a handle and room to read. */

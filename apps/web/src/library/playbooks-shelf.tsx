@@ -9,9 +9,8 @@ function plays(count: number): string {
 
 /**
  * The shelf: every Playbook on this device, one card each, and the one that
- * is open marked as such. Chalk opens one book at a time — the runtime is
- * bound to it — so a card for another book says what is in it and stops
- * there rather than offering an Open it cannot keep.
+ * is open marked as such. Chalk opens one book at a time; Open on another
+ * card makes it the open one (ADR 0060).
  */
 export function PlaybooksShelf({
   currentPlaybookId,
@@ -65,17 +64,14 @@ export function PlaybooksShelf({
                     Edited {agoStamp(book.updatedAtMs, now())}
                   </span>
                 </div>
-                {open ? (
-                  <button
-                    className="shelf-open"
-                    onClick={() => onOpen(book.id)}
-                    type="button"
-                  >
-                    Open
-                  </button>
-                ) : (
-                  <span className="shelf-note">Not open on this device</span>
-                )}
+                <button
+                  aria-label={`Open ${book.name}`}
+                  className="shelf-open"
+                  onClick={() => onOpen(book.id)}
+                  type="button"
+                >
+                  {open ? "Open" : "Open this book"}
+                </button>
               </div>
             );
           })}

@@ -259,3 +259,81 @@ test("the Plays page carries every axis and an Advanced row", async ({
     fullPage: true,
   });
 });
+
+test("starts a play in a set from the Formations page, and the shelf reopens the book", async ({
+  page,
+}, testInfo) => {
+  const pages = await openPlaybooks(page);
+
+  // The shelf's Open on the open book just opens it again.
+  await page
+    .getByRole("button", { name: /Playbooks$/ })
+    .last()
+    .click();
+  await page
+    .getByRole("region", { name: "Playbooks" })
+    .getByRole("button", { name: "Open Chalk Starter Playbook" })
+    .click();
+  await expect(page.locator(".book-title strong")).toHaveText(
+    "Chalk Starter Playbook",
+  );
+
+  // The plus beside a set is a blank play of the open book in that set.
+  await pages.getByRole("button", { name: "Formations", exact: true }).click();
+  const formations = page.getByRole("region", { name: "Formations" });
+  await formations
+    .getByRole("button", { name: "Start a play in Gun Bunch Right" })
+    .click();
+  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
+    "Untitled play",
+  );
+  await expect(page.getByRole("status")).toContainText("Gun Bunch Right");
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+
+  // It is a play of the book now, in that set. The destination comes back
+  // where it was left, on Formations, so the book is one press away.
+  await page
+    .getByRole("navigation", { name: "Workspace views" })
+    .getByRole("button", { name: "Playbooks", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Playbooks pages" })
+    .getByRole("button", { name: "Playbooks", exact: true })
+    .click();
+  await page.getByRole("textbox", { name: "Search plays" }).fill("Untitled");
+  const card = page.locator("[data-play-id]").first();
+  await expect(card).toBeVisible();
+  await expect(card.locator(".playbook-card-type")).toContainText(
+    "Gun Bunch Right",
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("play-started-in-a-set.png"),
+    fullPage: true,
+  });
+});
+
+test("draws the play art as a field with its zones", async ({
+  page,
+}, testInfo) => {
+  await openPlaybooks(page);
+  const cover3 = page.locator("[data-play-id]", {
+    hasText: "Cover 3 — Fire Zone",
+  });
+  const image = cover3.locator(".playbook-thumb img");
+  await expect(image).toBeVisible();
+  const src = await image.getAttribute("src");
+  expect(src).toBeTruthy();
+  const svg = await page.evaluate(
+    async (url) => (await fetch(url)).text(),
+    src!,
+  );
+  // Turf, yard lines, and one tinted ellipse per zone drop.
+  expect(svg).toContain('fill="#0c1117"');
+  expect((svg.match(/<line /g) ?? []).length).toBeGreaterThan(4);
+  expect((svg.match(/<ellipse /g) ?? []).length).toBeGreaterThanOrEqual(3);
+  expect(svg).toContain("#1D3FD8");
+  await page.screenshot({
+    path: testInfo.outputPath("play-art.png"),
+    fullPage: true,
+  });
+});
