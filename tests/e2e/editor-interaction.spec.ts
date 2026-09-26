@@ -284,6 +284,53 @@ test("draws a route from the selected man's inspector and commits it once", asyn
   await expect(page.locator("[data-scene-path]")).toHaveCount(6);
 });
 
+test("brings the folded inspector back on the man clicked, not the man dragged", async ({
+  page,
+}, testInfo) => {
+  await openEditor(page);
+  const inspector = page.getByRole("complementary", {
+    name: "Play inspector",
+  });
+  const fold = () =>
+    inspector.getByRole("button", { name: "Hide the inspector" }).click();
+  await fold();
+  await expect(inspector).toHaveCount(0);
+
+  // A drag only moves him; the panels stay as the Coach left them.
+  const quarterback = await playerCenter(page, "q");
+  await drag(page, quarterback, { x: quarterback.x + 40, y: quarterback.y });
+  await expect(page.locator('[data-scene-player="q"]')).toHaveClass(/selected/);
+  await expect(inspector).toHaveCount(0);
+
+  // Picking a man without a pointer brings the inspector back on him
+  // (ADR 0016).
+  const fieldItem = page
+    .getByRole("list", { name: "Everything on the field" })
+    .getByRole("button", { name: "Z offense player" });
+  await fieldItem.focus();
+  await page.keyboard.press("Enter");
+  await expect(fieldItem).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    inspector.getByRole("textbox", { name: "Tag under" }),
+  ).toHaveValue(/^thunder$/i);
+
+  // So does a click, which picks him out for his assignment.
+  await page.keyboard.press("Escape");
+  await fold();
+  await expect(inspector).toHaveCount(0);
+  const receiver = await playerCenter(page, "x");
+  await page.mouse.click(receiver.x, receiver.y);
+  await expect(page.locator('[data-scene-player="x"]')).toHaveClass(/selected/);
+  await expect(
+    inspector.getByRole("textbox", { name: "Tag under" }),
+  ).toHaveValue(/^flat$/i);
+  await expect(inspector.getByText("Quick routes")).toBeVisible();
+
+  await page.screenshot({
+    path: testInfo.outputPath("inspector-back-on-pick.png"),
+  });
+});
+
 test("draws from the blue dot and abandons a route on Escape", async ({
   page,
 }) => {

@@ -3543,6 +3543,17 @@ export function ChalkApp({
       depthPixelsPerYard: scene.viewport.depthPixelsPerYard * zoom,
     };
   };
+  /**
+   * On a desktop, a man picked out on his own brings back the inspector the
+   * Coach folded: his assignments are what he picked him for. A tablet's
+   * drawer and a phone's sheet keep their own rules.
+   */
+  const revealPickedMan = (selection: readonly FieldItemRef[]): void => {
+    if (inspectorFloats) return;
+    if (selection.length === 1 && selection[0]!.kind === "player") {
+      setInspectorOpen(true);
+    }
+  };
   const dispatchField = (event: FieldInteractionEvent): void => {
     const document = editorStore.getSnapshot().document;
     const previous = interactionRef.current;
@@ -3567,6 +3578,10 @@ export function ChalkApp({
       !result.editingLabelId &&
       livePaintCanHold(previous, result.model);
     if (!hold) setInteraction(result.model);
+    // A click, not a drag: a man dragged was only being moved.
+    if (event.type === "pointer-up" && previous.gesture.kind === "pressing") {
+      revealPickedMan(result.model.selection);
+    }
     if (result.command) {
       pendingCommitPaintRef.current = true;
       markInsertsPending(result.command);
@@ -4329,6 +4344,7 @@ export function ChalkApp({
       selectedSegmentIndex: undefined,
       selectedNodeIndex: undefined,
     });
+    revealPickedMan([item]);
   };
   /** What each of them is called, said the way a Coach would say it aloud. */
   const fieldItemName = (item: FieldItemRef): string =>
