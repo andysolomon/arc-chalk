@@ -8186,6 +8186,17 @@ button.shell-quiet:hover {
   color: var(--muted);
   font-size: 12px;
 }
+.coverage-depths {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+  padding-top: 12px;
+}
+.coverage-depths select {
+  min-height: 32px;
+  min-width: 0;
+}
 .settings-section .settings-about-name {
   color: var(--ink);
   font-size: 14px;

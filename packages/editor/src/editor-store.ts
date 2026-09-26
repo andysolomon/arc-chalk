@@ -226,8 +226,9 @@ export interface CreateEditorStoreOptions {
 /**
  * Every edit settles man coverage in the same step (ADR 0060): a man call
  * given, a receiver picked, a set changed or a man dragged — whatever the
- * edit, the defenders in man are matched and lined up against the offense it
- * leaves, and one undo takes the edit and what it moved back together. An
+ * edit, the defenders in man are matched against the offense it leaves —
+ * and in Cover 0 lined up on their men (ADR 0061) — and one undo takes the
+ * edit and what it moved back together. An
  * edit that touches neither the offense nor a man call comes back as it was.
  */
 function withManCoverageSettled(

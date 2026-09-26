@@ -7,6 +7,8 @@ import {
   currentDefensiveCall,
   coverableReceivers,
   manCoverageFor,
+  manCoverageScheme,
+  type ManCoverageScheme,
   type CoverableReceiver,
   type ReceiverKind,
   currentFormation,
@@ -54,6 +56,7 @@ import {
   stockDefensiveCalls,
   stockFormations,
   baseAlignment,
+  defensiveCallsAt,
   addCoachPlayType,
   formatClassification,
   unitName,
@@ -61,6 +64,8 @@ import {
   type Concept,
   type Coordinate,
   type LabelRole,
+  type CoverageDepths,
+  type Playbook,
   type FieldProfile,
   type Formation,
   type MovementPath,
@@ -296,6 +301,7 @@ import { FieldDiagram } from "./field-diagram";
 import { SELECTION_BLUE, sceneColors, selectionKey } from "./field-marks";
 import { PlaybackBar } from "./playback-bar";
 import { SettingsOverlay, type SettingsTab } from "./settings-overlay";
+import { CoverageDepthsSection } from "./coverage-depths-section";
 import { PlaySidebar, type SidebarRowSpec } from "./play-sidebar";
 import { rosterFor, type Roster, type RosterRow } from "./assignments-roster";
 import {
@@ -1479,6 +1485,8 @@ interface PlayerCoverage {
   readonly chosen: boolean;
   /** Everyone he could be given, named the way the field reads them. */
   readonly receivers: readonly { readonly id: string; readonly name: string }[];
+  /** The man coverage the field shows, which says whether he lines up. */
+  readonly scheme?: ManCoverageScheme;
 }
 
 /**
@@ -1512,7 +1520,7 @@ function CoverRow({
         aria-label="Covers"
         disabled={coverage.receivers.length === 0}
         onChange={(event) => onCover(event.target.value || undefined)}
-        title="Who he covers. Best match lines him up on the receiver the defense would give him, and follows the offense when it changes"
+        title="Who he covers. Best match gives him the receiver the defense would, and follows the offense when it changes"
         value={coverage.chosen ? (coverage.receiverId ?? "") : ""}
       >
         <option value="">{best}</option>
@@ -1531,10 +1539,12 @@ function CoverRow({
       >
         Pick on field
       </button>
-      <p>
+      <p data-coverage-scheme={coverage.scheme?.name}>
         {coverage.receivers.length === 0
-          ? "Nobody on offense to cover yet. Put a set on the field and he lines up on his man."
-          : "He lines up a yard inside his man and goes where his man goes."}
+          ? "Nobody on offense to cover yet. Put a set on the field and the defense gives him his man."
+          : coverage.scheme?.linesUp
+            ? `${coverage.scheme.name} — nobody deep behind him, so he lines up a yard inside his man and goes where his man goes.`
+            : `${coverage.scheme?.name ?? "Man"} — with help deep he stays where he is put; his arrow shows his man.`}
       </p>
     </div>
   );
@@ -2971,6 +2981,15 @@ export function ChalkApp({
     editorStore.getSnapshot,
   );
   const playbook = usePlaybookLibrary(runtime, editorStore);
+  /**
+   * The defensive calls as this Playbook stands them: corners and deep
+   * safeties at the depths the Coach set in Settings (ADR 0061).
+   */
+  const coverageDepths = playbook.snapshot.playbook.coverageDepths;
+  const defensiveCalls = useMemo(
+    () => defensiveCallsAt(stockDefensiveCalls, coverageDepths),
+    [coverageDepths],
+  );
   // The book is read again each time the Coach comes to it, so a Play he
   // just drew or started from a set is on the page with its set and type.
   const refreshLibrary = playbook.refresh;
@@ -3024,6 +3043,14 @@ export function ChalkApp({
   const allFormations = useMemo(
     (): readonly Formation[] => [...stockFormations, ...coachFormations],
     [coachFormations],
+  );
+  /** What a hover can preview: every set, and every call at the Coach's depths. */
+  const previewFormations = useMemo(
+    (): readonly Formation[] => [
+      ...allFormations,
+      ...defensiveCalls.map(({ formation }) => formation),
+    ],
+    [allFormations, defensiveCalls],
   );
 
   const toggled = (ids: readonly string[], id: string): readonly string[] =>
@@ -3376,9 +3403,11 @@ export function ChalkApp({
     if (player.unit !== "defense") return undefined;
     const coverage = manCoverageFor(editor.document, player.id);
     if (!coverage) return undefined;
+    const scheme = manCoverageScheme(editor.document);
     return {
       ...(coverage.receiver ? { receiverId: coverage.receiver.player.id } : {}),
       chosen: coverage.chosen,
+      ...(scheme ? { scheme } : {}),
       receivers: coverableReceivers(editor.document).map((receiver) => ({
         id: receiver.player.id,
         name: receiverName(receiver),
@@ -4548,8 +4577,8 @@ export function ChalkApp({
         : "";
   /** Which call is on the field, by name, as the browser says it. */
   const onFieldCall = useMemo(
-    () => currentDefensiveCall(editor.document, stockDefensiveCalls),
-    [editor.document],
+    () => currentDefensiveCall(editor.document, defensiveCalls),
+    [defensiveCalls, editor.document],
   );
   /**
    * Putting a call on the field. Only one defense can be on at a time, so
@@ -4560,7 +4589,7 @@ export function ChalkApp({
       current.hideShadow ? { ...current, hideShadow: false } : current,
     );
   const applyCallPick = (callId: string): void => {
-    const call = stockDefensiveCalls.find(
+    const call = defensiveCalls.find(
       ({ formation }) => formation.id === callId,
     );
     if (!call) return;
@@ -4784,6 +4813,7 @@ export function ChalkApp({
         side,
         target,
         allFormations,
+        defensiveCalls,
       );
       return result
         ? { name: result.alignment.name, available: command !== undefined }
@@ -4794,13 +4824,13 @@ export function ChalkApp({
       return {
         ...(chosen ? { chosen } : {}),
         base: option(name, "base") ?? {
-          name: baseAlignment(name).name,
+          name: baseAlignment(name, defensiveCalls).name,
           available: false,
         },
       };
     };
     return { offense: side("offense"), defense: side("defense") };
-  }, [allFormations, editor.document]);
+  }, [allFormations, defensiveCalls, editor.document]);
   /**
    * The reset is the Coach's whole gesture, the way picking a set is: built
    * from the live Play, one transaction, and a word about what it did where
@@ -4816,6 +4846,7 @@ export function ChalkApp({
       side,
       target,
       allFormations,
+      defensiveCalls,
     );
     if (!command || !result) return;
     setOverlay(null);
@@ -6014,6 +6045,22 @@ export function ChalkApp({
    * Playbook settings keeps the new-profile form — a profile is Playbook-wide
    * — and the pointer to where Play types are managed from.
    */
+  /**
+   * Coverage defaults are Playbook-wide too (ADR 0061): saved on the
+   * Playbook, and the calls are stood at them from the next one put on.
+   */
+  const saveCoverageDepths = (depths: CoverageDepths) => {
+    const next: Playbook = {
+      ...playbook.snapshot.playbook,
+      coverageDepths: depths,
+      updatedAtMs: Date.now(),
+    };
+    // Nothing set is the calls as drawn, which is no setting at all.
+    if (depths.cornerYards === undefined && depths.safetyYards === undefined) {
+      delete next.coverageDepths;
+    }
+    void runtime.library.savePlaybook(next).then(() => playbook.refresh());
+  };
   const settingsPlaybookSettings = (
     <>
       <NewProfileForm
@@ -6021,6 +6068,10 @@ export function ChalkApp({
         onCreate={createFieldProfile}
       />
       <p>Play types are managed from the Unit · Type pill in the header.</p>
+      <CoverageDepthsSection
+        depths={coverageDepths}
+        onChange={saveCoverageDepths}
+      />
     </>
   );
 
@@ -6845,9 +6896,7 @@ export function ChalkApp({
           : undefined;
       const call =
         "callId" in pick
-          ? stockDefensiveCalls.find(
-              ({ formation }) => formation.id === pick.callId,
-            )
+          ? defensiveCalls.find(({ formation }) => formation.id === pick.callId)
           : undefined;
       if (!formation && !call) return;
       await createUntitledPlay(
@@ -7030,7 +7079,7 @@ export function ChalkApp({
             )
           ) : playbooksPage === "formations" ? (
             <FormationsPage
-              calls={stockDefensiveCalls}
+              calls={defensiveCalls}
               favoriteCallIds={favoriteCallIds}
               favoriteFormationIds={favoriteFormationIds}
               focusSearch={precisePointer}
@@ -7346,7 +7395,7 @@ export function ChalkApp({
               overlay={
                 <FieldLiveOverlay
                   document={editor.document}
-                  formations={allFormations}
+                  formations={previewFormations}
                   getZoom={() => fieldWidthPx / cameraRef.current.width}
                   onHandleDown={onHandleDown}
                   precise={precisePointer}
@@ -7782,7 +7831,7 @@ export function ChalkApp({
       ) : null}
       {overlay === "defenses" ? (
         <DefenseBrowser
-          calls={stockDefensiveCalls}
+          calls={defensiveCalls}
           focusSearch={precisePointer}
           favoriteIds={favoriteCallIds}
           currentCallId={onFieldCall?.formation.id}
