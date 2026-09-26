@@ -75,12 +75,18 @@ const DEEP_RADIUS_YARDS = legacyLateralSpanToYards(88);
 const SPY_LATERAL_YARDS = legacyLateralSpanToYards(70);
 const FLAT_LATERAL_YARDS = legacyLateralSpanToYards(210);
 
+/** A drop that ends at least this far off the ball is a deep one. */
+export const DEEP_ZONE_DEPTH_YARDS = 13;
+
 export function classifyZoneCoverage(
   endpoint: Coordinate,
   radiusLateralYards = 0,
 ): ZoneCoverageType {
   const lateral = Math.abs(endpoint.lateralYards);
-  if (radiusLateralYards >= DEEP_RADIUS_YARDS || endpoint.depthYards >= 13) {
+  if (
+    radiusLateralYards >= DEEP_RADIUS_YARDS ||
+    endpoint.depthYards >= DEEP_ZONE_DEPTH_YARDS
+  ) {
     return "deep";
   }
   if (endpoint.depthYards <= 2 && lateral <= SPY_LATERAL_YARDS) return "spy";
@@ -95,6 +101,22 @@ export function classifyZoneCoverage(
 export const DEFAULT_ZONE_COVERAGE_RADII = Object.freeze({
   radiusLateralYards: legacyLateralSpanToYards(11),
   radiusDepthYards: legacyDepthSpanToYards(11),
+});
+
+/**
+ * The original's zone bounds, converted on the axis each one belongs to: a
+ * drop's bubble is between 12 and 230 lateral pixels and 9 to 150 deep either
+ * side of its centre.
+ */
+export const ZONE_COVERAGE_RADIUS_BOUNDS = Object.freeze({
+  lateralYards: Object.freeze({
+    min: legacyLateralSpanToYards(12),
+    max: legacyLateralSpanToYards(230),
+  }),
+  depthYards: Object.freeze({
+    min: legacyDepthSpanToYards(9),
+    max: legacyDepthSpanToYards(150),
+  }),
 });
 
 export function mirrorCoordinate(point: Coordinate): Coordinate {
