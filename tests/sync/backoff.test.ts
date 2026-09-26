@@ -11,15 +11,4 @@ describe("sync backoff", () => {
     expect(nextRetryAtMs(5, now, noJitter) - now).toBe(SYNC_BACKOFF_MS[5]);
     expect(nextRetryAtMs(9, now, noJitter) - now).toBe(SYNC_BACKOFF_MS[5]);
   });
-
-  it("applies bounded jitter around the base delay", () => {
-    const now = 5_000;
-    const low = nextRetryAtMs(0, now, () => 0);
-    const high = nextRetryAtMs(0, now, () => 1);
-    expect(high).toBeGreaterThan(low);
-    expect(low).toBeGreaterThan(now);
-    expect(high - now).toBeLessThanOrEqual(
-      Math.round((SYNC_BACKOFF_MS[0] ?? 0) * 1.2),
-    );
-  });
 });

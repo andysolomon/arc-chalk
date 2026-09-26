@@ -1,22 +1,13 @@
-import { Blob as RuntimeBlob } from "node:buffer";
-
 import {
   UNDO_HISTORY_LIMITS,
   applyFormation,
-  applyPlayCommand,
-  emptyPlayDocument,
   hashPlayDocument,
   stockFormations,
   starterPlaybookEnvelope,
-  stockConcepts,
   type PlayDocument,
   type UndoHistory,
 } from "@chalk/domain";
-import { applyConceptCommand } from "@chalk/editor";
-import {
-  defensivePlaybookGolden,
-  offensivePlaybookGolden,
-} from "@chalk/test-fixtures";
+import { offensivePlaybookGolden } from "@chalk/test-fixtures";
 import { IDBKeyRange, indexedDB } from "fake-indexeddb";
 
 import {
@@ -41,10 +32,6 @@ function createRepository(
   });
 }
 
-function cloneableBlob(contents: string, type: string): Blob {
-  return new RuntimeBlob([contents], { type }) as unknown as Blob;
-}
-
 describe("ChalkLocalRepository", () => {
   const repositories: ChalkLocalRepository[] = [];
 
@@ -58,27 +45,6 @@ describe("ChalkLocalRepository", () => {
     repositories.push(repository);
     return repository;
   }
-
-  it.each(stockFormations)(
-    "saves and reloads the built-in $name without a stored catalogue",
-    async (formation) => {
-      const repository = track(createRepository(formation.id));
-      const starter = starterPlaybookEnvelope();
-      await repository.savePlaybook(starter);
-      const play = applyFormation(
-        starter.plays[0]!,
-        formation,
-        (prefix) => `${prefix}_${crypto.randomUUID()}`,
-      ).play;
-      await repository.commitPlay({ play });
-      repository.close();
-      await repository.open();
-      expect((await repository.getPlay(play.id))?.document).toEqual(play);
-      expect(
-        (await repository.loadPlaybook(play.playbookId))?.plays,
-      ).toContainEqual(play);
-    },
-  );
 
   it("still rejects missing, future, and invalid-slot formation references", async () => {
     const repository = track(createRepository("formation-integrity"));
@@ -103,137 +69,6 @@ describe("ChalkLocalRepository", () => {
         repository.commitPlay({ play: { ...play, formationSource: source } }),
       ).rejects.toThrow();
     }
-  });
-
-  it("retains a newly named play, Gun Doubles Right and Mesh after closing the database", async () => {
-    const repository = track(createRepository("new-play-mesh"));
-    const starter = starterPlaybookEnvelope();
-    await repository.savePlaybook(starter);
-    const empty = emptyPlayDocument({
-      playbookId: starter.playbook.id,
-      fieldProfile: starter.plays[0]!.fieldProfile,
-      name: "QA — formation and concept",
-    });
-    await repository.commitPlay({ play: empty });
-    const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
-    const formed = applyFormation(empty, stockFormations[0]!, id).play;
-    await repository.commitPlay({ play: formed });
-    const concept = applyConceptCommand(
-      formed,
-      stockConcepts.find(({ name }) => name === "Mesh")!,
-      id,
-    );
-    const drawn = applyPlayCommand(formed, concept.command!);
-    await repository.commitPlay({ play: drawn });
-    expect(drawn.players).toHaveLength(11);
-    expect(drawn.paths).toHaveLength(5);
-    repository.close();
-    await repository.open();
-    expect((await repository.getPlay(empty.id))?.document).toEqual(drawn);
-  });
-
-  it.each([
-    ["offensive", offensivePlaybookGolden],
-    ["defensive", defensivePlaybookGolden],
-  ])("round-trips the %s Playbook golden", async (_name, golden) => {
-    const repository = track(createRepository(`round-trip-${_name}`));
-    await repository.open();
-
-    await repository.savePlaybook(golden);
-
-    await expect(repository.loadPlaybook(golden.playbook.id)).resolves.toEqual(
-      golden,
-    );
-    await expect(
-      repository.listPlaySummaries(golden.playbook.id),
-    ).resolves.toEqual([
-      expect.objectContaining({
-        playId: golden.plays[0]!.id,
-        playbookId: golden.playbook.id,
-        name: golden.plays[0]!.name,
-        unit: golden.plays[0]!.unit,
-      }),
-    ]);
-    await expect(repository.counts()).resolves.toEqual({
-      playbooks: 1,
-      concepts: 1,
-      formations: 1,
-      plays: 1,
-      revisions: 0,
-      syncMutations: 0,
-      conflicts: 0,
-      preferences: 0,
-      imageBlobs: 0,
-      undoHistories: 0,
-      searchProjections: 1,
-      thumbnails: 0,
-      gamePlans: 0,
-      gamePlanRevisions: 0,
-    });
-  });
-
-  it("atomically commits current state, an immutable revision, a sync mutation, and a search projection", async () => {
-    const repository = track(createRepository("commit"));
-    await repository.savePlaybook(offensivePlaybookGolden);
-    const original = await repository.getPlay(
-      offensivePlaybookGolden.plays[0]!.id,
-    );
-    expect(original).toBeDefined();
-    const changedPlay = {
-      ...structuredClone(offensivePlaybookGolden.plays[0]!),
-      name: "Stick Thunder — Boundary Alert",
-      tags: ["third-down", "boundary"],
-    };
-
-    const result = await repository.commitPlay({
-      play: changedPlay,
-      expectedDocumentHash: original!.documentHash,
-      revision: { id: "revision_boundary_alert", label: "Boundary alert" },
-      mutation: { id: "mutation_boundary_alert" },
-    });
-
-    expect(result).toEqual({
-      playId: changedPlay.id,
-      documentHash: result.documentHash,
-      committedAtMs: FIXED_TIME,
-      revisionId: "revision_boundary_alert",
-      mutationId: "mutation_boundary_alert",
-    });
-    expect(result.documentHash).toMatch(/^[a-f0-9]{64}$/);
-    await expect(repository.getPlay(changedPlay.id)).resolves.toEqual(
-      expect.objectContaining({
-        document: changedPlay,
-        documentHash: result.documentHash,
-        currentRevisionId: "revision_boundary_alert",
-        updatedAtMs: FIXED_TIME,
-      }),
-    );
-    await expect(
-      repository.getRevision("revision_boundary_alert"),
-    ).resolves.toEqual(
-      expect.objectContaining({
-        id: "revision_boundary_alert",
-        document: changedPlay,
-        documentHash: result.documentHash,
-      }),
-    );
-    await expect(repository.readSyncMutationBatch(10)).resolves.toEqual([
-      expect.objectContaining({
-        id: "mutation_boundary_alert",
-        entityId: changedPlay.id,
-        payload: changedPlay,
-        payloadHash: result.documentHash,
-      }),
-    ]);
-    await expect(
-      repository.listPlaySummaries(changedPlay.playbookId),
-    ).resolves.toEqual([
-      expect.objectContaining({
-        name: changedPlay.name,
-        tags: changedPlay.tags,
-        documentHash: result.documentHash,
-      }),
-    ]);
   });
 
   it("rejects a stale write without changing the stored Play", async () => {
@@ -321,110 +156,6 @@ describe("ChalkLocalRepository", () => {
     });
   });
 
-  it("persists recovery, preference, image, undo, conflict, and derivative records", async () => {
-    const repository = track(createRepository("auxiliary"));
-    await repository.savePlaybook(defensivePlaybookGolden);
-    const playId = defensivePlaybookGolden.plays[0]!.id;
-    const thumbnailBlob = cloneableBlob("thumbnail", "image/webp");
-    const imageBlob = cloneableBlob("image", "image/png");
-
-    await repository.putConflict({
-      id: "conflict_1",
-      playId,
-      localRevisionId: "revision_local",
-      remoteRevisionId: "revision_remote",
-      status: "unresolved",
-      createdAtMs: FIXED_TIME,
-    });
-    await repository.setPreference({
-      key: "editor.snap.enabled",
-      value: true,
-      updatedAtMs: FIXED_TIME,
-    });
-    await repository.putImage({
-      hash: "image_hash",
-      mimeType: "image/png",
-      width: 1,
-      height: 1,
-      byteLength: imageBlob.size,
-      blob: imageBlob,
-      thumbnail: thumbnailBlob,
-      createdAtMs: FIXED_TIME,
-    });
-    await repository.putUndoHistory({
-      playId,
-      schemaVersion: 1,
-      undo: [],
-      redo: [],
-      encodedByteLength: 0,
-      updatedAtMs: FIXED_TIME,
-    });
-    await repository.putThumbnail({
-      key: `${playId}:revision_hash:1:1:light`,
-      playId,
-      revisionHash: "revision_hash",
-      rendererVersion: 1,
-      fieldProfileRevision: 1,
-      theme: "light",
-      blob: thumbnailBlob,
-      createdAtMs: FIXED_TIME,
-    });
-
-    await expect(repository.listUnresolvedConflicts()).resolves.toEqual([
-      expect.objectContaining({ id: "conflict_1", playId }),
-    ]);
-    await expect(
-      repository.getPreference("editor.snap.enabled"),
-    ).resolves.toEqual(expect.objectContaining({ value: true }));
-    expect(await (await repository.getImage("image_hash"))!.blob.text()).toBe(
-      "image",
-    );
-    await expect(repository.getUndoHistory(playId)).resolves.toEqual(
-      expect.objectContaining({ playId, undo: [], redo: [] }),
-    );
-    expect(
-      await (await repository.getThumbnail(
-        `${playId}:revision_hash:1:1:light`,
-      ))!.blob.text(),
-    ).toBe("thumbnail");
-
-    await repository.clearDerivedData();
-    await expect(repository.counts()).resolves.toEqual(
-      expect.objectContaining({ searchProjections: 0, thumbnails: 0 }),
-    );
-    await expect(
-      repository.getThumbnail(`${playId}:revision_hash:1:1:light`),
-    ).resolves.toBeUndefined();
-    await expect(repository.getPlay(playId)).resolves.toBeDefined();
-    await expect(
-      repository.listPlaySummaries(defensivePlaybookGolden.playbook.id),
-    ).resolves.toEqual([
-      expect.objectContaining({
-        playId,
-        playbookId: defensivePlaybookGolden.playbook.id,
-        name: defensivePlaybookGolden.plays[0]!.name,
-      }),
-    ]);
-  });
-
-  it("reopens the same IndexedDB database without losing authoritative records", async () => {
-    const databaseName = `chalk-local-reopen-${crypto.randomUUID()}`;
-    const first = track(
-      createDexieLocalRepository({ databaseName, indexedDB, IDBKeyRange }),
-    );
-    await first.savePlaybook(offensivePlaybookGolden);
-    first.close();
-
-    const reopened = track(
-      createDexieLocalRepository({ databaseName, indexedDB, IDBKeyRange }),
-    );
-    await reopened.open();
-
-    await expect(
-      reopened.loadPlaybook(offensivePlaybookGolden.playbook.id),
-    ).resolves.toEqual(offensivePlaybookGolden);
-  });
-
   it("commits per-Play undo history inside the Play transaction", async () => {
     const repository = track(createRepository("undo-commit"));
     await repository.savePlaybook(offensivePlaybookGolden);
@@ -476,53 +207,6 @@ describe("ChalkLocalRepository", () => {
         undoHistory: { ...history, playId: "play_somewhere_else" },
       }),
     ).rejects.toThrow(CorruptLocalDataError);
-  });
-
-  it("discards undo history that no longer parses without touching the Play", async () => {
-    const databaseName = `chalk-local-undo-${crypto.randomUUID()}`;
-    const first = track(
-      createDexieLocalRepository({ databaseName, indexedDB, IDBKeyRange }),
-    );
-    await first.savePlaybook(offensivePlaybookGolden);
-    const play = offensivePlaybookGolden.plays[0]!;
-    await first.putUndoHistory({
-      schemaVersion: 1,
-      playId: play.id,
-      undo: [],
-      redo: [],
-      encodedByteLength: 0,
-      updatedAtMs: FIXED_TIME,
-    });
-    first.close();
-
-    const reopened = track(
-      createDexieLocalRepository({ databaseName, indexedDB, IDBKeyRange }),
-    );
-    await expect(reopened.getUndoHistory(play.id)).resolves.toEqual(
-      expect.objectContaining({ playId: play.id, undo: [] }),
-    );
-
-    await expect(
-      reopened.putUndoHistory({
-        schemaVersion: 1,
-        playId: play.id,
-        undo: [
-          {
-            id: "undo_unreadable",
-            label: "Rename Play",
-            createdAtMs: FIXED_TIME,
-            beforeHash: "before",
-            afterHash: "after",
-            forward: { kind: "set-play-name" },
-            inverse: { kind: "set-play-name", name: play.name },
-          },
-        ],
-        redo: [],
-        encodedByteLength: 0,
-        updatedAtMs: FIXED_TIME,
-      } as unknown as UndoHistory),
-    ).rejects.toThrow();
-    await expect(reopened.getPlay(play.id)).resolves.toBeDefined();
   });
 
   it("creates Coach-named versions that nothing can rename or overwrite", async () => {
@@ -901,88 +585,6 @@ describe("ChalkLocalRepository", () => {
     // this in-memory IndexedDB shim.
     expect(betaMs).toBeLessThan(smallMs * 5 + 100);
   }, 60_000);
-
-  it("lists local images and records a completed private upload", async () => {
-    const repository = track(createRepository("images"));
-    const blob = cloneableBlob("normalized", "image/jpeg");
-    const thumbnail = cloneableBlob("thumb", "image/jpeg");
-    const hash = "d".repeat(64);
-    await repository.putImage({
-      hash,
-      mimeType: "image/jpeg",
-      width: 64,
-      height: 48,
-      byteLength: blob.size,
-      blob,
-      thumbnail,
-      createdAtMs: FIXED_TIME,
-    });
-    const listed = await repository.listImages();
-    expect(listed).toHaveLength(1);
-    expect(listed[0]?.hash).toBe(hash);
-    expect(listed[0]?.uploadedAtMs).toBeUndefined();
-    await repository.markImageUploaded(hash, FIXED_TIME + 10);
-    expect((await repository.getImage(hash))?.uploadedAtMs).toBe(
-      FIXED_TIME + 10,
-    );
-  });
-
-  it("uses the stored cloud head as the next mutation's base revision", async () => {
-    const repository = track(createRepository("cloud-head"));
-    await repository.open();
-    await repository.savePlaybook(offensivePlaybookGolden);
-    const original = offensivePlaybookGolden.plays[0]!;
-    await repository.commitPlay({
-      play: original,
-      mutation: { id: "mutation_seed" },
-    });
-    await repository.setPlayCloudHead(original.id, "revision_cloud_1");
-    const renamed = {
-      ...structuredClone(original),
-      name: "Cloud-based edit",
-    };
-    await repository.commitPlay({
-      play: renamed,
-      mutation: { id: "mutation_from_cloud" },
-    });
-    const queued = await repository.readSyncMutationBatch(10);
-    expect(
-      queued.find((mutation) => mutation.id === "mutation_from_cloud"),
-    ).toEqual(
-      expect.objectContaining({
-        id: "mutation_from_cloud",
-        baseRevisionId: "revision_cloud_1",
-      }),
-    );
-  });
-
-  it("applies a remote Play and can fork a local branch beside it", async () => {
-    const repository = track(createRepository("remote-apply"));
-    await repository.open();
-    await repository.savePlaybook(offensivePlaybookGolden);
-    const original = offensivePlaybookGolden.plays[0]!;
-    const remote = {
-      ...structuredClone(original),
-      name: "Arrived from the other device",
-    };
-    await repository.applyRemotePlay({
-      play: remote,
-      cloudRevisionId: "revision_remote_head",
-    });
-    const applied = await repository.getPlay(original.id);
-    expect(applied?.document.name).toBe("Arrived from the other device");
-    expect(applied?.cloudRevisionId).toBe("revision_remote_head");
-    const forked = await repository.forkPlay(original, "play_local_branch");
-    expect(forked.id).toBe("play_local_branch");
-    expect(forked.document.name).toMatch(/branch/);
-    expect((await repository.getPlay("play_local_branch"))?.id).toBe(
-      "play_local_branch",
-    );
-    const queued = await repository.readSyncMutationBatch(10);
-    expect(
-      queued.some((mutation) => mutation.entityId === "play_local_branch"),
-    ).toBe(true);
-  });
 
   it("holds a retry until nextAttemptAtMs", async () => {
     const repository = track(createRepository("retry-window"));

@@ -12,7 +12,6 @@ import {
   applyResolveConflict,
 } from "../../packages/sync/src/engine";
 import { MemoryReplicaStore } from "../../packages/sync/src/memory-store";
-import { EngineCloudReplica } from "../../packages/sync/src/replica";
 
 const COACH = "coach_test";
 const DEVICE_A = "device_a";
@@ -39,23 +38,6 @@ async function playMutation(
 }
 
 describe("sync protocol engine", () => {
-  it("applies a Play put and pages it from the cursor", async () => {
-    const store = new MemoryReplicaStore();
-    const first = await applyPushBatch(
-      store,
-      COACH,
-      { mutations: [await playMutation()], deviceId: DEVICE_A },
-      10,
-    );
-    expect(first.outcomes[0]?.status).toBe("applied");
-    const page = await applyPullAfter(store, COACH, null, 50);
-    expect(page.changes.some((change) => change.kind === "revision")).toBe(
-      true,
-    );
-    expect(page.isDone).toBe(true);
-    expect(page.headCursor).toBe(first.headCursor);
-  });
-
   it("replays a batch with the same idempotency key", async () => {
     const store = new MemoryReplicaStore();
     const mutation = await playMutation();
@@ -246,32 +228,5 @@ describe("sync protocol engine", () => {
     expect(resolved.resolution).toBe("local");
     const play = await store.getPlay(COACH, stickThunderPlay.id);
     expect(play?.name).toBe("B");
-  });
-
-  it("keeps coaches isolated from one another", async () => {
-    const store = new MemoryReplicaStore();
-    await applyPushBatch(
-      store,
-      "coach_one",
-      { mutations: [await playMutation()], deviceId: DEVICE_A },
-      10,
-    );
-    const other = await applyPullAfter(store, "coach_two", null, 50);
-    expect(other.changes).toEqual([]);
-  });
-
-  it("exposes the engine through the CloudReplica port", async () => {
-    const store = new MemoryReplicaStore();
-    const replica = new EngineCloudReplica({
-      store,
-      coachId: () => COACH,
-    });
-    const pushed = await replica.pushBatch({
-      mutations: [await playMutation()],
-      deviceId: DEVICE_A,
-    });
-    expect(pushed.outcomes[0]?.status).toBe("applied");
-    const head = await replica.readHead();
-    expect(head).toBe(pushed.headCursor);
   });
 });

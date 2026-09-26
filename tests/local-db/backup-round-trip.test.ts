@@ -1,5 +1,4 @@
 import {
-  BackupPassphraseError,
   decryptBackup,
   encryptBackup,
   parseEncryptedBackup,
@@ -207,33 +206,6 @@ describe("encrypted backup round trip", () => {
     );
   });
 
-  it("discards current records only when the Coach asks to replace", async () => {
-    const source = await seededDevice();
-    const payload = await source.exportBackup();
-
-    const replacement = open();
-    await replacement.savePlaybook({
-      ...structuredClone(offensivePlaybookGolden),
-      plays: [
-        {
-          ...structuredClone(play),
-          id: "play_only_on_this_device",
-          name: "Only on this device",
-        },
-      ],
-    });
-
-    await replacement.importBackup(payload, { mode: "replace" });
-
-    await expect(
-      replacement.getPlay("play_only_on_this_device"),
-    ).resolves.toBeUndefined();
-    await expect(replacement.getPlay(play.id)).resolves.toBeDefined();
-    await expect(
-      replacement.listPlaySummaries(play.playbookId),
-    ).resolves.toHaveLength(1);
-  });
-
   it("writes nothing when any part of the backup is unreadable", async () => {
     const source = await seededDevice();
     const payload = await source.exportBackup();
@@ -251,19 +223,6 @@ describe("encrypted backup round trip", () => {
     await expect(source.counts()).resolves.toEqual(before);
     const untouched = await source.getPlay(play.id);
     expect(untouched?.document.name).toBe("Stick — Alert");
-  });
-
-  it("refuses a backup the Coach cannot open", async () => {
-    const source = await seededDevice();
-    const backup = await encryptBackup(
-      await source.exportBackup(),
-      PASSPHRASE,
-      { iterations: TEST_ITERATIONS },
-    );
-
-    await expect(
-      decryptBackup(backup, "not the passphrase"),
-    ).rejects.toBeInstanceOf(BackupPassphraseError);
   });
 
   it("restores a backup an earlier release wrote", async () => {

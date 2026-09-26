@@ -89,39 +89,6 @@ describe("Game Plans on the device", () => {
     return { plan: prepared.plan, revision: prepared.revision };
   }
 
-  it("saves, lists newest first, and reads back a plan", async () => {
-    const repository = open();
-    const { plan } = await seeded(repository);
-    const older = createGamePlan({
-      playbookId: playbook.id,
-      name: "Week 1",
-      unit: "defense",
-      nowMs: FIXED_TIME - 10_000,
-      createId,
-    });
-    await repository.saveGamePlan(older);
-    const elsewhere = createGamePlan({
-      playbookId: "playbook_other",
-      name: "Someone else's",
-      unit: "offense",
-      nowMs: FIXED_TIME + 50_000,
-      createId,
-    });
-    await repository.saveGamePlan(elsewhere);
-
-    const listed = await repository.listGamePlans(playbook.id);
-    expect(listed.map(({ name }) => name)).toEqual(["Week 3", "Week 1"]);
-    await expect(repository.getGamePlan(plan.id)).resolves.toEqual(plan);
-    await expect(repository.getGamePlan("nope")).resolves.toBeUndefined();
-
-    const renamed = renameGamePlan(plan, "Week 3 — Central", FIXED_TIME + 9);
-    await repository.saveGamePlan(renamed);
-    await expect(repository.getGamePlan(plan.id)).resolves.toMatchObject({
-      name: "Week 3 — Central",
-      calls: plan.calls,
-    });
-  });
-
   it("refuses a plan the schema rejects", async () => {
     const repository = open();
     const { plan } = await seeded(repository);

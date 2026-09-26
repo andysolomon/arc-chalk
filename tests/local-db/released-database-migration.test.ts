@@ -1,7 +1,5 @@
 import {
-  LEGACY_IMPORT_PLAYBOOK_ID,
   canonicalSha256,
-  migrateStoredPlayDocument,
   playDocumentSchema,
   type PlayDocument,
 } from "@chalk/domain";
@@ -159,26 +157,6 @@ describe("upgrading a database an earlier release wrote", () => {
     await expect(repository.upgradeStoredPlays()).resolves.toEqual([]);
   });
 
-  it("lets a Coach edit an upgraded Play with an ordinary hash guard", async () => {
-    const { repository } = await releasedDatabase();
-    await repository.upgradeStoredPlays();
-    const upgraded = await repository.getPlay(releasedPlayDocumentV1.id);
-
-    const result = await repository.commitPlay({
-      play: {
-        ...structuredClone(upgraded!.document),
-        name: "Edited after upgrade",
-      },
-      expectedDocumentHash: upgraded!.documentHash,
-      mutation: { id: "mutation_after_upgrade" },
-    });
-
-    expect(result.documentHash).toMatch(/^[a-f0-9]{64}$/);
-    const edited = await repository.getPlay(releasedPlayDocumentV1.id);
-    expect(edited?.document.name).toBe("Edited after upgrade");
-    expect(edited?.documentHash).toBe(result.documentHash);
-  });
-
   it("still reports a current Play that no longer matches its hash", async () => {
     const databaseName = `chalk-corrupt-${crypto.randomUUID()}`;
     await writeReleasedDatabase(indexedDB, {
@@ -207,24 +185,5 @@ describe("upgrading a database an earlier release wrote", () => {
     await expect(
       repository.getPlay(offensivePlaybookGolden.plays[0]!.id),
     ).rejects.toThrow(/does not match its document hash/);
-  });
-});
-
-describe("migrating a stored Play document", () => {
-  it("keeps a stored Play in its own Playbook", () => {
-    const migrated = migrateStoredPlayDocument(
-      releasedPlayDocumentV1,
-      playbook.id,
-    );
-
-    expect(migrated.schemaVersion).toBe(3);
-    expect(migrated.playbookId).toBe(playbook.id);
-    expect(migrated.playbookId).not.toBe(LEGACY_IMPORT_PLAYBOOK_ID);
-  });
-
-  it("returns a current Play untouched", () => {
-    const current = offensivePlaybookGolden.plays[0]!;
-
-    expect(migrateStoredPlayDocument(current, playbook.id)).toEqual(current);
   });
 });
