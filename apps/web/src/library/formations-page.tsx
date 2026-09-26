@@ -481,7 +481,7 @@ function SetCard({
         <div className="browser-shape">
           <svg role="presentation" viewBox="0 0 140 74">
             <line
-              stroke="#E5E5E5"
+              className="shape-scrimmage"
               strokeWidth={1}
               x1={4}
               x2={136}
@@ -490,12 +490,11 @@ function SetCard({
             />
             {shape.dots.map((dot, index) => (
               <circle
+                className={dot.filled ? "shape-man filled" : "shape-man"}
                 cx={dot.x}
                 cy={dot.y}
-                fill={dot.filled ? "#171717" : "#FFFFFF"}
                 key={index}
                 r={3.4}
-                stroke="#171717"
                 strokeWidth={1}
               />
             ))}
@@ -560,7 +559,7 @@ function CallCard({
       <div className="browser-shape">
         <svg role="presentation" viewBox="0 0 180 96">
           <line
-            stroke="#E5E5E5"
+            className="shape-scrimmage"
             strokeWidth={1}
             x1={4}
             x2={176}
@@ -569,17 +568,22 @@ function CallCard({
           />
           {shape.line.map((dot, index) => (
             <circle
+              className="shape-lineman"
               cx={dot.x}
               cy={dot.y}
-              fill="#FFFFFF"
               key={index}
               r={3}
-              stroke="#D4D4D4"
               strokeWidth={1}
             />
           ))}
           {shape.defenders.map((dot, index) => (
-            <circle cx={dot.x} cy={dot.y} fill="#171717" key={index} r={4.6} />
+            <circle
+              className="shape-defender"
+              cx={dot.x}
+              cy={dot.y}
+              key={index}
+              r={4.6}
+            />
           ))}
         </svg>
       </div>

@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { CloudProviders } from "./app/cloud-providers";
 import { lockPageZoom } from "./app/page-zoom";
 import { router } from "./app/router";
+import { followTheme } from "./app/theme";
 import "./styles/app.css";
 
 const queryClient = new QueryClient();
@@ -14,6 +15,7 @@ const root = document.getElementById("root");
 if (!root) throw new Error("Chalk could not find its application root.");
 
 lockPageZoom();
+followTheme();
 
 createRoot(root).render(
   <StrictMode>

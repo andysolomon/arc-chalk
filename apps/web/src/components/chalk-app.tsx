@@ -221,6 +221,7 @@ import {
   type ChalkRuntime,
   type ChromeState,
 } from "../app/editor-runtime";
+import { useThemePreference } from "../app/theme";
 import {
   FieldProfileSection,
   NewProfileForm,
@@ -2728,6 +2729,7 @@ export function ChalkApp({
   /** A phone's assignments sheet: peeked above the tools, or full height. */
   const [sheetSnap, setSheetSnap] = useState<"peek" | "full">("peek");
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("field");
+  const [themePreference, setThemePreference] = useThemePreference();
   /** How many game plans the Playbook holds, for the sidebar's count. */
   const [planCount, setPlanCount] = useState<number>();
   /**
@@ -7942,7 +7944,9 @@ export function ChalkApp({
           fieldProfileName={editor.document.fieldProfile.name}
           onClose={() => setOverlay(null)}
           onTab={setSettingsTab}
+          onTheme={setThemePreference}
           tab={settingsTab}
+          theme={themePreference}
           version={
             typeof __CHALK_VERSION__ === "string" && __CHALK_VERSION__
               ? __CHALK_VERSION__

@@ -8,17 +8,33 @@ import {
   type PageKindId,
   type TypePresetId,
 } from "@chalk/render";
+import type { ThemePreference } from "../app/theme";
 import { agoStamp } from "./ago-stamp";
 
+const themeChoices: readonly {
+  readonly id: ThemePreference;
+  readonly name: string;
+}[] = [
+  { id: "system", name: "System" },
+  { id: "light", name: "Light" },
+  { id: "dark", name: "Dark" },
+];
+
 /**
- * Settings — Field, Playbook, History, Print & export, Account and About as
- * the tabs of one dialog (ADR 0058). A desktop shows them down the left of a
+ * Settings — Field, Playbook, History, Print & export, Appearance, Account
+ * and About as the tabs of one dialog (ADR 0058, ADR 0061). A desktop shows them down the left of a
  * modal; a phone shows them as pills across a full-screen page. Each tab's
  * contents are the sections that used to stack in one scrolling list, with
  * the same words and the same behaviour.
  */
 export type SettingsTab =
-  "field" | "playbook" | "history" | "print" | "account" | "about";
+  | "field"
+  | "playbook"
+  | "history"
+  | "print"
+  | "appearance"
+  | "account"
+  | "about";
 
 export function SettingsOverlay({
   account,
@@ -29,10 +45,12 @@ export function SettingsOverlay({
   onPageKind,
   onRestoreVersion,
   onTab,
+  onTheme,
   onTypePreset,
   pageKind,
   playbookSettings,
   tab,
+  theme,
   typeHint,
   typePreset,
   version,
@@ -48,10 +66,13 @@ export function SettingsOverlay({
   onPageKind: (kind: PageKindId) => void;
   onRestoreVersion: (revisionId: string) => void;
   onTab: (tab: SettingsTab) => void;
+  onTheme: (theme: ThemePreference) => void;
   onTypePreset: (preset: TypePresetId) => void;
   pageKind: PageKindId;
   playbookSettings?: React.ReactNode;
   tab: SettingsTab;
+  /** Light, dark, or whichever this device is set to. */
+  theme: ThemePreference;
   typeHint: string;
   typePreset: TypePresetId;
   /** The build's version, if the build named one. */
@@ -69,6 +90,8 @@ export function SettingsOverlay({
     pageKindCatalog.find(({ id }) => id === pageKind)?.name ?? pageKind;
   const typeName =
     typePresetCatalog.find(({ id }) => id === typePreset)?.name ?? typePreset;
+  const themeName =
+    themeChoices.find(({ id }) => id === theme)?.name ?? "System";
   const tabs: readonly {
     readonly id: SettingsTab;
     readonly name: string;
@@ -100,6 +123,13 @@ export function SettingsOverlay({
       name: "Print & export",
       value: `${pageName} · ${typeName}`,
       summary: `${pageName} · ${typeName}`,
+    },
+    {
+      id: "appearance",
+      name: "Appearance",
+      value: themeName,
+      summary:
+        theme === "system" ? "Follows this device" : `${themeName} theme`,
     },
     {
       id: "account",
@@ -267,6 +297,31 @@ export function SettingsOverlay({
                   </div>
                 </div>
                 <p>{typeHint}</p>
+              </section>
+            ) : null}
+            {current.id === "appearance" ? (
+              <section className="settings-section">
+                <div className="settings-field">
+                  <span className="settings-field-label">Theme</span>
+                  <div aria-label="Theme" className="segments" role="group">
+                    {themeChoices.map((choice) => (
+                      <button
+                        aria-pressed={theme === choice.id}
+                        className={theme === choice.id ? "active" : undefined}
+                        key={choice.id}
+                        onClick={() => onTheme(choice.id)}
+                        type="button"
+                      >
+                        {choice.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p>
+                  System follows this device&rsquo;s light or dark setting. The
+                  field and the print preview stay on white paper, the way they
+                  print.
+                </p>
               </section>
             ) : null}
             {current.id === "account" ? (
