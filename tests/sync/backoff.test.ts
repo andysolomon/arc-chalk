@@ -1,14 +1,18 @@
 import { nextRetryAtMs } from "@chalk/sync";
-import { SYNC_BACKOFF_MS } from "@chalk/contracts";
+import { SYNC_BACKOFF_JITTER, SYNC_BACKOFF_MS } from "@chalk/contracts";
 import { describe, expect, it } from "vitest";
 
 describe("sync backoff", () => {
-  it("steps through the published delay table and then stays at the cap", () => {
-    const now = 1_000_000;
-    const noJitter = () => 0.5;
-    expect(nextRetryAtMs(0, now, noJitter) - now).toBe(SYNC_BACKOFF_MS[0]);
-    expect(nextRetryAtMs(1, now, noJitter) - now).toBe(SYNC_BACKOFF_MS[1]);
-    expect(nextRetryAtMs(5, now, noJitter) - now).toBe(SYNC_BACKOFF_MS[5]);
-    expect(nextRetryAtMs(9, now, noJitter) - now).toBe(SYNC_BACKOFF_MS[5]);
+  it("keeps jitter inside a window that cannot collapse into an immediate retry", () => {
+    const now = 5_000;
+    const base = SYNC_BACKOFF_MS[0] ?? 0;
+    const low = nextRetryAtMs(0, now, () => 0);
+    const high = nextRetryAtMs(0, now, () => 1);
+    const floor = Math.round(base * (1 - SYNC_BACKOFF_JITTER));
+    const cap = Math.round(base * (1 + SYNC_BACKOFF_JITTER));
+    expect(low - now).toBeGreaterThanOrEqual(floor);
+    expect(high - now).toBeLessThanOrEqual(cap);
+    expect(high).toBeGreaterThan(low);
+    expect(low).toBeGreaterThan(now);
   });
 });

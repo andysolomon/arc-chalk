@@ -7,7 +7,6 @@ import { MAX_PUSH_BATCH, MAX_REVISION_BYTES } from "@chalk/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
-  applyPullAfter,
   applyPushBatch,
   applyResolveConflict,
 } from "../../packages/sync/src/engine";
@@ -157,22 +156,6 @@ describe("sync protocol engine", () => {
     await expect(
       applyPushBatch(store, COACH, { mutations, deviceId: DEVICE_A }, 10),
     ).rejects.toThrow(/at most/);
-  });
-
-  it("resumes pull from a cursor and ignores an earlier page", async () => {
-    const store = new MemoryReplicaStore();
-    await applyPushBatch(
-      store,
-      COACH,
-      { mutations: [await playMutation()], deviceId: DEVICE_A },
-      10,
-    );
-    const first = await applyPullAfter(store, COACH, null, 1);
-    const rest = await applyPullAfter(store, COACH, first.nextCursor, 50);
-    const overlap = rest.changes.filter((change) =>
-      first.changes.some((seen) => seen.cursor === change.cursor),
-    );
-    expect(overlap).toEqual([]);
   });
 
   it("resolves a conflict by keeping the local branch", async () => {

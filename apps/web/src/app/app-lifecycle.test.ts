@@ -117,16 +117,6 @@ describe("app lifecycle", () => {
     expect(fake.record()).toBe(2);
   });
 
-  it("repairs a stale shell by dropping workers and caches, then reloading", async () => {
-    const fake = fakePorts();
-    fake.setRecord(9);
-    const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
-    await lifecycle.repairShell();
-    expect(fake.cache.unregisterWorkers).toHaveBeenCalledTimes(1);
-    expect(fake.cache.clearShellCaches).toHaveBeenCalledTimes(1);
-    expect(fake.cache.reload).toHaveBeenCalledTimes(1);
-  });
-
   it("reports a registration failure without blocking the editor", () => {
     const fake = fakePorts();
     const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });

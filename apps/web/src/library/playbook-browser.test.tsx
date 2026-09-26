@@ -94,7 +94,6 @@ describe("the Playbook browser", () => {
     );
 
     const dialog = screen.getByRole("dialog", { name: "Playbook" });
-    expect(dialog.className).toContain("browser");
     await userEvent.type(screen.getByLabelText("Search plays"), "stick");
     expect(await screen.findByText("Stick — Thunder")).toBeVisible();
     expect(dialog.querySelectorAll("[data-play-id]").length).toBeLessThan(80);

@@ -59,6 +59,17 @@ const sourcesOf = (docs: readonly PlayDocument[]) =>
   );
 
 describe("Game plans", () => {
+  it("refuses a game plan with no name", () => {
+    expect(() =>
+      createGamePlan({
+        playbookId: "p",
+        name: "  ",
+        unit: "offense",
+        nowMs: T0,
+      }),
+    ).toThrow("Give the game plan a name first.");
+  });
+
   it("keeps one call per Play however many sections it answers in", () => {
     let plan = freshPlan();
     const openers = plan.sections[0]!.id;

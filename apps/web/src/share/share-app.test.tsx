@@ -28,6 +28,7 @@ describe("Share shell", () => {
   afterEach(() => {
     window.history.replaceState({}, "", "/");
   });
+
   it("plays a granted publication without exposing notes", async () => {
     window.history.replaceState({}, "", "/s/share_public");
     window.location.hash = secret;

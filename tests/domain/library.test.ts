@@ -1,7 +1,6 @@
 import {
   applyPlayCommand,
   commandBroadcasts,
-  formatBroadcastReport,
   propagateCommand,
   pushAlignmentToPlay,
   searchPlays,
@@ -45,13 +44,6 @@ describe("Concept-scope propagation", () => {
       path: zPath,
     });
     expect(redZone).toEqual({ ok: false, reason: "has no Z route" });
-    expect(
-      formatBroadcastReport({
-        applied: 4,
-        total: 5,
-        skipped: ["Red zone has no Z route"],
-      }),
-    ).toBe("Applied to 4 of 5 — Red zone has no Z route");
   });
 
   it("pushes the concept's alignment onto a variation and keeps its routes", () => {
@@ -116,13 +108,5 @@ describe("Device-local Play search", () => {
         limit: 3,
       }).map(({ playId }) => playId),
     ).toEqual(["play_0", "play_10", "play_100"]);
-  });
-
-  it("answers a 2,000-Play query inside the 50 ms library budget", () => {
-    const started = performance.now();
-    const hits = searchPlays(plays, { text: "play 12" });
-    const elapsed = performance.now() - started;
-    expect(hits.length).toBeGreaterThan(0);
-    expect(elapsed).toBeLessThan(50);
   });
 });

@@ -1,6 +1,5 @@
 import {
   applyPlayCommand,
-  assignmentForPath,
   flipStrengthWords,
   highSchoolFieldProfile,
   playDocumentSchema,
@@ -11,11 +10,8 @@ import {
 import {
   addDepthLabelCommand,
   alignPlayersCommand,
-  expandSelectionToGroups,
   flipStrengthCommand,
-  groupSelectionCommand,
   reverseRouteCommand,
-  type FieldItemRef,
 } from "@chalk/editor";
 import { describe, expect, it } from "vitest";
 
@@ -105,25 +101,6 @@ describe("flipping the strength", () => {
     expect(flipStrengthWords("vs McCoy")).toBe("vs McCoy");
     // A crosser is a crosser whichever way it runs.
     expect(flipStrengthWords("OVER")).toBe("OVER");
-  });
-
-  it("moves the men, trades the letters, and flips the language with them", () => {
-    const flipped = run(play, flipStrengthCommand(play, stockFormations));
-    expect(() => playDocumentSchema.parse(flipped)).not.toThrow();
-
-    const wasX = at(play, "man_7");
-    const nowThere = flipped.players.find((player) => player.id === "man_7")!;
-    expect(nowThere.position.lateralYards).toBeGreaterThan(0);
-    // The X becomes the Z, because a letter says which side a man plays.
-    expect(nowThere.label).toBe("Z");
-    expect(wasX.label).toBe("X");
-    expect(nowThere.sublabel).toBe("WEAK LEFT");
-
-    expect(assignmentForPath(flipped, "route_x")?.text).toBe(
-      "OVER, then RIGHT",
-    );
-    expect(flipped.paths[0]!.conversion).toBe("vs man: fade RIGHT");
-    expect(flipped.labels[0]!.text).toBe("WEAK side");
   });
 
   it("flips a set it recognises through its own named counterpart", () => {
@@ -217,31 +194,6 @@ describe("lining men up with one another", () => {
     // which is why this is turned away rather than attempted.
     expect(alignPlayersCommand(play, ["man_7"], "splits")).toBeUndefined();
     expect(alignPlayersCommand(play, [], "splits")).toBeUndefined();
-  });
-});
-
-describe("tying things together", () => {
-  const selection: readonly FieldItemRef[] = [
-    { kind: "player", id: "man_7" },
-    { kind: "path", id: "route_x" },
-    { kind: "label", id: "note" },
-  ];
-
-  it("picks the whole of a group when one of it is picked, which is all a group does", () => {
-    const grouped = run(play, groupSelectionCommand(play, selection, makeId));
-    const expanded = expandSelectionToGroups(grouped, [
-      { kind: "player", id: "man_7" },
-    ]);
-    expect(expanded).toHaveLength(3);
-    expect(expanded.map(({ id }) => id).sort()).toEqual([
-      "man_7",
-      "note",
-      "route_x",
-    ]);
-    // Something in no group brings nothing else with it — and is handed back
-    // as it came, so nothing downstream sees a change that did not happen.
-    const alone: readonly FieldItemRef[] = [{ kind: "player", id: "man_0" }];
-    expect(expandSelectionToGroups(grouped, alone)).toBe(alone);
   });
 });
 

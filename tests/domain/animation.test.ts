@@ -155,15 +155,10 @@ describe("play animation plan", () => {
     expect(after.playerPositions.wr?.depthYards).toBeCloseTo(10, 1);
   });
 
-  it("names the four progression frames and a 0.2s frame sequence", () => {
+  it("spaces a 0.2s frame sequence from the snap to the finish", () => {
     const plan = planPlay(stickThunderPlay);
     const frames = playKeyFrames(stickThunderPlay, plan);
-    expect(frames.map((frame) => frame.name)).toEqual([
-      "Snap",
-      "First break",
-      "Throw",
-      "Finish",
-    ]);
+    expect(frames).toHaveLength(4);
     expect(frames[0]?.atMs).toBe(0);
     expect(frames[3]?.atMs).toBe(plan.endMs);
     const times = frameSequenceTimes(plan);

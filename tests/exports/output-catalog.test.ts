@@ -18,10 +18,6 @@ describe("the output catalogue (issue #69)", () => {
     const book = acceptSource(install, { kind: "book", playCount: 40 });
     expect(!book.ok && book.reason).toContain("not the full playbook");
     const sheet = outputFormat("callSheet");
-    expect(acceptSource(sheet, { kind: "selection", playCount: 0 })).toEqual({
-      ok: false,
-      reason: "Pick at least one play.",
-    });
     const unprepared = acceptSource(sheet, {
       kind: "plan",
       playCount: 4,

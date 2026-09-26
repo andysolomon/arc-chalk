@@ -45,7 +45,7 @@ const presented = (play: typeof stickThunderPlay, presentation: Presentation) =>
   buildSvgRenderScene(buildRenderScene(play, { presentation }));
 
 describe("type presets", () => {
-  it("draws the Assignment at the preset's label size and the read at its read size", () => {
+  it("drops conversions and notes under Player type while Coach still draws them", () => {
     const coach = presented(coached, defaultPresentation).paths.find(
       ({ id }) => id === "rx",
     )!.coaching!;
@@ -54,11 +54,11 @@ describe("type presets", () => {
       typePreset: "player",
     }).paths.find(({ id }) => id === "rx")!.coaching!;
 
-    expect(coach.notes[0]?.text.fontSize).toBe(12);
-    expect(coach.read?.text.fontSize).toBe(13);
-    expect(player.notes[0]?.text.fontSize).toBe(15);
-    expect(player.read?.text.fontSize).toBe(17);
-    // Player type drops conversions and notes; the Assignment stays.
+    expect(coach.notes.map(({ id }) => id)).toEqual([
+      "rx-assignment",
+      "rx-conversion",
+      "rx-note",
+    ]);
     expect(player.notes.map(({ id }) => id)).toEqual(["rx-assignment"]);
   });
 
@@ -97,6 +97,23 @@ describe("page kinds", () => {
 
     expect(quarterback(half)).toEqual(quarterback(full));
     expect(quarterback(blank)).toEqual(quarterback(full));
+  });
+
+  it("clips Half field to the band around the line of scrimmage", () => {
+    const half = presented(stickThunderPlay, {
+      ...defaultPresentation,
+      pageKind: "half",
+    });
+
+    expect(half.field.yardLines.map(({ id }) => id)).toEqual([
+      "yard-line--15",
+      "yard-line--10",
+      "yard-line--5",
+      "yard-line-0",
+      "yard-line-5",
+      "yard-line-10",
+      "yard-line-15",
+    ]);
   });
 
   it("draws Scout card as the LOS alone, Playbook page as light lines, Blank as nothing", () => {

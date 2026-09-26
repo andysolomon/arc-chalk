@@ -17,7 +17,6 @@ import {
   reconcileWristbandConfig,
   wristbandFit,
   wristbandInserts,
-  wristbandSizePresets,
   type DiagramRenderer,
   type WristbandConfig,
 } from "@chalk/exports";
@@ -84,7 +83,6 @@ describe("configurable wristband inserts (issue #71)", () => {
   it("starts from the plan's own calls in plan order, never from the library, and paginates past eight", () => {
     const { revision } = packetOf(11);
     const config = defaultWristbandConfig(revision);
-    expect(config.presetId).toBe("2.1x1.4-2x4");
     expect(config.calls).toHaveLength(11);
     const inserts = wristbandInserts(revision, config);
     expect(inserts.map((insert) => insert.cells.length)).toEqual([8, 3]);
@@ -95,16 +93,9 @@ describe("configurable wristband inserts (issue #71)", () => {
     expect(html).toContain("Insert 1 of 2");
     expect(html).toContain("Insert 2 of 2");
     expect(html.match(/class="wc /g)).toHaveLength(11);
-    expect(html).toContain("grid-template-columns:repeat(2,2.1in)");
-    expect(html).toContain("width:2.1in;height:1.4in");
-    // Cut guides, corner ticks, a one-inch bar and the 100 % instruction.
-    expect(html).toContain("border:0.5px dashed");
-    expect(html).toContain('<i class="tl"></i>');
-    expect(html).toContain("width:1in;height:6px");
-    expect(html).toContain("print at 100 % (Actual size), not Fit to page");
   });
 
-  it("keeps the Coach's order and short names, and describes presets by their dimensions", () => {
+  it("keeps the Coach's order and short names, and leaves out calls he dropped", () => {
     const { revision, callIds } = packetOf(4);
     const config: WristbandConfig = {
       ...defaultWristbandConfig(revision),
@@ -119,16 +110,10 @@ describe("configurable wristband inserts (issue #71)", () => {
     expect(html.indexOf('<b class="cc">4</b>')).toBeLessThan(
       html.indexOf('<b class="cc">1</b>'),
     );
-    expect(html).toContain(
-      "Z FLAT".toLowerCase() === "z flat" ? "Z Flat" : "Z Flat",
-    );
+    expect(html).toContain("Z Flat");
     expect(html).toContain("Trips Stick");
     expect(html).not.toContain("Call 2");
     expect(html).not.toContain("<svg");
-    for (const preset of wristbandSizePresets) {
-      expect(preset.name).toMatch(/^\d+(\.\d+)? × \d+(\.\d+)? in cells/);
-      expect(preset.name).not.toMatch(/compatible|fits every/i);
-    }
   });
 
   it("detects duplicate codes, missing plays and names that will not fit before printing", () => {

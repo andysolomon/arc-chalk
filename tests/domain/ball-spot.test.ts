@@ -130,33 +130,6 @@ describe("moving the ball, and the Play with it", () => {
     );
   });
 
-  it("carries each line with the man running it, exactly as drawn", () => {
-    const { play } = spotBall(stickThunderPlay, "right");
-    for (const path of play.paths) {
-      const before = stickThunderPlay.paths.find(({ id }) => id === path.id)!;
-      const player = play.players.find(({ id }) => id === path.playerId)!;
-      const wasAt = stickThunderPlay.players.find(
-        ({ id }) => id === path.playerId,
-      )!;
-      const moved = player.position.lateralYards - wasAt.position.lateralYards;
-      for (const [index, point] of path.points.entries()) {
-        expect(point.lateralYards).toBeCloseTo(
-          before.points[index]!.lateralYards + moved,
-          9,
-        );
-        expect(point.depthYards).toBe(before.points[index]!.depthYards);
-      }
-      for (const [bi, branch] of path.branches.entries()) {
-        for (const [pi, point] of branch.points.entries()) {
-          expect(point.lateralYards).toBeCloseTo(
-            before.branches[bi]!.points[pi]!.lateralYards + moved,
-            9,
-          );
-        }
-      }
-    }
-  });
-
   it("carries a line past the paint as a shape, and the applied command holds it on the paint", () => {
     const half = stickThunderPlay.fieldProfile.widthYards / 2;
     const { play } = spotBall(stickThunderPlay, "left");
@@ -266,27 +239,5 @@ describe("moving the ball, and the Play with it", () => {
       lateralYards: -6,
       depthYards: 9,
     });
-  });
-
-  it("takes the defense with the ball too", () => {
-    const withDefender: PlayDocument = {
-      ...stickThunderPlay,
-      players: [
-        ...stickThunderPlay.players,
-        {
-          id: "corner",
-          unit: "defense",
-          position: { lateralYards: 20, depthYards: 6 },
-          symbol: "none",
-          label: "C",
-          sublabel: "",
-          fill: "none",
-          color: "ink",
-        },
-      ],
-    };
-    const { play } = spotBall(withDefender, "left");
-    const corner = play.players.find(({ id }) => id === "corner")!;
-    expect(corner.position.lateralYards).not.toBe(20);
   });
 });

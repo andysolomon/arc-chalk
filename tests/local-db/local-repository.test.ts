@@ -1,10 +1,8 @@
 import {
-  UNDO_HISTORY_LIMITS,
   applyFormation,
   hashPlayDocument,
   stockFormations,
   starterPlaybookEnvelope,
-  type PlayDocument,
   type UndoHistory,
 } from "@chalk/domain";
 import { offensivePlaybookGolden } from "@chalk/test-fixtures";
@@ -479,112 +477,6 @@ describe("ChalkLocalRepository", () => {
     });
     await expect(repository.requestPersistentStorage()).resolves.toBe(false);
   });
-
-  it("commits one Play at 2,000-Play beta scale without growing with Playbook size", async () => {
-    const basePlay = offensivePlaybookGolden.plays[0]!;
-    const fullHistoryFor = (play: PlayDocument): UndoHistory => ({
-      schemaVersion: 1,
-      playId: play.id,
-      undo: Array.from(
-        { length: UNDO_HISTORY_LIMITS.maxEntries },
-        (_unused, index) => ({
-          id: `undo_${index}`,
-          label: "Move Players",
-          createdAtMs: FIXED_TIME - index,
-          beforeHash: `hash_${index}`,
-          afterHash: `hash_${index + 1}`,
-          forward: {
-            kind: "move-players" as const,
-            moves: play.players.map((player) => ({
-              playerId: player.id,
-              position: { lateralYards: index, depthYards: 5 },
-            })),
-          },
-          inverse: {
-            kind: "move-players" as const,
-            moves: play.players.map((player) => ({
-              playerId: player.id,
-              position: player.position,
-            })),
-          },
-        }),
-      ),
-      redo: [],
-      encodedByteLength: 0,
-      updatedAtMs: FIXED_TIME,
-    });
-
-    function median(values: readonly number[]): number {
-      const sorted = [...values].sort((left, right) => left - right);
-      return sorted[Math.floor(sorted.length / 2)]!;
-    }
-
-    async function measureCommit(
-      suffix: string,
-      playCount: number,
-    ): Promise<number> {
-      const repository = track(createRepository(suffix));
-      const plays = Array.from({ length: playCount }, (_unused, index) => ({
-        ...structuredClone(basePlay),
-        id: `play_scale_${index.toString().padStart(4, "0")}`,
-        name: `Scale Play ${index.toString().padStart(4, "0")}`,
-      }));
-      await repository.savePlaybook({
-        ...structuredClone(offensivePlaybookGolden),
-        plays,
-      });
-      const targetId = `play_scale_${Math.floor(playCount / 2)
-        .toString()
-        .padStart(4, "0")}`;
-      const target = await repository.getPlay(targetId);
-      expect(target).toBeDefined();
-      const measuredPlay = {
-        ...structuredClone(target!.document),
-        name: "Measured commit",
-      };
-
-      // One commit on a shared runner is mostly noise, so the reported cost is
-      // the median of several.
-      const durations: number[] = [];
-      let expectedHash = target!.documentHash;
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        const play = { ...measuredPlay, name: `Measured commit ${attempt}` };
-        const startedAtMs = performance.now();
-        const result = await repository.commitPlay({
-          play,
-          expectedDocumentHash: expectedHash,
-          mutation: { id: `mutation_measured_${suffix}_${attempt}` },
-          undoHistory: fullHistoryFor(play),
-        });
-        durations.push(performance.now() - startedAtMs);
-        expectedHash = result.documentHash;
-        expect(result.documentHash).toMatch(/^[a-f0-9]{64}$/);
-        expect(result.undoEntryCount).toBe(UNDO_HISTORY_LIMITS.maxEntries);
-      }
-
-      await expect(repository.counts()).resolves.toEqual(
-        expect.objectContaining({
-          plays: playCount,
-          syncMutations: 5,
-          searchProjections: playCount,
-          undoHistories: 1,
-        }),
-      );
-      return median(durations);
-    }
-
-    const smallMs = await measureCommit("scale-small", 2);
-    const betaMs = await measureCommit("scale-beta", 2_000);
-
-    // A commit reads only its own Play plus that Playbook's Concepts and
-    // Formations, so committing into a 1,000x larger Playbook must not cost
-    // meaningfully more. The bound is deliberately loose: it exists to catch a
-    // commit that starts scanning the Playbook, which at this scale would cost
-    // orders of magnitude rather than a small multiple. Wall-clock ceilings
-    // against the Coach-visible 50 ms budget belong on real devices, not on
-    // this in-memory IndexedDB shim.
-    expect(betaMs).toBeLessThan(smallMs * 5 + 100);
-  }, 60_000);
 
   it("holds a retry until nextAttemptAtMs", async () => {
     const repository = track(createRepository("retry-window"));

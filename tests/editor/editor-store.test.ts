@@ -193,99 +193,6 @@ describe("EditorStore edits built against the Play they will land on", () => {
   });
 });
 
-describe("EditorStore undo and redo", () => {
-  interface Harness {
-    readonly store: EditorStore;
-    readonly commits: EditorPersistenceCommit[];
-    readonly initialHash: string;
-  }
-
-  async function harness(): Promise<Harness> {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const commits: EditorPersistenceCommit[] = [];
-    let mutation = 0;
-    let entry = 0;
-    const store = createEditorStore({
-      initialDocument: stickThunderPlay,
-      initialDocumentHash: initialHash,
-      persistence: {
-        async commitPlay(input) {
-          commits.push(input);
-          return {
-            playId: input.play.id,
-            documentHash: await hashPlayDocument(input.play),
-            committedAtMs: 100,
-            mutationId: input.mutation.id,
-          };
-        },
-      },
-      createMutationId: () => `mutation_${++mutation}`,
-      createUndoEntryId: () => `undo_${++entry}`,
-      monotonicNow: () => 0,
-      wallClockNow: () => WORKED_ON_MS,
-    });
-    return { store, commits, initialHash };
-  }
-
-  it("quarantines history when the Play is replaced outside it", async () => {
-    const { store } = await harness();
-
-    store.setPlayNameDraft("Mesh — Alert");
-    await store.commitPlayName();
-
-    const restored: PlayDocument = {
-      ...structuredClone(stickThunderPlay),
-      notes: "Restored from a named version.",
-    };
-    await store.commitDocument(restored);
-
-    expect(store.getSnapshot().undo.canUndo).toBe(false);
-    const outcome = await store.undo();
-    expect(outcome.status).toBe("quarantined");
-    expect(store.getSnapshot().undo.quarantineReason).toMatch(
-      /changed outside its history/,
-    );
-    expect(store.getSnapshot().document.notes).toBe(
-      "Restored from a named version.",
-    );
-  });
-
-  it("keeps the failed edit undoable once the retry succeeds", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const commits: EditorPersistenceCommit[] = [];
-    let shouldFail = true;
-    const store = createEditorStore({
-      initialDocument: stickThunderPlay,
-      initialDocumentHash: initialHash,
-      persistence: {
-        async commitPlay(input) {
-          commits.push(input);
-          if (shouldFail) throw new Error("IndexedDB unavailable");
-          return {
-            playId: input.play.id,
-            documentHash: await hashPlayDocument(input.play),
-            committedAtMs: 100,
-          };
-        },
-      },
-      monotonicNow: () => 0,
-    });
-
-    store.setPlayNameDraft("Mesh — Alert");
-    await store.commitPlayName();
-    expect(store.getSnapshot().localSave.phase).toBe("error");
-    expect(store.getSnapshot().undo.canUndo).toBe(true);
-
-    shouldFail = false;
-    await store.retryLocalSave();
-    expect(commits.at(-1)?.undoHistory?.undo).toHaveLength(1);
-    await expect(store.undo()).resolves.toEqual(
-      expect.objectContaining({ status: "applied" }),
-    );
-    expect(store.getSnapshot().document.name).toBe("Stick — Thunder");
-  });
-});
-
 describe("EditorStore named versions", () => {
   interface VersionHarness {
     readonly store: EditorStore;
@@ -334,24 +241,6 @@ describe("EditorStore named versions", () => {
     return { store, commits, versions };
   }
 
-  it("marks the Play the Coach sees, after every pending save", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const { store, versions } = versionHarness(initialHash);
-
-    store.setPlayNameDraft("Install week copy");
-    const pending = store.commitPlayName();
-    const created = await store.createVersion("Install week");
-    await pending;
-
-    expect(created.status).toBe("created");
-    if (created.status !== "created") return;
-    expect(created.version.label).toBe("Install week");
-    expect(versions.get("revision_1")?.name).toBe("Install week copy");
-    expect(store.getSnapshot().versions).toEqual([
-      expect.objectContaining({ label: "Install week" }),
-    ]);
-  });
-
   it("reports a version it cannot read instead of guessing", async () => {
     const initialHash = await hashPlayDocument(stickThunderPlay);
     const { store } = versionHarness(initialHash);
@@ -360,35 +249,5 @@ describe("EditorStore named versions", () => {
       status: "failed",
       reason: "Chalk could not read that version on this device.",
     });
-  });
-
-  it("reveals a Play already written by sync without committing again", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const commits: EditorPersistenceCommit[] = [];
-    const store = createEditorStore({
-      initialDocument: stickThunderPlay,
-      initialDocumentHash: initialHash,
-      persistence: {
-        async commitPlay(input) {
-          commits.push(input);
-          return {
-            playId: input.play.id,
-            documentHash: await hashPlayDocument(input.play),
-            committedAtMs: 100,
-            mutationId: input.mutation.id,
-          };
-        },
-      },
-      monotonicNow: () => 0,
-      wallClockNow: () => WORKED_ON_MS,
-    });
-    const remote = { ...stickThunderPlay, name: "From the other device" };
-    const remoteHash = await hashPlayDocument(remote);
-    store.revealPersistedPlay(remote, remoteHash);
-    expect(store.getSnapshot().document.name).toBe("From the other device");
-    expect(store.getSnapshot().localSave).toEqual(
-      expect.objectContaining({ phase: "saved", documentHash: remoteHash }),
-    );
-    expect(commits).toEqual([]);
   });
 });

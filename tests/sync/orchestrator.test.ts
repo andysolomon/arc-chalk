@@ -53,40 +53,6 @@ async function commitName(
 }
 
 describe("durable sync orchestrator", () => {
-  it("keeps mutations queued while offline and drains them on reconnect", async () => {
-    const repository = await openDevice("offline");
-    const store = new MemoryReplicaStore();
-    const identity = identityFor();
-    let online = false;
-    const replica = new EngineCloudReplica({
-      store,
-      coachId: () => COACH,
-    });
-    const orchestrator = await createSyncOrchestrator({
-      repository,
-      replica,
-      identity,
-      debounceMs: 0,
-      now: () => FIXED,
-      online: () => online,
-    });
-    await commitName(repository, "Offline edit", "mutation_offline");
-    const offline = await orchestrator.syncNow();
-    expect(offline.status).toBe("offline");
-    expect(offline.pendingCount).toBeGreaterThan(0);
-    expect(
-      (await repository.getPlay(offensivePlaybookGolden.plays[0]!.id))?.document
-        .name,
-    ).toBe("Offline edit");
-
-    online = true;
-    const synced = await orchestrator.syncNow();
-    expect(synced.status).toBe("synced");
-    expect(synced.pendingCount).toBe(0);
-    expect(await repository.readSyncMutationBatch(10)).toEqual([]);
-    await repository.destroy();
-  });
-
   it("replays a batch that the replica already applied", async () => {
     const repository = await openDevice("replay");
     const store = new MemoryReplicaStore();

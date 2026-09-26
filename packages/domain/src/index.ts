@@ -33,3 +33,4 @@ export * from "./thumbnails";
 export * from "./share-access";
 export * from "./share-capability";
 export * from "./undo";
+export * from "./zone-shell";

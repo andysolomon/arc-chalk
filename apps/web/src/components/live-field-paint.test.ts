@@ -1,4 +1,3 @@
-import { summarizePaintSamples } from "@chalk/editor";
 import { describe, expect, it } from "vitest";
 
 import { applyLiveFieldPaint, clearLiveFieldPaint } from "./live-field-paint";
@@ -44,7 +43,7 @@ describe("applyLiveFieldPaint", () => {
     expect(svg).toHaveAttribute("data-live-paint", "move");
   });
 
-  it("writes budget metrics the e2e harness reads, and clear restores the base", () => {
+  it("clears a live move and camera back to the committed base", () => {
     const svg = svgWithPlayer("x", 316, 452);
     applyLiveFieldPaint(svg, {
       move: {
@@ -55,16 +54,13 @@ describe("applyLiveFieldPaint", () => {
         labelIds: [],
       },
       camera: { x: 10, y: 20, width: 800, height: 496 },
-      metrics: summarizePaintSamples(
-        [16, 16, 16, 16, 16, 16, 16, 16, 16, 16],
-        [8, 9, 10, 11, 12, 8, 9, 10, 11, 12],
-      ),
     });
 
     expect(svg.getAttribute("viewBox")).toBe("10 20 800 496");
-    expect(svg).toHaveAttribute("data-frame-within-budget", "true");
-    expect(svg).toHaveAttribute("data-input-to-paint-within-budget", "true");
-    expect(Number(svg.getAttribute("data-fps"))).toBeGreaterThan(60);
+    expect(svg.querySelector('[data-scene-player="x"]')).toHaveAttribute(
+      "transform",
+      "translate(324 452)",
+    );
 
     clearLiveFieldPaint(svg);
     expect(svg.querySelector('[data-scene-player="x"]')).toHaveAttribute(

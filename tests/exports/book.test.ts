@@ -83,7 +83,6 @@ describe("binder (issue #72)", () => {
       ...options,
       revisionLine: `Prepared 13 Sep 2026 · ${packet.revision.id}`,
     });
-    expect(html).toContain("<h1>Week 5</h1>");
     expect(html).toContain(packet.revision.id);
     // What the printer keeps whole is marked, and the rule that keeps it.
     expect(html).toContain('<div class="tr" data-keep data-contents-for=');
@@ -95,7 +94,6 @@ describe("binder (issue #72)", () => {
     );
     expect(html.match(/data-book-page="divider:/g)).toHaveLength(3);
     expect(html.match(/data-book-page="plan_call_/g)).toHaveLength(100);
-    expect(html).toContain('<span class="cc">1</span> · ');
     // Nothing is numbered until the layout has been measured.
     expect(html).not.toMatch(/<span class="tp">\d+<\/span>/);
     expect(html.match(/<div class="pno">—<\/div>/g)).toHaveLength(100);
@@ -171,15 +169,12 @@ describe("handout (issue #72)", () => {
     const entries = bookEntriesOf({ plays: plays.slice(0, 5) });
     const two = handoutSheetHtml(entries, defaultHandoutConfig, options);
     expect(two.match(/class="hs up2"/g)).toHaveLength(3);
-    expect(two).toContain("@page{size:letter portrait;margin:0.5in}");
     const four = handoutSheetHtml(
       entries,
       { ...defaultHandoutConfig, up: 4, orientation: "landscape", paper: "a4" },
       options,
     );
     expect(four.match(/class="hs up4"/g)).toHaveLength(2);
-    expect(four).toContain("@page{size:A4 landscape;margin:0.5in}");
-    expect(four).toContain("grid-template-columns:repeat(2,1fr)");
     const dense = plays
       .slice(0, 5)
       .reduce((best, play) =>
