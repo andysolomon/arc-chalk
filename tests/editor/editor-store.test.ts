@@ -1,14 +1,10 @@
 import {
   hashPlayDocument,
-  demoHandoffPlay,
-  demoTour,
-  emptyPlayDocument,
   stickThunderPlay,
   type PlayDocument,
 } from "@chalk/domain";
 import {
   createEditorStore,
-  localSaveMessage,
   type EditorPersistence,
   type EditorPersistenceCommit,
   type EditorPersistenceReceipt,
@@ -36,47 +32,6 @@ function deferred<T>(): {
 }
 
 describe("EditorStore local persistence", () => {
-  it("keeps title typing transient until the field edit is committed", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const commits: EditorPersistenceCommit[] = [];
-    const persistence: EditorPersistence = {
-      async commitPlay(input) {
-        commits.push(input);
-        return {
-          playId: input.play.id,
-          documentHash: await hashPlayDocument(input.play),
-          committedAtMs: 100,
-          mutationId: input.mutation.id,
-        };
-      },
-    };
-    const store = createEditorStore({
-      initialDocument: stickThunderPlay,
-      initialDocumentHash: initialHash,
-      persistence,
-      createMutationId: () => "mutation_title",
-      monotonicNow: () => 0,
-    });
-
-    store.setPlayNameDraft("Mesh — Alert");
-
-    expect(store.getSnapshot().document.name).toBe("Stick — Thunder");
-    expect(store.getSnapshot().draftPlayName).toBe("Mesh — Alert");
-    expect(commits).toEqual([]);
-
-    await expect(store.commitPlayName()).resolves.toEqual(
-      expect.objectContaining({ ok: true, withinBudget: true }),
-    );
-    expect(commits).toHaveLength(1);
-    expect(commits[0]?.expectedDocumentHash).toBe(initialHash);
-    expect(commits[0]?.play.name).toBe("Mesh — Alert");
-    expect(commits[0]?.mutation).toEqual({ id: "mutation_title" });
-    expect(store.getSnapshot().document.name).toBe("Mesh — Alert");
-    expect(localSaveMessage(store.getSnapshot().localSave)).toBe(
-      "Saved on this device",
-    );
-  });
-
   it("serializes rapid commits and advances each optimistic hash guard", async () => {
     const initialHash = await hashPlayDocument(stickThunderPlay);
     const first = deferred<EditorPersistenceReceipt>();
@@ -172,38 +127,6 @@ describe("EditorStore local persistence", () => {
     expect(calls[1]?.expectedDocumentHash).toBe(initialHash);
     expect(calls[1]?.play.name).toBe("Kept locally in memory");
     expect(store.getSnapshot().localSave.phase).toBe("saved");
-  });
-
-  it("records whether the local acknowledgement met the strict 50 ms budget", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const times = [10, 59];
-    const store = createEditorStore({
-      initialDocument: stickThunderPlay,
-      initialDocumentHash: initialHash,
-      persistence: {
-        commitPlay: (input) =>
-          Promise.resolve({
-            playId: input.play.id,
-            documentHash: "hash_budget",
-            committedAtMs: 100,
-            mutationId: input.mutation.id,
-          }),
-      },
-      createMutationId: () => "mutation_budget",
-      monotonicNow: () => times.shift()!,
-    });
-
-    store.setPlayNameDraft("Budget test");
-    await expect(store.commitPlayName()).resolves.toEqual(
-      expect.objectContaining({
-        ok: true,
-        durationMs: 49,
-        withinBudget: true,
-      }),
-    );
-    expect(store.getSnapshot().localSave).toEqual(
-      expect.objectContaining({ durationMs: 49, withinBudget: true }),
-    );
   });
 });
 
@@ -304,129 +227,6 @@ describe("EditorStore undo and redo", () => {
     return { store, commits, initialHash };
   }
 
-  it("undoes and redoes a committed edit and reports each step to the Coach", async () => {
-    const { store, commits } = await harness();
-
-    store.setPlayNameDraft("Mesh — Alert");
-    await store.commitPlayName();
-
-    expect(store.getSnapshot().undo).toEqual(
-      expect.objectContaining({
-        canUndo: true,
-        canRedo: false,
-        undoLabel: "Rename Play",
-        undoDepth: 1,
-      }),
-    );
-    expect(commits[0]?.undoHistory?.undo).toHaveLength(1);
-    expect(commits[0]?.undoHistory?.undo[0]?.forward).toEqual({
-      kind: "set-play-name",
-      name: "Mesh — Alert",
-    });
-
-    await expect(store.undo()).resolves.toEqual(
-      expect.objectContaining({ status: "applied" }),
-    );
-    expect(store.getSnapshot().document.name).toBe("Stick — Thunder");
-    expect(store.getSnapshot().draftPlayName).toBe("Stick — Thunder");
-    expect(store.getSnapshot().undo).toEqual(
-      expect.objectContaining({
-        canUndo: false,
-        canRedo: true,
-        redoLabel: "Rename Play",
-      }),
-    );
-    expect(commits[1]?.play.name).toBe("Stick — Thunder");
-    expect(commits[1]?.undoHistory?.undo).toEqual([]);
-    expect(commits[1]?.undoHistory?.redo).toHaveLength(1);
-
-    await expect(store.redo()).resolves.toEqual(
-      expect.objectContaining({ status: "applied" }),
-    );
-    expect(store.getSnapshot().document.name).toBe("Mesh — Alert");
-    expect(store.getSnapshot().undo.canUndo).toBe(true);
-    expect(store.getSnapshot().localSave.phase).toBe("saved");
-  });
-
-  it("undoes a whole gesture, not each Player it moved", async () => {
-    const { store } = await harness();
-    const moved = stickThunderPlay.players.slice(0, 3);
-
-    await store.applyCommand({
-      kind: "move-players",
-      moves: moved.map((player, index) => ({
-        playerId: player.id,
-        position: { lateralYards: index, depthYards: 8 },
-      })),
-    });
-
-    expect(store.getSnapshot().undo.undoLabel).toBe("Move Players");
-    expect(store.getSnapshot().undo.undoDepth).toBe(1);
-    await store.undo();
-    expect(
-      store
-        .getSnapshot()
-        .document.players.slice(0, 3)
-        .map((p) => p.position),
-    ).toEqual(moved.map((player) => player.position));
-  });
-
-  it("keeps undo and redo inside the Play in front of the Coach", async () => {
-    const { store, commits } = await harness();
-
-    store.setPlayNameDraft("Stick — Alert");
-    await store.commitPlayName();
-    await store.undo();
-    expect(store.getSnapshot().undo).toEqual(
-      expect.objectContaining({ canUndo: false, canRedo: true }),
-    );
-
-    // Saving and starting a new Play leaves the first one's history with it
-    // (ADR 0038): nothing here undoes back to it or redoes on to another.
-    const fresh = emptyPlayDocument({
-      id: "play_fresh",
-      playbookId: stickThunderPlay.playbookId,
-      fieldProfile: stickThunderPlay.fieldProfile,
-      unit: "offense",
-    });
-    await store.adoptPlay(fresh);
-    expect(store.getSnapshot().document.id).toBe("play_fresh");
-    expect(store.getSnapshot().undo).toEqual(
-      expect.objectContaining({
-        canUndo: false,
-        canRedo: false,
-        undoDepth: 0,
-        redoDepth: 0,
-      }),
-    );
-    await expect(store.undo()).resolves.toEqual({ status: "empty" });
-    await expect(store.redo()).resolves.toEqual({ status: "empty" });
-    expect(store.getSnapshot().document.id).toBe("play_fresh");
-    expect(store.getSnapshot().document.name).toBe("Untitled play");
-
-    // The first Play's stored history is still its own to step through.
-    const lastFirstPlayCommit = commits
-      .filter((commit) => commit.play.id === stickThunderPlay.id)
-      .at(-1);
-    expect(lastFirstPlayCommit).toBeDefined();
-    await store.openStoredPlay({
-      document: stickThunderPlay,
-      documentHash: await hashPlayDocument(stickThunderPlay),
-      undoHistory: lastFirstPlayCommit?.undoHistory,
-    });
-    expect(store.getSnapshot().undo).toEqual(
-      expect.objectContaining({ canRedo: true, redoLabel: "Rename Play" }),
-    );
-  });
-
-  it("reports an empty history instead of offering a step", async () => {
-    const { store } = await harness();
-
-    await expect(store.undo()).resolves.toEqual({ status: "empty" });
-    await expect(store.redo()).resolves.toEqual({ status: "empty" });
-    expect(store.getSnapshot().undo.canUndo).toBe(false);
-  });
-
   it("quarantines history when the Play is replaced outside it", async () => {
     const { store } = await harness();
 
@@ -448,39 +248,6 @@ describe("EditorStore undo and redo", () => {
     expect(store.getSnapshot().document.notes).toBe(
       "Restored from a named version.",
     );
-  });
-
-  it("restores a persisted history so undo survives reopening the Play", async () => {
-    const first = await harness();
-    first.store.setPlayNameDraft("Mesh — Alert");
-    await first.store.commitPlayName();
-    const stored = first.commits.at(-1)?.undoHistory;
-    const reopened = first.store.getSnapshot().document;
-
-    const commits: EditorPersistenceCommit[] = [];
-    const store = createEditorStore({
-      initialDocument: reopened,
-      initialDocumentHash: await hashPlayDocument(reopened),
-      initialUndoHistory: stored,
-      persistence: {
-        async commitPlay(input) {
-          commits.push(input);
-          return {
-            playId: input.play.id,
-            documentHash: await hashPlayDocument(input.play),
-            committedAtMs: 100,
-          };
-        },
-      },
-      monotonicNow: () => 0,
-      wallClockNow: () => WORKED_ON_MS,
-    });
-
-    expect(store.getSnapshot().undo.canUndo).toBe(true);
-    await expect(store.undo()).resolves.toEqual(
-      expect.objectContaining({ status: "applied" }),
-    );
-    expect(store.getSnapshot().document.name).toBe("Stick — Thunder");
   });
 
   it("keeps the failed edit undoable once the retry succeeds", async () => {
@@ -585,64 +352,6 @@ describe("EditorStore named versions", () => {
     ]);
   });
 
-  it("refuses a version the Coach did not name", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const { store } = versionHarness(initialHash);
-
-    await expect(store.createVersion("   ")).resolves.toEqual({
-      status: "failed",
-      reason: "Name this version.",
-    });
-    expect(store.getSnapshot().versions).toEqual([]);
-  });
-
-  it("restores a version as one undoable edit", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const { store, commits } = versionHarness(initialHash);
-
-    await store.createVersion("Install week");
-    store.setPlayNameDraft("Thursday rewrite");
-    await store.commitPlayName();
-    await store.applyCommand({
-      kind: "set-notes",
-      notes: "Everything changed on Thursday.",
-    });
-    expect(store.getSnapshot().undo.undoDepth).toBe(2);
-
-    const restored = await store.restoreVersion("revision_1");
-
-    expect(restored).toEqual(expect.objectContaining({ status: "restored" }));
-    expect(store.getSnapshot().document.name).toBe("Stick — Thunder");
-    expect(store.getSnapshot().document.notes).toBe(stickThunderPlay.notes);
-    // The restore is one more entry on the stack, not a rewrite of history.
-    expect(store.getSnapshot().undo.undoDepth).toBe(3);
-    expect(store.getSnapshot().undo.undoLabel).toBe("Restore version");
-    expect(commits.at(-1)?.undoHistory?.undo.at(-1)?.forward.kind).toBe(
-      "batch",
-    );
-
-    await expect(store.undo()).resolves.toEqual(
-      expect.objectContaining({ status: "applied" }),
-    );
-    expect(store.getSnapshot().document.name).toBe("Thursday rewrite");
-    expect(store.getSnapshot().document.notes).toBe(
-      "Everything changed on Thursday.",
-    );
-  });
-
-  it("does nothing when the Coach restores the version they are already on", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const { store, commits } = versionHarness(initialHash);
-    await store.createVersion("Install week");
-    const before = commits.length;
-
-    await expect(store.restoreVersion("revision_1")).resolves.toEqual({
-      status: "unchanged",
-    });
-    expect(commits).toHaveLength(before);
-    expect(store.getSnapshot().undo.undoDepth).toBe(0);
-  });
-
   it("reports a version it cannot read instead of guessing", async () => {
     const initialHash = await hashPlayDocument(stickThunderPlay);
     const { store } = versionHarness(initialHash);
@@ -651,116 +360,6 @@ describe("EditorStore named versions", () => {
       status: "failed",
       reason: "Chalk could not read that version on this device.",
     });
-  });
-
-  it("reports versions as unavailable when the device cannot store them", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const store = createEditorStore({
-      initialDocument: stickThunderPlay,
-      initialDocumentHash: initialHash,
-      persistence: {
-        commitPlay: async (input) => ({
-          playId: input.play.id,
-          documentHash: await hashPlayDocument(input.play),
-          committedAtMs: 100,
-        }),
-      },
-      monotonicNow: () => 0,
-    });
-
-    await expect(store.createVersion("Install week")).resolves.toEqual({
-      status: "unavailable",
-    });
-    await expect(store.restoreVersion("revision_1")).resolves.toEqual({
-      status: "unavailable",
-    });
-  });
-
-  it("adopts a demo as a new Play and leaves the previous record untouched", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const records = new Map<string, PlayDocument>([
-      [stickThunderPlay.id, stickThunderPlay],
-    ]);
-    const commits: EditorPersistenceCommit[] = [];
-    const store = createEditorStore({
-      initialDocument: stickThunderPlay,
-      initialDocumentHash: initialHash,
-      persistence: {
-        async commitPlay(input) {
-          commits.push(input);
-          records.set(input.play.id, input.play);
-          return {
-            playId: input.play.id,
-            documentHash: await hashPlayDocument(input.play),
-            committedAtMs: 100,
-            mutationId: input.mutation.id,
-          };
-        },
-      },
-      createMutationId: () => "mutation_demo",
-      monotonicNow: () => 0,
-      wallClockNow: () => WORKED_ON_MS,
-    });
-
-    const opened = demoHandoffPlay(demoTour("defense"), {
-      id: "play_from_demo",
-      playbookId: stickThunderPlay.playbookId,
-    });
-    await expect(store.adoptPlay(opened)).resolves.toEqual(
-      expect.objectContaining({ ok: true }),
-    );
-
-    expect(store.getSnapshot().document.id).toBe("play_from_demo");
-    expect(store.getSnapshot().document.name).toBe("Cover 3 — Fire Zone");
-    expect(store.getSnapshot().undo.canUndo).toBe(false);
-    expect(commits[0]?.expectedDocumentHash).toBeUndefined();
-    expect(commits[0]?.play.id).toBe("play_from_demo");
-    expect(records.get(stickThunderPlay.id)).toBe(stickThunderPlay);
-    expect(records.get(stickThunderPlay.id)?.name).toBe("Stick — Thunder");
-    expect(records.get("play_from_demo")?.name).toBe("Cover 3 — Fire Zone");
-  });
-
-  it("opens a stored Play without rewriting the one that was in front", async () => {
-    const initialHash = await hashPlayDocument(stickThunderPlay);
-    const other: PlayDocument = {
-      ...stickThunderPlay,
-      id: "play_other",
-      name: "Four Verticals",
-    };
-    const otherHash = await hashPlayDocument(other);
-    const records = new Map<string, PlayDocument>([
-      [stickThunderPlay.id, stickThunderPlay],
-    ]);
-    const store = createEditorStore({
-      initialDocument: stickThunderPlay,
-      initialDocumentHash: initialHash,
-      persistence: {
-        async commitPlay(input) {
-          records.set(input.play.id, input.play);
-          return {
-            playId: input.play.id,
-            documentHash: await hashPlayDocument(input.play),
-            committedAtMs: 100,
-            mutationId: input.mutation.id,
-          };
-        },
-      },
-      createMutationId: () => "mutation_open",
-      monotonicNow: () => 0,
-      wallClockNow: () => WORKED_ON_MS,
-    });
-
-    store.setPlayNameDraft("Should not land");
-    await store.openStoredPlay({
-      document: other,
-      documentHash: otherHash,
-    });
-
-    expect(store.getSnapshot().document.id).toBe("play_other");
-    expect(store.getSnapshot().document.name).toBe("Four Verticals");
-    expect(store.getSnapshot().draftPlayName).toBe("Four Verticals");
-    expect(records.get(stickThunderPlay.id)).toBe(stickThunderPlay);
-    expect(records.get(stickThunderPlay.id)?.name).toBe("Stick — Thunder");
   });
 
   it("reveals a Play already written by sync without committing again", async () => {

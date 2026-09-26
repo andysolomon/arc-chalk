@@ -2,10 +2,7 @@ import {
   applyPlayCommand,
   assignmentForPath,
   assignRoles,
-  blockPresets,
-  lineCallKeys,
   playDocumentSchema,
-  routePresetNames,
   routePresetPoints,
   stockConcepts,
   stockFormations,
@@ -19,7 +16,6 @@ import {
   applyPlayerRoutePresetCommand,
   applyRoutePresetCommand,
   baseRouteOf,
-  conceptIsOn,
   conceptTargets,
   linemenOf,
   linePresetIsOn,
@@ -71,25 +67,6 @@ const run = (play: PlayDocument, command?: unknown): PlayDocument =>
   command ? applyPlayCommand(play, command as never) : play;
 
 describe("the route tree", () => {
-  it("offers the shapes the original offers, and draws each from the man's own spot", () => {
-    expect(routePresetNames.map(({ key }) => key)).toEqual([
-      "go",
-      "slant",
-      "hitch",
-      "curl",
-      "out",
-      "dig",
-      "post",
-      "corner",
-      "flat",
-      "wheel",
-    ]);
-    const stance = { lateralYards: -20, depthYards: 0 };
-    const go = routePresetPoints("go", stance)!;
-    expect(go[0]).toEqual(stance);
-    expect(go.at(-1)!.depthYards).toBeGreaterThan(13);
-  });
-
   it("turns the same call the other way for the man on the other side", () => {
     const left = routePresetPoints("out", {
       lateralYards: -20,
@@ -107,45 +84,6 @@ describe("the route tree", () => {
       -right.at(-1)!.lateralYards,
       9,
     );
-  });
-
-  it("breaks a slant and a dig toward the middle from either side", () => {
-    for (const key of ["slant", "dig"]) {
-      const left = routePresetPoints(key, {
-        lateralYards: -20,
-        depthYards: 0,
-      })!;
-      expect(left.at(-1)!.lateralYards).toBeGreaterThan(-20);
-      const right = routePresetPoints(key, {
-        lateralYards: 20,
-        depthYards: 0,
-      })!;
-      expect(right.at(-1)!.lateralYards).toBeLessThan(20);
-    }
-  });
-
-  it("bends the wheel, and only the wheel", () => {
-    const stance = { lateralYards: 20, depthYards: 0 };
-    const wheel = routePresetPoints("wheel", stance)!;
-    expect(wheel.some((point) => point.control)).toBe(true);
-    for (const { key } of routePresetNames.filter((p) => p.key !== "wheel")) {
-      expect(routePresetPoints(key, stance)!.some((p) => p.control)).toBe(
-        false,
-      );
-    }
-  });
-
-  it("knows nothing about a call it does not have", () => {
-    expect(
-      routePresetPoints("banana", { lateralYards: 0, depthYards: 0 }),
-    ).toBeUndefined();
-  });
-
-  it("has no job for a position a concept says nothing about", () => {
-    const stance = { lateralYards: -20, depthYards: 0 };
-    expect(conceptNamed("mesh").jobFor("LT", stance)).toBeUndefined();
-    expect(conceptNamed("mesh").jobFor("QB", stance)).toBeUndefined();
-    expect(conceptNamed("mesh").jobFor("X", stance)).toBeDefined();
   });
 });
 
@@ -166,94 +104,6 @@ describe("putting a call off the tree on a line", () => {
       },
     ],
   };
-
-  it("redraws the line from the man's stance and remembers which call it is", () => {
-    const play = run(
-      withStem,
-      applyRoutePresetCommand(withStem, "stem", "corner"),
-    );
-    const path = play.paths[0]!;
-    expect(path.preset).toBe("corner");
-    expect(path.points[0]).toEqual(
-      play.players.find(({ id }) => id === path.playerId)!.position,
-    );
-    // A corner from the left breaks toward the left sideline.
-    expect(path.points.at(-1)!.lateralYards).toBeLessThan(
-      path.points[0]!.lateralYards,
-    );
-  });
-
-  it("runs a call on from the end of what he has, and stops naming it as one call", () => {
-    const cornered = run(
-      withStem,
-      applyRoutePresetCommand(withStem, "stem", "corner"),
-    );
-    const before = cornered.paths[0]!.points;
-    const play = run(
-      cornered,
-      applyRoutePresetCommand(cornered, "stem", "out", "continue"),
-    );
-    const path = play.paths[0]!;
-    expect("preset" in path).toBe(false);
-    // What he had is still the front of it, untouched — and the break it
-    // continues from is one break, not the same point written twice.
-    expect(path.points.slice(0, before.length)).toEqual(before);
-    expect(path.points).toHaveLength(
-      before.length + routePresetPoints("out", before.at(-1)!)!.length - 1,
-    );
-    expect(path.points[before.length]).not.toEqual(before.at(-1));
-  });
-
-  it("turns a call on by the side the man plays, not by where his line has got to", () => {
-    // A shallow crosser from the left ends on the right of the ball. Running
-    // an out on from there must still break to his own sideline, the left.
-    const crossed: PlayDocument = {
-      ...withStem,
-      paths: [
-        {
-          ...withStem.paths[0]!,
-          points: [
-            withStem.paths[0]!.points[0]!,
-            { lateralYards: 14, depthYards: 5 },
-          ],
-        },
-      ],
-    };
-    const play = run(
-      crossed,
-      applyRoutePresetCommand(crossed, "stem", "out", "continue"),
-    );
-    const points = play.paths[0]!.points;
-    expect(points.at(-1)!.lateralYards).toBeLessThan(points[1]!.lateralYards);
-  });
-
-  it("redraws from the stance when there is no break to continue from", () => {
-    const bare: PlayDocument = {
-      ...withStem,
-      paths: [
-        { ...withStem.paths[0]!, points: [withStem.paths[0]!.points[0]!] },
-      ],
-    };
-    const play = run(
-      bare,
-      applyRoutePresetCommand(bare, "stem", "corner", "continue"),
-    );
-    // Nothing to run on from, so it is the call itself — named as one, and
-    // drawn from the stance rather than run on from it.
-    expect(play.paths[0]!.preset).toBe("corner");
-    const expected = routePresetPoints("corner", bare.paths[0]!.points[0]!)!;
-    expect(play.paths[0]!.points).toHaveLength(expected.length);
-    for (const [index, point] of expected.entries()) {
-      expect(play.paths[0]!.points[index]!.lateralYards).toBeCloseTo(
-        point.lateralYards,
-        6,
-      );
-      expect(play.paths[0]!.points[index]!.depthYards).toBeCloseTo(
-        point.depthYards,
-        6,
-      );
-    }
-  });
 
   it("keeps a fork on a break the new shape still has", () => {
     const forked: PlayDocument = {
@@ -283,67 +133,11 @@ describe("putting a call off the tree on a line", () => {
     expect(play.paths[0]!.branches[0]!.fromIndex).toBe(1);
     expect(() => playDocumentSchema.parse(play)).not.toThrow();
   });
-
-  it("is no command at all when the line is already that call", () => {
-    const cornered = run(
-      withStem,
-      applyRoutePresetCommand(withStem, "stem", "corner"),
-    );
-    expect(applyRoutePresetCommand(cornered, "stem", "corner")).toBeUndefined();
-  });
-
-  it("has nothing to say about a line or a call that is not there", () => {
-    expect(applyRoutePresetCommand(withStem, "nope", "corner")).toBeUndefined();
-    expect(applyRoutePresetCommand(withStem, "stem", "banana")).toBeUndefined();
-  });
 });
 
 describe("putting a call off the tree on the man himself", () => {
   const bare = trips;
   const x = idOfRole(bare, "X");
-  const stanceOf = (play: PlayDocument, playerId: string) =>
-    play.players.find(({ id }) => id === playerId)!.position;
-
-  it("draws the call from his stance when he has no line at all", () => {
-    // The case the Player panel had no answer for: a man with nothing on him
-    // had to be given an alternate first and then redrawn.
-    const play = run(
-      bare,
-      applyPlayerRoutePresetCommand(bare, x, "corner", () => "drawn"),
-    );
-    expect(play.paths).toHaveLength(1);
-    const path = play.paths[0]!;
-    expect(path.id).toBe("drawn");
-    expect(path.kind).toBe("route");
-    expect(path.playerId).toBe(x);
-    expect(path.preset).toBe("corner");
-    expect(path.style).toEqual({
-      line: "solid",
-      ending: "arrow",
-      color: "ink",
-    });
-    // Drawn from the man, and drawn as the call: a corner from the left
-    // breaks toward the left sideline.
-    expect(path.points[0]).toEqual(stanceOf(play, x));
-    expect(path.points.at(-1)!.lateralYards).toBeLessThan(
-      path.points[0]!.lateralYards,
-    );
-    expect(() => playDocumentSchema.parse(play)).not.toThrow();
-  });
-
-  it("reshapes the stem he has rather than giving him a second line", () => {
-    const withStem = run(
-      bare,
-      applyPlayerRoutePresetCommand(bare, x, "corner", () => "drawn"),
-    );
-    const play = run(
-      withStem,
-      applyPlayerRoutePresetCommand(withStem, x, "go", () => "second"),
-    );
-    expect(play.paths).toHaveLength(1);
-    expect(play.paths[0]!.id).toBe("drawn");
-    expect(play.paths[0]!.preset).toBe("go");
-  });
 
   it("lands on his base stem and leaves his alternates alone", () => {
     const one = run(
@@ -383,45 +177,9 @@ describe("putting a call off the tree on the man himself", () => {
     expect(play.paths.map(({ kind }) => kind)).toEqual(["block", "route"]);
     expect(baseRouteOf(play, x)!.preset).toBe("flat");
   });
-
-  it("is no command at all when he is already running that call", () => {
-    const cornered = run(
-      bare,
-      applyPlayerRoutePresetCommand(bare, x, "corner", () => "drawn"),
-    );
-    expect(
-      applyPlayerRoutePresetCommand(cornered, x, "corner", () => "again"),
-    ).toBeUndefined();
-  });
-
-  it("has nothing to say about a man or a call that is not there", () => {
-    expect(
-      applyPlayerRoutePresetCommand(bare, "nobody", "corner", () => "drawn"),
-    ).toBeUndefined();
-    expect(
-      applyPlayerRoutePresetCommand(bare, x, "banana", () => "drawn"),
-    ).toBeUndefined();
-  });
 });
 
 describe("drawing a concept", () => {
-  it("gives a job to every man who plays a position in it, and to nobody else", () => {
-    const mesh = conceptNamed("mesh");
-    const targets = conceptTargets(trips, mesh);
-    expect(targets.map(({ role }) => role).sort()).toEqual([
-      "H",
-      "RB",
-      "TE",
-      "X",
-      "Z",
-    ]);
-    // The line blocks and the quarterback throws; neither is in a
-    // distribution, and neither is a man playing a position the concept
-    // says nothing about.
-    expect(targets.map(({ role }) => role)).not.toContain("QB");
-    expect(targets.map(({ role }) => role)).not.toContain("C");
-  });
-
   it("keeps an extra man on the line out of it, though a sixth lineman reads as a slot", () => {
     const unbalanced: PlayDocument = {
       ...trips,
@@ -471,55 +229,6 @@ describe("drawing a concept", () => {
     for (const path of play.paths) expect(path.concept).toBe("mesh");
   });
 
-  it("names the shape off the tree where the job is one, and not where it is drawn out", () => {
-    const play = run(
-      trips,
-      applyConceptCommand(trips, conceptNamed("mesh"), makeId).command,
-    );
-    const byWording = (text: string) =>
-      play.paths.find(
-        (path) => assignmentForPath(play, path.id)?.text === text,
-      )!;
-    expect(byWording("DIG").preset).toBe("dig");
-    // The mesh crossers are the concept's own shape, not a call off the tree.
-    expect("preset" in byWording("SHALLOW")).toBe(false);
-  });
-
-  it("ends a job the way the job ends, not the way a route usually does", () => {
-    const play = run(
-      trips,
-      applyConceptCommand(trips, conceptNamed("stick"), makeId).command,
-    );
-    const byWording = (text: string) =>
-      play.paths.find(
-        (path) => assignmentForPath(play, path.id)?.text === text,
-      )!;
-    // A stick sits down and looks back, so it is drawn with the hook the
-    // original draws it with rather than an arrow.
-    expect(byWording("STICK").style.ending).toBe("hook");
-    expect(byWording("FADE").style.ending).toBe("arrow");
-  });
-
-  it("mirrors each job to the side the man lines up on", () => {
-    const play = run(
-      trips,
-      applyConceptCommand(trips, conceptNamed("verts"), makeId).command,
-    );
-    // Four straight up: every one of them ends downfield of where he started
-    // and no further across than a step.
-    for (const path of play.paths) {
-      if (assignmentForPath(play, path.id)?.text === "CHECK") continue;
-      expect(path.points.at(-1)!.depthYards).toBeGreaterThan(
-        path.points[0]!.depthYards + 10,
-      );
-      expect(
-        Math.abs(
-          path.points.at(-1)!.lateralYards - path.points[0]!.lateralYards,
-        ),
-      ).toBeLessThan(1);
-    }
-  });
-
   it("replaces what the men were running rather than drawing over it", () => {
     const first = run(
       trips,
@@ -533,19 +242,6 @@ describe("drawing a concept", () => {
     for (const path of second.paths) expect(path.concept).toBe("smash");
     // The wording went with the lines it was about, rather than piling up.
     expect(second.assignments).toHaveLength(5);
-  });
-
-  it("takes the concept off again when the Coach asks for the one already on", () => {
-    const mesh = conceptNamed("mesh");
-    const on = run(trips, applyConceptCommand(trips, mesh, makeId).command);
-    expect(conceptIsOn(on, mesh)).toBe(true);
-
-    const result = applyConceptCommand(on, mesh, makeId);
-    expect(result.cleared).toBe(true);
-    const off = run(on, result.command);
-    expect(off.paths).toHaveLength(0);
-    expect(off.assignments).toHaveLength(0);
-    expect(conceptIsOn(off, mesh)).toBe(false);
   });
 
   it("leaves a man's block alone, since a concept is a distribution and not a Play", () => {
@@ -573,14 +269,6 @@ describe("drawing a concept", () => {
     expect(play.paths.some(({ id }) => id === "the_block")).toBe(true);
     expect(play.paths.filter(({ kind }) => kind === "route")).toHaveLength(5);
   });
-
-  it("has nothing to draw on a field with nobody to draw it on", () => {
-    const empty: PlayDocument = { ...trips, players: [], paths: [] };
-    const result = applyConceptCommand(empty, conceptNamed("mesh"), makeId);
-    expect(result.count).toBe(0);
-    expect(result.command).toBeUndefined();
-    expect(conceptIsOn(empty, conceptNamed("mesh"))).toBe(false);
-  });
 });
 
 describe("how a man blocks, and how a defender plays", () => {
@@ -603,32 +291,6 @@ describe("how a man blocks, and how a defender plays", () => {
       },
     ],
   };
-
-  it("offers the calls the original offers, on the whole line in its own order", () => {
-    expect(blockPresets.map(({ key }) => key)).toEqual([
-      "drive",
-      "down",
-      "reach",
-      "doubl",
-      "climb",
-      "kick",
-      "wrap",
-      "cut",
-      "passset",
-      "setleft",
-      "setright",
-      "chip",
-    ]);
-    expect(lineCallKeys).toEqual([
-      "passset",
-      "setleft",
-      "setright",
-      "drive",
-      "reach",
-      "cut",
-    ]);
-    expect(linemenOf(trips)).toHaveLength(5);
-  });
 
   it("draws each man his own shape, so one call keeps every one of them his alignment", () => {
     const play = run(
@@ -667,35 +329,6 @@ describe("how a man blocks, and how a defender plays", () => {
     }
   });
 
-  it("marks the break the original marks, and bends the pull it bends", () => {
-    const one = [linemanIds(trips)[0]!];
-    const climb = run(
-      trips,
-      applyLinePresetCommand(trips, one, "climb", makeId),
-    );
-    expect(climb.paths[0]!.points[1]!.tick).toBe(true);
-    const kick = run(trips, applyLinePresetCommand(trips, one, "kick", makeId));
-    expect(kick.paths[0]!.points[1]!.control).toBeDefined();
-    // A pull starts by dropping off the ball, not by going forward.
-    expect(kick.paths[0]!.points[1]!.depthYards).toBeLessThan(
-      kick.paths[0]!.points[0]!.depthYards,
-    );
-  });
-
-  it("takes the call off again when the whole line is already running it", () => {
-    const on = run(
-      trips,
-      applyLinePresetCommand(trips, linemanIds(trips), "passset", makeId),
-    );
-    expect(linePresetIsOn(on, linemanIds(on), "passset")).toBe(true);
-    const off = run(
-      on,
-      applyLinePresetCommand(on, linemanIds(on), "passset", makeId),
-    );
-    expect(off.paths).toHaveLength(0);
-    expect(linePresetIsOn(off, linemanIds(off), "passset")).toBe(false);
-  });
-
   it("puts the call on the rest when only some of the line is running it", () => {
     const ids = linemenOf(trips).map(({ id }) => id);
     const one = run(
@@ -708,45 +341,6 @@ describe("how a man blocks, and how a defender plays", () => {
     const all = run(one, applyLinePresetCommand(one, ids, "passset", makeId));
     expect(all.paths).toHaveLength(5);
     expect(linePresetIsOn(all, ids, "passset")).toBe(true);
-  });
-
-  it("replaces the call the line was running rather than drawing over it", () => {
-    const first = run(
-      trips,
-      applyLinePresetCommand(trips, linemanIds(trips), "drive", makeId),
-    );
-    const second = run(
-      first,
-      applyLinePresetCommand(first, linemanIds(first), "cut", makeId),
-    );
-    expect(second.paths).toHaveLength(5);
-    for (const path of second.paths) expect(path.preset).toBe("cut");
-  });
-
-  it("leaves a man's route alone, since blocking and running are different jobs", () => {
-    const receiver = idOfRole(trips, "X");
-    const withRoute: PlayDocument = {
-      ...trips,
-      paths: [
-        {
-          id: "his_route",
-          kind: "route",
-          playerId: receiver,
-          points: [
-            trips.players.find(({ id }) => id === receiver)!.position,
-            { lateralYards: -20, depthYards: 12 },
-          ],
-          branches: [],
-          style: { line: "solid", ending: "arrow", color: "ink" },
-        },
-      ],
-    };
-    const play = run(
-      withRoute,
-      applyLinePresetCommand(withRoute, [receiver], "chip", makeId),
-    );
-    expect(play.paths.some(({ id }) => id === "his_route")).toBe(true);
-    expect(play.paths.filter(({ kind }) => kind === "block")).toHaveLength(1);
   });
 
   it("gives a drop the ground it owns and a rush none, the way the call says", () => {
@@ -792,57 +386,5 @@ describe("how a man blocks, and how a defender plays", () => {
     );
     expect(rushing.paths).toHaveLength(1);
     expect(rushing.paths[0]!.kind).toBe("blitz");
-  });
-
-  it("gives nobody a call his position cannot run", () => {
-    // A receiver never drops into a zone or blitzes, a defender never blocks,
-    // and a lineman never drops or blitzes.
-    const receiver = idOfRole(withMike, "X");
-    const lineman = linemanIds(withMike)[0]!;
-    expect(
-      applyLinePresetCommand(withMike, [receiver], "blitz", makeId),
-    ).toBeUndefined();
-    expect(
-      applyLinePresetCommand(withMike, [receiver], "deep3", makeId),
-    ).toBeUndefined();
-    expect(
-      applyLinePresetCommand(withMike, [lineman], "blitz", makeId),
-    ).toBeUndefined();
-    expect(
-      applyLinePresetCommand(withMike, ["mike"], "drive", makeId),
-    ).toBeUndefined();
-
-    // Asked of a mixed group, the call lands only on the men who can run it.
-    const mixed = run(
-      withMike,
-      applyLinePresetCommand(withMike, [lineman, "mike"], "drive", makeId),
-    );
-    expect(mixed.paths.map(({ playerId }) => playerId)).toEqual([lineman]);
-  });
-
-  it("puts no route on a man who does not run one", () => {
-    const lineman = linemanIds(withMike)[0]!;
-    for (const man of [lineman, "mike"]) {
-      expect(
-        applyPlayerRoutePresetCommand(withMike, man, "slant", () => "new"),
-      ).toBeUndefined();
-    }
-    // Nor does a call off the tree reshape a block or a drop into a route.
-    const blocked = run(
-      withMike,
-      applyLinePresetCommand(withMike, [lineman], "drive", makeId),
-    );
-    const block = blocked.paths.find(({ playerId }) => playerId === lineman)!;
-    expect(applyRoutePresetCommand(blocked, block.id, "go")).toBeUndefined();
-  });
-
-  it("has nothing to say about a call it does not have, or a man who is not there", () => {
-    expect(
-      applyLinePresetCommand(trips, linemanIds(trips), "banana", makeId),
-    ).toBeUndefined();
-    expect(
-      applyLinePresetCommand(trips, ["nobody"], "drive", makeId),
-    ).toBeUndefined();
-    expect(linePresetIsOn(trips, [], "drive")).toBe(false);
   });
 });

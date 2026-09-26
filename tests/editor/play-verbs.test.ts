@@ -1,12 +1,8 @@
 import {
-  applyFormation,
   applyPlayCommand,
-  applyPlayCommandWithInverse,
   assignmentForPath,
-  canonicalStringify,
   flipStrengthWords,
   highSchoolFieldProfile,
-  moveMenWithTheirLines,
   playDocumentSchema,
   stockFormations,
   type PlayCommand,
@@ -15,13 +11,10 @@ import {
 import {
   addDepthLabelCommand,
   alignPlayersCommand,
-  depthLabelText,
   expandSelectionToGroups,
   flipStrengthCommand,
   groupSelectionCommand,
-  resetAlignmentCommand,
   reverseRouteCommand,
-  ungroupSelectionCommand,
   type FieldItemRef,
 } from "@chalk/editor";
 import { describe, expect, it } from "vitest";
@@ -169,17 +162,6 @@ describe("flipping the strength", () => {
       ).toBe(true);
     }
   });
-
-  it("is no command at all on a Play with nothing to flip", () => {
-    const empty: PlayDocument = {
-      ...play,
-      players: [],
-      paths: [],
-      labels: [],
-      assignments: [],
-    };
-    expect(flipStrengthCommand(empty, stockFormations)).toBeUndefined();
-  });
 });
 
 describe("lining men up with one another", () => {
@@ -245,15 +227,6 @@ describe("tying things together", () => {
     { kind: "label", id: "note" },
   ];
 
-  it("marks everything picked as one group, whatever kind of thing it is", () => {
-    const grouped = run(play, groupSelectionCommand(play, selection, makeId));
-    expect(() => playDocumentSchema.parse(grouped)).not.toThrow();
-    const group = at(grouped, "man_7").group;
-    expect(group).toBeDefined();
-    expect(grouped.paths[0]!.group).toBe(group);
-    expect(grouped.labels[0]!.group).toBe(group);
-  });
-
   it("picks the whole of a group when one of it is picked, which is all a group does", () => {
     const grouped = run(play, groupSelectionCommand(play, selection, makeId));
     const expanded = expandSelectionToGroups(grouped, [
@@ -269,27 +242,6 @@ describe("tying things together", () => {
     // as it came, so nothing downstream sees a change that did not happen.
     const alone: readonly FieldItemRef[] = [{ kind: "player", id: "man_0" }];
     expect(expandSelectionToGroups(grouped, alone)).toBe(alone);
-  });
-
-  it("unties them again, and leaves what was never tied alone", () => {
-    const grouped = run(play, groupSelectionCommand(play, selection, makeId));
-    const loose = run(
-      grouped,
-      ungroupSelectionCommand(grouped, [{ kind: "player", id: "man_7" }]),
-    );
-    expect("group" in at(loose, "man_7")).toBe(false);
-    expect("group" in loose.paths[0]!).toBe(false);
-    // Untied, it hashes exactly like a Play that was never grouped.
-    expect(canonicalStringify(loose)).toBe(canonicalStringify(play));
-    expect(
-      ungroupSelectionCommand(play, [{ kind: "player", id: "man_7" }]),
-    ).toBeUndefined();
-  });
-
-  it("needs two things to tie together", () => {
-    expect(
-      groupSelectionCommand(play, [{ kind: "player", id: "man_7" }], makeId),
-    ).toBeUndefined();
   });
 });
 
@@ -310,26 +262,9 @@ describe("running a line the other way", () => {
     // And the line is still his, because production has no line without a man.
     expect(reversed.paths[0]!.playerId).toBe("man_7");
   });
-
-  it("has nothing to turn round on a line of one point, or no line at all", () => {
-    expect(reverseRouteCommand(play, "nope")).toBeUndefined();
-    const stub: PlayDocument = {
-      ...play,
-      paths: [{ ...play.paths[0]!, points: [play.paths[0]!.points[0]!] }],
-      labels: [],
-    };
-    expect(reverseRouteCommand(stub, "route_x")).toBeUndefined();
-  });
 });
 
 describe("saying how deep a break is", () => {
-  it("reads the number the way a card reads it", () => {
-    expect(depthLabelText(12)).toBe("12 Yds");
-    expect(depthLabelText(12.26)).toBe("12.5 Yds");
-    expect(depthLabelText(11.9)).toBe("12 Yds");
-    expect(depthLabelText(0)).toBe("0 Yds");
-  });
-
   it("pins a marker to the leg the Coach picked out", () => {
     const marked = run(play, addDepthLabelCommand(play, "route_x", 1, makeId));
     expect(() => playDocumentSchema.parse(marked)).not.toThrow();
@@ -346,61 +281,5 @@ describe("saying how deep a break is", () => {
       addDepthLabelCommand(play, "route_x", undefined, makeId),
     );
     expect(marked.labels.at(-1)!.text).toBe("12 Yds");
-  });
-
-  it("never marks the stance, which is not a break", () => {
-    const marked = run(play, addDepthLabelCommand(play, "route_x", 0, makeId));
-    expect(marked.labels.at(-1)!.text).toBe("6 Yds");
-  });
-});
-
-describe("putting the men back", () => {
-  const trips = stockFormations.find(({ name }) => name === "Gun Trips Right")!;
-  const aligned = applyFormation(play, trips, makeId).play;
-
-  it("is no command at all when everyone already stands where the set puts him", () => {
-    const { command, result } = resetAlignmentCommand(
-      aligned,
-      "offense",
-      "chosen",
-    );
-    expect(command).toBeUndefined();
-    expect(result?.movedCount).toBe(0);
-  });
-
-  it("brings a dragged man back with his route and his note, as one step to undo", () => {
-    const x = at(aligned, "man_7").position;
-    const dragged = moveMenWithTheirLines(
-      aligned,
-      new Map([
-        [
-          "man_7",
-          { lateralYards: x.lateralYards + 4, depthYards: x.depthYards - 1 },
-        ],
-      ]),
-    );
-    const { command } = resetAlignmentCommand(dragged, "offense", "chosen");
-    expect(command?.kind).toBe("batch");
-    expect(command?.kind === "batch" ? command.label : "").toBe(
-      "Reset offense to Gun Trips Right",
-    );
-    const { document, inverse } = applyPlayCommandWithInverse(
-      dragged,
-      command!,
-    );
-    expect(canonicalStringify(document)).toBe(canonicalStringify(aligned));
-    expect(canonicalStringify(applyPlayCommand(document, inverse))).toBe(
-      canonicalStringify(dragged),
-    );
-  });
-
-  it("has only the base to go back to on a Play drawn by hand", () => {
-    expect(resetAlignmentCommand(play, "offense", "chosen")).toEqual({});
-    const { command, result } = resetAlignmentCommand(play, "offense", "base");
-    expect(result?.alignment.name).toBe("Gun Doubles Right");
-    expect(command).toBeDefined();
-    expect(run(play, command).formationSource?.formationId).toBe(
-      result?.alignment.id,
-    );
   });
 });

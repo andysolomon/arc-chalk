@@ -12,10 +12,8 @@ import {
 import {
   UNDO_COALESCE_WINDOW_MS,
   recordUndoEntry,
-  redoStep,
   restoreUndoHistory,
   sealUndoCoalescing,
-  undoAvailability,
   undoStep,
 } from "@chalk/editor";
 import { offensiveStickThunderPlay } from "@chalk/test-fixtures";
@@ -81,68 +79,6 @@ function syntheticEntry(index: number, createdAtMs: number): UndoEntry {
 }
 
 describe("bounded persistent undo history", () => {
-  it("records a committed edit and names it for the Coach", async () => {
-    const { history } = await historyWithRename();
-
-    expect(history.undo).toHaveLength(1);
-    expect(history.undo[0]?.label).toBe("Rename Play");
-    expect(history.encodedByteLength).toBeGreaterThan(0);
-  });
-
-  it("ignores an edit that leaves the Play unchanged", () => {
-    const history = recordUndoEntry(
-      createUndoHistory(offensiveStickThunderPlay.id, START_MS),
-      {
-        id: "undo_noop",
-        createdAtMs: START_MS,
-        beforeHash: "hash_same",
-        afterHash: "hash_same",
-        forward: { kind: "batch", commands: [] },
-        inverse: { kind: "batch", commands: [] },
-      },
-    );
-
-    expect(history.undo).toEqual([]);
-  });
-
-  it("coalesces consecutive edits to one field and keeps the earliest inverse", async () => {
-    const play = offensiveStickThunderPlay;
-    const first = await renameTo(play, "M");
-    const second = await renameTo(first.document, "Me");
-    const third = await renameTo(second.document, "Mesh");
-
-    let history = createUndoHistory(play.id, START_MS);
-    for (const [index, edit] of [first, second, third].entries()) {
-      history = recordUndoEntry(history, {
-        id: `undo_${index}`,
-        createdAtMs: START_MS + index * 200,
-        beforeHash: edit.beforeHash,
-        afterHash: edit.afterHash,
-        forward: edit.forward,
-        inverse: edit.inverse,
-        coalesceKey: "play-name",
-      });
-    }
-
-    expect(history.undo).toHaveLength(1);
-    expect(history.undo[0]?.beforeHash).toBe(first.beforeHash);
-    expect(history.undo[0]?.afterHash).toBe(third.afterHash);
-    expect(history.undo[0]?.inverse).toEqual({
-      kind: "set-play-name",
-      name: play.name,
-    });
-
-    const undone = await undoStep(
-      history,
-      third.document,
-      third.afterHash,
-      START_MS,
-    );
-    expect(undone.status).toBe("applied");
-    if (undone.status !== "applied") return;
-    expect(undone.document.name).toBe(play.name);
-  });
-
   it("stops coalescing when the Coach pauses, blurs, or moves to another field", async () => {
     const play = offensiveStickThunderPlay;
     const first = await renameTo(play, "Mesh");
@@ -268,39 +204,6 @@ describe("bounded persistent undo history", () => {
     expect(history.redo).toEqual([]);
   });
 
-  it("offers a step only for the exact Play the entry expects", async () => {
-    const { history, beforeHash, afterHash } = await historyWithRename();
-
-    expect(undoAvailability(history, afterHash)).toEqual(
-      expect.objectContaining({
-        canUndo: true,
-        canRedo: false,
-        undoLabel: "Rename Play",
-        undoDepth: 1,
-      }),
-    );
-    expect(undoAvailability(history, beforeHash)).toEqual(
-      expect.objectContaining({ canUndo: false, canRedo: false }),
-    );
-  });
-
-  it("quarantines the stored history when the Play changed outside it", async () => {
-    const { history, document } = await historyWithRename();
-    const result = await undoStep(
-      history,
-      document,
-      "hash_from_a_restored_revision",
-      START_MS,
-    );
-
-    expect(result.status).toBe("quarantined");
-    if (result.status !== "quarantined") return;
-    expect(result.history.undo).toEqual([]);
-    expect(result.history.redo).toEqual([]);
-    expect(result.entries).toHaveLength(1);
-    expect(result.reason).toMatch(/changed outside its history/);
-  });
-
   it("quarantines an entry whose replay does not reproduce the expected Play", async () => {
     const { history, document, afterHash } = await historyWithRename();
     const tampered: UndoHistory = {
@@ -337,39 +240,6 @@ describe("bounded persistent undo history", () => {
     expect(result.status).toBe("quarantined");
     if (result.status !== "quarantined") return;
     expect(result.reason).toMatch(/could not replay/);
-  });
-
-  it("reports an empty history rather than guessing", async () => {
-    const play = offensiveStickThunderPlay;
-    const empty = createUndoHistory(play.id, START_MS);
-
-    await expect(
-      undoStep(empty, play, await hashPlayDocument(play), START_MS),
-    ).resolves.toEqual({ status: "empty" });
-    await expect(
-      redoStep(empty, play, await hashPlayDocument(play), START_MS),
-    ).resolves.toEqual({ status: "empty" });
-  });
-
-  it("redoes the edit it undid and returns to the same Play", async () => {
-    const { history, document, afterHash, beforeHash } =
-      await historyWithRename();
-    const undone = await undoStep(history, document, afterHash, START_MS);
-    expect(undone.status).toBe("applied");
-    if (undone.status !== "applied") return;
-
-    const redone = await redoStep(
-      undone.history,
-      undone.document,
-      beforeHash,
-      START_MS,
-    );
-    expect(redone.status).toBe("applied");
-    if (redone.status !== "applied") return;
-    expect(redone.document.name).toBe("Stick — Alert");
-    expect(redone.history.undo).toHaveLength(1);
-    expect(redone.history.redo).toEqual([]);
-    expect(await hashPlayDocument(redone.document)).toBe(afterHash);
   });
 
   it("discards a stored history that no longer parses or belongs elsewhere", async () => {

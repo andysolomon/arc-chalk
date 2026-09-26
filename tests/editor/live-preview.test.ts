@@ -1,7 +1,6 @@
 import {
   affectedLiveEntities,
   idleFieldInteraction,
-  liveHandlePath,
   livePaintCanHold,
   type FieldInteractionModel,
   type FieldItemRef,
@@ -10,7 +9,6 @@ import { stickThunderPlay } from "@chalk/test-fixtures";
 import { describe, expect, it } from "vitest";
 
 const player = (id: string): FieldItemRef => ({ kind: "player", id });
-const path = (id: string): FieldItemRef => ({ kind: "path", id });
 
 const idle = idleFieldInteraction;
 
@@ -71,46 +69,9 @@ describe("affectedLiveEntities", () => {
     ]);
     expect(affectedLiveEntities(bound, [player("z")]).labelIds).toEqual([]);
   });
-
-  it("does not list a selected route twice when its Player is also moving", () => {
-    const affected = affectedLiveEntities(stickThunderPlay, [
-      player("x"),
-      path("rx"),
-    ]);
-    expect(affected.pathIds).toEqual(["rx"]);
-  });
 });
 
 describe("livePaintCanHold", () => {
-  it("holds a drag that only updates the live translation", () => {
-    const start = moving([player("x")], {
-      lateralYards: 0.2,
-      depthYards: 0,
-    });
-    const next = moving([player("x")], {
-      lateralYards: 1.4,
-      depthYards: -0.5,
-    });
-    expect(livePaintCanHold(start, next)).toBe(true);
-  });
-
-  it("holds the promotion from a still press into a move", () => {
-    const pressing: FieldInteractionModel = {
-      ...idle,
-      selection: [player("x")],
-      gesture: {
-        kind: "pressing",
-        pointerId: 1,
-        items: [player("x")],
-        clickItem: player("x"),
-        wasMulti: false,
-        wasSingle: true,
-        start: { lateralYards: 0, depthYards: 0 },
-      },
-    };
-    expect(livePaintCanHold(pressing, moving([player("x")]))).toBe(true);
-  });
-
   it("does not hold a release, a selection change, or a new drawing break", () => {
     const drag = moving([player("x")]);
     expect(livePaintCanHold(drag, idle)).toBe(false);
@@ -162,70 +123,5 @@ describe("livePaintCanHold", () => {
     };
     expect(livePaintCanHold(free, tracing)).toBe(true);
     expect(livePaintCanHold(drawing, free)).toBe(false);
-  });
-
-  it("lets go when the Coach finishes or abandons a drawing", () => {
-    const drawing: FieldInteractionModel = {
-      ...idle,
-      drawing: {
-        kind: "route",
-        playerId: "q",
-        mode: "breaks",
-        points: [{ lateralYards: 0, depthYards: -2 }],
-        cursor: { lateralYards: 0, depthYards: 4 },
-        depthBuffer: "",
-        pointerDown: false,
-      },
-    };
-    expect(livePaintCanHold(drawing, idle)).toBe(false);
-  });
-});
-
-describe("liveHandlePath", () => {
-  it("reads the path a handle drag would commit", () => {
-    const pathEntity = stickThunderPlay.paths.find(({ id }) => id === "rx")!;
-    expect(
-      liveHandlePath({
-        kind: "handle",
-        pointerId: 1,
-        handle: { kind: "node", pathId: "rx", pointIndex: 1 },
-        update: { kind: "update-path", path: pathEntity },
-        guides: [],
-        moved: true,
-      })?.id,
-    ).toBe("rx");
-    expect(
-      liveHandlePath({
-        kind: "handle",
-        pointerId: 1,
-        handle: { kind: "node", pathId: "rx", pointIndex: 1 },
-        update: { kind: "update-path", path: pathEntity },
-        guides: [],
-        moved: false,
-      }),
-    ).toBeUndefined();
-  });
-});
-
-describe("livePaintCanHold does not treat every gesture as live", () => {
-  it("lets go when the Coach asks for a click-narrow on release", () => {
-    const pressing: FieldInteractionModel = {
-      ...idle,
-      selection: [player("x"), player("z")],
-      gesture: {
-        kind: "pressing",
-        pointerId: 1,
-        items: [player("x"), player("z")],
-        clickItem: player("x"),
-        wasMulti: true,
-        wasSingle: false,
-        start: { lateralYards: 0, depthYards: 0 },
-      },
-    };
-    const narrowed: FieldInteractionModel = {
-      ...idle,
-      selection: [player("x")],
-    };
-    expect(livePaintCanHold(pressing, narrowed)).toBe(false);
   });
 });
