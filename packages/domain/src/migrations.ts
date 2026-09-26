@@ -103,6 +103,29 @@ export function migrateStoredPlayDocument(
   });
 }
 
+const isLetterOnlyDefender = (player: PlayDocument["players"][number]) =>
+  player.unit === "defense" && player.symbol === "none";
+
+/**
+ * Draws a Play's letter-only defenders as triangles (ADR 0061). Every defense
+ * Chalk put on the field before #131 was a bare letter, and a Play saved then
+ * still is. A Play with none comes back as the same object, so a caller can
+ * tell nothing changed without hashing it.
+ */
+export function drawLetterOnlyDefendersAsTriangles(
+  play: PlayDocument,
+): PlayDocument {
+  if (!play.players.some(isLetterOnlyDefender)) return play;
+  return {
+    ...play,
+    players: play.players.map((player) =>
+      isLetterOnlyDefender(player)
+        ? { ...player, symbol: "triangle" as const }
+        : player,
+    ),
+  };
+}
+
 export function migratePlayEnvelope(input: unknown): PlayEnvelope {
   const current = playEnvelopeSchema.safeParse(input);
   if (current.success) return current.data;
