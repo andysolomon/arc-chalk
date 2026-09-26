@@ -51,7 +51,11 @@ does. Shadow men never appear. A picked **man** keeps his panel and gets only th
 of assignment that pertains to him: routes and alternates with **Quick routes** and
 **Quick blocks folded** for a receiver or back; blocking alone for a lineman;
 assignments alone for a defender; Appearance folded under all three. The **Route**
-and **Text** panels are restyled and otherwise as ADR 0043 left them.
+and **Text** panels are restyled and otherwise as ADR 0043 left them. On a desktop,
+a folded inspector comes back on a man clicked on his own, or picked from the field's
+outline, since his assignment is what he was picked for; a man dragged was only being
+moved, and it stays folded. The tablet's drawer and the phone's sheet keep their own
+rules.
 
 **Settings** (`SettingsOverlay`) is a 720 × 440 modal with tabs down its left —
 Field, Playbook, History, Print & export, **Account**, About — each holding the section
