@@ -630,12 +630,23 @@ export const conceptSchema = z.object({
   tags: z.array(z.string()),
 });
 
+/**
+ * How far off the ball the Coach wants his corners and his deep safeties
+ * when a call puts them on the field (ADR 0061). A depth left out is the
+ * call's own.
+ */
+export const coverageDepthsSchema = z.object({
+  cornerYards: z.optional(z.number().check(z.positive())),
+  safetyYards: z.optional(z.number().check(z.positive())),
+});
+
 const playbookStructureSchema = z.object({
   schemaVersion: z.literal(1),
   id: entityIdSchema,
   name: nameSchema,
   defaultFieldProfileId: entityIdSchema,
   fieldProfiles: z.array(fieldProfileSchema).check(z.minLength(1)),
+  coverageDepths: z.optional(coverageDepthsSchema),
   playTypes: z.pipe(
     z.pipe(
       z.array(z.unknown()),
@@ -953,6 +964,7 @@ export type PathEnding = z.infer<typeof pathEndingSchema>;
 export type PathStyle = z.infer<typeof pathStyleSchema>;
 export type PathBranch = z.infer<typeof pathBranchSchema>;
 export type CoverageArea = z.infer<typeof coverageAreaSchema>;
+export type CoverageDepths = z.infer<typeof coverageDepthsSchema>;
 export type Player = z.infer<typeof playerSchema>;
 export type MovementPathV2 = z.infer<typeof movementPathV2Schema>;
 export type MovementPath = z.infer<typeof movementPathSchema>;
