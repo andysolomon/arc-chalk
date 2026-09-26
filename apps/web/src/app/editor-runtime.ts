@@ -696,6 +696,7 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
   await repository.requestPersistentStorage();
   // Upgrade anything an earlier release wrote before the Coach touches it.
   await repository.upgradeStoredPlays();
+  await repository.upgradeLetterOnlyDefenders();
   await repository.purgeExpiredTrash();
   await rebuildStaleSearchProjections(repository);
 

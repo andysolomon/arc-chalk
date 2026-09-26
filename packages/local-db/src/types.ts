@@ -295,6 +295,7 @@ export interface ChalkLocalRepository {
   listPlayVersions(playId: string): Promise<readonly PlayVersionSummary[]>;
 
   upgradeStoredPlays(): Promise<readonly string[]>;
+  upgradeLetterOnlyDefenders(): Promise<readonly string[]>;
   exportBackup(): Promise<BackupPayload>;
   importBackup(
     payload: BackupPayload,
