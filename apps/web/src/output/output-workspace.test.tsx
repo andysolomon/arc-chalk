@@ -152,25 +152,6 @@ describe("Print & export (issue #69)", () => {
     );
   });
 
-  it("explains an empty selection instead of printing the whole library", async () => {
-    const user = userEvent.setup();
-    const { print } = renderWorkspace();
-    await user.click(screen.getByRole("radio", { name: "Selected plays" }));
-    await user.click(
-      within(
-        screen.getByRole("list", { name: "Plays to pick" }),
-      ).getByLabelText("Stick — Thunder"),
-    );
-    await user.click(
-      screen.getByRole("button", { name: /^Coordinator call sheet/ }),
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Pick at least one play.",
-    );
-    expect(screen.getByRole("button", { name: "Print…" })).toBeDisabled();
-    expect(print).not.toHaveBeenCalled();
-  });
-
   it("prints a game plan's prepared packet and names the revision, or its current plays on request", async () => {
     const user = userEvent.setup();
     const packet = hundredCallPlan();

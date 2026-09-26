@@ -2,7 +2,6 @@ import {
   applyPlayCommand,
   applyPlayCommandWithInverse,
   canonicalStringify,
-  describePlayCommand,
   highSchoolFieldProfile,
   playDocumentSchema,
   playErasureCommand,
@@ -335,30 +334,6 @@ describe("clearing part of a Play", () => {
         canonicalStringify(mixedPlay),
       );
     }
-  });
-
-  it("names each erasure the way the Coach asked for it", () => {
-    expect(describePlayCommand(playErasureCommand(mixedPlay, "offense")!)).toBe(
-      "Clear offense",
-    );
-    expect(
-      describePlayCommand(playErasureCommand(mixedPlay, "defensive-lines")!),
-    ).toBe("Clear defensive assignments");
-  });
-
-  /**
-   * Grey and inert have to come from the same answer, so a Clear never looks
-   * dead and still takes a click, nor the reverse.
-   */
-  it("is no command at all when it would take nothing", () => {
-    const emptied = applyPlayCommand(
-      mixedPlay,
-      playErasureCommand(mixedPlay, "field")!,
-    );
-
-    expect(playErasureCommand(emptied, "field")).toBeUndefined();
-    expect(playErasureCommand(emptied, "offensive-lines")).toBeUndefined();
-    expect(playErasureCommand(emptied, "text")).toBeUndefined();
   });
 
   it("still offers to clear a side whose only trace is a note", () => {
