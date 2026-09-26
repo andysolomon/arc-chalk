@@ -13,6 +13,7 @@ export * from "./demo-catalogue";
 export * from "./default-playbook";
 export * from "./field-profile";
 export * from "./formation-catalogue";
+export * from "./formation-language";
 export * from "./formations";
 export * from "./game-plan";
 export * from "./geometry";

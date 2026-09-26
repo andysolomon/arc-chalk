@@ -1,6 +1,7 @@
 import {
   backupPayloadSchema,
   canonicalSha256,
+  currentFormation,
   readBackupPayload,
   conceptSchema,
   formationSchema,
@@ -13,6 +14,7 @@ import {
   playbookEnvelopeSchema,
   playbookSchema,
   searchPlays,
+  stockFormations,
   undoHistorySchema,
   type BackupPayload,
   type Concept,
@@ -71,11 +73,34 @@ export class CorruptLocalDataError extends Error {
   }
 }
 
+/**
+ * The set a Play is in, for the book's filters: the Formation it was put on
+ * the field from while its men still stand in it, and otherwise the shipped
+ * set they are recognizably standing in — which is what the editor's own
+ * formation row says of the same Play. A Play whose offense is nobody's set
+ * carries none.
+ */
+function projectedFormationId(play: PlayDocument): string | undefined {
+  const declared = play.formationSource?.formationId;
+  // A defensive Play's offense is a shadow, not its set; and a set the Coach
+  // saved himself is not in the shipped book to be checked against.
+  if (play.unit === "defense") return declared;
+  if (declared && !stockFormations.some(({ id }) => id === declared)) {
+    return declared;
+  }
+  try {
+    return currentFormation(play, stockFormations)?.id;
+  } catch {
+    return declared;
+  }
+}
+
 function projectionFor(
   play: PlayDocument,
   documentHash: string,
   updatedAtMs: number,
 ): PlaySearchProjection {
+  const formationId = projectedFormationId(play);
   return {
     playId: play.id,
     playbookId: play.playbookId,
@@ -90,13 +115,12 @@ function projectionFor(
     ...(play.conceptSource === undefined
       ? {}
       : { conceptId: play.conceptSource.conceptId }),
-    ...(play.formationSource === undefined
-      ? {}
-      : { formationId: play.formationSource.formationId }),
+    ...(formationId === undefined ? {} : { formationId }),
     ...(play.personnelLabel === undefined
       ? {}
       : { personnelLabel: play.personnelLabel }),
     tags: [...play.tags],
+    lineKinds: [...new Set(play.paths.map(({ kind }) => kind))],
     playerRoles: play.players.flatMap(({ role }) => (role ? [role] : [])),
     assignmentText: play.assignments.flatMap(({ text }) =>
       text.trim() ? [text] : [],

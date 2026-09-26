@@ -29,6 +29,7 @@ import {
 } from "@chalk/editor";
 import {
   createDexieLocalRepository,
+  SEARCH_PROJECTION_VERSION,
   type BackupImportResult,
   type ChalkLocalRepository,
   type PlayListPage,
@@ -89,6 +90,8 @@ export interface LibrarySnapshot {
 
 /** How the Playbook lists its Plays when nothing is being searched for. */
 export type PlaybookSort = "name" | "recent";
+/** Plays as a page of cards or as a list; unset lets the screen decide. */
+export type PlaybookLayout = "grid" | "list";
 
 export interface LibraryBrowserState {
   readonly scrollTop: number;
@@ -96,6 +99,7 @@ export interface LibraryBrowserState {
   readonly query: string;
   /** Unset reads as by name. */
   readonly sort?: PlaybookSort;
+  readonly layout?: PlaybookLayout;
 }
 
 /**
@@ -380,6 +384,28 @@ async function mostRecentStoredPlay(
   return best ? repository.getPlay(best.playId) : undefined;
 }
 
+/** Where the device notes which release built its search projections. */
+const SEARCH_PROJECTION_VERSION_KEY = "searchProjections.version.v1";
+
+/**
+ * Projections are derived and rebuildable (ADR 0036). When a release teaches
+ * them something new — the set a Play stands in, the lines drawn on it — a
+ * device that built its records earlier rebuilds them once, here, so the
+ * book's filters never read a partial record as a Play with nothing on it.
+ */
+async function rebuildStaleSearchProjections(
+  repository: ChalkLocalRepository,
+): Promise<void> {
+  const noted = await repository.getPreference(SEARCH_PROJECTION_VERSION_KEY);
+  if (noted?.value === SEARCH_PROJECTION_VERSION) return;
+  await repository.rebuildSearchProjections();
+  await repository.setPreference({
+    key: SEARCH_PROJECTION_VERSION_KEY,
+    value: SEARCH_PROJECTION_VERSION,
+    updatedAtMs: Date.now(),
+  });
+}
+
 async function ensurePlaybookRecord(
   repository: ChalkLocalRepository,
   playbookId: string,
@@ -645,6 +671,7 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
   // Upgrade anything an earlier release wrote before the Coach touches it.
   await repository.upgradeStoredPlays();
   await repository.purgeExpiredTrash();
+  await rebuildStaleSearchProjections(repository);
 
   const initial = await resolveInitialEditorDocument(
     repository,
@@ -755,6 +782,9 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
           : {}),
         ...(record.sort === "name" || record.sort === "recent"
           ? { sort: record.sort }
+          : {}),
+        ...(record.layout === "grid" || record.layout === "list"
+          ? { layout: record.layout }
           : {}),
       };
     },

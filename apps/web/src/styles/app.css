@@ -3729,6 +3729,436 @@ button.library-dot.target.small {
 .play-sheet-actions .play-sheet-danger:first-child:hover {
   background: #a93236;
 }
+
+/*
+ * The Playbooks destination's three pages (ADR 0060). A filter on a page is
+ * a chip that names its own choice and opens a picker: a panel under the
+ * chip on a desk, a sheet up from the bottom on a phone, where a list of
+ * eighteen sets has room to be read.
+ */
+.playbook-filters-menus {
+  row-gap: 8px;
+}
+.filter-chip {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.chip-menu,
+.chip-advanced,
+.chip-pinned {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px 0 11px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.chip-text {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-caret {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+  transition: transform 120ms ease;
+}
+.chip-menu.open .chip-caret,
+.chip-advanced.open .chip-caret {
+  transform: rotate(180deg);
+}
+.chip-advanced {
+  box-shadow: 0 0 0 1px transparent;
+  outline: 1px dashed rgba(0, 0, 0, 0.22);
+  outline-offset: -1px;
+}
+.chip-advanced.active {
+  outline-color: transparent;
+}
+.chip-pinned .chip-x {
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0.8;
+}
+.choice-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+.choice-sheet {
+  position: absolute;
+  z-index: 31;
+  top: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  width: 280px;
+  max-height: min(60vh, 420px);
+  flex-direction: column;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 14px 32px -10px rgba(0, 0, 0, 0.26);
+  outline: 0;
+}
+.choice-handle {
+  display: none;
+}
+.choice-search {
+  height: 34px;
+  flex: none;
+  margin: 0 0 6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: #efefef;
+  outline: 0;
+  color: var(--ink);
+  font-size: 13px;
+}
+.choice-search::placeholder {
+  color: var(--muted);
+}
+.choice-search:focus {
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--focus);
+}
+.choice-list {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+}
+.choice-row {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+.choice-row:hover {
+  background: var(--hover);
+}
+.choice-row.selected {
+  background: var(--selected-tint);
+  color: var(--selected);
+}
+.choice-name {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+.choice-detail {
+  color: var(--muted);
+  font-size: 11px;
+}
+.choice-row.selected .choice-detail {
+  color: inherit;
+  opacity: 0.8;
+}
+.choice-count {
+  flex: none;
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.choice-none {
+  margin: 0;
+  padding: 12px 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+/* Cards or a list, beside the count. */
+.playbook-layout {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: #efefef;
+}
+.playbook-layout button {
+  display: inline-flex;
+  width: 30px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.playbook-layout button svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+.playbook-layout button.active {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+/* The open book's own bar: back to the shelf, its name, its two pages. */
+.book-head {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 6px 16px 2px;
+}
+.book-back {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 4px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--blue);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.book-back:hover {
+  background: var(--hover);
+}
+.book-title {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  gap: 8px;
+}
+.book-title strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.book-title span {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+/* The shelf: one card per book on this device. */
+.shelf {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 16px 24px;
+}
+.shelf-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.shelf-card {
+  position: relative;
+  display: flex;
+  min-height: 116px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px 14px 22px;
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.shelf-spine {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 8px;
+  width: 4px;
+  border-radius: 2px;
+  background: #d9d9d9;
+}
+.shelf-card.open .shelf-spine {
+  background: var(--blue);
+}
+.shelf-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+.shelf-text strong {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+.shelf-line {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.shelf-open {
+  align-self: flex-start;
+  height: 30px;
+  margin-top: 8px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+.shelf-open:hover {
+  background: #383838;
+}
+.shelf-note {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+/* The Formations page is the book of sets as a page: the same cards as the
+   dialog over the editor, with the filters above them. */
+.browser.formations-page {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  flex: 1;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.formations-page .playbook-tools {
+  padding-top: 10px;
+}
+.formations-scroll {
+  padding: 6px 16px 24px;
+}
+.browser-grid.formations-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+.formation-card .browser-chip {
+  flex-wrap: wrap;
+}
+.formation-card {
+  cursor: default;
+}
+.formation-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.formation-open:hover .browser-shape {
+  box-shadow: 0 0 0 1px var(--selected-line);
+}
+.formation-plays {
+  margin-left: auto;
+  color: var(--ink);
+  font-style: normal;
+}
+.formation-call-name {
+  cursor: default;
+  font-weight: 500;
+}
+@media (max-width: 667px) {
+  /* The picker is a sheet from the bottom, with a handle and room to read. */
+  .choice-backdrop {
+    background: rgba(23, 23, 23, 0.3);
+  }
+  .choice-sheet {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: 72vh;
+    padding: 8px 12px max(12px, env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+  }
+  .choice-handle {
+    display: block;
+    width: 40px;
+    height: 4px;
+    flex: none;
+    align-self: center;
+    margin: 2px 0 10px;
+    border-radius: 2px;
+    background: #d4d4d4;
+  }
+  /* Sixteen pixels, or Safari zooms the page when the line is tapped. */
+  .choice-search {
+    height: 44px;
+    font-size: 16px;
+  }
+  .choice-row {
+    min-height: 48px;
+    font-size: 16px;
+  }
+  .choice-detail {
+    font-size: 13px;
+  }
+  .chip-menu,
+  .chip-advanced,
+  .chip-pinned {
+    height: 32px;
+  }
+  /* The destination's three pages fill the row, as the header's do. */
+  .destination-bar {
+    flex-wrap: wrap;
+  }
+  .destination-bar > .destination-tabs {
+    flex: 1;
+  }
+  .destination-bar > .destination-tabs > button {
+    flex: 1;
+    padding: 0 6px;
+  }
+  .book-head {
+    padding-top: 2px;
+  }
+  .book-tabs {
+    width: 100%;
+  }
+  .book-tabs > button {
+    flex: 1;
+  }
+  .shelf-grid {
+    grid-template-columns: 1fr;
+  }
+  .browser-grid.formations-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .playbook-advanced {
+    padding-top: 0;
+  }
+}
 .section-heading .scope-tag {
   margin-left: auto;
   color: #0072f5;

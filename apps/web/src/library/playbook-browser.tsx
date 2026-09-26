@@ -2,19 +2,31 @@ import {
   UNCLASSIFIED_PLAY_TYPE_NAME,
   CLASSIFICATION_SEPARATOR,
   playUnits,
+  type Concept,
+  type Formation,
   type PlayTypeDefinition,
   type PlayUnit,
 } from "@chalk/domain";
-import type { PlaySearchProjection } from "@chalk/local-db";
+import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   ChalkLibrary,
   LibraryBrowserState,
+  PlaybookLayout,
   PlaybookSort,
 } from "../app/editor-runtime";
 import { UnitBadge } from "../components/unit-badge";
+import { ANY, FilterChip } from "./filter-chip";
+import {
+  emptyPlayFilters,
+  matchesPlayFilters,
+  playFacets,
+  playFilterChoices,
+  playFiltersNarrow,
+  type PlayFilterValues,
+} from "./play-filters";
 import {
   gridColumnsFor,
   NARROW_BROWSER_QUERY,
@@ -55,12 +67,25 @@ function playCount(count: number): string {
   return `${count} ${count === 1 ? "play" : "plays"}`;
 }
 
+/**
+ * Which filters the browser offers. The dialog over the editor keeps its one
+ * row of toggle chips; a Playbook's own page adds the set and personnel a
+ * Play stands in; the Plays page, which reads across every book, adds the
+ * book, the family of sets, and an Advanced row for what else a Play records.
+ */
+export type PlaybookFilters = "compact" | "book" | "library";
+
 export function PlaybookBrowser({
+  concepts = [],
   currentPlayId,
   deletePrompt,
   embedded = false,
+  filters = "compact",
   focusSearch = true,
+  formations = [],
   initial,
+  initialFilters,
+  layoutChoice = false,
   library,
   members,
   onClose,
@@ -68,11 +93,23 @@ export function PlaybookBrowser({
   onOpen,
   onOpenGamePlans,
   onRemember,
+  playbooks = [],
   playTypes,
 }: {
+  /** The Concepts of the book, for the Advanced row's Concept filter. */
+  concepts?: readonly Concept[];
   currentPlayId: string;
   /** What deleting this Play also does, said before the Coach confirms. */
   deletePrompt?: (playId: string) => string;
+  filters?: PlaybookFilters;
+  /** Every set a Play could stand in, shipped and saved, for the set filters. */
+  formations?: readonly Formation[];
+  /** Filters already set when the browser opens — the set a Coach came from. */
+  initialFilters?: Partial<PlayFilterValues>;
+  /** Whether the Coach chooses cards or a list; otherwise the screen decides. */
+  layoutChoice?: boolean;
+  /** The books on this device, for the Playbook filter. */
+  playbooks?: readonly PlaybookSummary[];
   /**
    * Shown as a page of the Playbooks destination rather than a dialog over
    * the editor (issue #65): no backdrop, no close, and a click outside the
@@ -98,16 +135,40 @@ export function PlaybookBrowser({
   playTypes: readonly PlayTypeDefinition[];
 }) {
   const [query, setQuery] = useState(initial.query);
-  const [unit, setUnit] = useState<"all" | PlayUnit>("all");
-  const [playType, setPlayType] = useState("all");
+  const [values, setValues] = useState<PlayFilterValues>(() => ({
+    ...emptyPlayFilters,
+    ...initialFilters,
+  }));
+  const { unit, playType } = values;
+  const setUnit = (next: "all" | PlayUnit) =>
+    setValues((current) => ({ ...current, unit: next }));
+  const setPlayType = (next: string) =>
+    setValues((current) => ({ ...current, playType: next }));
+  const setValue = <K extends keyof PlayFilterValues>(
+    key: K,
+    next: PlayFilterValues[K],
+  ) => setValues((current) => ({ ...current, [key]: next }));
+  const advancedSet =
+    values.conceptId !== ANY || values.tag !== ANY || values.motion !== ANY;
+  const [advancedOpen, setAdvancedOpen] = useState(advancedSet);
   const [sort, setSort] = useState<PlaybookSort>(initial.sort ?? "name");
+  const [layout, setLayout] = useState<PlaybookLayout | undefined>(
+    initial.layout,
+  );
   const [hits, setHits] = useState<readonly PlaySearchProjection[]>(members);
   const [focusedPlayId, setFocusedPlayId] = useState(initial.focusedPlayId);
   const [actionsFor, setActionsFor] = useState<string>();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const restoredRef = useRef(false);
   const narrow = useNarrowBrowser();
-  const list = embedded && narrow;
+  // A phone lists by default and a desk tiles; where the Coach may choose,
+  // his choice stands until he changes it.
+  const shownLayout: PlaybookLayout = layoutChoice
+    ? (layout ?? (narrow ? "list" : "grid"))
+    : embedded && narrow
+      ? "list"
+      : "grid";
+  const list = shownLayout === "list";
   const rowHeight = list ? PLAY_LIST_ROW_HEIGHT : playCardRowHeightFor(narrow);
   const [gridColumns, setGridColumns] = useState(() =>
     gridColumnsFor(scrollerRef.current?.clientWidth ?? 0),
@@ -136,18 +197,35 @@ export function PlaybookBrowser({
     () => typeChipsFor(playTypes, members, unit),
     [members, playTypes, unit],
   );
+  const formationsById = useMemo(
+    () => new Map(formations.map((formation) => [formation.id, formation])),
+    [formations],
+  );
+  const choices = useMemo(
+    () =>
+      filters === "compact"
+        ? undefined
+        : playFilterChoices({
+            concepts,
+            formationsById,
+            members,
+            playbooks,
+            playTypes,
+            unit,
+          }),
+    [concepts, filters, formationsById, members, playbooks, playTypes, unit],
+  );
+  const pinnedFormation =
+    values.formationId === ANY
+      ? undefined
+      : formationsById.get(values.formationId);
 
   const scoped = useMemo(
     () =>
-      members.filter(
-        (member) =>
-          (unit === "all" || member.unit === unit) &&
-          (playType === "all" ||
-            (playType === UNCLASSIFIED
-              ? member.playTypeId === undefined
-              : member.playTypeId === playType)),
+      members.filter((member) =>
+        matchesPlayFilters(member, values, formationsById),
       ),
-    [members, playType, unit],
+    [formationsById, members, values],
   );
 
   // A Type belongs to its Unit, so a chip lit under Defense means nothing
@@ -179,7 +257,7 @@ export function PlaybookBrowser({
     () => (searching ? hits : sortPlays(hits, sort)),
     [hits, searching, sort],
   );
-  const narrowed = searching || unit !== "all" || playType !== "all";
+  const narrowed = searching || playFiltersNarrow(values);
 
   const rows = useMemo(() => {
     const grouped: PlaySearchProjection[][] = [];
@@ -230,22 +308,31 @@ export function PlaybookBrowser({
 
   const remember = (
     playId?: string,
-    next: { readonly sort?: PlaybookSort } = {},
+    next: {
+      readonly sort?: PlaybookSort;
+      readonly layout?: PlaybookLayout;
+    } = {},
   ) => {
+    const kept = next.layout ?? layout;
     onRemember({
       scrollTop: scrollerRef.current?.scrollTop ?? 0,
       query,
       sort: next.sort ?? sort,
+      ...(kept ? { layout: kept } : {}),
       ...((playId ?? focusedPlayId)
         ? { focusedPlayId: playId ?? focusedPlayId }
         : {}),
     });
   };
 
+  const chooseLayout = (next: PlaybookLayout) => {
+    setLayout(next);
+    remember(undefined, { layout: next });
+  };
+
   const clearFilters = () => {
     setQuery("");
-    setUnit("all");
-    setPlayType("all");
+    setValues(emptyPlayFilters);
   };
 
   const open = (playId: string) => {
@@ -335,11 +422,15 @@ export function PlaybookBrowser({
               {searchInput}
             </div>
           ) : null}
-          {/* Unit and Type are one row of switches: a lit chip narrows the
-              book, and a second press opens it back up. */}
+          {/* The Unit is a row of switches: a lit chip narrows the book, and
+              a second press opens it back up. In the dialog the Types are
+              switches beside it; on a page each further axis is a chip that
+              opens its choices, since a set list is too long for a row. */}
           <div
             aria-label="Filter plays"
-            className="playbook-filters"
+            className={`playbook-filters${
+              choices ? " playbook-filters-menus" : ""
+            }`}
             role="group"
           >
             {playUnits.map((choice) => (
@@ -357,31 +448,153 @@ export function PlaybookBrowser({
               </button>
             ))}
             <span aria-hidden="true" className="playbook-filters-rule" />
-            {typeChips.map((chip) => (
-              <button
-                aria-pressed={playType === chip.id}
-                className={playType === chip.id ? "chip active" : "chip"}
-                key={chip.id}
-                onClick={() =>
-                  setPlayType(playType === chip.id ? "all" : chip.id)
-                }
-                type="button"
-              >
-                {chip.name}
-              </button>
-            ))}
-            <button
-              aria-pressed={playType === UNCLASSIFIED}
-              className={playType === UNCLASSIFIED ? "chip active" : "chip"}
-              onClick={() =>
-                setPlayType(playType === UNCLASSIFIED ? "all" : UNCLASSIFIED)
-              }
-              title="Plays left at their unit with no type chosen"
-              type="button"
-            >
-              {UNCLASSIFIED_PLAY_TYPE_NAME}
-            </button>
+            {choices ? (
+              <>
+                <FilterChip
+                  choices={choices.playTypes}
+                  focusSearch={focusSearch}
+                  label="Type"
+                  onPick={(next) => setValue("playType", next)}
+                  value={values.playType}
+                />
+                {filters === "library" ? (
+                  <FilterChip
+                    choices={choices.playbooks}
+                    focusSearch={focusSearch}
+                    label="Playbook"
+                    onPick={(next) => setValue("playbookId", next)}
+                    value={values.playbookId}
+                  />
+                ) : null}
+                {pinnedFormation ? (
+                  <button
+                    aria-label={`Set: ${pinnedFormation.name}. Remove`}
+                    className="chip active chip-pinned"
+                    onClick={() => setValue("formationId", ANY)}
+                    title="Only plays in this set — press to open the book back up"
+                    type="button"
+                  >
+                    <span className="chip-text">{pinnedFormation.name}</span>
+                    <span aria-hidden="true" className="chip-x">
+                      ×
+                    </span>
+                  </button>
+                ) : (
+                  <>
+                    <FilterChip
+                      choices={choices.formationGroups}
+                      focusSearch={focusSearch}
+                      label="Formation"
+                      onPick={(next) => setValue("formationGroup", next)}
+                      value={values.formationGroup}
+                    />
+                    {filters === "library" ? (
+                      <FilterChip
+                        choices={choices.sets}
+                        focusSearch={focusSearch}
+                        label="Set"
+                        onPick={(next) => setValue("set", next)}
+                        value={values.set}
+                      />
+                    ) : null}
+                  </>
+                )}
+                <FilterChip
+                  choices={choices.personnel}
+                  focusSearch={focusSearch}
+                  label="Personnel"
+                  onPick={(next) => setValue("personnel", next)}
+                  value={values.personnel}
+                />
+                {filters === "library" ? (
+                  <button
+                    aria-controls="playbook-advanced"
+                    aria-expanded={advancedOpen}
+                    className={`chip chip-advanced${
+                      advancedSet ? " active" : ""
+                    }${advancedOpen ? " open" : ""}`}
+                    onClick={() => setAdvancedOpen((open) => !open)}
+                    title="Concept, tag and motion"
+                    type="button"
+                  >
+                    <span className="chip-text">Advanced</span>
+                    <svg
+                      aria-hidden="true"
+                      className="chip-caret"
+                      viewBox="0 0 8 8"
+                    >
+                      <path d="M1.5 3 4 5.5 6.5 3" />
+                    </svg>
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <>
+                {typeChips.map((chip) => (
+                  <button
+                    aria-pressed={playType === chip.id}
+                    className={playType === chip.id ? "chip active" : "chip"}
+                    key={chip.id}
+                    onClick={() =>
+                      setPlayType(playType === chip.id ? "all" : chip.id)
+                    }
+                    type="button"
+                  >
+                    {chip.name}
+                  </button>
+                ))}
+                <button
+                  aria-pressed={playType === UNCLASSIFIED}
+                  className={playType === UNCLASSIFIED ? "chip active" : "chip"}
+                  onClick={() =>
+                    setPlayType(
+                      playType === UNCLASSIFIED ? "all" : UNCLASSIFIED,
+                    )
+                  }
+                  title="Plays left at their unit with no type chosen"
+                  type="button"
+                >
+                  {UNCLASSIFIED_PLAY_TYPE_NAME}
+                </button>
+              </>
+            )}
           </div>
+          {choices && filters === "library" && advancedOpen ? (
+            <div
+              aria-label="More filters"
+              className="playbook-filters playbook-filters-menus playbook-advanced"
+              id="playbook-advanced"
+              role="group"
+            >
+              <FilterChip
+                choices={choices.concepts}
+                focusSearch={focusSearch}
+                label="Concept"
+                onPick={(next) => setValue("conceptId", next)}
+                value={values.conceptId}
+              />
+              <FilterChip
+                choices={choices.tags}
+                focusSearch={focusSearch}
+                label="Tag"
+                onPick={(next) => setValue("tag", next)}
+                value={values.tag}
+              />
+              <FilterChip
+                allName="Either"
+                choices={choices.motion}
+                focusSearch={focusSearch}
+                label="Motion"
+                onPick={(next) =>
+                  setValue(
+                    "motion",
+                    next === "with" || next === "without" ? next : ANY,
+                  )
+                }
+                value={values.motion}
+              />
+            </div>
+          ) : null}
           <div className="playbook-summary">
             <span aria-live="polite" className="playbook-count">
               {narrowed
@@ -396,6 +609,39 @@ export function PlaybookBrowser({
               >
                 Clear
               </button>
+            ) : null}
+            {layoutChoice ? (
+              <div aria-label="Layout" className="playbook-layout" role="group">
+                <button
+                  aria-label="Cards"
+                  aria-pressed={!list}
+                  className={list ? undefined : "active"}
+                  onClick={() => chooseLayout("grid")}
+                  title="Cards"
+                  type="button"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 16 16">
+                    <rect height="5" rx="1" width="5" x="2" y="2" />
+                    <rect height="5" rx="1" width="5" x="9" y="2" />
+                    <rect height="5" rx="1" width="5" x="2" y="9" />
+                    <rect height="5" rx="1" width="5" x="9" y="9" />
+                  </svg>
+                </button>
+                <button
+                  aria-label="List"
+                  aria-pressed={list}
+                  className={list ? "active" : undefined}
+                  onClick={() => chooseLayout("list")}
+                  title="List"
+                  type="button"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 16 16">
+                    <rect height="2" rx="1" width="12" x="2" y="3" />
+                    <rect height="2" rx="1" width="12" x="2" y="7" />
+                    <rect height="2" rx="1" width="12" x="2" y="11" />
+                  </svg>
+                </button>
+              </div>
             ) : null}
             {searching ? (
               <span className="playbook-order">Best match</span>
@@ -459,6 +705,11 @@ export function PlaybookBrowser({
                       key={member.playId}
                       layout={list ? "list" : "grid"}
                       member={member}
+                      set={
+                        choices
+                          ? playFacets(member, formationsById).formation?.name
+                          : undefined
+                      }
                       onActions={
                         embedded && onDelete
                           ? () => setActionsFor(member.playId)
@@ -529,7 +780,14 @@ function SearchGlyph() {
   );
 }
 
-function PlayMeta({ member }: { member: PlaySearchProjection }) {
+function PlayMeta({
+  member,
+  set,
+}: {
+  member: PlaySearchProjection;
+  /** The set the Play stands in, where the page knows it. */
+  set?: string;
+}) {
   const type =
     member.playTypeId === undefined
       ? undefined
@@ -538,7 +796,10 @@ function PlayMeta({ member }: { member: PlaySearchProjection }) {
     <span className="playbook-card-type">
       <UnitBadge unit={member.unit} />
       {type === undefined ? "" : `${CLASSIFICATION_SEPARATOR}${type}`}
-      {member.tags[0] ? `${CLASSIFICATION_SEPARATOR}${member.tags[0]}` : ""}
+      {set ? `${CLASSIFICATION_SEPARATOR}${set}` : ""}
+      {member.tags[0] && !set
+        ? `${CLASSIFICATION_SEPARATOR}${member.tags[0]}`
+        : ""}
     </span>
   );
 }
@@ -556,6 +817,7 @@ function PlayItem({
   onActions,
   onFocus,
   onOpen,
+  set,
   urlFor,
 }: {
   current: boolean;
@@ -565,6 +827,7 @@ function PlayItem({
   onActions?: () => void;
   onFocus: () => void;
   onOpen: () => void;
+  set?: string;
   urlFor: (
     request: ThumbnailRequest,
     signal?: AbortSignal,
@@ -608,7 +871,7 @@ function PlayItem({
         <span className="playbook-text">
           <strong>{member.name}</strong>
           <span className="playbook-meta">
-            <PlayMeta member={member} />
+            <PlayMeta member={member} set={set} />
             {current && layout === "list" ? (
               <span className="playbook-editing">In editor</span>
             ) : null}

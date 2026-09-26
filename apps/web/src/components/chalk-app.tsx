@@ -216,6 +216,9 @@ import {
 import { LibraryPanel } from "../library/library-panel";
 import { ScopeBar } from "../library/scope-bar";
 import { PlaybookBrowser } from "../library/playbook-browser";
+import { PlaybooksShelf } from "../library/playbooks-shelf";
+import { FormationsPage } from "../library/formations-page";
+import type { PlaybookSummary } from "@chalk/local-db";
 import { GamePlansWorkspace } from "../library/game-plans-workspace";
 import { GameDayView } from "../library/game-day-view";
 import { defaultOutputSpec, type OutputSpec } from "../output/output-spec";
@@ -344,6 +347,21 @@ const destinations: readonly { readonly view: View; readonly label: string }[] =
     { view: "Playbooks", label: "Playbooks" },
     { view: "GameDay", label: "Game Day" },
   ];
+
+/**
+ * The three pages of the Playbooks destination (ADR 0060): the shelf of
+ * books and the open book's own pages, the book of sets and calls, and
+ * every Play with the filters that find one.
+ */
+type PlaybooksPage = "playbooks" | "formations" | "plays";
+const playbooksPages: readonly {
+  readonly id: PlaybooksPage;
+  readonly label: string;
+}[] = [
+  { id: "playbooks", label: "Playbooks" },
+  { id: "formations", label: "Formations" },
+  { id: "plays", label: "Plays" },
+];
 
 /** The original's own wait before a held press becomes a menu. */
 const LONG_PRESS_MS = 480;
@@ -2533,8 +2551,27 @@ export function ChalkApp({
   );
   /** Which tour Help opened; the Demo tabs take over from there. */
   const [demoTourId, setDemoTourId] = useState<DemoTour["id"]>("tools");
-  /** Plays or Game plans inside the Playbooks destination. */
-  const [playbooksTab, setPlaybooksTab] = useState<"plays" | "plans">("plays");
+  /** Which page of the Playbooks destination is showing (ADR 0060). */
+  const [playbooksPage, setPlaybooksPage] =
+    useState<PlaybooksPage>("playbooks");
+  /** Inside the open book: its Plays or its Game plans. */
+  const [bookTab, setBookTab] = useState<"plays" | "plans">("plays");
+  /** The shelf shows the open book's pages until the Coach steps out to the books. */
+  const [bookOpen, setBookOpen] = useState(true);
+  /** The set the Plays page opens narrowed to, when a Coach came from the Formations page. */
+  const [playsPreset, setPlaysPreset] = useState<{
+    readonly formationId: string;
+    readonly key: number;
+  }>();
+  /** The books on this device, for the shelf and the Playbook filter. */
+  const [playbookSummaries, setPlaybookSummaries] = useState<
+    readonly PlaybookSummary[]
+  >([]);
+  const openBookPage = (tab: "plays" | "plans") => {
+    setPlaybooksPage("playbooks");
+    setBookOpen(true);
+    setBookTab(tab);
+  };
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [openMenu, setOpenMenu] = useState<Menu>(null);
   /**
@@ -2786,6 +2823,15 @@ export function ChalkApp({
     editorStore.getSnapshot,
   );
   const playbook = usePlaybookLibrary(runtime, editorStore);
+  useEffect(() => {
+    let cancelled = false;
+    void runtime.library.listPlaybooks().then((books) => {
+      if (!cancelled) setPlaybookSummaries(books);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [runtime.library, playbook.snapshot]);
   const animationPlan = useMemo(
     () => planPlay(editor.document),
     [editor.document],
@@ -4962,12 +5008,12 @@ export function ChalkApp({
       setOverlay("palette");
     },
     gamePlans: () => {
-      setPlaybooksTab("plans");
+      openBookPage("plans");
       goToView("Playbooks");
     },
     editor: () => goToView("Editor"),
     playbooks: () => {
-      setPlaybooksTab("plays");
+      openBookPage("plays");
       goToView("Playbooks");
     },
     gameDay: () => goToView("GameDay"),
@@ -6265,9 +6311,13 @@ export function ChalkApp({
       icon: "plays",
       label: "Plays",
       value: String(playbook.snapshot.members.length),
-      current: activeView === "Playbooks" && playbooksTab === "plays",
+      current:
+        activeView === "Playbooks" &&
+        playbooksPage === "playbooks" &&
+        bookOpen &&
+        bookTab === "plays",
       onOpen: () => {
-        setPlaybooksTab("plays");
+        openBookPage("plays");
         goToView("Playbooks");
       },
     },
@@ -6276,9 +6326,13 @@ export function ChalkApp({
       icon: "plans",
       label: "Game plans",
       ...(planCount === undefined ? {} : { value: String(planCount) }),
-      current: activeView === "Playbooks" && playbooksTab === "plans",
+      current:
+        activeView === "Playbooks" &&
+        playbooksPage === "playbooks" &&
+        bookOpen &&
+        bookTab === "plans",
       onOpen: () => {
-        setPlaybooksTab("plans");
+        openBookPage("plans");
         goToView("Playbooks");
       },
     },
@@ -6501,28 +6555,26 @@ export function ChalkApp({
       <div className="chalk-shell view-playbooks">
         {header}
         <main className="destination" aria-label="Playbooks">
-          {/* One bar for the page: which half of the Playbook, and the one
-              thing most often started from it. */}
+          {/* One bar for the destination: which of its three pages, and
+              New play where a Play is what the page lists. */}
           <div className="destination-bar">
             <nav className="destination-tabs" aria-label="Playbooks pages">
-              <button
-                aria-pressed={playbooksTab === "plays"}
-                className={playbooksTab === "plays" ? "active" : undefined}
-                onClick={() => setPlaybooksTab("plays")}
-                type="button"
-              >
-                Plays
-              </button>
-              <button
-                aria-pressed={playbooksTab === "plans"}
-                className={playbooksTab === "plans" ? "active" : undefined}
-                onClick={() => setPlaybooksTab("plans")}
-                type="button"
-              >
-                Game plans
-              </button>
+              {playbooksPages.map(({ id, label }) => (
+                <button
+                  aria-pressed={playbooksPage === id}
+                  className={playbooksPage === id ? "active" : undefined}
+                  key={id}
+                  onClick={() => setPlaybooksPage(id)}
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
             </nav>
-            {playbooksTab === "plays" ? (
+            {playbooksPage === "plays" ||
+            (playbooksPage === "playbooks" &&
+              bookOpen &&
+              bookTab === "plays") ? (
               <NewPlayMenu
                 actions={actions}
                 buttonClassName="destination-new"
@@ -6536,30 +6588,132 @@ export function ChalkApp({
               />
             ) : null}
           </div>
-          {playbooksTab === "plays" ? (
+          {playbooksPage === "playbooks" ? (
+            bookOpen ? (
+              <>
+                {/* The open book's own bar: its name, a way back to the
+                    shelf, and its two pages. */}
+                <div className="book-head">
+                  <button
+                    className="book-back"
+                    onClick={() => setBookOpen(false)}
+                    title="All playbooks on this device"
+                    type="button"
+                  >
+                    <span aria-hidden="true">‹</span> Playbooks
+                  </button>
+                  <div className="book-title">
+                    <strong>{playbook.snapshot.playbook.name}</strong>
+                    <span>
+                      {playbook.snapshot.members.length}{" "}
+                      {playbook.snapshot.members.length === 1
+                        ? "play"
+                        : "plays"}
+                    </span>
+                  </div>
+                  <nav
+                    aria-label="Book pages"
+                    className="destination-tabs book-tabs"
+                  >
+                    <button
+                      aria-pressed={bookTab === "plays"}
+                      className={bookTab === "plays" ? "active" : undefined}
+                      onClick={() => setBookTab("plays")}
+                      type="button"
+                    >
+                      Plays
+                    </button>
+                    <button
+                      aria-pressed={bookTab === "plans"}
+                      className={bookTab === "plans" ? "active" : undefined}
+                      onClick={() => setBookTab("plans")}
+                      type="button"
+                    >
+                      Game plans
+                    </button>
+                  </nav>
+                </div>
+                {bookTab === "plays" ? (
+                  <PlaybookBrowser
+                    concepts={playbook.snapshot.concepts}
+                    currentPlayId={editor.document.id}
+                    deletePrompt={deletePlayPrompt}
+                    embedded
+                    filters="book"
+                    focusSearch={precisePointer}
+                    formations={allFormations}
+                    initial={playbook.browserState}
+                    layoutChoice
+                    library={runtime.library}
+                    members={playbook.snapshot.members}
+                    onClose={() => goToView("Editor")}
+                    onDelete={(playId) => playbook.removePlay(playId, true)}
+                    onOpen={openPlay}
+                    onRemember={playbook.rememberBrowser}
+                    playbooks={playbookSummaries}
+                    playTypes={playbook.snapshot.playbook.playTypes}
+                  />
+                ) : (
+                  <GamePlansWorkspace
+                    embedded
+                    formations={allFormations}
+                    library={runtime.library}
+                    onClose={() => goToView("Editor")}
+                    onOpenPlay={openPlay}
+                    render={renderDiagram}
+                    snapshot={playbook.snapshot}
+                  />
+                )}
+              </>
+            ) : (
+              <PlaybooksShelf
+                currentPlaybookId={runtime.library.playbookId}
+                members={playbook.snapshot.members}
+                onOpen={() => setBookOpen(true)}
+                playbooks={playbookSummaries}
+                savedSets={coachFormations.length}
+              />
+            )
+          ) : playbooksPage === "formations" ? (
+            <FormationsPage
+              calls={stockDefensiveCalls}
+              favoriteCallIds={favoriteCallIds}
+              favoriteFormationIds={favoriteFormationIds}
+              focusSearch={precisePointer}
+              formations={allFormations}
+              members={playbook.snapshot.members}
+              onRemove={removeCoachFormation}
+              onShowPlays={(formationId) => {
+                setPlaysPreset({ formationId, key: Date.now() });
+                setPlaybooksPage("plays");
+              }}
+              onToggleFavoriteCall={toggleFavoriteCall}
+              onToggleFavoriteFormation={toggleFavoriteFormation}
+              playbooks={playbookSummaries}
+            />
+          ) : (
             <PlaybookBrowser
+              concepts={playbook.snapshot.concepts}
               currentPlayId={editor.document.id}
               deletePrompt={deletePlayPrompt}
               embedded
+              filters="library"
               focusSearch={precisePointer}
+              formations={allFormations}
               initial={playbook.browserState}
+              initialFilters={
+                playsPreset ? { formationId: playsPreset.formationId } : {}
+              }
+              key={playsPreset?.key ?? 0}
+              layoutChoice
               library={runtime.library}
               members={playbook.snapshot.members}
               onClose={() => goToView("Editor")}
               onDelete={(playId) => playbook.removePlay(playId, true)}
               onOpen={openPlay}
               onRemember={playbook.rememberBrowser}
+              playbooks={playbookSummaries}
               playTypes={playbook.snapshot.playbook.playTypes}
-            />
-          ) : (
-            <GamePlansWorkspace
-              embedded
-              formations={allFormations}
-              library={runtime.library}
-              onClose={() => goToView("Editor")}
-              onOpenPlay={openPlay}
-              render={renderDiagram}
-              snapshot={playbook.snapshot}
             />
           )}
         </main>
@@ -6576,7 +6730,7 @@ export function ChalkApp({
           hasImage={hasImage}
           library={runtime.library}
           onOpenPlaybooks={() => {
-            setPlaybooksTab("plans");
+            openBookPage("plans");
             goToView("Playbooks");
           }}
           snapshot={playbook.snapshot}
