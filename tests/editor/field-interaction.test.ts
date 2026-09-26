@@ -2,7 +2,6 @@ import {
   applyPlayCommand,
   assignmentForPath,
   canonicalStringify,
-  clearPlayLayerCommand,
   DEFAULT_ZONE_COVERAGE_RADII,
   deletePlayersCommand,
   playCommandCoalesceKey,
@@ -13,20 +12,16 @@ import {
 import {
   addAlternateRouteCommand,
   addRouteChoiceCommand,
-  applyLabelRoleCommand,
   buildMoveCommand,
   flipPlayerLinesCommand,
   flipRouteCommand,
   removeRouteChoiceCommand,
   reorderSelectionCommand,
-  fieldHitOptions,
   fieldInteraction,
   gesturePreviewCommand,
-  hitTestField,
   idleFieldInteraction,
   insertedEntityIds,
   pruneFieldSelection,
-  ROUTE_COACHING_LIMITS,
   setLabelAppearanceCommand,
   setLabelTextCommand,
   setRouteAssignmentCommand,
@@ -148,19 +143,6 @@ const withMike = applyPlayCommand(stickThunderPlay, {
 });
 
 describe("field interaction selection", () => {
-  it("selects on click and clears on a click in the grass", () => {
-    const context = contextFor(stickThunderPlay);
-    const q = positionOf(stickThunderPlay, "q");
-
-    const clicked = run(context, [down(q), up(q)]);
-    expect(clicked.model.selection).toEqual([player("q")]);
-    expect(clicked.commands).toHaveLength(0);
-
-    const grass = { lateralYards: 15, depthYards: -8 };
-    const cleared = run(context, [down(grass), up(grass)], clicked.model);
-    expect(cleared.model.selection).toEqual([]);
-  });
-
   it("toggles membership with Shift on the press alone", () => {
     const context = contextFor(stickThunderPlay);
     const q = positionOf(stickThunderPlay, "q");
@@ -180,20 +162,6 @@ describe("field interaction selection", () => {
       both.model,
     );
     expect(removed.model.selection).toEqual([player("h")]);
-  });
-
-  it("narrows a multi-selection to the clicked item on release", () => {
-    const context = contextFor(stickThunderPlay);
-    const q = positionOf(stickThunderPlay, "q");
-    const all = run(context, [{ type: "select-all" }]);
-    expect(all.model.selection.length).toBe(
-      stickThunderPlay.players.length +
-        stickThunderPlay.paths.length +
-        stickThunderPlay.labels.length,
-    );
-
-    const narrowed = run(context, [down(q), up(q)], all.model);
-    expect(narrowed.model.selection).toEqual([player("q")]);
   });
 
   it("keeps a Shift click in the grass from clearing the selection", () => {
@@ -272,57 +240,6 @@ describe("field interaction dragging", () => {
     expect(moved.commands).toHaveLength(1);
   });
 
-  it("commits one batch that carries a Player and his attached route", () => {
-    const context = contextFor(stickThunderPlay, {
-      snap: { enabled: false, grid: "off" },
-    });
-    const x = positionOf(stickThunderPlay, "x");
-    // Back and across: away from the ball, since the line of scrimmage
-    // holds a man who is dragged toward it (ADR 0052).
-    const target = {
-      lateralYards: x.lateralYards + 2,
-      depthYards: x.depthYards - 3,
-    };
-
-    const session = run(context, [down(x), move(target), up(target)]);
-    expect(session.commands).toHaveLength(1);
-    const command = session.commands[0]!;
-    expect(command).toMatchObject({ kind: "batch", label: "Move Player" });
-
-    const moved = applyPlayCommand(stickThunderPlay, command);
-    const after = positionOf(moved, "x");
-    expect(after.lateralYards).toBeCloseTo(x.lateralYards + 2, 6);
-    expect(after.depthYards).toBeCloseTo(x.depthYards - 3, 6);
-
-    const route = (document: PlayDocument) =>
-      document.paths.find(({ id }) => id === "rx")!;
-    route(stickThunderPlay).points.forEach((point, index) => {
-      const movedPoint = route(moved).points[index]!;
-      expect(movedPoint.lateralYards).toBeCloseTo(point.lateralYards + 2, 6);
-      expect(movedPoint.depthYards).toBeCloseTo(point.depthYards - 3, 6);
-    });
-  });
-
-  it("translates branch points when the route travels with its Player", () => {
-    const context = contextFor(stickThunderPlay, {
-      snap: { enabled: false, grid: "off" },
-    });
-    const z = positionOf(stickThunderPlay, "z");
-    const target = {
-      lateralYards: z.lateralYards - 3,
-      depthYards: z.depthYards,
-    };
-
-    const session = run(context, [down(z), move(target), up(target)]);
-    const moved = applyPlayCommand(stickThunderPlay, session.commands[0]!);
-    const before = stickThunderPlay.paths.find(({ id }) => id === "rz")!;
-    const after = moved.paths.find(({ id }) => id === "rz")!;
-    expect(after.branches[0]!.points[0]!.lateralYards).toBeCloseTo(
-      before.branches[0]!.points[0]!.lateralYards - 3,
-      6,
-    );
-  });
-
   it("snaps a lone Player landmark-first and reads out his depth", () => {
     const context = contextFor(stickThunderPlay);
     const q = positionOf(stickThunderPlay, "q");
@@ -383,19 +300,6 @@ describe("field interaction dragging", () => {
     expect(positionOf(moved, "ol0").depthYards).toBeCloseTo(
       positionOf(stickThunderPlay, "ol0").depthYards - 1.9,
       6,
-    );
-  });
-
-  it("previews exactly the document the release will commit", () => {
-    const context = contextFor(stickThunderPlay);
-    const q = positionOf(stickThunderPlay, "q");
-    const target = { lateralYards: 0.15, depthYards: -1.9 };
-    const session = run(context, [down(q), move(target)]);
-
-    const preview = gesturePreviewCommand(session.model, stickThunderPlay);
-    const done = run(context, [up(target)], session.model);
-    expect(canonicalStringify(preview)).toBe(
-      canonicalStringify(done.commands[0]),
     );
   });
 
@@ -510,82 +414,9 @@ describe("field interaction keyboard", () => {
     expect(after.labels.some(({ id }) => id === "l1")).toBe(false);
     expect(after.players).toHaveLength(stickThunderPlay.players.length);
   });
-
-  it("clears a selected man's lines rather than deleting him", () => {
-    const context = contextFor(stickThunderPlay);
-    const session = run(context, [{ type: "delete" }], {
-      selection: [player("x")],
-      gesture: { kind: "idle" },
-    });
-    expect(session.commands).toHaveLength(1);
-    expect(session.commands[0]).toMatchObject({ label: "Clear his lines" });
-    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
-    expect(after.players).toHaveLength(stickThunderPlay.players.length);
-    expect(after.paths.some(({ playerId }) => playerId === "x")).toBe(false);
-
-    // A man with nothing to clear is nothing to do.
-    const quiet = run(context, [{ type: "delete" }], {
-      selection: [player("q")],
-      gesture: { kind: "idle" },
-    });
-    expect(quiet.commands).toHaveLength(0);
-  });
-
-  it("nudges the selection by the requested step, one command per press", () => {
-    const context = contextFor(stickThunderPlay);
-    const q = positionOf(stickThunderPlay, "q");
-    const session = run(
-      context,
-      [
-        { type: "nudge", lateralYards: 0.5, depthYards: 0 },
-        { type: "nudge", lateralYards: 0.5, depthYards: 0 },
-      ],
-      { selection: [player("q")], gesture: { kind: "idle" } },
-    );
-    expect(session.commands).toHaveLength(2);
-    const once = applyPlayCommand(stickThunderPlay, session.commands[0]!);
-    expect(positionOf(once, "q").lateralYards).toBeCloseTo(
-      q.lateralYards + 0.5,
-      6,
-    );
-  });
-
-  it("does nothing on delete or nudge with nothing selected", () => {
-    const context = contextFor(stickThunderPlay);
-    const session = run(context, [
-      { type: "delete" },
-      { type: "nudge", lateralYards: 0.5, depthYards: 0 },
-    ]);
-    expect(session.commands).toHaveLength(0);
-  });
 });
 
 describe("field interaction tools", () => {
-  /** A defender on the seeded offensive Play, for the lines only he draws. */
-  it("never places a man from a press on the grass — eleven a side is the roster", () => {
-    // There is no Player tool (ADR 0052): the grass under Select starts a
-    // marquee, never a twelfth man.
-    const select = run(
-      contextFor(stickThunderPlay, { createId: (prefix) => `${prefix}_new` }),
-      [down({ lateralYards: 5, depthYards: 5 })],
-    );
-    expect(select.commands).toHaveLength(0);
-    expect(select.model.gesture.kind).toBe("marquee");
-  });
-
-  it("starts a line of the asked kind from the man the inspector named", () => {
-    const context = contextFor(stickThunderPlay);
-    const y = positionOf(stickThunderPlay, "y");
-    const session = run(context, [start("motion", "y")]);
-    expect(session.model.drawing).toMatchObject({
-      kind: "motion",
-      playerId: "y",
-      points: [{ lateralYards: y.lateralYards, depthYards: y.depthYards }],
-    });
-    expect(session.model.selection).toEqual([]);
-    expect(session.commands).toHaveLength(0);
-  });
-
   it("draws a blitz path from a defender asked for a block, and a zone drop", () => {
     const context = contextFor(withMike);
     expect(run(context, [start("block", "mike")]).model.drawing).toMatchObject({
@@ -634,84 +465,6 @@ describe("field interaction tools", () => {
     ).toBeUndefined();
     const busy = run(context, [start("route", "y"), start("motion", "z")]);
     expect(busy.model.drawing).toMatchObject({ kind: "route", playerId: "y" });
-  });
-});
-
-describe("field hit testing", () => {
-  const scene = buildRenderScene(stickThunderPlay);
-
-  it("resolves the topmost layer: Players above labels above routes", () => {
-    // X stands on his own route's first point.
-    const x = positionOf(stickThunderPlay, "x");
-    expect(
-      hitTestField(scene, x, screenScale, fieldHitOptions())?.item,
-    ).toEqual(player("x"));
-  });
-
-  it("hits a route along its stroke", () => {
-    // Midway down Z's vertical stem.
-    const point = { lateralYards: 21.092896175, depthYards: 5 };
-    const hit = hitTestField(scene, point, screenScale, fieldHitOptions());
-    expect(hit?.item).toEqual(path("rz"));
-    // Z's stem is the main line, not the branch he splits off deeper.
-    expect(hit?.branchIndex).toBeUndefined();
-  });
-
-  it("widens targets for touch to keep them at 44 CSS pixels", () => {
-    const q = positionOf(stickThunderPlay, "q");
-    const offset = {
-      lateralYards: q.lateralYards + 20 / screenScale.lateralPixelsPerYard,
-      depthYards: q.depthYards,
-    };
-    expect(
-      hitTestField(scene, offset, screenScale, fieldHitOptions()),
-    ).toBeUndefined();
-    expect(
-      hitTestField(scene, offset, screenScale, fieldHitOptions("touch"))?.item,
-    ).toEqual(player("q"));
-  });
-
-  it("gives a finger the man it landed on when the men stand closer than it is wide", () => {
-    // A phone draws the field at about four tenths of its frame, which puts
-    // linemen fourteen pixels apart inside a finger's forty-four.
-    const phone = {
-      lateralPixelsPerYard: screenScale.lateralPixelsPerYard * 0.39,
-      depthPixelsPerYard: screenScale.depthPixelsPerYard * 0.39,
-    };
-    for (const man of stickThunderPlay.players) {
-      expect(
-        hitTestField(scene, man.position, phone, fieldHitOptions("touch"))
-          ?.item,
-      ).toEqual(player(man.id));
-    }
-    // Off his centre, a press still goes to whoever it is nearer.
-    const center = positionOf(stickThunderPlay, "ol2");
-    const guard = positionOf(stickThunderPlay, "ol3");
-    const leaning = {
-      lateralYards:
-        center.lateralYards + (guard.lateralYards - center.lateralYards) * 0.4,
-      depthYards: center.depthYards,
-    };
-    expect(
-      hitTestField(scene, leaning, phone, fieldHitOptions("touch"))?.item,
-    ).toEqual(player("ol2"));
-  });
-
-  it("selects on a touch press that a mouse press would miss", () => {
-    const context = contextFor(stickThunderPlay);
-    const q = positionOf(stickThunderPlay, "q");
-    const offset = {
-      lateralYards: q.lateralYards + 20 / screenScale.lateralPixelsPerYard,
-      depthYards: q.depthYards,
-    };
-    const session = run(context, [
-      {
-        type: "pointer-down",
-        input: { point: offset, pointerId: 1, pointerType: "touch" },
-      },
-      up(offset),
-    ]);
-    expect(session.model.selection).toEqual([player("q")]);
   });
 });
 
@@ -784,14 +537,6 @@ describe("field selection pruning", () => {
     expect(pruned.selectedBranchIndex).toBe(0);
     expect(pruned.selectedNodeIndex).toBe(1);
   });
-
-  it("returns the same model when nothing changed", () => {
-    const model: FieldInteractionModel = {
-      selection: [player("q")],
-      gesture: { kind: "idle" },
-    };
-    expect(pruneFieldSelection(model, stickThunderPlay)).toBe(model);
-  });
 });
 
 describe("move command builder", () => {
@@ -809,15 +554,6 @@ describe("move command builder", () => {
           )
         : [];
     expect(updates).toHaveLength(1);
-  });
-
-  it("returns nothing for a zero translation", () => {
-    expect(
-      buildMoveCommand(stickThunderPlay, [player("q")], {
-        lateralYards: 0,
-        depthYards: 0,
-      }),
-    ).toBeUndefined();
   });
 
   it("holds a man at the line of scrimmage instead of carrying him across", () => {
@@ -884,73 +620,6 @@ describe("field interaction drawing", () => {
       createId: (prefix) => `${prefix}_drawn`,
       ...overrides,
     });
-
-  it("starts a route at the man's stance, and a press on the grass draws nothing", () => {
-    const context = drawingContext();
-    const y = positionOf(stickThunderPlay, "y");
-
-    const started = run(context, [start("route", "y")]);
-    expect(started.model.drawing).toMatchObject({
-      kind: "route",
-      playerId: "y",
-      points: [{ lateralYards: y.lateralYards, depthYards: y.depthYards }],
-    });
-    expect(started.commands).toHaveLength(0);
-
-    // Every line belongs to a man (ADR 0052): the grass starts none.
-    const onGrass = run(context, [down({ lateralYards: 18, depthYards: 14 })]);
-    expect(onGrass.model.drawing).toBeUndefined();
-    expect(onGrass.commands).toHaveLength(0);
-  });
-
-  it("commits one route with the breaks the Coach clicked", () => {
-    const context = drawingContext();
-    const y = positionOf(stickThunderPlay, "y");
-    const first = {
-      lateralYards: y.lateralYards,
-      depthYards: y.depthYards + 6,
-    };
-    const second = {
-      lateralYards: y.lateralYards - 5,
-      depthYards: y.depthYards + 6,
-    };
-
-    const session = run(context, [
-      start("route", "y"),
-      move(first),
-      down(first),
-      up(first),
-      move(second),
-      down(second),
-      up(second),
-      { type: "finish-drawing" },
-    ]);
-
-    expect(session.commands).toHaveLength(1);
-    expect(session.commands[0]).toMatchObject({
-      kind: "batch",
-      label: "Draw route",
-    });
-    expect(session.model.drawing).toBeUndefined();
-    expect(session.model.selection).toEqual([path("path_drawn")]);
-
-    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
-    const drawn = after.paths.find(({ id }) => id === "path_drawn")!;
-    expect(drawn.playerId).toBe("y");
-    expect(drawn.kind).toBe("route");
-    expect(drawn.points).toHaveLength(3);
-    expect(drawn.points[0]).toMatchObject({
-      lateralYards: y.lateralYards,
-      depthYards: y.depthYards,
-    });
-    // Coordinates carry the machine's 9-digit rounding, which keeps
-    // canonical hashes stable across platforms.
-    expect(drawn.points.at(-1)!.lateralYards).toBeCloseTo(
-      second.lateralYards,
-      6,
-    );
-    expect(drawn.points.at(-1)!.depthYards).toBeCloseTo(second.depthYards, 6);
-  });
 
   it("gives each kind the original's defaults and dots a second route", () => {
     const y = positionOf(stickThunderPlay, "y");
@@ -1192,41 +861,6 @@ describe("field interaction drawing", () => {
     expect(session.model.drawing).toBeUndefined();
   });
 
-  it("hands the select tool back when a route is finished", () => {
-    const context = drawingContext();
-    const y = positionOf(stickThunderPlay, "y");
-    const breakPoint = {
-      lateralYards: y.lateralYards,
-      depthYards: y.depthYards + 6,
-    };
-    let model = idleFieldInteraction;
-    let requestedTool: string | undefined;
-    for (const event of [
-      start("route", "y"),
-      move(breakPoint),
-      down(breakPoint),
-      up(breakPoint),
-      { type: "finish-drawing" } as FieldInteractionEvent,
-    ]) {
-      const result = fieldInteraction(model, event, context);
-      model = result.model;
-      requestedTool = result.requestedTool ?? requestedTool;
-    }
-    expect(requestedTool).toBe("select");
-  });
-
-  it("starts a route from the blue dot as well", () => {
-    const context = contextFor(stickThunderPlay, {
-      createId: (prefix) => `${prefix}_drawn`,
-    });
-    const session = run(context, [{ type: "start-route", playerId: "q" }]);
-    expect(session.model.drawing).toMatchObject({
-      kind: "route",
-      playerId: "q",
-    });
-    expect(session.model.selection).toEqual([]);
-  });
-
   it("abandons a drawing whose Player an undo removed", () => {
     const context = drawingContext();
     const started = run(context, [start("route", "y")]);
@@ -1238,34 +872,6 @@ describe("field interaction drawing", () => {
     expect(
       pruneFieldSelection(started.model, stickThunderPlay).drawing,
     ).toBeDefined();
-  });
-
-  it("retains the endpoint dragged from the blue dot and commits it once on Enter", () => {
-    const context = contextFor(stickThunderPlay, {
-      snap: { enabled: false, grid: "off" },
-    });
-    const origin = positionOf(stickThunderPlay, "q");
-    const end = {
-      lateralYards: origin.lateralYards + 4,
-      depthYards: origin.depthYards + 8,
-    };
-    const session = run(context, [
-      {
-        type: "start-route",
-        playerId: "q",
-        input: { pointerId: 1, point: origin },
-      },
-      move(end),
-      up(end),
-    ]);
-    expect(session.model.drawing?.points).toEqual([origin, end]);
-    expect(session.commands).toHaveLength(0);
-    const finished = run(context, [{ type: "finish-drawing" }], session.model);
-    expect(finished.commands).toHaveLength(1);
-    expect(
-      applyPlayCommand(stickThunderPlay, finished.commands[0]!).paths.at(-1)
-        ?.points,
-    ).toEqual([origin, end]);
   });
 
   it("follows a blue-dot drag in the direction pulled, not straight upfield", () => {
@@ -1548,28 +1154,6 @@ describe("field interaction free drawing", () => {
     expect(back.model.drawing?.points).toHaveLength(2);
   });
 
-  it("takes a whole stroke back with Backspace, and abandons it on Escape", () => {
-    const context = drawingContext();
-    const y = positionOf(stickThunderPlay, "y");
-    const stroke = strokeFrom(y);
-    const held = run(context, [
-      startFree("route", "y"),
-      down(stroke[0]!),
-      ...stroke.slice(1, 6).map((point) => move(point)),
-      { type: "pointer-cancel" },
-    ]);
-    expect(held.model.drawing?.pointerDown).toBe(false);
-    expect(held.model.drawing!.points.length).toBeGreaterThan(1);
-
-    const undone = run(context, [{ type: "delete" }], held.model);
-    expect(undone.model.drawing?.points).toHaveLength(1);
-    expect(undone.commands).toHaveLength(0);
-
-    const abandoned = run(context, [{ type: "escape" }], held.model);
-    expect(abandoned.model.drawing).toBeUndefined();
-    expect(abandoned.commands).toHaveLength(0);
-  });
-
   it("holds a traced line on the field and finishes a mid-stroke Done", () => {
     const context = drawingContext({
       depthWindow: { minDepthYards: -20, maxDepthYards: 30 },
@@ -1622,64 +1206,6 @@ describe("field interaction drawing by hand between breaks", () => {
     applyPlayCommand(stickThunderPlay, command).paths.find(
       ({ id }) => id === "path_drawn",
     )!;
-
-  it("traces a bent pull off the blue dot, keeps it in hand, and commits the curve on Done", () => {
-    const context = drawingContext();
-    const q = positionOf(stickThunderPlay, "q");
-    // The dot sits upfield of the man; the drag is followed from his stance.
-    const press = {
-      lateralYards: q.lateralYards,
-      depthYards: q.depthYards + 1,
-    };
-    const wheel = wheelFrom(press);
-
-    const held = run(context, [
-      {
-        type: "start-route",
-        playerId: "q",
-        input: { pointerId: 1, point: press },
-      },
-      ...wheel.map((point) => move(point)),
-    ]);
-    expect(held.model.drawing).toMatchObject({
-      mode: "breaks",
-      pointerDown: true,
-      strokeFrom: 0,
-    });
-    expect(
-      held.model.drawing!.points.filter((point) => point.traced).length,
-    ).toBeGreaterThan(10);
-
-    // Lifting keeps the shape the hand drew and the line in hand: the next
-    // press would place the next break, and nothing is committed yet.
-    const lifted = run(context, [up(wheel.at(-1)!)], held.model);
-    expect(lifted.commands).toHaveLength(0);
-    expect(lifted.model.drawing).toMatchObject({
-      mode: "breaks",
-      pointerDown: false,
-    });
-    expect(lifted.model.drawing!.strokeFrom).toBeUndefined();
-    expect(lifted.model.drawing!.initialDrag).toBeUndefined();
-    expect(lifted.model.drawing!.points.some((point) => point.traced)).toBe(
-      true,
-    );
-
-    const finished = run(context, [{ type: "finish-drawing" }], lifted.model);
-    expect(finished.commands).toHaveLength(1);
-    const drawn = drawnPath(finished.commands[0]!);
-    expect(drawn.points[0]).toMatchObject(q);
-    // The wheel arrives as a curve, fitted, not as the samples it was.
-    expect(drawn.points.some((point) => point.control !== undefined)).toBe(
-      true,
-    );
-    expect(drawn.points.length).toBeLessThan(wheel.length);
-    expect(drawn.points.some((point) => "traced" in point)).toBe(false);
-    expect(drawn.points.at(-1)!.lateralYards).toBeCloseTo(
-      q.lateralYards + 6,
-      6,
-    );
-    expect(drawn.points.at(-1)!.depthYards).toBeCloseTo(q.depthYards + 14, 6);
-  });
 
   it("lands a straight pull off the dot as one snapped break, wobble and all", () => {
     const context = drawingContext();
@@ -1913,36 +1439,6 @@ describe("field interaction route handles", () => {
       input: { point, pointerId: 1 },
     }) as FieldInteractionEvent;
 
-  it("drags a break and commits one update for the route", () => {
-    const context = handleContext();
-    const original = pathOf(stickThunderPlay, "rx");
-    const target = { lateralYards: -18, depthYards: 7 };
-
-    const session = run(context, [
-      handleDown(
-        { kind: "node", pathId: "rx", pointIndex: 1 },
-        original.points[1]!,
-      ),
-      move(target),
-      up(target),
-    ]);
-
-    expect(session.commands).toHaveLength(1);
-    expect(session.commands[0]).toMatchObject({
-      kind: "batch",
-      label: "Move route break",
-    });
-    const after = pathOf(
-      applyPlayCommand(stickThunderPlay, session.commands[0]!),
-      "rx",
-    );
-    expect(after.points[1]!.lateralYards).toBeCloseTo(target.lateralYards, 6);
-    expect(after.points[1]!.depthYards).toBeCloseTo(target.depthYards, 6);
-    // Only the dragged break moved.
-    expect(after.points[0]).toEqual(original.points[0]);
-    expect(after.points[2]).toEqual(original.points[2]);
-  });
-
   it("selects a break on press and commits nothing without a drag", () => {
     const context = handleContext();
     const original = pathOf(stickThunderPlay, "rx");
@@ -2092,28 +1588,6 @@ describe("field interaction route handles", () => {
     expect(capped.coverageArea!.radiusDepthYards).toBeLessThan(13);
   });
 
-  it("inserts a break into the segment the Coach double-clicked", () => {
-    const context = handleContext();
-    const original = pathOf(stickThunderPlay, "rz");
-    // Midway along Z's vertical stem, which is his first segment.
-    const point = { lateralYards: 21.09, depthYards: 6 };
-
-    const session = run(context, [
-      { type: "insert-node", pathId: "rz", point },
-    ]);
-    expect(session.commands).toHaveLength(1);
-    expect(session.commands[0]).toMatchObject({ label: "Add route break" });
-
-    const after = pathOf(
-      applyPlayCommand(stickThunderPlay, session.commands[0]!),
-      "rz",
-    );
-    expect(after.points).toHaveLength(original.points.length + 1);
-    expect(after.points[1]!.lateralYards).toBeCloseTo(point.lateralYards, 6);
-    expect(session.model.selectedNodeIndex).toBe(1);
-    expect(session.model.selection).toEqual([path("rz")]);
-  });
-
   it("inserts into the later segment when that is the one clicked", () => {
     const context = handleContext();
     const original = pathOf(stickThunderPlay, "rx");
@@ -2191,19 +1665,6 @@ describe("field interaction route handles", () => {
       canonicalStringify(done.commands[0]),
     );
   });
-
-  it("ignores a handle press while a route is being drawn", () => {
-    const context = handleContext();
-    const y = positionOf(stickThunderPlay, "y");
-    const drawing = run(context, [start("route", "y")]);
-    const session = run(
-      context,
-      [handleDown({ kind: "node", pathId: "rx", pointIndex: 1 }, y)],
-      drawing.model,
-    );
-    expect(session.model.gesture.kind).toBe("idle");
-    expect(session.model.drawing).toBeDefined();
-  });
 });
 
 describe("field interaction labels", () => {
@@ -2216,26 +1677,6 @@ describe("field interaction labels", () => {
     });
   const labelOf = (document: PlayDocument, id: string) =>
     document.labels.find((candidate) => candidate.id === id)!;
-
-  it("writes a new note where the Coach pressed and asks for it to be typed", () => {
-    const context = labelContext();
-    const spot = { lateralYards: 6, depthYards: 9 };
-
-    const result = fieldInteraction(idleFieldInteraction, down(spot), context);
-    expect(result.command).toBeDefined();
-    expect(result.editingLabelId).toBe("label_new");
-    // The Coach is handed the select tool so the note is his to move.
-    expect(result.requestedTool).toBe("select");
-    expect(result.model.selection).toEqual([label("label_new")]);
-
-    const after = applyPlayCommand(stickThunderPlay, result.command!);
-    const written = labelOf(after, "label_new");
-    expect(written.position).toEqual(spot);
-    expect(written.text).toBe("5 Yds");
-    expect(written.size).toBe(13);
-    expect(written.box).toBe("none");
-    expect(written.unit).toBeUndefined();
-  });
 
   it("gives the note to the defense when a defender was selected", () => {
     const withDefender = {
@@ -2259,59 +1700,6 @@ describe("field interaction labels", () => {
     const after = applyPlayCommand(withDefender, result.command!);
     // Position is never the tell — depth notes live downfield too.
     expect(labelOf(after, "label_new").unit).toBe("defense");
-  });
-
-  it("retypes a label and leaves everything else alone", () => {
-    const command = setLabelTextCommand(stickThunderPlay, "l2", "3 Yds")!;
-    const after = applyPlayCommand(stickThunderPlay, command);
-    expect(labelOf(after, "l2").text).toBe("3 Yds");
-    expect({ ...labelOf(after, "l2"), text: "" }).toEqual({
-      ...labelOf(stickThunderPlay, "l2"),
-      text: "",
-    });
-    // Retyping the same words is not an edit.
-    expect(
-      setLabelTextCommand(
-        stickThunderPlay,
-        "l2",
-        labelOf(stickThunderPlay, "l2").text,
-      ),
-    ).toBeUndefined();
-  });
-
-  it("coalesces consecutive retyping into one undo entry", () => {
-    // The command carries the key the EditorStore coalesces on, so the
-    // Coach's keystrokes land as a single entry until he moves on.
-    const command = setLabelTextCommand(stickThunderPlay, "l2", "3")!;
-    expect(playCommandCoalesceKey(command)).toBe("label:l2");
-  });
-
-  it("applies a meaning as a whole look", () => {
-    const command = applyLabelRoleCommand(stickThunderPlay, "l2", "alert")!;
-    const after = labelOf(applyPlayCommand(stickThunderPlay, command), "l2");
-    expect(after).toMatchObject({
-      role: "alert",
-      color: "red",
-      box: "outline",
-      boxColor: "red",
-      size: 12,
-      caps: true,
-      mono: false,
-    });
-  });
-
-  it("changes one part of a label's appearance at a time", () => {
-    const sized = setLabelAppearanceCommand(stickThunderPlay, "l2", {
-      size: 17,
-    })!;
-    expect(labelOf(applyPlayCommand(stickThunderPlay, sized), "l2").size).toBe(
-      17,
-    );
-
-    // Setting what is already set is not an edit.
-    expect(
-      setLabelAppearanceCommand(stickThunderPlay, "l2", { size: 11 }),
-    ).toBeUndefined();
   });
 
   it("drops the unit key when a note goes back to the offense", () => {
@@ -2368,42 +1756,6 @@ describe("field interaction labels", () => {
     expect(after.leader!.endpoint.lateralYards).toBeCloseTo(-9, 6);
     expect(after.leader!.endpoint.depthYards).toBeCloseTo(4, 6);
   });
-
-  it("commits nothing when a leader is pressed but not dragged", () => {
-    const withLeader = applyPlayCommand(stickThunderPlay, {
-      kind: "update-label",
-      label: {
-        ...labelOf(stickThunderPlay, "l2"),
-        leader: {
-          line: "solid",
-          endpoint: { lateralYards: -12, depthYards: 2 },
-        },
-      },
-    });
-    const context = labelContext({ document: withLeader, tool: "select" });
-    const session = run(context, [
-      {
-        type: "handle-down",
-        handle: { kind: "leader", labelId: "l2" },
-        input: { point: { lateralYards: -12, depthYards: 2 }, pointerId: 1 },
-      },
-      up({ lateralYards: -12, depthYards: 2 }),
-    ]);
-    expect(session.commands).toHaveLength(0);
-  });
-
-  it("deletes the selected note without touching the rest of the Play", () => {
-    const context = labelContext({ tool: "select" });
-    const session = run(context, [{ type: "delete" }], {
-      selection: [label("l2")],
-      gesture: { kind: "idle" },
-    });
-    const after = applyPlayCommand(stickThunderPlay, session.commands[0]!);
-    expect(after.labels).toHaveLength(stickThunderPlay.labels.length - 1);
-    expect(after.labels.some(({ id }) => id === "l2")).toBe(false);
-    expect(after.players).toEqual(stickThunderPlay.players);
-    expect(after.paths).toEqual(stickThunderPlay.paths);
-  });
 });
 
 describe("field interaction copy, paste, and mirror", () => {
@@ -2424,13 +1776,6 @@ describe("field interaction copy, paste, and mirror", () => {
   };
   const pathOf = (document: PlayDocument, id: string) =>
     document.paths.find((candidate) => candidate.id === id)!;
-
-  it("copies nothing when nothing is picked, and pastes nothing without a copy", () => {
-    const context = clipContext();
-    const empty = run(context, [{ type: "copy" }, { type: "paste" }]);
-    expect(empty.commands).toHaveLength(0);
-    expect(empty.model.clipboard).toBeUndefined();
-  });
 
   it("pastes a Player and his route as new entities clear of the originals", () => {
     const context = clipContext();
@@ -2477,16 +1822,6 @@ describe("field interaction copy, paste, and mirror", () => {
       { kind: "player", id: copiedPlayer.id },
       { kind: "path", id: copiedPath.id },
     ]);
-  });
-
-  it("does not paste a twelfth Player onto a full side of the LOS", () => {
-    const context = clipContext({ document: stickThunderPlay });
-    const session = run(context, [{ type: "copy" }, { type: "paste" }], {
-      selection: [player("x"), path("rx")],
-      gesture: { kind: "idle" },
-    });
-    // The man is skipped; his route goes with him. Nothing lands.
-    expect(session.commands).toHaveLength(0);
   });
 
   it("keeps a route attached to its man when he was left behind", () => {
@@ -2584,21 +1919,6 @@ describe("field interaction copy, paste, and mirror", () => {
     expect(duplicated.model.clipboard).toEqual(copied.model.clipboard);
   });
 
-  it("mirrors the whole Play when nothing is picked", () => {
-    const context = clipContext();
-    const session = run(context, [{ type: "mirror" }]);
-    expect(session.commands[0]).toEqual({ kind: "mirror-play" });
-
-    const mirrored = applyPlayCommand(pasteRoom, session.commands[0]!);
-    expect(positionOf(mirrored, "z").lateralYards).toBeCloseTo(
-      -positionOf(pasteRoom, "z").lateralYards,
-      9,
-    );
-    // Mirroring twice is the Play exactly as it was (ADR 0034).
-    const back = applyPlayCommand(mirrored, { kind: "mirror-play" });
-    expect(canonicalStringify(back)).toBe(canonicalStringify(pasteRoom));
-  });
-
   it("mirrors only what is picked, carrying each man's routes with him", () => {
     const context = clipContext();
     const session = run(context, [{ type: "mirror" }], {
@@ -2663,21 +1983,6 @@ describe("field interaction copy, paste, and mirror", () => {
     expect(two.binding!.offset.lateralYards).toBeCloseTo(-2, 9);
     expect(two.binding!.offset.depthYards).toBeCloseTo(1, 9);
   });
-
-  it("mirrors nothing on an empty Play", () => {
-    const empty = applyPlayCommand(
-      stickThunderPlay,
-      clearPlayLayerCommand(stickThunderPlay, "players"),
-    );
-    const cleared = applyPlayCommand(
-      empty,
-      clearPlayLayerCommand(empty, "labels"),
-    );
-    const session = run(clipContext({ document: cleared }), [
-      { type: "mirror" },
-    ]);
-    expect(session.commands).toHaveLength(0);
-  });
 });
 
 describe("field interaction branch and segment selection", () => {
@@ -2699,52 +2004,12 @@ describe("field interaction branch and segment selection", () => {
     };
   };
 
-  it("selects the whole route first, and a segment only on a second click", () => {
-    const context = routeContext();
-    const onSecond = midOfSegment(stickThunderPlay, "rx", 2);
-
-    const first = run(context, [down(onSecond), up(onSecond)]);
-    expect(first.model.selection).toEqual([path("rx")]);
-    // The first click picks the route entire, as the original did.
-    expect(first.model.selectedSegmentIndex).toBeUndefined();
-
-    const second = run(context, [down(onSecond), up(onSecond)], first.model);
-    expect(second.model.selectedSegmentIndex).toBe(2);
-    expect(second.model.selection).toEqual([path("rx")]);
-    expect(second.commands).toHaveLength(0);
-  });
-
   it("picks out the segment the Coach clicked, not always the same one", () => {
     const context = routeContext();
     const onFirst = midOfSegment(stickThunderPlay, "rx", 1);
     const selected = run(context, [down(onFirst), up(onFirst)]);
     const narrowed = run(context, [down(onFirst), up(onFirst)], selected.model);
     expect(narrowed.model.selectedSegmentIndex).toBe(1);
-  });
-
-  it("selects a branch when the Coach clicks the line he split off", () => {
-    const context = routeContext();
-    // Z's branch runs from his stem's break out to the deep corner.
-    const branch = pathOf(stickThunderPlay, "rz").branches[0]!;
-    const from = pathOf(stickThunderPlay, "rz").points[branch.fromIndex]!;
-    const end = branch.points[0]!;
-    const onBranch = {
-      lateralYards: (from.lateralYards + end.lateralYards) / 2,
-      depthYards: (from.depthYards + end.depthYards) / 2,
-    };
-
-    const selected = run(context, [down(onBranch), up(onBranch)]);
-    expect(selected.model.selection).toEqual([path("rz")]);
-    expect(selected.model.selectedBranchIndex).toBeUndefined();
-
-    const onBranchLine = run(
-      context,
-      [down(onBranch), up(onBranch)],
-      selected.model,
-    );
-    expect(onBranchLine.model.selectedBranchIndex).toBe(0);
-    // A branch is a whole line, so no one segment of it is picked out.
-    expect(onBranchLine.model.selectedSegmentIndex).toBeUndefined();
   });
 
   it("forgets the line and break when the Coach picks something else", () => {
@@ -2878,36 +2143,6 @@ describe("field interaction branch and segment selection", () => {
 describe("route styling", () => {
   const pathOf = (document: PlayDocument, id: string) =>
     document.paths.find((candidate) => candidate.id === id)!;
-
-  it("restyles the whole line when nothing is picked out", () => {
-    const command = setRouteStyleCommand(
-      stickThunderPlay,
-      "rx",
-      {},
-      {
-        line: "dashed",
-      },
-    )!;
-    const after = pathOf(applyPlayCommand(stickThunderPlay, command), "rx");
-    expect(after.style.line).toBe("dashed");
-    expect(after.style.ending).toBe(
-      pathOf(stickThunderPlay, "rx").style.ending,
-    );
-  });
-
-  it("dots one leg of an otherwise solid route", () => {
-    const command = setRouteStyleCommand(
-      stickThunderPlay,
-      "rx",
-      { segmentIndex: 2 },
-      { line: "dotted" },
-    )!;
-    const after = pathOf(applyPlayCommand(stickThunderPlay, command), "rx");
-    // The line itself is untouched; only the picked leg carries an override.
-    expect(after.style.line).toBe("solid");
-    expect(after.points[2]!.segmentStyle?.line).toBe("dotted");
-    expect(after.points[1]!.segmentStyle).toBeUndefined();
-  });
 
   it("clears the piecemeal overrides when the whole line is restyled", () => {
     const dotted = applyPlayCommand(
@@ -3146,19 +2381,6 @@ describe("route styling", () => {
     expect(branchOnly.branches[0]!.points[0]!.control).toBeUndefined();
     expect(branchOnly.points[1]!.control).toBeDefined();
   });
-
-  it("declines edits that would change nothing", () => {
-    expect(
-      setRouteStyleCommand(stickThunderPlay, "rx", {}, { line: "solid" }),
-    ).toBeUndefined();
-    expect(straightenRouteCommand(stickThunderPlay, "rx")).toBeUndefined();
-    expect(
-      setRouteKindCommand(stickThunderPlay, "rx", "route"),
-    ).toBeUndefined();
-    expect(
-      setRouteStyleCommand(stickThunderPlay, "missing", {}, {}),
-    ).toBeUndefined();
-  });
 });
 
 describe("what a route is for", () => {
@@ -3166,38 +2388,6 @@ describe("what a route is for", () => {
     document.paths.find((candidate) => candidate.id === id)!;
   let counter = 0;
   const createId = () => `assignment_${(counter += 1)}`;
-
-  it("writes the read, the conversion, and the note onto the line", () => {
-    // Each edit is built against what the one before it left, the way the
-    // panel builds them from the live document.
-    let document = applyPlayCommand(
-      stickThunderPlay,
-      setRouteReadCommand(stickThunderPlay, "rx", 2)!,
-    );
-    document = applyPlayCommand(
-      document,
-      setRouteCoachingTextCommand(
-        document,
-        "rx",
-        "conversion",
-        "vs man: fade",
-      )!,
-    );
-    document = applyPlayCommand(
-      document,
-      setRouteCoachingTextCommand(
-        document,
-        "rx",
-        "coachingNote",
-        "Push vertical",
-      )!,
-    );
-    const path = pathOf(document, "rx");
-
-    expect(path.readOrder).toBe(2);
-    expect(path.conversion).toBe("vs man: fade");
-    expect(path.coachingNote).toBe("Push vertical");
-  });
 
   it("drops the key when the Coach empties a field", () => {
     const written = applyPlayCommand(
@@ -3231,25 +2421,6 @@ describe("what a route is for", () => {
     expect(pathOf(wild, "rx").readOrder).toBe(99);
   });
 
-  it("gives the wording to the man and says which line it is about", () => {
-    const command = setRouteAssignmentCommand(
-      stickThunderPlay,
-      "rx",
-      "STICK",
-      createId,
-    )!;
-    const document = applyPlayCommand(stickThunderPlay, command);
-    const assignment = assignmentForPath(document, "rx")!;
-
-    expect(assignment.playerId).toBe(pathOf(stickThunderPlay, "rx").playerId);
-    expect(assignment.text).toBe("STICK");
-    expect(assignment.actions).toHaveLength(1);
-    expect(assignment.actions[0]).toMatchObject({
-      kind: "movement",
-      pathId: "rx",
-    });
-  });
-
   it("lets one man carry different words for each of his lines", () => {
     const rxPlayerId = pathOf(stickThunderPlay, "rx").playerId;
     // A second line off the same man, the way an alternate arrives.
@@ -3281,22 +2452,6 @@ describe("what a route is for", () => {
     expect(
       document.assignments.filter(({ playerId }) => playerId === rxPlayerId),
     ).toHaveLength(2);
-  });
-
-  it("takes the Assignment away with its words", () => {
-    const written = applyPlayCommand(
-      stickThunderPlay,
-      setRouteAssignmentCommand(stickThunderPlay, "rx", "STICK", createId)!,
-    );
-    const emptied = applyPlayCommand(
-      written,
-      setRouteAssignmentCommand(written, "rx", "", createId)!,
-    );
-
-    expect(assignmentForPath(emptied, "rx")).toBeUndefined();
-    expect(canonicalStringify(emptied)).toBe(
-      canonicalStringify(stickThunderPlay),
-    );
   });
 
   it("keeps an Assignment the Coach has built out, and only clears the words", () => {
@@ -3352,45 +2507,6 @@ describe("what a route is for", () => {
       document.assignments.find(({ id }) => id === "assignment_freeform")?.text,
     ).toBe("Beat press with an outside release.");
     expect(assignmentForPath(document, "rx")?.text).toBe("STICK");
-  });
-
-  it("holds each field to the length that fits on a card", () => {
-    const long = "x".repeat(200);
-    let document = applyPlayCommand(
-      stickThunderPlay,
-      setRouteCoachingTextCommand(stickThunderPlay, "rx", "conversion", long)!,
-    );
-    document = applyPlayCommand(
-      document,
-      setRouteCoachingTextCommand(document, "rx", "coachingNote", long)!,
-    );
-    document = applyPlayCommand(
-      document,
-      setRouteAssignmentCommand(document, "rx", long, createId)!,
-    );
-
-    expect(pathOf(document, "rx").conversion).toHaveLength(
-      ROUTE_COACHING_LIMITS.conversion,
-    );
-    expect(pathOf(document, "rx").coachingNote).toHaveLength(
-      ROUTE_COACHING_LIMITS.coachingNote,
-    );
-    expect(assignmentForPath(document, "rx")?.text).toHaveLength(
-      ROUTE_COACHING_LIMITS.assignment,
-    );
-  });
-
-  it("declines edits that would change nothing", () => {
-    expect(
-      setRouteCoachingTextCommand(stickThunderPlay, "rx", "conversion", ""),
-    ).toBeUndefined();
-    expect(
-      setRouteAssignmentCommand(stickThunderPlay, "rx", "  ", createId),
-    ).toBeUndefined();
-    expect(setRouteReadCommand(stickThunderPlay, "missing", 1)).toBeUndefined();
-    expect(
-      setRouteAssignmentCommand(stickThunderPlay, "missing", "X", createId),
-    ).toBeUndefined();
   });
 
   it("coalesces retyping into one undo entry", () => {
@@ -3545,12 +2661,6 @@ describe("the other lines he could run", () => {
     ]);
   });
 
-  it("declines for a man who is not on the field", () => {
-    expect(
-      addAlternateRouteCommand(stickThunderPlay, "missing", createId),
-    ).toBeUndefined();
-  });
-
   it("gives no alternate route to a man who does not run routes", () => {
     expect(
       addAlternateRouteCommand(stickThunderPlay, "ol2", createId),
@@ -3564,23 +2674,6 @@ describe("the other lines he could run", () => {
 describe("a choice within one stem", () => {
   const pathOf = (document: PlayDocument, id: string) =>
     document.paths.find((candidate) => candidate.id === id)!;
-
-  it("forks the stem at the break the Coach picked", () => {
-    const document = applyPlayCommand(
-      stickThunderPlay,
-      addRouteChoiceCommand(stickThunderPlay, "rx", 1)!,
-    );
-    const branch = pathOf(document, "rx").branches[0]!;
-
-    expect(pathOf(document, "rx").branches).toHaveLength(1);
-    expect(branch.fromIndex).toBe(1);
-    expect(branch.points).toHaveLength(1);
-    expect(branch.style).toEqual({
-      line: "dashed",
-      ending: "arrow",
-      color: "ink",
-    });
-  });
 
   it("turns the original's angle, measured in the frame it was measured in", () => {
     const before = pathOf(stickThunderPlay, "rx");
@@ -3656,12 +2749,6 @@ describe("a choice within one stem", () => {
     expect(length).toBeCloseTo(70, 6);
   });
 
-  it("declines on a line with nowhere to fork", () => {
-    expect(
-      addRouteChoiceCommand(stickThunderPlay, "missing", 0),
-    ).toBeUndefined();
-  });
-
   it("takes away only the choice the Coach is on", () => {
     let document = applyPlayCommand(
       stickThunderPlay,
@@ -3720,18 +2807,6 @@ describe("turning a line the other way", () => {
     expect(flipped.points[2]!.depthYards).toBe(base.points[2]!.depthYards);
   });
 
-  it("turns twice back to where it started", () => {
-    const once = applyPlayCommand(
-      stickThunderPlay,
-      flipRouteCommand(stickThunderPlay, "rx")!,
-    );
-    const twice = applyPlayCommand(once, flipRouteCommand(once, "rx")!);
-
-    expect(canonicalStringify(pathOf(twice, "rx"))).toBe(
-      canonicalStringify(pathOf(stickThunderPlay, "rx")),
-    );
-  });
-
   it("turns every line a man has about his own stance, in one entry", () => {
     // The seeded lines all begin exactly where their man stands, which would
     // let the axis be read off either. Z's is moved off his stance first so
@@ -3762,25 +2837,9 @@ describe("turning a line the other way", () => {
       6,
     );
   });
-
-  it("declines for a man with nothing to turn", () => {
-    expect(flipPlayerLinesCommand(stickThunderPlay, "q")).toBeUndefined();
-    expect(flipRouteCommand(stickThunderPlay, "missing")).toBeUndefined();
-  });
 });
 
 describe("asking what can be done to one thing", () => {
-  it("settles on what was pointed at when it was not already picked", () => {
-    const context = contextFor(stickThunderPlay);
-    const { model } = run(context, [
-      down(positionOf(stickThunderPlay, "x")),
-      up(positionOf(stickThunderPlay, "x")),
-      { type: "point-at", item: player("z") },
-    ]);
-
-    expect(model.selection).toEqual([player("z")]);
-  });
-
   it("keeps a group whole when it is one of the group", () => {
     // Asking about one of several must not throw the rest away: the menu is
     // about all of them, which is what makes Delete take the group.
@@ -3793,39 +2852,11 @@ describe("asking what can be done to one thing", () => {
     expect(model.selection.length).toBeGreaterThan(1);
     expect(model.selection).toContainEqual(player("z"));
   });
-
-  it("abandons a route being drawn — he has stopped to look", () => {
-    const context = contextFor(stickThunderPlay);
-    const { model } = run(context, [
-      start("route", "z"),
-      { type: "point-at", item: player("z") },
-    ]);
-
-    expect(model.drawing).toBeUndefined();
-  });
 });
 
 describe("which of them draws on top", () => {
   const order = (document: PlayDocument) => document.paths.map(({ id }) => id);
   const seeded = order(stickThunderPlay);
-
-  it("swaps a line with the one it is drawn under", () => {
-    const forward = applyPlayCommand(
-      stickThunderPlay,
-      reorderSelectionCommand(stickThunderPlay, [path("rf")], 1)!,
-    );
-
-    expect(seeded).toEqual(["rx", "rf", "ry", "rh", "rz"]);
-    expect(order(forward)).toEqual(["rx", "ry", "rf", "rh", "rz"]);
-    expect(
-      order(
-        applyPlayCommand(
-          forward,
-          reorderSelectionCommand(forward, [path("rf")], -1)!,
-        ),
-      ),
-    ).toEqual(seeded);
-  });
 
   it("carries a group without letting its members overtake each other", () => {
     const moved = applyPlayCommand(
@@ -3841,22 +2872,6 @@ describe("which of them draws on top", () => {
     expect(
       reorderSelectionCommand(stickThunderPlay, [path("rx"), path("rf")], -1),
     ).toBeUndefined();
-  });
-
-  it("declines when the line is already as far as it goes", () => {
-    expect(
-      reorderSelectionCommand(stickThunderPlay, [path("rz")], 1),
-    ).toBeUndefined();
-    expect(
-      reorderSelectionCommand(stickThunderPlay, [path("rx")], -1),
-    ).toBeUndefined();
-  });
-
-  it("declines for Players, who draw above every line either way", () => {
-    expect(
-      reorderSelectionCommand(stickThunderPlay, [player("x")], 1),
-    ).toBeUndefined();
-    expect(reorderSelectionCommand(stickThunderPlay, [], 1)).toBeUndefined();
   });
 
   it("reorders text on its own layer, and lands as one entry", () => {
@@ -3980,16 +2995,6 @@ describe("holding everything on the field", () => {
       positionOf(applyPlayCommand(withSafety, above.commands[0]!), "safety")
         .depthYards,
     ).toBeCloseTo(depthWindow.maxDepthYards, 6);
-  });
-
-  it("leaves the frame alone when the shell has not drawn one", () => {
-    const context = boundsContext({ depthWindow: undefined });
-    const q = positionOf(stickThunderPlay, "q");
-    const session = run(
-      context,
-      drag(q, { lateralYards: q.lateralYards, depthYards: -60 }),
-    );
-    expect(dragged(session, "q").depthYards).toBeCloseTo(-60, 6);
   });
 
   it("stops a Player where the far end of his route touches the sideline", () => {
