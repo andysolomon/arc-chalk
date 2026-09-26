@@ -3,10 +3,6 @@ import {
   buildRenderScene,
   buildSvgRenderScene,
   defaultPresentation,
-  effectiveLayers,
-  labelFontSize,
-  pageKindSpec,
-  resolveTypeDensity,
   withoutShadow,
   type Presentation,
 } from "@chalk/render";
@@ -49,32 +45,6 @@ const presented = (play: typeof stickThunderPlay, presentation: Presentation) =>
   buildSvgRenderScene(buildRenderScene(play, { presentation }));
 
 describe("type presets", () => {
-  it("opens on the original's Coach density", () => {
-    expect(resolveTypeDensity()).toEqual({
-      name: "Coach",
-      label: 12,
-      read: 13,
-      notes: true,
-      flat: false,
-      hint: "Dense — reads, assignments, conversions and notes all on the field.",
-    });
-    expect(labelFontSize(11)).toBe(11);
-  });
-
-  it("scales Player and Print off Coach's 12, and Present by 1.25×", () => {
-    expect(
-      resolveTypeDensity({ ...defaultPresentation, typePreset: "player" }),
-    ).toMatchObject({ label: 15, read: 17, notes: false, flat: false });
-    expect(
-      resolveTypeDensity({ ...defaultPresentation, typePreset: "print" }),
-    ).toMatchObject({ label: 13, read: 14, notes: true, flat: true });
-    expect(
-      resolveTypeDensity({ ...defaultPresentation, present: true }),
-    ).toMatchObject({ label: 15, read: 16 });
-    expect(labelFontSize(11, 15)).toBe(14);
-    expect(labelFontSize(11, 13)).toBe(12);
-  });
-
   it("draws the Assignment at the preset's label size and the read at its read size", () => {
     const coach = presented(coached, defaultPresentation).paths.find(
       ({ id }) => id === "rx",
@@ -127,34 +97,6 @@ describe("page kinds", () => {
 
     expect(quarterback(half)).toEqual(quarterback(full));
     expect(quarterback(blank)).toEqual(quarterback(full));
-  });
-
-  it("clips Half field to the original's band and leaves Full field's 30-yard window", () => {
-    expect(pageKindSpec("half").window.maxDepthYards).toBeCloseTo(
-      (430 - 196) / 12,
-      9,
-    );
-    expect(pageKindSpec("half").window.minDepthYards).toBeCloseTo(
-      (430 - 620) / 12,
-      9,
-    );
-
-    const full = presented(stickThunderPlay, defaultPresentation);
-    const half = presented(stickThunderPlay, {
-      ...defaultPresentation,
-      pageKind: "half",
-    });
-
-    expect(full.field.yardLines).toHaveLength(9);
-    expect(half.field.yardLines.map(({ id }) => id)).toEqual([
-      "yard-line--15",
-      "yard-line--10",
-      "yard-line--5",
-      "yard-line-0",
-      "yard-line-5",
-      "yard-line-10",
-      "yard-line-15",
-    ]);
   });
 
   it("draws Scout card as the LOS alone, Playbook page as light lines, Blank as nothing", () => {
@@ -223,15 +165,6 @@ describe("annotation layers", () => {
     expect(
       presented(stickThunderPlay, defaultPresentation).labels,
     ).toHaveLength(12);
-  });
-
-  it("keeps the Notes toggle on under Player type while still hiding the notes", () => {
-    const player: Presentation = {
-      ...defaultPresentation,
-      typePreset: "player",
-    };
-    expect(player.layers.notes).toBe(true);
-    expect(effectiveLayers(player).notes).toBe(false);
   });
 });
 

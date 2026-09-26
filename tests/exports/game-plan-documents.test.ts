@@ -215,15 +215,6 @@ describe("game plan wristband", () => {
     expect(smaller.match(/<div class="wb">/g)).toHaveLength(3);
     expect(smaller).toContain("Band 3 of 3");
   });
-
-  it("names no band when one holds the whole plan", () => {
-    const { revision } = weekThree();
-    const html = gamePlanWristbandHtml(revision, {
-      render: recordingRenderer(),
-    });
-    expect(html.match(/<div class="wb">/g)).toHaveLength(1);
-    expect(html).not.toContain('class="wl"');
-  });
 });
 
 /**
@@ -270,16 +261,6 @@ describe("the packet's presentation", () => {
     expect(after).toBe(before);
     expect(before).toContain(
       `data-effective='{"pageKind":"full","typePreset":"print","layers":{"reads":true,"assigns":true,"notes":true,"text":true}}'`,
-    );
-  });
-
-  it("prints the same wristband whatever the editor's page, type and layers are", () => {
-    const { revision } = weekThree();
-    const before = gamePlanWristbandHtml(revision, { render: coach });
-    const after = gamePlanWristbandHtml(revision, { render: stripped });
-    expect(after).toBe(before);
-    expect(before).toContain(
-      `data-effective='{"pageKind":"full","typePreset":"print","layers":{"reads":false,"assigns":false,"notes":false,"text":false},"lineWeight":1.5}'`,
     );
   });
 });

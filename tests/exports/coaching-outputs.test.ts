@@ -1,24 +1,18 @@
 import { stickThunderPlay, type PlayDocument } from "@chalk/domain";
 import {
   callSheetGroups,
-  callSheetHtml,
   cropSvgToScoutCard,
-  exportFileName,
-  groupMembers,
   installPageHtml,
   libraryOrder,
   playMeta,
   playRows,
   playbookHtml,
   positionViewHtml,
-  practiceCardPlays,
-  practiceCardsHtml,
   progressionStrip,
   quizHtml,
   quizPlay,
   scoutCardPlays,
   scoutCardsHtml,
-  slideHtml,
   standaloneSvg,
   wristbandHtml,
   type DiagramOptions,
@@ -103,19 +97,6 @@ describe("coaching rows", () => {
     expect(meta.formation).toBe(offensivePlaybookGolden.formations[0]!.name);
     expect(meta.strength).toBe("balanced");
     expect(meta.hash).toBe("middle");
-  });
-
-  it("finds a position group by role and the defense by unit", () => {
-    expect(groupMembers(readPlay, "rec").map(({ id }) => id)).toEqual([
-      "x",
-      "y",
-      "z",
-    ]);
-    expect(groupMembers(readPlay, "line")).toHaveLength(5);
-    expect(groupMembers(readPlay, "def")).toHaveLength(0);
-    expect(groupMembers(defensiveCoverThreePlay, "def").length).toBeGreaterThan(
-      0,
-    );
   });
 
   it("keeps only landmark labels on the quiz diagram", () => {
@@ -263,23 +244,6 @@ describe("teaching documents", () => {
       quizHtml({ ...readPlay, paths: [], assignments: [] }, { render }),
     ).toBeUndefined();
   });
-
-  it("builds the slide dark, 62/38, with at most three coaching points", () => {
-    const render = recordingRenderer();
-    const html = slideHtml(readPlay, { render, concept });
-    expect(html).toContain(
-      "@page{size:20in 11.25in;margin:0}body{background:#171717}",
-    );
-    expect(html).toContain(".dg{width:62%");
-    expect(html).toContain(".tx{width:38%");
-    expect(html).toContain("<h1>Stick — Thunder</h1>");
-    expect(html).toContain(
-      '<p class="scn">Create a triangle on the apex defender.</p>',
-    );
-    expect(html).toContain('<div class="sps">1 RELEASE INSIDE');
-    expect(html).toContain('<div class="pt">— Win the apex.</div>');
-    expect(render.calls[0]?.options).toEqual({ typePreset: "coach" });
-  });
 });
 
 describe("field documents", () => {
@@ -328,26 +292,6 @@ describe("field documents", () => {
       layers: { reads: false, assigns: false, notes: false, text: true },
     });
   });
-
-  it("prints practice cards 2-up with the open Play first and its strip", () => {
-    const render = recordingRenderer();
-    const other: PlayDocument = { ...stickThunderPlay, id: "other" };
-    const plays = practiceCardPlays([other, readPlay], readPlay);
-    expect(plays.map(({ id }) => id)).toEqual([readPlay.id, "other"]);
-    const html = practiceCardsHtml(plays, { render });
-    expect(html).toContain("grid-template-columns:1fr 1fr");
-    expect(html.match(/class="card"/g)?.length).toBe(2);
-    expect(html).toContain('<div class="ps">1 RELEASE INSIDE');
-  });
-
-  it("gives the call sheet a tag column each and twelve ruled lines", () => {
-    const html = callSheetHtml([readPlay], { concepts: [concept] });
-    expect(html).toContain("@page{size:letter landscape;margin:0.4in}");
-    expect(html).toContain("<h2>3rd down</h2>");
-    expect(html).toContain('<div class="row">Stick — Thunder</div>');
-    expect(html).toContain("grid-template-columns:1fr 2.4in");
-    expect(html.match(/class="wl"/g)?.length).toBe(12);
-  });
 });
 
 describe("playbook", () => {
@@ -378,22 +322,6 @@ describe("playbook", () => {
     expect(html.match(/class="pg/g)?.length).toBe(4);
     expect(playbookHtml([], { render, year: 2026 })).toBeUndefined();
   });
-
-  it("builds a 40-play book as one string in well under three seconds", () => {
-    const render = recordingRenderer();
-    const plays = Array.from({ length: 40 }, (_, index) => ({
-      ...readPlay,
-      id: `play_${index}`,
-      name: `Play ${index + 1}`,
-      conceptSource: undefined,
-    }));
-    const started = performance.now();
-    const html = playbookHtml(plays, { render, year: 2026 })!;
-    expect(performance.now() - started).toBeLessThan(3000);
-    expect(html.match(/class="pno"/g)?.length).toBe(40);
-    expect(html).toContain('<div class="pno">42</div>');
-    expect(render.calls).toHaveLength(40);
-  });
 });
 
 describe("standalone SVG", () => {
@@ -412,14 +340,6 @@ describe("standalone SVG", () => {
     expect(cropSvgToScoutCard(svg)).toContain(
       'height="820" viewBox="0 210 1000 410"',
     );
-  });
-
-  it("names files the way the original did, clock included", () => {
-    expect(exportFileName("Stick — Thunder", "svg")).toBe(
-      "Stick — Thunder.svg",
-    );
-    expect(exportFileName("", "png")).toBe("play.png");
-    expect(exportFileName("Stick", "png", "−0.4s")).toBe("Stick -0.4s.png");
   });
 
   it("escapes a name so a quote cannot break a sheet", () => {

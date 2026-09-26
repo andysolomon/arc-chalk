@@ -7,7 +7,8 @@ import type { PlayUnit } from "@chalk/domain";
  * word first and its colour second. The two were chosen apart from the
  * field's own semantics — route blue, blitz red, stunt orange, route green,
  * yellow, and the coverage fills — and checked against protan, deutan and
- * tritan simulation (`packages/render/src/unit-palette.test.ts`).
+ * tritan simulation when they were chosen. Contrast is still checked in
+ * `packages/render/src/unit-palette.test.ts`.
  */
 export interface UnitColors {
   /** Dot and hairline. At least 3:1 against the tint, 4.5:1 against paper. */
