@@ -1,5 +1,5 @@
 import { ballSpotMapping, currentBallSpot, hashSpots } from "./ball-spot";
-import { stockDefensiveCalls } from "./defense-catalogue";
+import { type DefensiveCall, stockDefensiveCalls } from "./defense-catalogue";
 import { stockFormations } from "./formation-catalogue";
 import {
   applyFormation,
@@ -46,8 +46,19 @@ const stock = (id: string): Formation => {
 export const baseFormation: Formation = stock("formation_gun_doubles_right");
 export const baseDefensiveCall: Formation = stock("defense_43_c3");
 
-export function baseAlignment(side: PlayerSideOfBall): Formation {
-  return side === "defense" ? baseDefensiveCall : baseFormation;
+/**
+ * `calls` is the defensive catalogue as the Coach's Playbook stands it —
+ * corners and deep safeties at his depths (ADR 0061) — so base is too.
+ */
+export function baseAlignment(
+  side: PlayerSideOfBall,
+  calls: readonly DefensiveCall[] = stockDefensiveCalls,
+): Formation {
+  if (side === "offense") return baseFormation;
+  return (
+    calls.find(({ formation }) => formation.id === baseDefensiveCall.id)
+      ?.formation ?? baseDefensiveCall
+  );
 }
 
 /**
@@ -59,11 +70,11 @@ export function chosenAlignment(
   play: PlayDocument,
   side: PlayerSideOfBall,
   formations: readonly Formation[] = stockFormations,
+  calls: readonly DefensiveCall[] = stockDefensiveCalls,
 ): Formation | undefined {
   if (side === "defense") {
     const callId = play.defensiveCallSource?.callId;
-    return stockDefensiveCalls.find(({ formation }) => formation.id === callId)
-      ?.formation;
+    return calls.find(({ formation }) => formation.id === callId)?.formation;
   }
   const formationId = play.formationSource?.formationId;
   return formations.find(({ id }) => id === formationId);
@@ -272,11 +283,12 @@ export function resetAlignment(
   side: PlayerSideOfBall,
   target: AlignmentResetTarget,
   formations: readonly Formation[] = stockFormations,
+  calls: readonly DefensiveCall[] = stockDefensiveCalls,
 ): AlignmentReset | undefined {
   const alignment =
     target === "chosen"
-      ? chosenAlignment(play, side, formations)
-      : baseAlignment(side);
+      ? chosenAlignment(play, side, formations, calls)
+      : baseAlignment(side, calls);
   if (!alignment) return undefined;
 
   const pairs =
@@ -319,8 +331,8 @@ export function resetAlignment(
   );
   if (side === "offense") return { alignment, movedCount, play: carried };
 
-  // A defender in man goes back where the call puts him, which is on his
-  // man (ADR 0060) rather than on the slot he was drawn in.
+  // A defender in man goes back where the call puts him: in Cover 0 that is
+  // on his man (ADR 0060), and in any other call on his slot (ADR 0061).
   const moved = realignManCoverage(carried);
   const at = new Map(moved.players.map(({ id, position }) => [id, position]));
   return {

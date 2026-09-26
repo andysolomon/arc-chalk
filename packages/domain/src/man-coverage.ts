@@ -4,7 +4,7 @@ import {
   ballLateralYards,
   LINE_OF_SCRIMMAGE_CLEARANCE_YARDS,
 } from "./formations";
-import { holdInsideSidelines } from "./geometry";
+import { classifyZoneCoverage, holdInsideSidelines } from "./geometry";
 import { linePresetByKey } from "./route-catalogue";
 import type { Coordinate, MovementPath, PlayDocument, Player } from "./schema";
 
@@ -12,10 +12,16 @@ import type { Coordinate, MovementPath, PlayDocument, Player } from "./schema";
  * Man coverage the way a video-game defense plays it (ADR 0060). A defender
  * given a man call is matched to the receiver it makes most sense for him to
  * take — corners the wide receivers, a nickel the slot, a safety the tight
- * end, a linebacker the back — and lines up on that man: a yard inside him,
- * at his own depth held between one yard and seven off the ball. Who is in
- * man is the scheme's to say, so who takes whom follows from it: with the
- * safety deep in a two-man call, a linebacker takes the tight end instead.
+ * end, a linebacker the back. Who is in man is the scheme's to say, so who
+ * takes whom follows from it: with the safety deep in a two-man call, a
+ * linebacker takes the tight end instead.
+ *
+ * Whether he also moves is the scheme's to say too (ADR 0061). With nobody
+ * deep behind them — Cover 0 — the men in man line up on their men: a yard
+ * inside him, at his own depth held between one yard and seven off the ball,
+ * and they go where their men go. With deep help behind them — Cover 1,
+ * Cover 2 Man — each stays where the call or the Coach put him, and only his
+ * arrow says whom he has.
  *
  * The Coach can give a defender a man of his own choosing. That pick is
  * kept for as long as the man he picked is there to cover; everyone else is
@@ -28,7 +34,8 @@ import type { Coordinate, MovementPath, PlayDocument, Player } from "./schema";
  */
 
 export type ReceiverKind = "wide" | "slot" | "tight" | "back";
-type DefenderKind = "corner" | "nickel" | "safety" | "backer" | "lineman";
+export type DefenderKind =
+  "corner" | "nickel" | "safety" | "backer" | "lineman";
 
 export interface CoverableReceiver {
   readonly player: Player;
@@ -45,6 +52,68 @@ export function isManLine(path: MovementPath): boolean {
     path.variant !== "alternate"
   );
 }
+
+/** A defender standing this deep or deeper is a deep man, whatever his letter. */
+export const DEEP_STANCE_YARDS = 10;
+
+/**
+ * The man coverage the field shows, read the way a Coach calls it: by how
+ * many defenders are deep behind the men in man. A deep drop is help, and
+ * so is a man standing deep with no line at all — a free safety waiting to
+ * be told. A rusher, a man in man and an underneath drop are not.
+ */
+export interface ManCoverageScheme {
+  /** How many defenders are deep behind the men in man. */
+  readonly deepHelp: number;
+  /** "Cover 0", "Cover 1", "Cover 2 Man". */
+  readonly name: string;
+  /**
+   * Whether the men in man line up on their men and go where they go. Only
+   * with nobody deep behind them — Cover 0 — do they.
+   */
+  readonly linesUp: boolean;
+}
+
+export function manCoverageScheme(
+  play: Pick<PlayDocument, "players" | "paths">,
+): ManCoverageScheme | undefined {
+  const inMan = new Set(
+    play.paths.filter(isManLine).map(({ playerId }) => playerId),
+  );
+  if (inMan.size === 0) return undefined;
+  const deepHelp = play.players.filter((player) => {
+    if (player.unit !== "defense" || inMan.has(player.id)) return false;
+    const lines = play.paths.filter(
+      ({ playerId, variant }) =>
+        playerId === player.id && variant !== "alternate",
+    );
+    if (lines.length === 0) {
+      return player.position.depthYards >= DEEP_STANCE_YARDS;
+    }
+    return lines.some((path) => {
+      const end = path.points.at(-1);
+      if (path.kind !== "zone" || !end) return false;
+      return (
+        (path.coverageArea?.type ??
+          classifyZoneCoverage(end, path.coverageArea?.radiusLateralYards)) ===
+        "deep"
+      );
+    });
+  }).length;
+  return {
+    deepHelp,
+    name:
+      deepHelp === 0
+        ? "Cover 0"
+        : deepHelp === 1
+          ? "Cover 1"
+          : `Cover ${deepHelp} Man`,
+    linesUp: deepHelp === 0,
+  };
+}
+
+const linesUp = (play: PlayDocument): boolean =>
+  manCoverageScheme(play)?.linesUp ?? false;
 
 /** A defender in man stands a yard inside his man, as most man calls ask. */
 export const MAN_LEVERAGE_YARDS = 1;
@@ -135,17 +204,20 @@ const LETTERS: Readonly<Record<string, DefenderKind>> = {
  * on the ball is the nose and off it the nickel, an S deep is a safety and
  * in the box the Sam, and a letter nobody uses is read from his spot alone.
  */
-function defenderKind(player: Player, ball: number): DefenderKind {
+export function defenderKind(
+  player: Pick<Player, "label" | "position">,
+  ball: number,
+): DefenderKind {
   const letter = player.label.trim().toUpperCase();
   const wide = Math.abs(player.position.lateralYards - ball);
   const depth = player.position.depthYards;
   const onTheBall = depth <= BACKFIELD_DEPTH_YARDS && wide <= 8;
   if (letter === "N") return onTheBall ? "lineman" : "nickel";
-  if (letter === "S") return depth >= 10 ? "safety" : "backer";
+  if (letter === "S") return depth >= DEEP_STANCE_YARDS ? "safety" : "backer";
   const named = LETTERS[letter];
   if (named) return named;
   if (onTheBall) return "lineman";
-  if (depth >= 10) return "safety";
+  if (depth >= DEEP_STANCE_YARDS) return "safety";
   if (wide >= 12) return "corner";
   if (wide >= 7) return "nickel";
   return "backer";
@@ -557,17 +629,22 @@ function stanceSignature(play: PlayDocument): string {
  * stored with man lines is otherwise left exactly as it was drawn.
  *
  * When the offense or the man calls changed, every man call the Coach did
- * not pick is matched again, and a defender given a different man lines up
- * on him. A defender whose man moved without him goes with him, keeping his
+ * not pick is matched again. In Cover 0 a defender given a different man —
+ * or every man in man, the moment the call becomes Cover 0 — lines up on
+ * him, and a defender whose man moved without him goes with him, keeping his
  * cushion and leverage; one the Coach moved himself stays where he was put.
+ * With deep help behind them nobody in man is moved at all (ADR 0061).
  * Every line that follows a man is drawn from its defender's stance to him.
  */
 export function settleManCoverage(
   before: PlayDocument | undefined,
   after: PlayDocument,
 ): PlayDocument {
+  const pressing = linesUp(after);
+  const pressedBefore = before !== undefined && linesUp(before);
   const rematch =
     before === undefined ||
+    pressing !== pressedBefore ||
     matchingSignature(before) !== matchingSignature(after);
   if (!rematch && stanceSignature(before) === stanceSignature(after)) {
     return after;
@@ -617,7 +694,8 @@ export function settleManCoverage(
     }
   }
 
-  // Where each defender in man stands now: one line decides it.
+  // Where each defender in man stands now: one line decides it. With deep
+  // help behind him he stands where he is, so there is nothing to decide.
   const beforePlayers = new Map(
     (before?.players ?? []).map((player) => [player.id, player]),
   );
@@ -633,7 +711,7 @@ export function settleManCoverage(
   const stances = new Map<string, Coordinate>();
   const lined = new Map<string, Coordinate>();
   const onEach = new Map<string, number>();
-  for (const { path, defender } of lines) {
+  for (const { path, defender } of pressing ? lines : []) {
     if (stances.has(defender.id)) continue;
     const covers = covering.get(path.id);
     const receiver = covers ? receiverById.get(covers.playerId) : undefined;
@@ -641,7 +719,7 @@ export function settleManCoverage(
     const had = beforePaths.get(path.id)?.covers?.playerId;
     const was = beforePlayers.get(defender.id);
     const manWas = beforePlayers.get(receiver.player.id);
-    if (had !== receiver.player.id || !was || !manWas) {
+    if (had !== receiver.player.id || !was || !manWas || !pressedBefore) {
       const nth = onEach.get(receiver.player.id) ?? 0;
       onEach.set(receiver.player.id, nth + 1);
       stances.set(defender.id, lineUpOn(after, defender, receiver, ball, nth));
@@ -749,8 +827,9 @@ function shiftedPath(path: MovementPath, shift: Coordinate): MovementPath {
 
 /**
  * Every defender in man lined up on his man afresh, as a man call puts him
- * the first time — which is where putting the defense back in its call
- * sends the men in man.
+ * the first time — which is where putting the defense back in a Cover 0 call
+ * sends the men in man. In any other call they stay on the call's spots and
+ * only their arrows are aimed.
  */
 export function realignManCoverage(play: PlayDocument): PlayDocument {
   return settleManCoverage(undefined, play);
@@ -759,7 +838,8 @@ export function realignManCoverage(play: PlayDocument): PlayDocument {
 /**
  * Gives a defender's man call the receiver the Coach picked, or hands it
  * back to the defense's best match when he picks nobody. Settling does the
- * rest: the defender lines up on his new man and the others re-sort.
+ * rest: the others re-sort, and in Cover 0 the defender lines up on his new
+ * man.
  */
 export function coverReceiver(
   play: PlayDocument,

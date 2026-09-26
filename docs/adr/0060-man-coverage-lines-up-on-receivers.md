@@ -1,5 +1,6 @@
 ---
 status: accepted
+amended_by: 0061-the-scheme-decides-whether-man-lines-up
 ---
 
 # Man coverage lines up on receivers (parity exception to ADR 0039)
@@ -56,7 +57,7 @@ by the match; a defender left over when every receiver is taken is free and keep
 line as drawn. Who is in man is the scheme's to say, so who takes whom follows from it:
 with the safety deep in a two-deep call, a linebacker takes the tight end.
 
-**Lining up.** A defender given a man lines up a yard inside him (over him, on a back) at
+**Lining up.** (Since ADR 0061, only in Cover 0 — with deep help nobody in man is moved.) A defender given a man lines up a yard inside him (over him, on a back) at
 his own depth held between one and seven yards off the ball. Two defenders on one man
 take inside and outside. A defender who would stand within 2.2 yards of another — two
 linebackers over stacked I-formation backs, a nickel beside a blitzer — slides across to

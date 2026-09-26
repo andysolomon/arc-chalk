@@ -108,7 +108,7 @@ export function SettingsOverlay({
       id: "playbook",
       name: "Playbook",
       value: "Types · labels",
-      summary: "Field profiles · play types",
+      summary: "Field profiles · play types · coverage",
     },
     {
       id: "history",
