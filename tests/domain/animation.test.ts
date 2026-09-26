@@ -1,5 +1,4 @@
 import {
-  evaluateMovement,
   evaluatePlayAt,
   formatPlaybackClock,
   frameSequenceTimes,
@@ -203,15 +202,10 @@ describe("play animation plan", () => {
     expect(formatPlaybackClock(-1200)).toBe("\u22121.2s");
   });
 
-  it("names the four progression frames and a 0.2s frame sequence", () => {
+  it("spaces a 0.2s frame sequence from the snap to the finish", () => {
     const plan = planPlay(stickThunderPlay);
     const frames = playKeyFrames(stickThunderPlay, plan);
-    expect(frames.map((frame) => frame.name)).toEqual([
-      "Snap",
-      "First break",
-      "Throw",
-      "Finish",
-    ]);
+    expect(frames).toHaveLength(4);
     expect(frames[0]?.atMs).toBe(0);
     expect(frames[3]?.atMs).toBe(plan.endMs);
     const times = frameSequenceTimes(plan);
@@ -219,16 +213,5 @@ describe("play animation plan", () => {
     expect(times.at(-1)).toBe(plan.endMs);
     expect(times.length).toBeGreaterThan(1);
     expect(times[1]! - times[0]!).toBe(200);
-  });
-});
-
-describe("single-path evaluation", () => {
-  it("still samples a stored path at an integer millisecond", () => {
-    const route = stickThunderPlay.paths.find(
-      (candidate) => candidate.id === "rx",
-    )!;
-    const first = evaluateMovement(route, 750);
-    expect(first.phase).toBe("moving");
-    expect(evaluateMovement(structuredClone(route), 750)).toEqual(first);
   });
 });

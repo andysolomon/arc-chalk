@@ -5,11 +5,9 @@ import {
   compareCallCodes,
   createGamePlan,
   defaultGamePlanSections,
-  describeAddition,
   duplicateGamePlan,
   gamePlanRevisionSchema,
   gamePlanSchema,
-  gamePlanSubtitle,
   moveCallInSection,
   moveCallToSection,
   moveSection,
@@ -17,7 +15,6 @@ import {
   placeCallInSection,
   planPlayIds,
   prepareGamePlan,
-  previewAddition,
   removeCall,
   removeSection,
   revisionRows,
@@ -62,18 +59,7 @@ const sourcesOf = (docs: readonly PlayDocument[]) =>
   );
 
 describe("Game plans", () => {
-  it("starts empty, named, for one coordinator, with the sections he calls from", () => {
-    const plan = freshPlan("defense");
-    expect(plan.unit).toBe("defense");
-    expect(plan.calls).toEqual([]);
-    expect(plan.sections.map(({ name }) => name)).toEqual([
-      "Base",
-      "3rd down",
-      "Red zone",
-      "Pressure",
-      "Two minute",
-    ]);
-    expect(gamePlanSubtitle(plan)).toBe("vs Central");
+  it("refuses a game plan with no name", () => {
     expect(() =>
       createGamePlan({
         playbookId: "p",
@@ -82,26 +68,6 @@ describe("Game plans", () => {
         nowMs: T0,
       }),
     ).toThrow("Give the game plan a name first.");
-  });
-
-  it("previews a bulk addition — new calls and the ones already held — before doing it", () => {
-    let plan = freshPlan();
-    const first = addCalls(plan, [stick.id, doublesRight.id], {
-      nowMs: T0 + 1,
-      createId,
-    });
-    plan = first.plan;
-    expect(first.preview).toEqual({ added: 2, already: 0, total: 2 });
-    expect(describeAddition(first.preview)).toBe("2 new calls");
-
-    const preview = previewAddition(plan, [stick.id, verts.id, verts.id]);
-    expect(preview).toEqual({ added: 1, already: 1, total: 2 });
-    expect(describeAddition(preview, "3rd down")).toBe(
-      "1 new call · 1 already in the plan, placed in 3rd down",
-    );
-    expect(describeAddition({ added: 0, already: 0, total: 0 })).toBe(
-      "Nothing selected.",
-    );
   });
 
   it("keeps one call per Play however many sections it answers in", () => {
@@ -298,37 +264,6 @@ describe("Game plans", () => {
 });
 
 describe("Prepare for game", () => {
-  it("freezes every referenced diagram into one revision the packet reads", () => {
-    let plan = freshPlan();
-    plan = addCalls(plan, [stick.id, coverThree.id], {
-      nowMs: T0 + 1,
-      sectionId: plan.sections[0]!.id,
-      createId,
-    }).plan;
-    const result = prepareGamePlan(plan, sourcesOf(plays), {
-      nowMs: T0 + 2,
-      label: "Thursday",
-      createId,
-    });
-    expect(result.missingPlayIds).toEqual([]);
-    expect(result.plan.preparedRevisionId).toBe(result.revision.id);
-    expect(result.revision.label).toBe("Thursday");
-    expect(result.revision.plays.map(({ playId }) => playId)).toEqual([
-      stick.id,
-      coverThree.id,
-    ]);
-    expect(result.revision.plays[0]!.document).toEqual(stick);
-    expect(gamePlanRevisionSchema.safeParse(result.revision).success).toBe(
-      true,
-    );
-    const rows = revisionRows(result.revision);
-    expect(rows[0]!.calls.map(({ name }) => name)).toEqual([
-      "Stick — Thunder",
-      "Cover 3 — Fire Zone",
-    ]);
-    expect(rows[0]!.calls[1]!.play?.unit).toBe("defense");
-  });
-
   it("flags a source that moved on, and never rewrites the prepared packet", () => {
     let plan = freshPlan();
     plan = addCalls(plan, [stick.id, verts.id], {

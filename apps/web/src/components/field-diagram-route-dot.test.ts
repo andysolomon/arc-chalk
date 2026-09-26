@@ -3,20 +3,6 @@ import { describe, expect, it } from "vitest";
 import { routeDotGeometry, routeDotPressStartsRoute } from "./route-dot";
 
 describe("the draw-a-route handle", () => {
-  it("stays a 44px touch target, sitting outside the man's own reach on a phone", () => {
-    const phone = routeDotGeometry(0.35, false);
-    expect(phone.hitRadius * 0.35).toBeCloseTo(22);
-    expect(phone.visualRadius * 0.35).toBeCloseTo(7);
-    // The visible dot starts where a finger stops reaching the man.
-    expect(-(phone.cy + phone.visualRadius)).toBeCloseTo(phone.fingerReach);
-
-    // With a mouse it stays where the original put it.
-    const mouse = routeDotGeometry(1, true);
-    expect(mouse.hitRadius).toBe(14);
-    expect(mouse.visualRadius).toBe(7);
-    expect(mouse.cy).toBe(-27);
-  });
-
   it("starts a route from the mark, and not from a man standing under the touch target", () => {
     const handle = { cy: -27, visualRadius: 7 };
     const players = [

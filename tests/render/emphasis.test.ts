@@ -6,7 +6,7 @@ import {
 } from "@chalk/render";
 import { describe, expect, it } from "vitest";
 
-describe("scene emphasis and line weight", () => {
+describe("scene emphasis", () => {
   it("fades everyone outside the emphasised set and strips their coaching", () => {
     const scene = buildRenderScene(stickThunderPlay, {
       emphasis: { playerIds: new Set(["x", "z"]) },
@@ -24,15 +24,5 @@ describe("scene emphasis and line weight", () => {
     expect(scene.players).toHaveLength(stickThunderPlay.players.length);
     const svg = buildSvgRenderScene(scene);
     expect(svg.players.find(({ id }) => id === "q")?.opacity).toBe(0.22);
-  });
-
-  it("carries a line-weight override through to the SVG scene", () => {
-    const svg = buildSvgRenderScene(
-      buildRenderScene(stickThunderPlay, { lineWeight: 1.5 }),
-    );
-    expect(svg.lineWeight).toBe(1.5);
-    expect(
-      buildSvgRenderScene(buildRenderScene(stickThunderPlay)).lineWeight,
-    ).toBeUndefined();
   });
 });

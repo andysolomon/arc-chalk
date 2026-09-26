@@ -12,6 +12,27 @@ import {
 } from "@chalk/domain";
 import { describe, expect, it } from "vitest";
 
+/**
+ * The zone shell's geometry in isolation (ADR 0059). The Coach-visible
+ * behaviour — calling, undoing, blitzing, clearing and taking off a zone, and a
+ * catalogue call joined by one more — is `tests/e2e/zone-shell.spec.ts`. These
+ * cases are the ways the layout could be wrong while still looking plausible
+ * on the field, which that journey would not catch:
+ *
+ * - a deep bubble wider than a zone can be sized, or past a sideline;
+ * - deep drops left at their own depths, or shallower than a deep drop reads;
+ * - the seam between deep neighbours missing, so bubbles touch or stack;
+ * - the depth radius the call gave rewritten along with the width;
+ * - a drop the Coach never sized left out of the shell;
+ * - a bend in the last leg left behind when its bubble moves;
+ * - underneath bubbles moved when they were already clear of each other;
+ * - stacked bubbles pushed one way off each other instead of shared out;
+ * - a group spilling past the sideline, or bubbles at depths that never meet
+ *   spread as if they did;
+ * - a spy, a man call, an alternate or an offensive line pulled into it;
+ * - a bubble the Coach dragged re-laid when nobody joined or left.
+ */
+
 const WIDTH = highSchoolFieldProfile.widthYards;
 const MAX_RADIUS = ZONE_COVERAGE_RADIUS_BOUNDS.lateralYards.max;
 
@@ -367,32 +388,5 @@ describe("settling the shell after a change", () => {
     };
     // A bubble the Coach dragged stays where it was dragged.
     expect(settleZoneShell(shell, moved)).toBe(moved);
-  });
-
-  it("re-lays only the level that gained or lost a drop", () => {
-    const withSafety = {
-      ...shell,
-      paths: [
-        ...shell.paths,
-        drop("f", freeSafety, { lateralYards: 2, depthYards: 20 }, deepArea),
-      ],
-    };
-    const settled = settleZoneShell(shell, withSafety);
-    // The corners give up the middle third to the safety.
-    expect(bubble(settled, "l").center.lateralYards).toBeCloseTo(-WIDTH / 3, 9);
-    expect(bubble(settled, "f").center.lateralYards).toBeCloseTo(0, 9);
-    // The hook underneath is untouched.
-    expect(settled.paths.find(({ id }) => id === "m")).toBe(
-      withSafety.paths.find(({ id }) => id === "m"),
-    );
-
-    // And when the safety leaves, the corners take the halves back.
-    const without = {
-      ...settled,
-      paths: settled.paths.filter(({ id }) => id !== "f"),
-    };
-    const halves = settleZoneShell(settled, without);
-    expect(bubble(halves, "l").center.lateralYards).toBeCloseTo(-WIDTH / 4, 9);
-    expect(bubble(halves, "r").center.lateralYards).toBeCloseTo(WIDTH / 4, 9);
   });
 });

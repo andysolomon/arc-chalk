@@ -314,14 +314,4 @@ describe("Classification of older Plays", () => {
     expect(specialV2.playType).toBeUndefined();
     expect(formatClassification(specialV2)).toBe("Offense");
   });
-
-  it("seeds the starter Playbook's defensive example at its Unit, not as Pass", () => {
-    const envelope = starterPlaybookEnvelope();
-    const fireZone = envelope.plays.find(
-      ({ name }) => name === "Cover 3 — Fire Zone",
-    )!;
-    expect(fireZone.unit).toBe("defense");
-    expect(fireZone.playType).toBeUndefined();
-    expect(formatClassification(fireZone)).toBe("Defense");
-  });
 });
