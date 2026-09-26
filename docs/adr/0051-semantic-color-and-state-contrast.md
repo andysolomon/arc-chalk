@@ -92,6 +92,6 @@ Before/after captures at identical viewport sizes: `docs/reviews/screenshots/73-
 
 ## Not decided here
 
-A dark theme; colour for Types within a Unit (the Unit alone is coloured, as the issue
+A dark theme (since decided in ADR 0061); colour for Types within a Unit (the Unit alone is coloured, as the issue
 asked); any change to the field's route presets; physical iPad/Safari checks of the
 printed badges.

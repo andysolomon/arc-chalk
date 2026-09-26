@@ -13,6 +13,25 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="Chalk" />
     <title>Chalk</title>
+    <script>
+      // Light or dark before the first paint, so a dark shell never flashes
+      // white (ADR 0061). src/app/theme.ts owns the choice; keep the key and
+      // the rule in step with it.
+      (function () {
+        var choice;
+        try {
+          choice = localStorage.getItem("chalk.theme");
+        } catch (error) {
+          choice = null;
+        }
+        var dark =
+          choice === "dark" ||
+          (choice !== "light" &&
+            !!window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
