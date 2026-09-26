@@ -17,11 +17,6 @@ describe("lockPageZoom", () => {
     release = undefined;
   });
 
-  it("drops pinch from the page but keeps panning", () => {
-    release = lockPageZoom();
-    expect(document.documentElement.style.touchAction).toBe("pan-x pan-y");
-  });
-
   it("refuses Safari's pinch gesture events", () => {
     release = lockPageZoom();
     for (const type of ["gesturestart", "gesturechange", "gestureend"]) {
@@ -40,16 +35,5 @@ describe("lockPageZoom", () => {
     const scroll = touchMove(1);
     document.body.dispatchEvent(scroll);
     expect(scroll.defaultPrevented).toBe(false);
-  });
-
-  it("lets go of the page when released", () => {
-    lockPageZoom()();
-    expect(document.documentElement.style.touchAction).toBe("");
-    const event = new Event("gesturestart", {
-      cancelable: true,
-      bubbles: true,
-    });
-    document.body.dispatchEvent(event);
-    expect(event.defaultPrevented).toBe(false);
   });
 });

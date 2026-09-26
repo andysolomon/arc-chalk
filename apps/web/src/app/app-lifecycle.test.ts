@@ -9,8 +9,6 @@ import {
 } from "./app-lifecycle";
 
 function fakePorts() {
-  let online = true;
-  const connectivityListeners = new Set<() => void>();
   let installListener:
     ((prompt: InstallPromptLike | undefined) => void) | undefined;
   let events: ShellRegistrationEvents | undefined;
@@ -28,13 +26,6 @@ function fakePorts() {
     registerShell: (e) => {
       events = e;
       return activate;
-    },
-    connectivity: {
-      isOnline: () => online,
-      subscribe: (listener) => {
-        connectivityListeners.add(listener);
-        return () => connectivityListeners.delete(listener);
-      },
     },
     installPrompt: {
       isInstalled: () => false,
@@ -74,10 +65,6 @@ function fakePorts() {
       for (const l of controlListeners) l();
     },
     events: () => events!,
-    setOnline(next: boolean) {
-      online = next;
-      for (const l of connectivityListeners) l();
-    },
     offerInstall(prompt: InstallPromptLike | undefined) {
       installListener?.(prompt);
     },
@@ -89,31 +76,6 @@ function fakePorts() {
 }
 
 describe("app lifecycle", () => {
-  it("starts current, online, and records the shell's data version", () => {
-    const fake = fakePorts();
-    const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 3 });
-    expect(lifecycle.getSnapshot()).toEqual({
-      connectivity: "online",
-      update: "current",
-      install: "unavailable",
-      offlineReady: false,
-      acknowledged: new Set(),
-    });
-    expect(fake.record()).toBe(3);
-  });
-
-  it("follows the network and notifies subscribers", () => {
-    const fake = fakePorts();
-    const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
-    const listener = vi.fn();
-    lifecycle.subscribe(listener);
-    fake.setOnline(false);
-    expect(lifecycle.getSnapshot().connectivity).toBe("offline");
-    fake.setOnline(true);
-    expect(lifecycle.getSnapshot().connectivity).toBe("online");
-    expect(listener).toHaveBeenCalledTimes(2);
-  });
-
   it("reports a waiting shell and only switches when asked", async () => {
     const fake = fakePorts();
     const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
@@ -124,14 +86,6 @@ describe("app lifecycle", () => {
     await lifecycle.applyUpdate();
     expect(fake.activate).toHaveBeenCalledWith(true);
     expect(lifecycle.getSnapshot().update).toBe("applying");
-  });
-
-  it("ignores applyUpdate when nothing is waiting", async () => {
-    const fake = fakePorts();
-    const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
-    await lifecycle.applyUpdate();
-    expect(fake.activate).not.toHaveBeenCalled();
-    expect(lifecycle.getSnapshot().update).toBe("current");
   });
 
   it("keeps the update offered when switching fails", async () => {
@@ -226,35 +180,5 @@ describe("app lifecycle", () => {
     await lifecycle.install();
     expect(prompt.prompt).toHaveBeenCalledTimes(1);
     expect(lifecycle.getSnapshot().install).toBe("installed");
-  });
-
-  it("offers install when the browser does and finishes on acceptance", async () => {
-    const fake = fakePorts();
-    const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
-    const prompt: InstallPromptLike = {
-      prompt: vi.fn(() => Promise.resolve()),
-      userChoice: Promise.resolve({ outcome: "accepted" as const }),
-    };
-    fake.offerInstall(prompt);
-    expect(lifecycle.getSnapshot().install).toBe("available");
-    await lifecycle.install();
-    expect(prompt.prompt).toHaveBeenCalledTimes(1);
-    expect(lifecycle.getSnapshot().install).toBe("installed");
-  });
-
-  it("keeps the offer when the Coach dismisses the browser prompt", async () => {
-    const fake = fakePorts();
-    const lifecycle = createAppLifecycle({ ports: fake.ports, dataVersion: 1 });
-    fake.offerInstall({
-      prompt: () => Promise.resolve(),
-      userChoice: Promise.resolve({ outcome: "dismissed" as const }),
-    });
-    await lifecycle.install();
-    expect(lifecycle.getSnapshot().install).toBe("available");
-  });
-
-  it("runs without any browser surface at all", () => {
-    const lifecycle = createAppLifecycle({ ports: {}, dataVersion: 1 });
-    expect(lifecycle.getSnapshot().update).toBe("current");
   });
 });

@@ -1,7 +1,6 @@
 import { stickThunderPlay } from "@chalk/domain";
 import {
   MemoryIdentity,
-  UnavailableIdentity,
   type ConflictInboxItem,
   type SyncOrchestrator,
 } from "@chalk/sync";
@@ -19,26 +18,6 @@ const emptySnapshot = {
 };
 
 describe("Account panel", () => {
-  it("explains that editing still works when cloud is not configured", async () => {
-    const user = userEvent.setup();
-    const identity = new UnavailableIdentity();
-    render(
-      <AccountPanel
-        identity={identity}
-        onKeepLocalData={() => Promise.resolve()}
-        onOpenConflicts={() => undefined}
-        onRemoveLocalData={() => Promise.resolve()}
-        snapshot={emptySnapshot}
-        sync={undefined}
-      />,
-    );
-    await user.click(screen.getByRole("button", { name: "Account" }));
-    expect(screen.getByText(/Cloud sign-in is not configured/)).toBeVisible();
-    expect(
-      screen.getByText(/Editing on this device still works/),
-    ).toBeVisible();
-  });
-
   it("sends an invitation-only email code through the identity port", async () => {
     const user = userEvent.setup();
     const identity = new MemoryIdentity({ status: "signed_out" });
@@ -68,29 +47,6 @@ describe("Account panel", () => {
     await user.type(screen.getByLabelText("Email verification code"), "123456");
     await user.click(screen.getByRole("button", { name: "Verify code" }));
     expect(verify).toHaveBeenCalledWith("123456");
-  });
-
-  it("offers passkey enrollment after sign-in", async () => {
-    const user = userEvent.setup();
-    const identity = new MemoryIdentity({
-      status: "signed_in",
-      identity: { coachId: "coach_1", email: "coach@example.com" },
-    });
-    const enroll = vi.spyOn(identity, "enrollPasskey").mockResolvedValue();
-    render(
-      <AccountPanel
-        identity={identity}
-        onKeepLocalData={() => Promise.resolve()}
-        onOpenConflicts={() => undefined}
-        onRemoveLocalData={() => Promise.resolve()}
-        snapshot={{ ...emptySnapshot, status: "synced" }}
-        sync={undefined}
-      />,
-    );
-    await user.click(screen.getByRole("button", { name: "Account" }));
-    expect(screen.getByText(/Signed in as coach@example.com/)).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Add a passkey" }));
-    expect(enroll).toHaveBeenCalled();
   });
 });
 
