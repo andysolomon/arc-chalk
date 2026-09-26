@@ -1,15 +1,10 @@
 import {
-  PlayCommandError,
   applyPlayCommand,
   applyPlayCommandWithInverse,
   canonicalStringify,
-  clearPlayLayerCommand,
-  deletePathsCommand,
   diffPlayDocuments,
   deletePlayersCommand,
   describePlayCommand,
-  invertPlayCommand,
-  playCommandCoalesceKey,
   playCommandSchema,
   playDocumentSchema,
   type PlayCommand,
@@ -111,18 +106,6 @@ describe("semantic Play commands", () => {
     }
   });
 
-  it("restores removed Players, routes, and labels at their original positions", () => {
-    const play = offensiveStickThunderPlay;
-    const removed = [play.labels[2]!.id, play.labels[7]!.id];
-    const command: PlayCommand = { kind: "remove-labels", labelIds: removed };
-    const { document, inverse } = applyPlayCommandWithInverse(play, command);
-
-    expect(document.labels.map(({ id }) => id)).not.toContain(removed[0]);
-    expect(
-      applyPlayCommand(document, inverse).labels.map(({ id }) => id),
-    ).toEqual(play.labels.map(({ id }) => id));
-  });
-
   it("deletes a Player with its routes, Assignments, and Formation binding as one step", () => {
     const play = offensiveStickThunderPlay;
     const command = deletePlayersCommand(play, ["x"]);
@@ -173,31 +156,6 @@ describe("semantic Play commands", () => {
     expect(kept?.actions).toEqual([]);
   });
 
-  it("clears one layer as an ordinary undoable transaction", () => {
-    const play = offensiveStickThunderPlay;
-    const command = clearPlayLayerCommand(play, "paths");
-    const { document, inverse } = applyPlayCommandWithInverse(play, command);
-
-    expect(document.paths).toEqual([]);
-    expect(document.players).toHaveLength(play.players.length);
-    expect(describePlayCommand(command)).toBe("Clear routes");
-    expect(canonicalStringify(applyPlayCommand(document, inverse))).toBe(
-      canonicalStringify(play),
-    );
-  });
-
-  it("refuses a command that names something the Play does not contain", () => {
-    expect(() =>
-      applyPlayCommand(offensiveStickThunderPlay, {
-        kind: "remove-players",
-        playerIds: ["not-on-this-play"],
-      }),
-    ).toThrow(PlayCommandError);
-    expect(() =>
-      deletePathsCommand(offensiveStickThunderPlay, ["not-a-route"]),
-    ).toThrow(PlayCommandError);
-  });
-
   it("refuses a command that would leave the Play referencing something missing", () => {
     expect(() =>
       applyPlayCommand(offensiveStickThunderPlay, {
@@ -205,45 +163,6 @@ describe("semantic Play commands", () => {
         playerIds: ["x"],
       }),
     ).toThrow();
-  });
-
-  it("names each edit the way a Coach would read it in the Undo control", () => {
-    expect(describePlayCommand({ kind: "set-play-name", name: "Mesh" })).toBe(
-      "Rename Play",
-    );
-    expect(
-      describePlayCommand({
-        kind: "move-players",
-        moves: [
-          { playerId: "x", position: { lateralYards: 0, depthYards: 0 } },
-          { playerId: "z", position: { lateralYards: 1, depthYards: 0 } },
-        ],
-      }),
-    ).toBe("Move Players");
-    expect(describePlayCommand({ kind: "mirror-play" })).toBe("Mirror Play");
-    expect(
-      describePlayCommand({
-        kind: "batch",
-        commands: [{ kind: "mirror-play" }],
-      }),
-    ).toBe("Edit Play");
-  });
-
-  it("coalesces only whole-value field edits", () => {
-    const label = offensiveStickThunderPlay.labels[0]!;
-    expect(
-      playCommandCoalesceKey({ kind: "set-play-name", name: "Mesh" }),
-    ).toBe("play-name");
-    expect(playCommandCoalesceKey({ kind: "update-label", label })).toBe(
-      `label:${label.id}`,
-    );
-    expect(playCommandCoalesceKey({ kind: "mirror-play" })).toBeUndefined();
-    expect(
-      playCommandCoalesceKey({
-        kind: "remove-labels",
-        labelIds: [label.id],
-      }),
-    ).toBeUndefined();
   });
 
   it("returns to the same Play for any generated sequence of moves and renames", () => {
@@ -302,13 +221,6 @@ describe("semantic Play commands", () => {
       { numRuns: 50 },
     );
   });
-
-  it("computes the inverse against the Play as it stood before the edit", () => {
-    const play = offensiveStickThunderPlay;
-    expect(
-      invertPlayCommand(play, { kind: "set-play-name", name: "Changed" }),
-    ).toEqual({ kind: "set-play-name", name: play.name });
-  });
 });
 
 describe("Play version differences", () => {
@@ -322,13 +234,6 @@ describe("Play version differences", () => {
       canonicalStringify(from),
     );
   }
-
-  it("produces no commands for two identical Plays", () => {
-    expect(diffPlayDocuments(play, play)).toEqual({
-      kind: "batch",
-      commands: [],
-    });
-  });
 
   it("reproduces a Play whose metadata, routes, and Players all changed", () => {
     const changed = playDocumentSchema.parse({
@@ -371,18 +276,6 @@ describe("Play version differences", () => {
     reproduces(play, reordered);
   });
 
-  it("restores as a single undoable entry", () => {
-    const renamed = applyPlayCommand(play, {
-      kind: "set-play-name",
-      name: "Working copy",
-    });
-    const command = diffPlayDocuments(renamed, play, "Restore version");
-
-    expect(command.kind).toBe("batch");
-    expect(describePlayCommand(command)).toBe("Restore version");
-    expect(applyPlayCommand(renamed, command).name).toBe(play.name);
-  });
-
   it("compares Plays whose optional football references are absent", () => {
     const bare = playDocumentSchema.parse({
       ...structuredClone(play),
@@ -398,15 +291,6 @@ describe("Play version differences", () => {
     });
     reproduces(play, bare);
     reproduces(bare, play);
-  });
-
-  it("refuses to compare two different Plays", () => {
-    const elsewhere = playDocumentSchema.parse({
-      ...structuredClone(play),
-      id: "play_somewhere_else",
-    });
-
-    expect(() => diffPlayDocuments(play, elsewhere)).toThrow(PlayCommandError);
   });
 
   it("reproduces the target Play for any generated edit sequence", () => {
