@@ -1,4 +1,6 @@
 import {
+  baseDefensiveCall,
+  baseFormation,
   demoTours,
   stockDefensiveCalls,
   stockFormations,
@@ -23,6 +25,8 @@ export type ActionId =
   /** The other unit's shadow on or off the field (ADR 0053); H on the rail. */
   | "toggleShadow"
   | "settings"
+  | "account"
+  | "toggleSidebar"
   | "mirror"
   | "flipStrength"
   /** A Play is started as one unit or the other, never switched (ADR 0053). */
@@ -64,6 +68,11 @@ export type ActionId =
   | "ballRight"
   | "alignDepth"
   | "alignSplits"
+  /** Putting a side of the ball back in its set or call, or in base (ADR 0055). */
+  | "resetOffense"
+  | "resetOffenseBase"
+  | "resetDefense"
+  | "resetDefenseBase"
   | "clearRoutesOffense"
   | "clearRoutesDefense"
   | "clearAllLines"
@@ -403,8 +412,10 @@ export function paletteCommands(
     },
     { id: "focus", label: "Focus mode", shortcut: "F" },
     { id: "settings", label: "Settings" },
+    { id: "account", label: "Account" },
     { id: "toggleInspector", label: "Inspector on / off", shortcut: "⌥1" },
     { id: "toggleRail", label: "Tools on / off", shortcut: "⌥2" },
+    { id: "toggleSidebar", label: "Sidebar on / off", shortcut: "⌥3" },
     { id: "present", label: "Present the play" },
     { id: "print", label: "Print preview" },
     { id: "fitToSelection", label: "Fit to selection", shortcut: "⌘2" },
@@ -426,6 +437,29 @@ export function paletteCommands(
     { id: "flipStrength", label: "Flip strength" },
     { id: "alignDepth", label: "Same depth — selected players" },
     { id: "alignSplits", label: "Even splits — selected players" },
+    {
+      id: "resetOffense",
+      label: "Reset offense to its formation",
+      title:
+        "Every offensive man back in the formation the play was set in — routes go with him",
+    },
+    {
+      id: "resetOffenseBase",
+      label: `Reset offense to base — ${baseFormation.name}`,
+      title:
+        "The base formation, without adding anyone — routes go with each man",
+    },
+    {
+      id: "resetDefense",
+      label: "Reset defense to its call",
+      title:
+        "Every defender back in the call the play was set in — drops go with him",
+    },
+    {
+      id: "resetDefenseBase",
+      label: `Reset defense to base — ${baseDefensiveCall.name}`,
+      title: "The base call, letter by letter — drops go with each man",
+    },
     ...conceptNames.map((name): MenuEntry => ({
       id: `concept:${name}`,
       label: `Concept — ${name}`,
@@ -490,6 +524,7 @@ export const shortcutRows: readonly (readonly [string, string])[] = [
   ["Focus mode — both panels", "F"],
   ["Inspector on / off", "⌥1"],
   ["Tools on / off", "⌥2"],
+  ["Sidebar on / off", "⌥3"],
   ["Fit to selection", "⌘2"],
   ["Leave present / print", "esc"],
   ["Formations", "⇧⌘F"],

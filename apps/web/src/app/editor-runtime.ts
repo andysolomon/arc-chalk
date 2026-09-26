@@ -87,10 +87,15 @@ export interface LibrarySnapshot {
   readonly members: readonly PlaySearchProjection[];
 }
 
+/** How the Playbook lists its Plays when nothing is being searched for. */
+export type PlaybookSort = "name" | "recent";
+
 export interface LibraryBrowserState {
   readonly scrollTop: number;
   readonly focusedPlayId?: string;
   readonly query: string;
+  /** Unset reads as by name. */
+  readonly sort?: PlaybookSort;
 }
 
 /**
@@ -102,6 +107,8 @@ export interface LibraryBrowserState {
 export interface ChromeState {
   readonly inspectorOpen: boolean;
   readonly railOpen: boolean;
+  /** The left sidebar (ADR 0058); unset reads as open, as the panels do. */
+  readonly sidebarOpen?: boolean;
   /**
    * Whether the tool rail shows each tool's name beside its glyph (issue
    * #65). Unset until the Coach chooses: a touch screen shows them, a desk
@@ -159,6 +166,9 @@ export function readChromeState(value: unknown): ChromeState {
     inspectorOpen:
       typeof record.inspectorOpen === "boolean" ? record.inspectorOpen : true,
     railOpen: typeof record.railOpen === "boolean" ? record.railOpen : true,
+    ...(typeof record.sidebarOpen === "boolean"
+      ? { sidebarOpen: record.sidebarOpen }
+      : {}),
     ...(typeof record.railLabels === "boolean"
       ? { railLabels: record.railLabels }
       : {}),
@@ -742,6 +752,9 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
         query: typeof record.query === "string" ? record.query : "",
         ...(typeof record.focusedPlayId === "string"
           ? { focusedPlayId: record.focusedPlayId }
+          : {}),
+        ...(record.sort === "name" || record.sort === "recent"
+          ? { sort: record.sort }
           : {}),
       };
     },

@@ -1,7 +1,9 @@
 import {
   FREEHAND_CORNER_DEGREES,
+  FREEHAND_STRAIGHT_PX,
   FREEHAND_TOLERANCE_PX,
   fitFreehandStroke,
+  isStraightStroke,
   simplifyStroke,
   smoothStroke,
   turnDegrees,
@@ -64,6 +66,36 @@ describe("smoothing the thinned stroke", () => {
     ]);
     expect(turnDegrees(at(0, 0), at(0, 10), at(8, 10), scale)).toBeCloseTo(90);
     expect(FREEHAND_CORNER_DEGREES).toBeLessThan(45);
+  });
+});
+
+describe("telling a straight pull from a drawn shape", () => {
+  it("takes a stem that wobbles inside the tolerance as straight", () => {
+    // Half a yard is 5 px here: a finger's wobble, not a bend.
+    const stem = Array.from({ length: 12 }, (_, index) =>
+      at(index % 2 === 0 ? 0.5 : -0.5, index + 1),
+    );
+    expect(isStraightStroke(at(0, 0), [...stem, at(0, 13)], scale)).toBe(true);
+    expect(isStraightStroke(at(0, 0), [], scale)).toBe(true);
+  });
+
+  it("takes a wheel, a hook past the tolerance, or a doubled-back stroke as drawn", () => {
+    const wheel = Array.from({ length: 10 }, (_, index) => {
+      const angle = ((index + 1) / 10) * (Math.PI / 2);
+      return at(6 * (1 - Math.cos(angle)), 6 * Math.sin(angle));
+    });
+    expect(isStraightStroke(at(0, 0), wheel, scale)).toBe(false);
+
+    const past = (FREEHAND_STRAIGHT_PX + 1) / 10;
+    expect(
+      isStraightStroke(at(0, 0), [at(0, 5), at(past, 10), at(0, 15)], scale),
+    ).toBe(false);
+
+    // Up and back down the same line: never further than a pixel off it,
+    // but it ran well past where it ended.
+    expect(
+      isStraightStroke(at(0, 0), [at(0, 5), at(0, 10), at(0, 4)], scale),
+    ).toBe(false);
   });
 });
 

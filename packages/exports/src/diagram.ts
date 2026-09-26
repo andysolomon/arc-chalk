@@ -47,9 +47,9 @@ export const FIELD_SVG_CSS =
   ".field-paper{fill:#fff;stroke:#e5e5e5}" +
   ".field-grid{stroke:#e7e7e7;stroke-width:1}" +
   '[data-field-style="light"] .field-grid{stroke:#f2f2f2}' +
-  ".hash{stroke:#ececec;stroke-width:1}" +
+  ".hash{stroke:#c7c7c7;stroke-width:1}" +
   ".line-of-scrimmage{stroke:#4d4d4d;stroke-width:2}" +
-  '.yard-numbers{fill:#e9e9e9;font-family:"Geist Mono",ui-monospace,Menlo,monospace;font-size:26px;font-weight:600}' +
+  '.yard-numbers{fill:#cccccc;font-family:"Geist Mono",ui-monospace,Menlo,monospace;font-size:26px;font-weight:600}' +
   ".yard-numbers text{text-anchor:middle}" +
   'text{font-family:Geist,"Helvetica Neue",Helvetica,Arial,sans-serif}' +
   '[font-family="Geist Mono, monospace"]{font-family:"Geist Mono",ui-monospace,Menlo,monospace}';

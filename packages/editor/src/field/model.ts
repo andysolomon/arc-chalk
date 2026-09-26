@@ -138,7 +138,10 @@ export type FieldHandleRef =
 export type FieldGesture =
   | { readonly kind: "idle" }
   | {
-      /** Pressed on an item; not a drag until the pointer clears 2 px. */
+      /**
+       * Pressed on an item; not a drag until the pointer clears 2 px, or a
+       * finger's tap slop.
+       */
       readonly kind: "pressing";
       readonly pointerId: number;
       readonly items: readonly FieldItemRef[];
@@ -190,16 +193,18 @@ export type FieldDrawingKind = "route" | "motion" | "block" | "zone" | "blitz";
 
 /**
  * How the Coach lays a line down. With breaks, each press places one; the
- * line between is straight, or bent by holding the press. Free, the line is
- * traced: it follows the pointer while it is held down and is finished the
+ * line between is straight, or bent by holding the press — and a drag off
+ * the blue dot or off the end of the line is traced where the hand goes,
+ * the line staying in hand for the next break. Free, every press traces:
+ * the line follows the pointer while it is held down and is finished the
  * moment it lifts, the way a pen leaves the whiteboard.
  */
 export type FieldDrawingMode = "breaks" | "free";
 
 /**
  * A point of the line in hand. A traced point is one the pointer passed over
- * while free drawing; the finish fits a clean line through those, where a
- * clicked break is kept exactly where it was put.
+ * while tracing; the finish fits a clean line through those, where a clicked
+ * break is kept exactly where it was put.
  */
 export interface FieldDrawingPoint extends PathPoint {
   readonly traced?: boolean;
@@ -224,6 +229,12 @@ export interface FieldDrawingState {
   readonly pointerDown: boolean;
   /** The initial blue-dot drag places a break on release, not on press. */
   readonly initialDrag?: FieldPointerInput | undefined;
+  /**
+   * While a held pointer is tracing, the index of the point its stroke set
+   * out from; absent between strokes. It is how a stroke lifted in breaks
+   * mode is told apart from the line it continues.
+   */
+  readonly strokeFrom?: number | undefined;
 }
 
 /**
@@ -303,3 +314,17 @@ export const MARQUEE_THRESHOLD_PX = 3;
 export const DRAW_POINT_MIN_PX = 4;
 export const DRAW_CURVE_THRESHOLD_PX = 7;
 export const TRACE_POINT_MIN_PX = 2;
+
+/**
+ * How far a finger may wander between landing and lifting and still have
+ * tapped. A fingertip is not a mouse: it rolls a few pixels on the way down
+ * and on the way up, and the two pixels that suit a mouse or a Pencil would
+ * turn most taps into the smallest possible drag — of the man pressed, or of
+ * the field when it was the grass.
+ */
+export const FINGER_TAP_SLOP_PX = 10;
+
+/** How far a press travels before it is a drag, for what is pressing. */
+export function moveThresholdPx(pointerType?: string): number {
+  return pointerType === "touch" ? FINGER_TAP_SLOP_PX : MOVE_THRESHOLD_PX;
+}

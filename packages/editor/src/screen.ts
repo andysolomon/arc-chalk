@@ -1,11 +1,10 @@
 /**
- * Whether the screen in front of the Coach can carry the editor at all.
+ * Whether the screen in front of the Coach can carry the full editor.
  *
- * The plan asks for the full editor on a desktop and on an iPad, and for a
- * phone to be safe to open rather than a small editor: a Play he can read on
- * the sideline without the risk that a thumb on the glass moves a man he
- * cannot see he has moved. The line between them is drawn here, once, so the
- * shell and its stylesheet cannot disagree about where it is.
+ * A desktop and an iPad get the full editor; a phone gets the same editor
+ * laid out for it (issue #92, ADR 0055) — a two-row header, the tools along
+ * the bottom, the inspector as a sheet. The line between them is drawn here,
+ * once, so the shell and its stylesheet cannot disagree about where it is.
  */
 
 /**
@@ -27,9 +26,9 @@ export const EDITOR_MIN_SCREEN = Object.freeze({
 });
 
 /**
- * A screen too small in either direction shows the Play instead of the
- * editor. Either, not both: a phone held sideways is wide and shallow, and a
- * shallow editor is no more workable than a narrow one.
+ * A screen too small in either direction gets the phone layout. Either, not
+ * both: a phone held sideways is wide and shallow, and a shallow full editor
+ * is no more workable than a narrow one.
  */
 export function screenTakesEditor(width: number, height: number): boolean {
   return width >= EDITOR_MIN_SCREEN.width && height >= EDITOR_MIN_SCREEN.height;

@@ -49,9 +49,11 @@ const storedIds = (page: import("@playwright/test").Page, key: string) =>
     key,
   );
 
-/** Opens the folded Library section of the inspector (issue #64). */
+/** Opens the sidebar's Library row (issue #64, ADR 0058). */
 const unfoldLibrary = async (page: import("@playwright/test").Page) => {
-  const toggle = page.getByRole("button", { name: /^Library/ });
+  const toggle = page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: /^Library/ });
   await expect(toggle).toBeVisible();
   if ((await toggle.getAttribute("aria-expanded")) === "false") {
     await toggle.click();
@@ -59,13 +61,13 @@ const unfoldLibrary = async (page: import("@playwright/test").Page) => {
 };
 
 /**
- * Opens the folded Shadow defense section on an offensive play (issue #64,
- * ADR 0053). Scoped to the inspector: the rail's Shadow button answers to the
- * same name.
+ * Opens the sidebar's Shadow defense row on an offensive play (issue #64,
+ * ADR 0053, ADR 0058). Scoped to the sidebar: the rail's Shadow button
+ * answers to the same name.
  */
 const unfoldOpponentLook = async (page: import("@playwright/test").Page) => {
   const toggle = page
-    .getByRole("complementary", { name: "Play inspector" })
+    .getByRole("navigation", { name: "Sidebar" })
     .getByRole("button", { name: /^Shadow defense/ });
   if ((await toggle.getAttribute("aria-expanded")) === "false") {
     await toggle.click();
@@ -286,17 +288,18 @@ test("changes the markings and the words from the inspector without moving the P
   page,
 }) => {
   await page.goto("/");
-  const inspector = page.getByRole("complementary", { name: "Play inspector" });
+  const sidebar = page.getByRole("navigation", { name: "Sidebar" });
 
   // Page and type moved into the Settings overlay (along with Field,
-  // Playbook settings and History). The layers stay in the bar's Layers
-  // popover (issue #64).
+  // Playbook settings and History), under its Print & export tab. The
+  // layers are the sidebar's Show on field row (ADR 0058).
   await page
     .getByRole("banner")
     .getByRole("button", { name: "More actions" })
     .click();
   await page.getByRole("button", { name: "Settings…" }).click();
   const settings = page.getByRole("dialog", { name: "Settings" });
+  await settings.getByRole("tab", { name: "Print & export" }).click();
   await expect(settings.getByText("Page", { exact: true })).toBeVisible();
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
   await expect(page.locator("[data-scene-label]")).toHaveCount(12);
@@ -312,14 +315,14 @@ test("changes the markings and the words from the inspector without moving the P
 
   await settings.getByRole("button", { name: "Full field" }).click();
   await expect(page.locator("[data-field-yard-line]")).toHaveCount(9);
-  // The overlay sits over the inspector; put it away before using the bar.
+  // The overlay sits over the sidebar; put it away before using the row.
   await settings.getByRole("button", { name: "Close" }).click();
   await expect(settings).toHaveCount(0);
 
-  await inspector.getByRole("button", { name: /^Layers/ }).click();
-  await inspector.getByRole("button", { name: "Text" }).click();
+  await sidebar.getByRole("button", { name: /^Show on field/ }).click();
+  await sidebar.getByRole("button", { name: "Text" }).click();
   await expect(page.locator("[data-scene-label]")).toHaveCount(0);
-  await inspector.getByRole("button", { name: "Text" }).click();
+  await sidebar.getByRole("button", { name: "Text" }).click();
   await expect(page.locator("[data-scene-label]")).toHaveCount(12);
 });
 
@@ -608,6 +611,7 @@ test("names a version and restores it after a reload", async ({ page }) => {
     .click();
   await page.getByRole("button", { name: "Settings…" }).click();
   const settings = page.getByRole("dialog", { name: "Settings" });
+  await settings.getByRole("tab", { name: "History" }).click();
   await expect(settings.getByText("Install week")).toBeVisible();
   await expect(settings.getByText("just now")).toBeVisible();
   await settings.getByRole("button", { name: "Close" }).click();

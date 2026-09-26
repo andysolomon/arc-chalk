@@ -75,18 +75,89 @@ const expectSavedOnThisDevice = (page: Page) =>
     "Saved on this device",
   );
 
-const enterEditor = async (page: Page) => {
-  await page.goto("/");
-  // Every viewport here is below the editor's floor, so the reading shell is
-  // what opens. The gate is a media-query effect that runs after mount and
-  // the editor renders for a frame before it, so wait for the reading
-  // shell's own button rather than racing that frame.
-  const edit = page.getByRole("button", { name: "Edit on this screen" });
-  await expect(edit).toBeVisible({ timeout: 30_000 });
-  await edit.click();
+/**
+ * Where a man stands on the glass: his own origin through the field's
+ * transform, which is his centre whatever else is drawn about him — a
+ * selection halo, the draw-a-route mark.
+ */
+const manOnGlass = (page: Page, id: string) =>
+  page.evaluate((id) => {
+    const man = document.querySelector<SVGGElement>(
+      `[data-scene-player='${id}']`,
+    );
+    const matrix = man?.getScreenCTM();
+    if (!matrix) throw new Error(`${id} is not on the field.`);
+    const centre = new DOMPoint(0, 0).matrixTransform(matrix);
+    return { x: centre.x, y: centre.y };
+  }, id);
+
+/**
+ * Every viewport here is below the editor's floor, so the phone workspace is
+ * what opens. The layout is a media-query effect that runs after mount and
+ * the desktop editor renders for a frame before it, so wait for the phone
+ * shell itself rather than racing that frame.
+ */
+const waitForPhoneWorkspace = async (page: Page) => {
+  await expect(page.locator(".chalk-shell.phone-workspace")).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(
     page.getByRole("navigation", { name: "Drawing tools" }),
   ).toBeVisible();
+};
+
+const enterEditor = async (page: Page) => {
+  await page.goto("/");
+  await waitForPhoneWorkspace(page);
+};
+
+/**
+ * One finger pressed, dragged and lifted. The press goes to whatever is under
+ * it — a handle's target included — and the rest to the field, which holds
+ * the gesture once it starts.
+ */
+const fingerDrag = async (
+  page: Page,
+  pointerId: number,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+) => {
+  const send = (type: string, at: { x: number; y: number }, under: boolean) =>
+    page.evaluate(
+      ({ type, at, under, pointerId }) => {
+        const target = under
+          ? document.elementFromPoint(at.x, at.y)
+          : document.querySelector("svg.field-diagram");
+        if (!target) throw new Error("Nothing under the finger.");
+        target.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            pointerId,
+            pointerType: "touch",
+            isPrimary: true,
+            button: type === "pointermove" ? -1 : 0,
+            buttons: type === "pointerup" ? 0 : 1,
+            clientX: at.x,
+            clientY: at.y,
+          }),
+        );
+      },
+      { type, at, under, pointerId },
+    );
+  await send("pointerdown", from, true);
+  for (let step = 1; step <= 6; step += 1) {
+    await send(
+      "pointermove",
+      {
+        x: from.x + ((to.x - from.x) * step) / 6,
+        y: from.y + ((to.y - from.y) * step) / 6,
+      },
+      false,
+    );
+  }
+  await send("pointerup", to, false);
 };
 
 for (const viewport of VIEWPORTS) {
@@ -187,9 +258,10 @@ for (const viewport of VIEWPORTS) {
 
     test("fits the whole field inside the stage", async ({ page }) => {
       await enterEditor(page);
-      await page.getByRole("button", { name: "Inspector" }).click();
+      // A formation comes from the sidebar drawer (ADR 0058).
+      await page.getByRole("button", { name: "Open the sidebar" }).click();
       await expect(
-        page.getByRole("complementary", { name: "Play inspector" }),
+        page.getByRole("navigation", { name: "Sidebar" }),
       ).toBeVisible();
       await page.getByTitle("Browse formations — ⇧⌘F").click();
       await page
@@ -197,9 +269,9 @@ for (const viewport of VIEWPORTS) {
         .getByText("Gun Doubles Right", { exact: true })
         .click();
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
-      // The pick was the errand: the sheet puts itself away.
+      // The pick was the errand: the drawer puts itself away.
       await expect(
-        page.getByRole("complementary", { name: "Play inspector" }),
+        page.getByRole("navigation", { name: "Sidebar" }),
       ).toHaveCount(0);
 
       await page.getByRole("button", { name: "Zoom in" }).tap();
@@ -240,8 +312,8 @@ for (const viewport of VIEWPORTS) {
 }
 
 /**
- * The phone workspace (issue #92): a Coach who presses Edit on this screen
- * gets the editor laid out for the phone — every action reachable by touch,
+ * The phone workspace (issue #92): a Coach on a phone gets the editor laid
+ * out for the phone — every action reachable by touch,
  * the field with most of the glass, the draft kept through the inspector's
  * sheet and a turn of the phone.
  */
@@ -299,13 +371,7 @@ for (const viewport of WORKSPACES) {
         expect(box.width).toBeGreaterThanOrEqual(44);
         expect(box.height).toBeGreaterThanOrEqual(44);
       }
-      for (const name of [
-        "Undo",
-        "Redo",
-        "Save",
-        "More actions",
-        "Read only",
-      ]) {
+      for (const name of ["Undo", "Redo", "Save", "More actions"]) {
         await insideViewport(
           page,
           page
@@ -319,9 +385,52 @@ for (const viewport of WORKSPACES) {
         page.locator("header.topbar .play-type"),
         viewport,
       );
+
+      // Where, then what (ADR 0057): the destinations and More share the
+      // first row; the play's name, with room to be read, shares the second
+      // with what acts on it, and Save closes the header at its trailing edge.
+      const tabsBox = await insideViewport(
+        page,
+        page.getByRole("navigation", { name: "Workspace views" }),
+        viewport,
+      );
+      const moreBox = await insideViewport(
+        page,
+        header.getByRole("button", { name: "More actions", exact: true }),
+        viewport,
+      );
+      const saveBox = await insideViewport(
+        page,
+        header.getByRole("button", { name: "Save", exact: true }),
+        viewport,
+      );
+      const nameBox = await insideViewport(
+        page,
+        header.getByRole("textbox", { name: "Play name" }),
+        viewport,
+      );
+      expect(nameBox.width).toBeGreaterThanOrEqual(96);
+      if (portrait) {
+        expect(Math.abs(moreBox.y - tabsBox.y)).toBeLessThanOrEqual(1);
+        expect(nameBox.y).toBeGreaterThanOrEqual(tabsBox.y + tabsBox.height);
+        expect(Math.abs(saveBox.y - nameBox.y)).toBeLessThanOrEqual(1);
+        expect(
+          Math.abs(saveBox.x + saveBox.width - (moreBox.x + moreBox.width)),
+        ).toBeLessThanOrEqual(1);
+      } else {
+        expect(Math.abs(nameBox.y - tabsBox.y)).toBeLessThanOrEqual(1);
+        expect(saveBox.x).toBeGreaterThan(moreBox.x);
+      }
+
+      // The sidebar's ≡ and the assignments sheet's handle are on the glass.
       await insideViewport(
         page,
-        page.getByRole("button", { name: "Inspector", exact: true }),
+        page.getByRole("button", { name: "Open the sidebar" }),
+        viewport,
+      );
+      await insideViewport(
+        page,
+        page.getByRole("button", { name: "Show all assignments" }),
         viewport,
       );
 
@@ -358,29 +467,36 @@ for (const viewport of WORKSPACES) {
     }) => {
       await enterEditor(page);
 
-      // The inspector is a sheet over the field; a formation comes from it.
-      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
+      // A formation comes from the sidebar drawer (ADR 0058); the
+      // assignments sheet peeks over the field and opens full on its handle.
       const sheet = page.getByRole("complementary", { name: "Play inspector" });
-      await expect(sheet).toBeVisible();
+      await expect(sheet).toHaveAttribute("data-sheet", "peek");
       const sheetBox = await insideViewport(page, sheet, viewport);
-      expect(sheetBox.width).toBeGreaterThan(viewport.width * 0.9);
+      // Upright, the peek spans the glass with a chip per man; held
+      // sideways it is a pill in the field's corner.
+      if (viewport.height > viewport.width) {
+        expect(sheetBox.width).toBeGreaterThan(viewport.width * 0.9);
+      }
+      await page.getByRole("button", { name: "Open the sidebar" }).tap();
+      const drawer = page.getByRole("navigation", { name: "Sidebar" });
+      await expect(drawer).toBeVisible();
       await page.getByTitle("Browse formations — ⇧⌘F").tap();
       await page
         .getByRole("dialog", { name: "Formations" })
         .getByText("Gun Doubles Right", { exact: true })
         .tap();
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
-      // The pick was the errand: the sheet puts itself away.
-      await expect(sheet).toHaveCount(0);
+      // The pick was the errand: the drawer puts itself away.
+      await expect(drawer).toHaveCount(0);
 
       // A draft name survives the sheet coming and going and the phone
-      // turning over. Its whole top row is the handle that puts it away.
+      // turning over. Its head opens it full; Field puts it back.
       const name = page.getByRole("textbox", { name: "Play name" });
       await name.fill("Phone draft");
-      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
-      await expect(sheet).toBeVisible();
-      await page.getByRole("button", { name: "Hide the inspector" }).tap();
-      await expect(sheet).toHaveCount(0);
+      await page.getByRole("button", { name: "Show all assignments" }).tap();
+      await expect(sheet).toHaveAttribute("data-sheet", "full");
+      await page.getByRole("button", { name: "Show the field" }).tap();
+      await expect(sheet).toHaveAttribute("data-sheet", "peek");
       await expect(name).toHaveValue("Phone draft");
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
       await page.setViewportSize({
@@ -416,7 +532,7 @@ for (const viewport of WORKSPACES) {
       expect(at).not.toBeNull();
       const start = { x: at!.x + at!.width / 2, y: at!.y + at!.height / 2 };
       await page.touchscreen.tap(start.x, start.y);
-      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
+      await page.getByRole("button", { name: "Show all assignments" }).tap();
       // The first man in the set is a lineman, whose Draw row offers his
       // block; whatever the row's first line is, it is drawn the same way.
       await page
@@ -424,7 +540,8 @@ for (const viewport of WORKSPACES) {
         .getByRole("button")
         .first()
         .tap();
-      // The sheet goes so the field is there to draw on.
+      // The sheet drops to its peek so the field is there to draw on.
+      await expect(sheet).toHaveAttribute("data-sheet", "peek");
       await expect(page.locator("[data-drawing-preview]")).toHaveCount(1);
       await page.touchscreen.tap(start.x, start.y - 40);
       await page.touchscreen.tap(start.x + 40, start.y - 40);
@@ -445,19 +562,88 @@ for (const viewport of WORKSPACES) {
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
       await expectSavedOnThisDevice(page);
 
-      // Back to reading: nothing on the field moves, and the Play is there
-      // again after a reload.
-      await page
-        .locator("header.topbar")
-        .getByRole("button", { name: "Read only", exact: true })
-        .tap();
-      await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+      // A reload — what a phone browser does to a page the Coach left for
+      // another app — opens on the same Play, ready to draw, with no
+      // read-only stop on the way back in.
       await page.reload();
-      await expect(page.getByText("Phone draft")).toBeVisible({
-        timeout: 30_000,
-      });
+      await waitForPhoneWorkspace(page);
+      await expect(
+        page.getByRole("textbox", { name: "Play name" }),
+      ).toHaveValue("Phone draft", { timeout: 30_000 });
+      await expect(page.getByText("Read only", { exact: true })).toHaveCount(0);
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+    });
+
+    test("picks the man a finger taps, shoulder to shoulder on the line", async ({
+      page,
+    }) => {
+      await enterEditor(page);
+      await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+      const ids = await page
+        .locator("[data-scene-player]")
+        .evaluateAll((men) =>
+          men.map((man) => man.getAttribute("data-scene-player")!),
+        );
+      // The quarterback first, so his draw-a-route mark is standing over the
+      // center when the center is tapped next — and, held sideways, so the
+      // Quick calls tray comes up under the finger that picked him, where
+      // WebKit hands it the lift. Then every other man in turn.
+      const order = [
+        "q",
+        "ol2",
+        ...ids.filter((id) => id !== "q" && id !== "ol2"),
+      ];
+      for (const id of order) {
+        const at = await manOnGlass(page, id);
+        await page.touchscreen.tap(at.x, at.y);
+        await expect(
+          page.locator("[data-scene-player].selected"),
+          `a tap on ${id}`,
+        ).toHaveAttribute("data-scene-player", id);
+        await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+      }
+      // Tapping men moved none of them.
+      await expect(
+        page.locator("header.topbar").getByRole("button", {
+          name: "Undo",
+          exact: true,
+        }),
+      ).toBeDisabled();
+    });
+
+    test("opens the header's menus over the assignments sheet, not under it", async ({
+      page,
+    }) => {
+      await enterEditor(page);
+      const sheet = page.getByRole("complementary", { name: "Play inspector" });
+      await expect(sheet).toHaveAttribute("data-sheet", "peek");
+      await page
+        .getByRole("button", { name: "More actions", exact: true })
+        .tap();
+      const panel = page.locator(".more-panel");
+      await expect(panel).toBeVisible();
+      // Every entry in the menu is the thing a finger would land on — none
+      // is painted under the sheet (ADR 0058). The menu scrolls where it is
+      // taller than the glass, so each one is brought into view first.
+      const items = panel.locator(":scope > button");
+      const count = await items.count();
+      expect(count).toBeGreaterThan(4);
+      for (let index = 0; index < count; index += 1) {
+        const item = items.nth(index);
+        await item.scrollIntoViewIfNeeded();
+        const box = (await item.boundingBox())!;
+        if (box.y + box.height / 2 > viewport.height) continue;
+        const onTop = await page.evaluate(
+          ([x, y]) => {
+            const hit = document.elementFromPoint(x!, y!);
+            return Boolean(hit?.closest(".more-panel"));
+          },
+          [box.x + box.width / 2, box.y + box.height / 2],
+        );
+        expect(onTop, await item.innerText()).toBe(true);
+      }
+      await page.keyboard.press("Escape");
     });
 
     test("gives a picked man his routes from a tray above the tools", async ({
@@ -498,18 +684,129 @@ for (const viewport of WORKSPACES) {
       await expect(slant).toHaveAttribute("aria-pressed", "true");
       await expectSavedOnThisDevice(page);
 
-      // A quick route chosen in the sheet closes the sheet: the field is the
-      // answer, and the tray is there for the next one.
-      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
+      // A quick route chosen in the sheet keeps the sheet (ADR 0058): the
+      // chip and the field behind say what he runs, and the tray agrees.
+      await page.getByRole("button", { name: "Show all assignments" }).tap();
       const sheet = page.getByRole("complementary", { name: "Play inspector" });
-      await expect(sheet).toBeVisible();
+      await expect(sheet).toHaveAttribute("data-sheet", "full");
       await sheet.getByRole("button", { name: "Curl" }).tap();
-      await expect(sheet).toHaveCount(0);
+      await expect(sheet).toHaveAttribute("data-sheet", "full");
       await expect(tray.getByRole("button", { name: "Curl" })).toHaveAttribute(
         "aria-pressed",
         "true",
       );
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+      await page.getByRole("button", { name: "Show the field" }).tap();
+      await expect(sheet).toHaveAttribute("data-sheet", "peek");
+    });
+
+    test("moves a picked man under a finger that lands a little high, and still draws from his dot", async ({
+      page,
+    }) => {
+      await enterEditor(page);
+      const routes = await page.locator("[data-scene-path]").count();
+      // The Z, split out alone: nobody stands within a finger's reach of
+      // him, so the drag measures only his own handle.
+      const man = page.locator("[data-scene-player='z']");
+      const centerOf = async () => {
+        const at = (await man
+          .locator("circle, rect, path")
+          .first()
+          .boundingBox())!;
+        return { x: at.x + at.width / 2, y: at.y + at.height / 2 };
+      };
+      const picked = await centerOf();
+      await page.touchscreen.tap(picked.x, picked.y);
+      // Picking him brings up his tray, and the field fits itself to what is
+      // left of the stage — so he is found again once it has settled.
+      await expect(page.locator('[data-route-dot="z"]')).toHaveCount(1);
+      const dot = page.locator(".route-dot");
+      await expect(dot).toBeVisible();
+      let center = await centerOf();
+      await expect
+        .poll(async () => {
+          const was = center;
+          center = await centerOf();
+          return Math.hypot(center.x - was.x, center.y - was.y);
+        })
+        .toBeLessThan(0.5);
+      // The dot sits clear of where a finger on him lands, about twice as far
+      // up as it used to.
+      const mark = (await dot.boundingBox())!;
+      expect(center.y - (mark.y + mark.height)).toBeGreaterThanOrEqual(18);
+
+      // A thumb comes down a touch above his middle, under the handle's
+      // target, and drags him in from the sideline: he moves, and nothing is
+      // drawn.
+      const before = await man.getAttribute("transform");
+      const press = { x: center.x, y: center.y - 14 };
+      expect(
+        await page.evaluate(
+          ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute("class"),
+          press,
+        ),
+      ).toBe("route-dot-hit");
+      await fingerDrag(page, 81, press, { x: press.x - 50, y: press.y });
+      await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+      await expect(man).not.toHaveAttribute("transform", before!);
+      await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
+
+      // The dot itself still starts his route.
+      const moved = (await dot.boundingBox())!;
+      const grip = {
+        x: moved.x + moved.width / 2,
+        y: moved.y + moved.height / 2,
+      };
+      await fingerDrag(page, 82, grip, { x: grip.x + 40, y: grip.y - 60 });
+      await expect(page.locator("[data-drawing-preview]")).toHaveCount(1);
+    });
+
+    test("puts the blue dot away when a tap on the grass clears the field", async ({
+      page,
+    }) => {
+      await enterEditor(page);
+      const routes = await page.locator("[data-scene-path]").count();
+      // The Y, not the quarterback: held sideways, the tray that opens for a
+      // picked man lands where the quarterback was, under the lifting finger.
+      // The Y stands clear of anyone a finger could take for him.
+      const symbol = page
+        .locator("[data-scene-player='y']")
+        .locator("circle, rect, path")
+        .first();
+      const at = (await symbol.boundingBox())!;
+      await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
+      const dot = page.locator("[data-route-dot]");
+      await expect(page.locator('[data-route-dot="y"]')).toHaveCount(1);
+
+      // A route from his dot: the dot, a break, Done. He is measured again,
+      // because the tray moved the field when it opened.
+      const moved = (await symbol.boundingBox())!;
+      const start = {
+        x: moved.x + moved.width / 2,
+        y: moved.y + moved.height / 2,
+      };
+      const handle = (await page.locator(".route-dot").boundingBox())!;
+      await page.touchscreen.tap(
+        handle.x + handle.width / 2,
+        handle.y + handle.height / 2,
+      );
+      await expect(page.locator("[data-drawing-preview]")).toHaveCount(1);
+      await page.touchscreen.tap(start.x + 40, start.y - 50);
+      await page.getByRole("button", { name: "Finish the route — ⏎" }).tap();
+      await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+      await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
+
+      // A tap on bare grass puts everything down, the dot with it: a finger
+      // never hovered him, so nothing is left offering it. The low corner,
+      // because the note that the play changed rides along the top.
+      const field = (await page
+        .locator("svg.field-diagram")
+        .first()
+        .boundingBox())!;
+      await page.touchscreen.tap(field.x + 16, field.y + field.height - 16);
+      await expect(page.locator("[data-selected-path]")).toHaveCount(0);
+      await expect(page.locator("[data-scene-player].selected")).toHaveCount(0);
+      await expect(dot).toHaveCount(0);
     });
 
     test("keeps an update notice's action whole inside the width", async ({
@@ -545,7 +842,7 @@ for (const viewport of WORKSPACES) {
   });
 }
 
-test.describe("reading shell at 400×496", () => {
+test.describe("phone workspace at 400×496", () => {
   test.use({
     viewport: { width: 400, height: 496 },
     hasTouch: true,
@@ -553,37 +850,35 @@ test.describe("reading shell at 400×496", () => {
     deviceScaleFactor: 2,
   });
 
-  test("keeps the header to two rows and the way in on the first", async ({
+  test("opens straight into the editor with the destinations and the save state on the glass", async ({
     page,
   }) => {
-    await page.goto("/");
-    await expect(page.getByText("Read only")).toBeVisible();
-    const header = page.locator("header.topbar");
-    const box = await insideViewport(page, header, { width: 400, height: 496 });
-    expect(box.height).toBeLessThanOrEqual(92);
-    const edit = await insideViewport(
-      page,
+    await enterEditor(page);
+    await expect(page.getByText("Read only", { exact: true })).toHaveCount(0);
+    await expect(
       page.getByRole("button", { name: "Edit on this screen" }),
-      { width: 400, height: 496 },
-    );
-    const tabs = await insideViewport(
+    ).toHaveCount(0);
+    const viewport = { width: 400, height: 496 };
+    await insideViewport(page, page.locator("header.topbar"), viewport);
+    await insideViewport(
       page,
       page.getByRole("navigation", { name: "Workspace views" }),
-      { width: 400, height: 496 },
+      viewport,
     );
-    expect(Math.abs(edit.y - tabs.y)).toBeLessThan(12);
-    await expect(page.locator(".reading-name")).toBeVisible();
-    // The save state is there even when nothing can be changed (#97).
-    await expect(
-      page.getByRole("button", { name: "Saved on this device" }),
-    ).toBeVisible();
+    await insideViewport(
+      page,
+      page.getByRole("textbox", { name: "Play name" }),
+      viewport,
+    );
+    // The save state is there from the first frame (#97).
+    await expectSavedOnThisDevice(page);
   });
 });
 
 /**
  * The first launch on a phone (issue #96): no seed, no fixture — a blank
  * device, a formation, a name, a route, a save, a reload, and the Play is
- * there to read.
+ * there to pick up again.
  */
 blankTest.describe("first launch on a phone at 390×844", () => {
   blankTest.use({
@@ -600,15 +895,13 @@ blankTest.describe("first launch on a phone at 390×844", () => {
       page.on("console", (message) => {
         if (message.type() === "error") failures.push(message.text());
       });
-      await page.goto("/");
-      await expect(page.getByText("Read only")).toBeVisible({
-        timeout: 30_000,
-      });
-      await expect(page.locator(".reading-name")).toHaveText("Untitled play");
+      await enterEditor(page);
+      await expect(
+        page.getByRole("textbox", { name: "Play name" }),
+      ).toHaveValue("Untitled play");
       await expect(page.locator("[data-scene-player]")).toHaveCount(0);
 
-      await page.getByRole("button", { name: "Edit on this screen" }).tap();
-      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
+      await page.getByRole("button", { name: "Open the sidebar" }).tap();
       await page.getByTitle("Browse formations — ⇧⌘F").tap();
       await page
         .getByRole("dialog", { name: "Formations" })
@@ -616,7 +909,7 @@ blankTest.describe("first launch on a phone at 390×844", () => {
         .tap();
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
       await expect(
-        page.getByRole("complementary", { name: "Play inspector" }),
+        page.getByRole("navigation", { name: "Sidebar" }),
       ).toHaveCount(0);
 
       const name = page.getByRole("textbox", { name: "Play name" });
@@ -632,7 +925,7 @@ blankTest.describe("first launch on a phone at 390×844", () => {
       const at = (await symbol.boundingBox())!;
       const start = { x: at.x + at.width / 2, y: at.y + at.height / 2 };
       await page.touchscreen.tap(start.x, start.y);
-      await page.getByRole("button", { name: "Inspector", exact: true }).tap();
+      await page.getByRole("button", { name: "Show all assignments" }).tap();
       // The first man in the set is a lineman, whose Draw row offers his
       // block; whatever the row's first line is, it is drawn the same way.
       await page
@@ -648,17 +941,13 @@ blankTest.describe("first launch on a phone at 390×844", () => {
       expect(failures).toEqual([]);
 
       await page.reload();
-      await expect(page.getByText("Read only")).toBeVisible({
-        timeout: 30_000,
-      });
-      await expect(page.locator(".reading-name")).toHaveText(
-        "First play on a phone",
-      );
+      await waitForPhoneWorkspace(page);
+      await expect(
+        page.getByRole("textbox", { name: "Play name" }),
+      ).toHaveValue("First play on a phone", { timeout: 30_000 });
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
       await expect(page.locator("[data-scene-path]")).toHaveCount(1);
-      await expect(
-        page.getByRole("button", { name: "Saved on this device" }),
-      ).toBeVisible();
+      await expectSavedOnThisDevice(page);
     },
   );
 });

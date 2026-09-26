@@ -50,7 +50,9 @@ by tap or click, with the sentence also on hover.
 
 **Removed.** The sidebar _Save_ (the play saves continuously; the header's Save menu
 names versions). The library rows' delete `×` shows on hover or focus rather than
-always; on a coarse pointer it stays visible.
+always; on a coarse pointer it stays visible. The round `+` under the formation row
+(2026-09-25): it had no action in production, and the Formations browser's own
+name-and-Save row already saves the offense on the field as a formation.
 
 ## Preserved
 

@@ -44,7 +44,7 @@ for (const [label, viewport] of [
   test.describe(label, () => {
     test.use({ viewport });
 
-    test("keeps formation, concept and the library heading in reach without scrolling", async ({
+    test("keeps the play call and the first men in reach, with formation and the library in the sidebar", async ({
       page,
     }) => {
       await longPlay(page);
@@ -56,10 +56,26 @@ for (const [label, viewport] of [
         expect(rect.y).toBeGreaterThanOrEqual(box.y);
         expect(rect.y + rect.height).toBeLessThanOrEqual(box.y + box.height);
       };
-      await within(/Browse formations|Custom alignment/);
       await within(/^No concept yet/);
       await within(/^No line call yet/);
-      await within(/^Library/);
+      // The roster follows: the first man's row is in reach.
+      await within(/^X: /);
+      // Formation, the shadow and the library are sidebar rows (ADR 0058).
+      const sidebar = page.getByRole("navigation", { name: "Sidebar" });
+      await expect(
+        sidebar.getByRole("button", {
+          name: /Browse formations|Custom alignment|Formation/,
+        }),
+      ).toBeVisible();
+      await expect(
+        sidebar.getByRole("button", { name: /^Library/ }),
+      ).toBeVisible();
+      await expect(
+        inspector.getByRole("button", { name: /^Library/ }),
+      ).toHaveCount(0);
+      await expect(inspector.getByTitle("Browse formations — ⇧⌘F")).toHaveCount(
+        0,
+      );
       // Print, Field profile, Playbook settings and History moved into the
       // Settings overlay; they should not be folded disclosures on the
       // inspector any more.

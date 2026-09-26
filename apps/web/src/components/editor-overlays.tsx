@@ -137,6 +137,13 @@ export function MoreMenu({
       label: "Settings…",
       title: "Field profile, Playbook settings, History and Print & export",
     },
+    // Account is a tab of Settings (ADR 0058); this is the shortcut to it.
+    {
+      id: "account",
+      label: "Account…",
+      title:
+        "Sign in, sync and this device's data — the Account tab of Settings",
+    },
     ...newPlayEntries,
     // The header's Present button is off a phone's header (issue #92); the
     // menu carries it the way it carries the two new plays.
@@ -1656,7 +1663,7 @@ export function DefenseBrowser({
           <span>
             {withAssignments
               ? "Brings the call’s dashed zone drops and red blitz paths in with the alignment."
-              : "Just the front and secondary — letter symbols only, so you can draw your own coverage on top."}
+              : "Just the front and secondary — a triangle for each man, so you can draw your own coverage on top."}
           </span>
         </div>
       </div>

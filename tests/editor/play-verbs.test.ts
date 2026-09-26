@@ -1,7 +1,11 @@
 import {
+  applyFormation,
   applyPlayCommand,
+  applyPlayCommandWithInverse,
+  canonicalStringify,
   flipStrengthWords,
   highSchoolFieldProfile,
+  moveMenWithTheirLines,
   playDocumentSchema,
   stockFormations,
   type PlayCommand,
@@ -12,6 +16,7 @@ import {
   alignPlayersCommand,
   depthLabelText,
   flipStrengthCommand,
+  resetAlignmentCommand,
   reverseRouteCommand,
 } from "@chalk/editor";
 import { describe, expect, it } from "vitest";
@@ -267,5 +272,56 @@ describe("saying how deep a break is", () => {
   it("never marks the stance, which is not a break", () => {
     const marked = run(play, addDepthLabelCommand(play, "route_x", 0, makeId));
     expect(marked.labels.at(-1)!.text).toBe("6 Yds");
+  });
+});
+
+describe("putting the men back", () => {
+  const trips = stockFormations.find(({ name }) => name === "Gun Trips Right")!;
+  const aligned = applyFormation(play, trips, makeId).play;
+
+  it("is no command at all when everyone already stands where the set puts him", () => {
+    const { command, result } = resetAlignmentCommand(
+      aligned,
+      "offense",
+      "chosen",
+    );
+    expect(command).toBeUndefined();
+    expect(result?.movedCount).toBe(0);
+  });
+
+  it("brings a dragged man back with his route and his note, as one step to undo", () => {
+    const x = at(aligned, "man_7").position;
+    const dragged = moveMenWithTheirLines(
+      aligned,
+      new Map([
+        [
+          "man_7",
+          { lateralYards: x.lateralYards + 4, depthYards: x.depthYards - 1 },
+        ],
+      ]),
+    );
+    const { command } = resetAlignmentCommand(dragged, "offense", "chosen");
+    expect(command?.kind).toBe("batch");
+    expect(command?.kind === "batch" ? command.label : "").toBe(
+      "Reset offense to Gun Trips Right",
+    );
+    const { document, inverse } = applyPlayCommandWithInverse(
+      dragged,
+      command!,
+    );
+    expect(canonicalStringify(document)).toBe(canonicalStringify(aligned));
+    expect(canonicalStringify(applyPlayCommand(document, inverse))).toBe(
+      canonicalStringify(dragged),
+    );
+  });
+
+  it("has only the base to go back to on a Play drawn by hand", () => {
+    expect(resetAlignmentCommand(play, "offense", "chosen")).toEqual({});
+    const { command, result } = resetAlignmentCommand(play, "offense", "base");
+    expect(result?.alignment.name).toBe("Gun Doubles Right");
+    expect(command).toBeDefined();
+    expect(run(play, command).formationSource?.formationId).toBe(
+      result?.alignment.id,
+    );
   });
 });

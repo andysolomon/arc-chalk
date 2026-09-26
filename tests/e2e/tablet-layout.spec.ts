@@ -72,12 +72,11 @@ for (const [label, viewport] of VIEWPORTS) {
       ).toBeVisible();
 
       if (viewport.width < 668) {
-        // Below the floor: reading, with the way in named.
-        await expect(page.getByText("Read only")).toBeVisible();
+        // Below the floor: the phone workspace, straight away.
         await expect(
-          page.getByRole("navigation", { name: "Drawing tools" }),
-        ).toHaveCount(0);
-        await page.getByRole("button", { name: "Edit on this screen" }).click();
+          page.locator(".chalk-shell.phone-workspace"),
+        ).toBeVisible();
+        await expect(page.getByText("Read only")).toHaveCount(0);
         await expect(
           page.getByRole("navigation", { name: "Drawing tools" }),
         ).toBeVisible();
@@ -132,9 +131,7 @@ for (const [label, viewport] of VIEWPORTS) {
         await expect(inspector).toBeVisible();
         const panel = await box(inspector);
         expect(panel.x + panel.width).toBeLessThanOrEqual(viewport.width + 1);
-        await expect(
-          inspector.getByRole("button", { name: /^Library/ }),
-        ).toBeVisible();
+        await expect(inspector.getByText("Assignments")).toBeVisible();
         await inspector
           .getByRole("button", { name: "Hide the inspector" })
           .click();
@@ -183,15 +180,18 @@ for (const [label, viewport] of VIEWPORTS) {
       // Below the editor floor the Play is a page, not a dialog over the field.
       if (viewport.width < 668) return;
       await page.goto("/");
-      if (viewport.width < 1024) {
-        await page.getByRole("button", { name: "Inspector" }).click();
-      }
-      const inspector = page.getByRole("complementary", {
-        name: "Play inspector",
-      });
-      await expect(inspector).toBeVisible();
-
-      await page.getByTitle("Browse formations — ⇧⌘F").click();
+      // The formation and the library are sidebar rows (ADR 0058); below
+      // the docked floor the sidebar is a drawer its stub brings out.
+      const openSidebar = async () => {
+        if (viewport.width < 1024) {
+          await page.getByRole("button", { name: "Sidebar" }).click();
+        }
+        const sidebar = page.getByRole("navigation", { name: "Sidebar" });
+        await expect(sidebar).toBeVisible();
+        return sidebar;
+      };
+      let sidebar = await openSidebar();
+      await sidebar.getByTitle("Browse formations — ⇧⌘F").click();
       const formations = page.getByRole("dialog", { name: "Formations" });
       await expect(formations).toBeVisible();
       expect((await box(formations)).height).toBeGreaterThanOrEqual(
@@ -200,11 +200,12 @@ for (const [label, viewport] of VIEWPORTS) {
       await page.keyboard.press("Escape");
       await expect(formations).toHaveCount(0);
 
-      const library = inspector.getByRole("button", { name: /^Library/ });
+      sidebar = await openSidebar();
+      const library = sidebar.getByRole("button", { name: /^Library/ });
       if ((await library.getAttribute("aria-expanded")) === "false") {
         await library.click();
       }
-      await inspector.getByRole("button", { name: "Browse Playbook" }).click();
+      await sidebar.getByRole("button", { name: "Browse Playbook" }).click();
       const playbook = page.getByRole("dialog", { name: "Playbook" });
       await expect(playbook).toBeVisible();
       expect((await box(playbook)).height).toBeGreaterThanOrEqual(

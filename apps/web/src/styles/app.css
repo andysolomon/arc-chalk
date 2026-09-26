@@ -96,7 +96,11 @@ select:disabled {
 }
 .topbar {
   position: relative;
-  z-index: 5;
+  /* Above the panels that float over the workspace — a phone's assignments
+     sheet and a tablet's inspector drawer (8) — so a header menu opens over
+     them rather than under them (ADR 0058). The sidebar drawer covers the
+     header on purpose, as a drawer does. */
+  z-index: 10;
   height: 56px;
   flex: none;
   display: flex;
@@ -918,82 +922,8 @@ button.play-type.open {
 .rail-stub:hover {
   background: #f2f2f2;
 }
-/* Settings overlay — what used to be four folded disclosures on the right
-   inspector (Field, Playbook settings, History, Print & export) lives here
-   now, opened from the More menu. Same shape as the shortcuts overlay so it
-   reads as one of the editor's dialogs. */
-.settings-overlay {
-  align-items: flex-start;
-  justify-content: center;
-}
-.settings-panel {
-  width: 560px;
-  max-width: 92vw;
-  max-height: 86vh;
-  margin-top: 6vh;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  border-radius: 10px;
-  background: var(--paper);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.08),
-    0 18px 40px -12px rgba(0, 0, 0, 0.28);
-}
-.settings-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 14px;
-  line-height: 20px;
-}
-.settings-title {
-  font-size: 14px;
-  font-weight: 600;
-}
-.settings-close {
-  padding: 2px 4px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  cursor: pointer;
-}
-.settings-close:hover {
-  color: var(--ink);
-}
-.settings-body {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-.settings-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.settings-section-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--line);
-}
-.settings-section-heading h2 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-}
-.settings-summary {
-  font-size: 11px;
-  color: var(--muted);
-  text-align: right;
-}
+/* Settings — a tabbed modal (ADR 0058); its rules sit with the sidebar's
+   at the end of the sheet. */
 .snapshot-list {
   margin: 6px 0 0;
   padding: 0;
@@ -1225,6 +1155,11 @@ button.play-type.open {
 .rail-spacer {
   flex: 1;
 }
+/* What pushes the header's last actions to its end where there is no
+   Play name to take the room. */
+.topbar-fill {
+  flex: 1;
+}
 .tool-rail .rail-collapse {
   height: 22px;
   padding: 0;
@@ -1242,16 +1177,27 @@ button.play-type.open {
   min-height: 0;
   background: var(--canvas);
 }
-.destination-tabs {
+/* The page's own bar: which half of the Playbook, and New play beside it. */
+.destination-bar {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 4px;
-  padding: 10px 16px 8px;
+  gap: 8px;
+  padding: 12px 16px 4px;
+}
+/* Plays and Game plans are two halves of one thing, so they read as one
+   segmented control rather than two more tabs under the header's three. */
+.destination-tabs {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: #efefef;
 }
 .destination-tabs > button {
   height: 28px;
-  padding: 0 12px;
+  padding: 0 14px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -1261,31 +1207,52 @@ button.play-type.open {
   cursor: pointer;
 }
 .destination-tabs > button:hover {
-  background: var(--hover);
   color: var(--ink);
 }
 .destination-tabs > button.active {
-  background: #fff;
+  background: var(--paper);
   color: var(--ink);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.08);
 }
-.destination-tabs .destination-new {
-  color: var(--ink);
-  box-shadow: 0 0 0 1px var(--line);
+.destination-bar > .menu-new {
+  margin-left: auto;
 }
+.destination-bar .destination-new {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.destination-bar .destination-new:hover:not(:disabled) {
+  background: #383838;
+}
+.destination-bar .menu-panel {
+  top: calc(100% + 6px);
+}
+/* On its page the browser is the page: no second card inside it. */
 .browser-overlay.embedded {
   position: relative;
   inset: auto;
   z-index: auto;
   flex: 1;
   min-height: 0;
-  padding: 0 16px 16px;
+  padding: 0;
   background: transparent;
 }
 .browser-overlay.embedded .browser {
   width: 100%;
   max-width: none;
   height: 100%;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .game-day {
   overflow: auto;
@@ -2440,7 +2407,7 @@ button.play-type.open {
   stroke: #f2f2f2;
 }
 .hash {
-  stroke: #ececec;
+  stroke: #c7c7c7;
   stroke-width: 1;
 }
 .line-of-scrimmage {
@@ -2448,7 +2415,7 @@ button.play-type.open {
   stroke-width: 2;
 }
 .yard-numbers {
-  fill: #e9e9e9;
+  fill: #cccccc;
   font-family: "Geist Mono", monospace;
   font-size: 26px;
   font-weight: 600;
@@ -2633,7 +2600,7 @@ button.play-type.open {
 }
 
 .inspector {
-  width: 292px;
+  width: 300px;
   flex: none;
   overflow-y: auto;
   background: var(--canvas);
@@ -2896,17 +2863,6 @@ button.play-type.open {
   font-size: 12px;
   cursor: pointer;
 }
-.round-add {
-  width: 26px;
-  height: 26px;
-  margin-top: 6px;
-  border: 0;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 1px var(--line);
-  color: var(--muted);
-  cursor: pointer;
-}
 .segment-row {
   display: flex;
   align-items: center;
@@ -2939,6 +2895,14 @@ button.play-type.open {
   background: #fff;
   color: var(--ink);
   box-shadow: 0 0 0 1px var(--line);
+}
+/* A set's name can outrun its half of the Reset row; the title says it all. */
+.reset-row .segments button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reset-row .segments button:not(:disabled) {
+  color: var(--ink);
 }
 .inspector p {
   margin: 8px 0 0;
@@ -3373,12 +3337,130 @@ button.library-dot.target.small {
   color: var(--muted);
   font-size: 11px;
 }
+/*
+ * The Playbook: search, one row of filters, a count and an order, then the
+ * Plays. The same tools head the dialog over the editor and the Playbooks
+ * page; the page adds each Play's actions and, on a phone, a list.
+ */
+.playbook-tools {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px 4px;
+}
+.playbook-browser.browser .browser-head {
+  padding-bottom: 10px;
+}
+.browser-overlay.embedded .playbook-tools {
+  padding-top: 10px;
+}
+.playbook-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.playbook-search-glyph {
+  position: absolute;
+  left: 11px;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: var(--muted);
+  pointer-events: none;
+}
+.playbook-search > input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px 0 34px;
+  border: 0;
+  border-radius: 8px;
+  background: #efefef;
+  outline: 0;
+  color: var(--ink);
+  font-size: 14px;
+}
+.playbook-search > input::placeholder {
+  color: var(--muted);
+}
+.playbook-search > input:focus {
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--focus);
+}
+/* Unit and Type on one line. On a phone the line scrolls sideways rather
+   than stacking three rows of chips over the Plays. */
+.playbook-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.playbook-filters .chip {
+  flex: none;
+}
+.playbook-filters-rule {
+  width: 1px;
+  height: 16px;
+  flex: none;
+  margin: 0 2px;
+  background: rgba(0, 0, 0, 0.12);
+}
+.playbook-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.playbook-count {
+  font-variant-numeric: tabular-nums;
+}
+.playbook-clear {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  cursor: pointer;
+  font-size: 12px;
+}
+.playbook-clear:hover {
+  text-decoration: underline;
+}
+.playbook-order {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.playbook-order select {
+  height: 28px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  field-sizing: content;
+}
+.playbook-order select:hover {
+  background: var(--hover);
+}
 .playbook-scroll {
   min-height: 280px;
   overflow: auto;
 }
+.browser-body.playbook-scroll {
+  padding: 6px 0 16px;
+}
 .playbook-virtual-row {
-  padding: 0 16px 10px;
+  padding: 0 16px;
+  /* The row is a fixed height; its one track takes that height rather than
+     its content's, so a card never spills into the row below. */
+  grid-auto-rows: minmax(0, 1fr);
 }
 .playbook-thumb {
   height: 78px;
@@ -3396,13 +3478,50 @@ button.library-dot.target.small {
   display: block;
   height: 100%;
 }
+/* A card is a frame; the button inside it opens the Play and fills it, and
+   the row is a fixed height, so the picture takes what the words leave. */
+.browser-card.playbook-card {
+  position: relative;
+  min-width: 0;
+  padding: 0;
+  gap: 0;
+}
+.playbook-open {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 9px 9px;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.playbook-card .playbook-thumb {
+  min-height: 0;
+  height: auto;
+  flex: 1;
+}
+.playbook-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+.playbook-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
 .playbook-card.current {
   background: var(--selected-tint);
   box-shadow: 0 0 0 1px var(--selected);
-}
-.playbook-card.focused {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 .playbook-card-type {
   overflow: hidden;
@@ -3417,10 +3536,198 @@ button.library-dot.target.small {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.playbook-more {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.playbook-more svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+.playbook-more:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+/* On a card the actions sit on the picture's corner, out of the way until
+   the pointer is on the card; a finger always sees them. */
+.playbook-card > .playbook-more {
+  position: absolute;
+  top: 12px;
+  right: 13px;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px var(--line);
+}
+@media (pointer: fine) {
+  .playbook-card > .playbook-more {
+    opacity: 0;
+  }
+  .playbook-card:hover > .playbook-more,
+  .playbook-card:focus-within > .playbook-more {
+    opacity: 1;
+  }
+}
+/* The page on a phone: one Play to a line, the picture small beside it. */
+.playbook-row {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.playbook-row > .playbook-open {
+  height: 100%;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border-radius: 0;
+}
+.playbook-row .playbook-thumb {
+  width: 88px;
+  height: 50px;
+  flex: none;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.playbook-row .playbook-text {
+  flex: 1;
+  gap: 5px;
+}
+.playbook-row strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.playbook-row .playbook-card-type {
+  font-size: 12px;
+}
+.playbook-editing {
+  flex: none;
+  color: var(--selected);
+  font-size: 12px;
+  font-weight: 500;
+}
+.playbook-row > .playbook-more {
+  width: 44px;
+  height: 44px;
+}
+.playbook-none {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 48px 24px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+.playbook-none strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+.playbook-none .playbook-clear {
+  min-height: 32px;
+  font-size: 13px;
+}
 .playbook-empty {
   padding: 16px;
   color: var(--muted);
   font-size: 12px;
+}
+/* A Play's actions: a sheet from the bottom on a phone, a small card on a
+   desk. Deleting asks once more in the same place. */
+.play-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(23, 23, 23, 0.24);
+}
+.play-sheet {
+  display: flex;
+  width: 340px;
+  max-width: 100%;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 16px 16px;
+  border-radius: 14px;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 18px 40px -12px rgba(0, 0, 0, 0.3);
+}
+.play-sheet-head {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 4px;
+}
+.play-sheet-head strong {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+.play-sheet-head > span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.play-sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.play-sheet-actions button {
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #f2f2f2;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+}
+.play-sheet-actions button:hover {
+  background: var(--hover);
+}
+.play-sheet-actions .play-sheet-danger {
+  color: var(--error);
+}
+.play-sheet-actions .play-sheet-danger:hover {
+  background: var(--error-tint);
+}
+.play-sheet-actions .play-sheet-danger:only-child,
+.play-sheet-actions .play-sheet-danger:first-child {
+  background: var(--error);
+  color: var(--paper);
+}
+.play-sheet-actions .play-sheet-danger:first-child:hover {
+  background: #a93236;
 }
 .section-heading .scope-tag {
   margin-left: auto;
@@ -4178,9 +4485,37 @@ button.library-dot.target.small {
     height: 44px;
     min-width: 44px;
   }
+  /* Each destination is a 44 px box that meets its neighbour; the current
+     one is painted as the fine pointer's segment — paper, hairline, a 2 px
+     shadow — inset within its box, so the track still reads as one
+     segmented control rather than a white block laid across a gray one. */
   .view-tabs {
     padding: 0;
-    gap: 4px;
+    gap: 0;
+    border-radius: 8px;
+  }
+  .view-tabs button {
+    position: relative;
+    isolation: isolate;
+    border-radius: 8px;
+  }
+  .view-tabs button.active {
+    background: transparent;
+    box-shadow: none;
+  }
+  .view-tabs button.active::before {
+    position: absolute;
+    z-index: -1;
+    inset: 3px;
+    border-radius: 6px;
+    background: var(--paper);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.04);
+    content: "";
+  }
+  .view-tabs button:not(.active):active {
+    color: var(--ink);
   }
   .tool-rail {
     width: 60px;
@@ -4237,7 +4572,6 @@ button.library-dot.target.small {
   .status-controls > button:not(.save-state),
   .status-zoom button,
   .chip,
-  .round-add,
   .library-heading button,
   .back-button {
     min-height: 32px;
@@ -4347,28 +4681,6 @@ button.library-dot.target.small {
     display: none;
   }
 }
-/* The reading shell (a screen below the editor's floor) still carries the
-   three destinations and an explicit way into the editor (issue #68). */
-.reading-topbar .view-tabs {
-  margin-left: 0;
-}
-.reading-topbar .view-tabs button {
-  padding: 0 8px;
-}
-.reading-edit {
-  height: 32px;
-  flex: none;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-size: 12px;
-  box-shadow: 0 0 0 1px var(--line);
-  cursor: pointer;
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -4564,9 +4876,9 @@ button.library-dot.target.small {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
+  height: 36px;
   padding: 0 8px;
-  border-radius: 6px;
+  border-radius: 7px;
   background: #fff;
   box-shadow: 0 0 0 1px var(--line);
 }
@@ -5007,8 +5319,45 @@ button.library-dot.target.small {
     text-overflow: unset;
     white-space: normal;
   }
+  .playbook-card strong {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
   .playbook-thumb {
     height: 148px;
+  }
+  .playbook-card .playbook-open {
+    gap: 8px;
+    padding: 10px 10px 12px;
+  }
+  /* The filters keep to one line and scroll under the thumb, edge to edge. */
+  .playbook-filters {
+    flex-wrap: nowrap;
+    margin: 0 -16px;
+    padding: 0 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .playbook-filters::-webkit-scrollbar {
+    display: none;
+  }
+  /* Sixteen pixels, or Safari zooms the page when the search is tapped. */
+  .playbook-search > input {
+    height: 40px;
+    font-size: 16px;
+  }
+  .play-sheet-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .play-sheet {
+    width: 100%;
+    padding: 20px 16px max(16px, env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+  }
+  .play-sheet-actions button {
+    height: 48px;
   }
 }
 .browser-foot {
@@ -5177,217 +5526,236 @@ button.library-dot.target.small {
 }
 
 /*
- * A screen too small to work on shows the Play instead of the editor. The
- * shell's own minimum width is what the editor needs to lay its panels out;
- * this is the layout that has none of them.
+ * Editing on a screen below the floor (issue #92). A phone gets the editor
+ * laid out for a phone rather than the desktop editor squeezed into one: a
+ * two-row header, the tools in a tray along the bottom, the inspector as a
+ * sheet over the field. Everything the header sheds is in the More menu.
+ * The header is the phone's on every destination, not just the editor.
+ *
+ * The two rows read where, then what (ADR 0057). The first is where the
+ * Coach is: the three destinations as one segmented control across the
+ * row, and More at its end. The second is the work in hand: the
+ * play's name with the room it needs, its Unit, Undo and Redo as arrows,
+ * and Save, anchored at the trailing edge beneath More. Every control is a
+ * 44 px box; the pill and Save are painted inside theirs at the wider
+ * header's 32 px, so the name stays the loudest thing on the row.
  */
-.view-reading {
-  min-width: 0;
-}
-.reading-topbar {
+.topbar.phone-topbar {
   flex-wrap: wrap;
   height: auto;
   min-height: 0;
-  gap: 4px 8px;
-  padding: 4px 12px;
+  gap: 2px 4px;
+  padding: max(4px, env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
 }
-.reading-topbar .reading-edit {
-  margin-left: auto;
+.topbar.phone-topbar > .chalk-mark,
+.topbar.phone-topbar > .brand,
+.topbar.phone-topbar > .slash,
+.topbar.phone-topbar > .divider,
+.topbar.phone-topbar > .new-play,
+.topbar.phone-topbar > .menu-new,
+.topbar.phone-topbar > .reset-positions,
+.topbar.phone-topbar > .present,
+.topbar.phone-topbar > .menu-help,
+.topbar.phone-topbar > .menu-export,
+.topbar.phone-topbar > .top-spacer {
+  display: none;
 }
-/* The destinations and the way in share the first row, and the mark is
-   decorative — at 400 px the two of them plus the mark leave three pixels,
-   which one engine's wider text turns into a third row (issue #92). */
-@media (max-width: 667px) {
-  .reading-topbar > .chalk-mark {
-    display: none;
-  }
-  .reading-topbar .reading-edit {
-    padding: 0 8px;
-    font-size: 12px;
-  }
+/* A finger has no hover: a tapped control must not stay lit, and a press
+   shows while the finger is down instead. */
+.topbar.phone-topbar button {
+  -webkit-tap-highlight-color: transparent;
 }
-.reading-topbar .top-break {
-  display: block;
-  flex-basis: 100%;
-  height: 0;
+.topbar.phone-topbar > button:not(:disabled):hover,
+.topbar.phone-topbar .menu > button:not(.save):hover {
+  background: transparent;
 }
-/* Wide and shallow — a phone held sideways — has the width for one row. */
-@media (min-width: 668px) {
-  .reading-topbar .top-break {
-    display: none;
-  }
-  .reading-topbar .reading-edit {
-    order: 1;
-    margin-left: 0;
-  }
-}
-.reading-name {
-  overflow: hidden;
-  flex: 1;
-  font-size: 13px;
-  font-weight: 550;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.reading-chip {
-  flex: none;
-  padding: 3px 8px;
-  border-radius: 999px;
+.topbar.phone-topbar > button:not(:disabled):active,
+.topbar.phone-topbar .menu > button:not(.save, .play-type):active,
+.topbar.phone-topbar .menu > button.open:not(.save, .play-type) {
   background: var(--hover);
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.view-reading .editor-stage {
-  box-shadow: none;
-}
-.view-reading .field-wrap {
-  padding: 12px;
-  background: var(--paper);
-}
-/* The outline is the way through the Play without sight, on any screen. */
-.view-reading .field-outline li {
-  position: absolute;
-  overflow: hidden;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-/* The reading shell keeps the one report of a failed write (issue #97). */
-.reading-statusbar {
-  justify-content: space-between;
-  box-shadow: 0 -1px 0 var(--line);
-}
-.reading-statusbar .save-state {
-  flex: none;
-}
-.reading-note {
-  flex: none;
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-  margin: 0;
-  background: var(--canvas);
-  box-shadow: 0 -1px 0 var(--line);
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.4;
-  text-align: center;
-}
-/* A shallow screen has no depth to spare for the explanation; the chip and
-   the button say it. */
-@media (max-height: 439px) {
-  .reading-note {
-    display: none;
-  }
+  color: var(--ink);
 }
 
-/*
- * Editing on a screen below the floor (issue #92). A Coach who pressed Edit
- * on this screen gets the editor laid out for a phone rather than the
- * desktop editor squeezed into one: a two-row header, the tools in a tray
- * along the bottom, the inspector as a sheet over the field. Everything the
- * header sheds is in the More menu.
- */
-.phone-workspace .topbar {
-  flex-wrap: wrap;
-  height: auto;
-  min-height: 0;
-  gap: 4px 3px;
-  padding: 4px 8px;
-}
-.phone-workspace .topbar > .chalk-mark,
-.phone-workspace .topbar > .brand,
-.phone-workspace .topbar > .slash,
-.phone-workspace .topbar > .divider,
-.phone-workspace .topbar > .new-play,
-.phone-workspace .topbar > .menu-new,
-.phone-workspace .topbar > .reset-positions,
-.phone-workspace .topbar > .present,
-.phone-workspace .topbar > .menu-help,
-.phone-workspace .topbar > .menu-export {
-  display: none;
-}
-/* The second row is tight at 360 px: a point smaller, and the type pill
-   gives way before the actions do. */
-.phone-workspace .topbar > button,
-.phone-workspace .topbar .play-type select,
-.phone-workspace .topbar .menu > button {
-  font-size: 12px;
-}
-.phone-workspace .topbar > button.quiet {
-  padding: 0 8px;
-}
-/* The actions row is the tight one: the type pill, Undo, Redo, Read only
-   and Save have to share 360 px with room to spare, because a wider text
-   engine turns a few missing pixels into a third row (issue #92). The pill
-   is the one that can give — its words are in the panel it opens. */
-.phone-workspace .topbar > .classify-menu {
+/* Row one — where. */
+.topbar.phone-topbar .view-tabs {
   min-width: 0;
-  flex: 0 1 auto;
-  max-width: 76px;
-}
-.phone-workspace .topbar > .top-spacer {
-  display: none;
-}
-.phone-workspace .topbar > .reading-edit,
-.phone-workspace .topbar > .menu-save > button {
-  padding: 0 8px;
-}
-.phone-workspace .topbar .play-type {
-  max-width: 100%;
-  overflow: hidden;
-  padding: 0 8px;
-}
-.phone-workspace .topbar .play-type select {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.phone-workspace .topbar .view-tabs {
+  flex: 1 1 auto;
   margin-left: 0;
 }
-.phone-workspace .topbar .view-tabs button {
-  padding: 0 8px;
+/* The tabs already take the row; a spacer beside them only squeezes them. */
+.topbar.phone-topbar > .topbar-fill {
+  display: none;
 }
-.phone-workspace .topbar .play-name {
-  width: auto;
+.topbar.phone-topbar .view-tabs button {
   min-width: 0;
-  flex: 1 1 60px;
+  flex: 1 1 0;
+  padding: 0 6px;
+  font-size: 13px;
 }
-.phone-workspace .topbar > .menu-more {
+.topbar.phone-topbar > .menu-more {
   order: 1;
 }
-.phone-workspace .topbar > .top-break {
+.topbar.phone-topbar .menu > .more {
+  width: 44px;
+  padding: 0;
+  font-size: 20px;
+}
+.topbar.phone-topbar > .top-break {
   order: 2;
   display: block;
   flex-basis: 100%;
   height: 0;
 }
-.phone-workspace .topbar > .classify-menu,
-.phone-workspace .topbar > button.quiet {
+
+/* Row two — what. The name takes whatever the row has left, from a zero
+   basis: a wrapping row places its items by basis before anything shrinks,
+   so a long name would otherwise push Save onto a third row. The Unit pill
+   says the Unit's word alone and is capped, tighter on the narrowest phones:
+   its Type is one tap away in the panel it opens, and the name's words are
+   nowhere else. */
+.topbar.phone-topbar > .play-name {
   order: 3;
+  width: auto;
+  min-width: 0;
+  height: 44px;
+  flex: 1 1 0;
+  padding: 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
 }
-.phone-workspace .topbar .play-type {
+.topbar.phone-topbar > .play-name:hover {
+  background: transparent;
+}
+.topbar.phone-topbar > .play-name:focus {
+  background: var(--paper);
+}
+.topbar.phone-topbar > .classify-menu {
+  order: 3;
+  position: static;
+  min-width: 44px;
+  max-width: 112px;
+  flex: 0 1 auto;
+}
+.topbar.phone-topbar .play-type-name {
+  display: none;
+}
+@media (max-width: 374px) {
+  .topbar.phone-topbar > .classify-menu {
+    max-width: 88px;
+  }
+}
+/* The pill is the wider header's own — 32 px, 6 px corners, a hairline and
+   the Unit's dot (ADR 0051) — painted inside a 44 px box. */
+.topbar.phone-topbar .classify-menu > .play-type {
+  position: relative;
+  isolation: isolate;
   display: flex;
+  width: 100%;
+  max-width: none;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: #4d4d4d;
+  font-size: 12px;
 }
-/* Wide and shallow has the width for one row, and needs the depth. */
+.topbar.phone-topbar .classify-menu > .play-type i {
+  flex: none;
+}
+.topbar.phone-topbar .classify-menu > .play-type::before {
+  position: absolute;
+  z-index: -1;
+  inset: 6px 0;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--line);
+  content: "";
+}
+.topbar.phone-topbar .classify-menu > .play-type:active::before,
+.topbar.phone-topbar .classify-menu > .play-type.open::before {
+  background: var(--hover);
+}
+/* The pill sits mid-row, so its panel hangs from the header's trailing
+   edge rather than from the pill, where it could run off the glass. */
+.topbar.phone-topbar .classify-panel {
+  top: calc(100% + 2px);
+  right: max(8px, env(safe-area-inset-right));
+  left: auto;
+  width: min(236px, calc(100vw - 16px));
+}
+.topbar.phone-topbar > .undo,
+.topbar.phone-topbar > .redo {
+  order: 3;
+  width: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+/* The arrows are a pair: their boxes meet, and the glyphs keep 26 px. */
+.topbar.phone-topbar > .redo {
+  margin-left: -4px;
+}
+.topbar.phone-topbar > .menu-save {
+  order: 5;
+}
+.topbar.phone-topbar .menu-save > .save,
+.topbar.phone-topbar .menu-save > .save:hover,
+.topbar.phone-topbar .menu-save > .save.saved {
+  position: relative;
+  isolation: isolate;
+  padding: 0 12px;
+  background: transparent;
+  font-size: 13px;
+}
+.topbar.phone-topbar .menu-save > .save::before {
+  position: absolute;
+  z-index: -1;
+  inset: 6px 0;
+  border-radius: 6px;
+  background: var(--ink);
+  content: "";
+}
+.topbar.phone-topbar .menu-save > .save:active::before,
+.topbar.phone-topbar .menu-save > .save.open::before {
+  background: #383838;
+}
+.topbar.phone-topbar .menu-save > .save.saved::before {
+  background: #398e4a;
+}
+/* A 44 px button's panel opens beneath it, not over its lower edge. */
+.topbar.phone-topbar .menu > .menu-panel {
+  top: calc(100% + 2px);
+}
+
+/* Wide and shallow — a phone held sideways — has the width for one row and
+   needs the depth: the destinations at their own width, the name between
+   them and the actions, the pill's Type back beside its Unit, More beside
+   Save. */
 @media (min-width: 668px) {
-  .phone-workspace .topbar > .top-break {
+  .topbar.phone-topbar > .top-break {
     display: none;
   }
-  .phone-workspace .topbar > .menu-more {
-    order: 5;
+  .topbar.phone-topbar .view-tabs {
+    flex: none;
   }
-}
-.phone-workspace .topbar > .top-spacer {
-  order: 4;
-}
-.phone-workspace .topbar > .reading-edit,
-.phone-workspace .topbar > .menu-save {
-  order: 5;
+  .topbar.phone-topbar > .topbar-fill {
+    display: block;
+  }
+  .topbar.phone-topbar .view-tabs button {
+    flex: none;
+    padding: 0 12px;
+  }
+  .topbar.phone-topbar > .menu-more {
+    order: 4;
+  }
+  .topbar.phone-topbar > .classify-menu {
+    max-width: 180px;
+  }
+  .topbar.phone-topbar .play-type-name {
+    display: inline;
+  }
 }
 .phone-workspace .workspace {
   flex-direction: column;
@@ -5553,6 +5921,18 @@ button.library-dot.target.small {
 }
 .phone-workspace .minimap {
   bottom: 60px;
+}
+/* The assignments sheet peeks over the bottom of the field (ADR 0058): what
+   the field shows along its lower edge — the Undo toast, the map — stands
+   above the bar rather than under it. Held sideways the peek is a corner
+   pill, and they keep their places. */
+@media (min-height: 440px) {
+  .phone-workspace .field-wrap > .toast {
+    bottom: 84px;
+  }
+  .phone-workspace .minimap {
+    bottom: 130px;
+  }
 }
 .phone-workspace .statusbar {
   height: auto;
@@ -6407,4 +6787,975 @@ button.shell-quiet:hover {
   .game-plan-call-actions {
     flex-wrap: wrap;
   }
+}
+
+/* =========================================================================
+   ADR 0058 — assignments-only inspector, play sidebar, tabbed settings
+   ------------------------------------------------------------------------- */
+
+/* The sidebar: docked at the workspace's left edge on a desktop. */
+.play-sidebar {
+  position: relative;
+  z-index: 4;
+  width: 236px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 10px;
+  background: var(--paper);
+  box-shadow: 1px 0 rgba(0, 0, 0, 0.06);
+}
+.sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar-heading {
+  padding: 12px 8px 4px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sidebar-row-wrap {
+  position: relative;
+}
+.sidebar-row {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.sidebar-row:hover {
+  background: #f5f5f5;
+}
+.sidebar-row.active {
+  background: #f2f2f2;
+}
+.sidebar-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-flex;
+  color: var(--muted);
+}
+.sidebar-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-value {
+  max-width: 88px;
+  flex: none;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-hint {
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+}
+.sidebar-chevron {
+  display: none;
+  color: #c9c9c9;
+}
+.sidebar-spacer {
+  flex: 1;
+}
+.sidebar-collapse {
+  align-self: flex-end;
+  width: 24px;
+  height: 24px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sidebar-collapse:hover {
+  background: #f2f2f2;
+  color: var(--ink);
+}
+/* The Reset row sits under the Formation row once a set is chosen. */
+.sidebar-below {
+  padding: 0 8px;
+}
+.sidebar-below .segment-row {
+  margin-top: 2px;
+  margin-bottom: 4px;
+}
+.sidebar-below .segment-row:empty {
+  display: none;
+}
+/* A row's control, beside the row. */
+.sidebar-popover {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 8px);
+  z-index: 12;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 12px 28px -8px rgba(0, 0, 0, 0.22);
+}
+.sidebar-row-wrap[data-row="library"] .sidebar-popover {
+  width: 320px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.sidebar-popover .menu-panel {
+  position: static;
+  width: auto;
+  padding: 0;
+  box-shadow: none;
+}
+.sidebar-popover .segment-row {
+  margin-top: 0;
+}
+.sidebar-popover p,
+.sidebar-popover .hint-body {
+  margin: 0;
+  color: #777;
+  font-size: 11px;
+  line-height: 15px;
+}
+.sidebar-popover .wide-picker + .segment-row {
+  margin-top: 4px;
+}
+/* The handle that brings the sidebar back, like the tools' stub. */
+.sidebar-stub {
+  width: 28px;
+  flex: none;
+  border: 0;
+  background: var(--canvas);
+  box-shadow: 1px 0 rgba(0, 0, 0, 0.06);
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  cursor: pointer;
+}
+.sidebar-stub:hover {
+  background: #f2f2f2;
+}
+/* The ≡ at a phone header's left. */
+.sidebar-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sidebar-open:hover {
+  background: #f2f2f2;
+}
+/* The ≡ leads the first row, before the destinations (ADR 0058): a 44 px
+   box like every other control in the phone header. */
+.topbar.phone-topbar > .sidebar-open {
+  order: 0;
+  width: 44px;
+  height: 44px;
+  flex: none;
+}
+
+/* Below the docked inspector's floor the sidebar is a drawer over the field's
+   left edge, and on a phone it is the drawer the ≡ opens. */
+.sidebar-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 14;
+  border: 0;
+  background: rgba(23, 23, 23, 0.35);
+  cursor: pointer;
+}
+/* The drawer is the whole height of the glass, over the header too, as the
+   handoff draws it; the browsers it opens (z 20) still come over it. */
+.play-sidebar.sidebar-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 15;
+  padding-top: env(safe-area-inset-top);
+  width: 304px;
+  max-width: 88vw;
+  padding: 0 8px max(10px, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  box-shadow:
+    1px 0 rgba(0, 0, 0, 0.08),
+    12px 0 28px -12px rgba(0, 0, 0, 0.22);
+}
+.sidebar-drawer-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 0 4px 0 8px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.sidebar-close {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sidebar-back {
+  height: 44px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.sidebar-page-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.sidebar-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px;
+}
+.sidebar-page .menu-panel {
+  position: static;
+  width: auto;
+  padding: 0;
+  box-shadow: none;
+}
+.sidebar-page .segments button,
+.sidebar-page .layer-toggles button,
+.sidebar-page .help-row button,
+.sidebar-page .wide-picker {
+  min-height: 44px;
+}
+.sidebar-drawer .sidebar-row {
+  height: 44px;
+  border-radius: 8px;
+  font-size: 15px;
+}
+.sidebar-drawer .sidebar-chevron {
+  display: inline;
+}
+.sidebar-drawer .sidebar-value {
+  max-width: 140px;
+  font-size: 14px;
+}
+.sidebar-drawer .sidebar-heading {
+  font-size: 11px;
+}
+.sidebar-status {
+  padding: 12px 8px 4px;
+}
+.sidebar-status .sidebar-save {
+  color: var(--ready);
+  font-size: 13px;
+}
+.sidebar-status .sidebar-save::before {
+  content: "●";
+  margin-right: 8px;
+  font-size: 9px;
+  vertical-align: 1px;
+}
+.sidebar-status .sidebar-save.error {
+  color: var(--red);
+}
+/* Below 1024 px the sidebar stub keeps its own column, as on a desktop, so
+   the tool rail stands beside it rather than under it; only the tools' own
+   stub floats, and it moves over to clear the sidebar's. */
+@media (max-width: 1023px) {
+  .sidebar-stub ~ .rail-stub {
+    left: 28px;
+  }
+}
+@media (pointer: coarse) {
+  .sidebar-row {
+    min-height: 44px;
+  }
+  .sidebar-stub {
+    width: 44px;
+  }
+  .sidebar-stub ~ .rail-stub {
+    left: 44px;
+  }
+}
+
+/* The inspector is assignments only. */
+.assignments-bar {
+  height: 38px;
+  gap: 8px;
+}
+.assignments-bar strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.assignments-count {
+  color: var(--muted);
+  font-size: 12px;
+}
+.play-call {
+  padding: 14px 16px 0;
+}
+.play-call .wide-picker {
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+.roster {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px 16px;
+}
+.roster-group {
+  padding-top: 12px;
+}
+.roster-heading {
+  margin-bottom: 4px;
+  padding: 0 8px;
+}
+.roster-row {
+  width: 100%;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.roster-row:hover {
+  background: #f5f5f5;
+}
+.roster-row[aria-pressed="true"] {
+  background: var(--selected-tint);
+}
+.roster-symbol {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.4px var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+.roster-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.roster-summary.empty {
+  color: #c9c9c9;
+}
+.roster-role {
+  flex: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.roster-chevron {
+  flex: none;
+  color: #c9c9c9;
+}
+.roster-empty {
+  margin: 8px;
+  color: #777;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+/* The Player panel's head: him, what he plays, whose unit. */
+.player-chip {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.player-role {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.unit-tag {
+  margin-left: auto;
+  color: var(--unit-offense);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.unit-tag[data-unit="defense"] {
+  color: var(--unit-defense);
+}
+.label-heading .scope-tag + .unit-tag {
+  margin-left: 0;
+}
+.player-name-row {
+  display: flex;
+  gap: 6px;
+}
+.player-name-row input {
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  color: var(--ink);
+  font-size: 13px;
+  outline: none;
+}
+.player-name-row input:focus {
+  box-shadow: 0 0 0 1px #005fcc;
+}
+.player-name-row .player-letter {
+  width: 56px;
+  flex: none;
+  font-weight: 600;
+  text-align: center;
+}
+.player-name-row input + input {
+  flex: 1;
+}
+.alternate-row .alternate {
+  background: transparent;
+  box-shadow: none;
+  outline: 1px dashed rgba(0, 0, 0, 0.22);
+  outline-offset: -1px;
+}
+.route-heading .route-owner {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.route-heading .scope-tag-blue {
+  font-weight: 600;
+}
+
+/* A phone's assignments sheet: peeked above the tools, or full height. */
+.phone-workspace .inspector.sheet {
+  position: absolute;
+  top: auto;
+  right: 0;
+  bottom: 56px;
+  left: 0;
+  z-index: 8;
+  width: auto;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px 16px 0 0;
+  background: var(--paper);
+  box-shadow:
+    0 -1px 0 var(--line),
+    0 -12px 28px -12px rgba(0, 0, 0, 0.25);
+}
+.phone-workspace .quick-tray ~ .inspector.sheet {
+  bottom: 112px;
+}
+/* Full, the sheet takes the whole workspace, tools and tray included; a line
+   by hand drops it back to its peek so the field and Done are there. */
+.phone-workspace .inspector.sheet-full,
+.phone-workspace .quick-tray ~ .inspector.sheet-full {
+  top: 0;
+  bottom: 0;
+}
+.sheet-grab {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  margin-left: -18px;
+  border-radius: 2px;
+  background: #d9d9d9;
+}
+.sheet-handle {
+  position: relative;
+  width: 100%;
+  min-height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+.sheet-handle strong,
+.sheet-head strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+.sheet-calls {
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheet-caret {
+  color: var(--muted);
+  font-size: 14px;
+}
+.sheet-head {
+  position: relative;
+  min-height: 48px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 4px;
+  box-shadow: 0 1px 0 var(--line);
+}
+.sheet-back,
+.sheet-field {
+  min-height: 44px;
+  flex: none;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.sheet-field {
+  margin-left: auto;
+  font-weight: 600;
+}
+.sheet-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.sheet-title .player-chip {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+.sheet-title .player-role {
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.sheet-body .label-inspector {
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+.sheet-body .play-call {
+  padding: 12px 16px 0;
+}
+.sheet .roster-row {
+  height: 44px;
+  font-size: 15px;
+}
+.sheet .roster-symbol {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+.sheet-body .player-name-row input,
+.sheet-body .wide-picker {
+  height: 44px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.sheet-body .button-grid button,
+.sheet-body .draw-row button,
+.sheet-body .help-row button {
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.sheet-body .line-row {
+  height: 48px;
+  border-radius: 10px;
+}
+.sheet-body .disclosure-toggle,
+.sheet-body .segments button {
+  min-height: 44px;
+}
+.sheet-pager {
+  min-height: 60px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 -1px 0 var(--line);
+}
+.sheet-pager button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.sheet-pager button strong {
+  color: var(--ink);
+}
+.sheet-pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.sheet-pager-count {
+  flex: 1;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+/* Held sideways there is no depth for a bar across the glass: the peek is a
+   pill in the field's bottom corner, where the canvas around a fitted field
+   is empty, and the full sheet's rows stand shorter. */
+@media (max-height: 439px) {
+  .phone-workspace .inspector.sheet-peek {
+    left: auto;
+    right: 10px;
+    bottom: 66px;
+    width: auto;
+    border-radius: 999px;
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  .phone-workspace .quick-tray ~ .inspector.sheet-peek {
+    bottom: 122px;
+  }
+  .phone-workspace .sheet-peek .sheet-handle {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+  .phone-workspace .sheet-peek .sheet-handle strong {
+    font-size: 13px;
+  }
+  .phone-workspace .sheet-peek .sheet-grab,
+  .phone-workspace .sheet-peek .sheet-calls {
+    display: none;
+  }
+  .phone-workspace .sheet-head {
+    min-height: 44px;
+    padding: 8px 12px 2px;
+  }
+  .phone-workspace .sheet-pager {
+    min-height: 48px;
+    padding: 4px 12px;
+  }
+}
+
+/* Settings: a modal with the tabs down its left. */
+.settings-overlay {
+  align-items: flex-start;
+  justify-content: center;
+}
+.settings-panel {
+  width: 720px;
+  max-width: 92vw;
+  height: 440px;
+  max-height: 86vh;
+  margin-top: 6vh;
+  display: flex;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.settings-side {
+  width: 200px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 12px;
+  background: #fafafa;
+  box-shadow: 1px 0 rgba(0, 0, 0, 0.06);
+}
+.settings-title {
+  padding: 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.settings-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-tab {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.settings-tab:hover {
+  background: #f2f2f2;
+}
+.settings-tab.active {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  font-weight: 600;
+}
+.settings-tab-name {
+  flex: 1;
+}
+.settings-tab-value {
+  max-width: 110px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.settings-head {
+  height: 48px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  box-shadow: 0 1px 0 var(--line);
+}
+.settings-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.settings-summary {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.settings-close {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.settings-close:hover {
+  background: #f5f5f5;
+}
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 22px;
+  overflow-y: auto;
+}
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.settings-section p {
+  margin: 0;
+  color: #777;
+  font-size: 11px;
+  line-height: 15px;
+}
+.settings-field {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.settings-field-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.settings-section .settings-about-name {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.settings-account .backup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* On a phone Settings is a page: the head, pill tabs across, the body. */
+.phone-workspace .settings-overlay {
+  align-items: stretch;
+}
+.phone-workspace .settings-panel {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  flex-direction: column;
+  border-radius: 0;
+}
+.phone-workspace .settings-main {
+  display: contents;
+}
+.phone-workspace .settings-head {
+  order: 0;
+  height: 52px;
+  padding: 0 12px;
+}
+.phone-workspace .settings-side {
+  order: 1;
+  width: auto;
+  padding: 8px 12px;
+  background: var(--paper);
+  box-shadow: 0 1px 0 var(--line);
+}
+.phone-workspace .settings-title {
+  display: none;
+}
+.phone-workspace .settings-tabs {
+  flex-direction: row;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.phone-workspace .settings-tab {
+  height: 34px;
+  flex: none;
+  padding: 0 14px;
+  border-radius: 17px;
+  box-shadow: 0 0 0 1px var(--line);
+  font-size: 14px;
+}
+.phone-workspace .settings-tab.active {
+  background: var(--ink);
+  box-shadow: none;
+  color: #fff;
+}
+.phone-workspace .settings-tab-value {
+  display: none;
+}
+.phone-workspace .settings-body {
+  order: 2;
+  padding: 16px;
+}
+.phone-workspace .settings-close {
+  min-height: 44px;
+  box-shadow: none;
+  color: var(--blue);
+  font-size: 15px;
+}
+.phone-workspace .settings-field {
+  grid-template-columns: 1fr;
+}
+.phone-workspace .settings-body .segments button,
+.phone-workspace .settings-body .page-kinds button {
+  min-height: 38px;
 }

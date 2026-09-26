@@ -99,11 +99,13 @@ async function openEditor(page: Page): Promise<void> {
 }
 
 /**
- * The defensive call on an offensive play sits under the folded Opponent
- * look section (issue #64); its one-line summary says what is on the field.
+ * The defensive call on an offensive play is the sidebar's Shadow defense
+ * row (issue #64, ADR 0058); its value says what is on the field.
  */
 const opponentLook = (page: import("@playwright/test").Page) =>
-  page.locator('[data-disclosure="opponent"] .disclosure-summary');
+  page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: /^Shadow defense/ });
 
 test("drags a Player and his route as one undoable step", async ({ page }) => {
   await openEditor(page);
@@ -328,6 +330,152 @@ test("retains a blue-dot drag on release, finishes on Enter, and undoes once", a
   await expect(page.locator("[data-scene-path]")).toHaveCount(6);
 });
 
+test("draws a route by hand off the blue dot with Free draw off, and keeps it in hand (ADR 0056)", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const start = await playerCenter(page, "z");
+  await page.mouse.click(start.x, start.y);
+  await expect(
+    page
+      .getByRole("group", { name: "Draw by hand" })
+      .getByRole("switch", { name: "Free draw" }),
+  ).toHaveAttribute("aria-checked", "false");
+  const dot = page.locator('[data-route-dot="z"]');
+  const box = (await dot.boundingBox())!;
+  const press = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+  // A stem, then a wheel bending in toward the ball — the shape of a hand.
+  await page.mouse.move(press.x, press.y);
+  await page.mouse.down();
+  await page.mouse.move(press.x, press.y - 90, { steps: 8 });
+  for (let step = 1; step <= 10; step += 1) {
+    const angle = (step / 10) * (Math.PI / 2);
+    await page.mouse.move(
+      press.x - 80 * (1 - Math.cos(angle)),
+      press.y - 90 - 80 * Math.sin(angle),
+    );
+  }
+  // While it is drawn it is ink under the pointer, not a dashed aim line.
+  const preview = page.locator("[data-drawing-preview]");
+  await expect(preview).toHaveAttribute("data-drawing-mode", "breaks");
+  await expect(preview).not.toHaveAttribute("stroke-dasharray", /.+/);
+  await page.mouse.up();
+
+  // Lifting keeps the line in hand, shaped as drawn, for Done or a break.
+  await expect(preview).toHaveCount(1);
+  await expect(preview).toHaveAttribute("d", / L .* L .* L /);
+  const bar = page.getByRole("group", { name: "Route in hand" });
+  await expect(bar.getByRole("button", { name: "Breaks" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await bar.getByRole("button", { name: "Finish the route — ⏎" }).click();
+
+  await expect(preview).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(7);
+  // The wheel arrives as a curve, not a single straight stem.
+  await expect(page.locator("[data-scene-path]").last()).toHaveAttribute(
+    "d",
+    / Q /,
+  );
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Draw route");
+  await undo.click();
+  await expect(page.locator("[data-scene-path]")).toHaveCount(6);
+});
+
+test("keeps every sample of a route drawn off the dot when moves outrun frames (ADR 0056)", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const start = await playerCenter(page, "z");
+  await page.mouse.click(start.x, start.y);
+  const box = (await page.locator('[data-route-dot="z"]').boundingBox())!;
+  const press = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  // A stem, then a wheel bending in toward the ball.
+  const stroke: { x: number; y: number }[] = [];
+  for (let step = 1; step <= 8; step += 1) {
+    stroke.push({ x: press.x, y: press.y - (90 * step) / 8 });
+  }
+  for (let step = 1; step <= 10; step += 1) {
+    const angle = (step / 10) * (Math.PI / 2);
+    stroke.push({
+      x: press.x - 80 * (1 - Math.cos(angle)),
+      y: press.y - 90 - 80 * Math.sin(angle),
+    });
+  }
+
+  // A busy tablet hands the page many moves between two frames. Every one is
+  // a piece of the shape, so none may be dropped for being early.
+  await page.evaluate(
+    ({ press, stroke }) => {
+      const dot = document.querySelector('[data-route-dot="z"]')!;
+      const field = document.querySelector("svg.field-diagram")!;
+      const at = (point: { x: number; y: number }, buttons: number) => ({
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        pointerId: 7,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons,
+        clientX: point.x,
+        clientY: point.y,
+      });
+      dot.dispatchEvent(new PointerEvent("pointerdown", at(press, 1)));
+      for (const point of stroke) {
+        field.dispatchEvent(new PointerEvent("pointermove", at(point, 1)));
+      }
+      field.dispatchEvent(new PointerEvent("pointerup", at(stroke.at(-1)!, 0)));
+    },
+    { press, stroke },
+  );
+
+  // Still in hand, and still the shape of the hand: not one straight stem.
+  const preview = page.locator("[data-drawing-preview]");
+  await expect(preview).toHaveCount(1);
+  await expect(preview).toHaveAttribute("d", / L .* L .* L /);
+  await page
+    .getByRole("group", { name: "Route in hand" })
+    .getByRole("button", { name: "Finish the route — ⏎" })
+    .click();
+  await expect(page.locator("[data-scene-path]").last()).toHaveAttribute(
+    "d",
+    / Q /,
+  );
+});
+
+test("puts the blue dot away when a click on the grass clears the field", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const start = await playerCenter(page, "q");
+  await page.mouse.click(start.x, start.y);
+  const box = (await page.locator('[data-route-dot="q"]').boundingBox())!;
+  await drag(
+    page,
+    { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+    { x: start.x + 80, y: start.y - 120 },
+  );
+  await page.keyboard.press("Enter");
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(7);
+
+  // The dot left under the pointer as the route began, so its man never
+  // heard the pointer leave him. The grass still puts everything down.
+  const grass = await fieldPoint(page, 150, 120);
+  await page.mouse.click(grass.x, grass.y);
+  await expect(page.locator("[data-selected-path]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-player].selected")).toHaveCount(0);
+  await expect(page.locator("[data-route-dot]")).toHaveCount(0);
+
+  // Hover still offers it: a pointer that comes back over him brings it.
+  await page.mouse.move(start.x, start.y);
+  await expect(page.locator('[data-route-dot="q"]')).toHaveCount(1);
+});
+
 test("ends a route from Done over the field, without Enter or a double click (ADR 0054)", async ({
   page,
 }) => {
@@ -541,7 +689,7 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
   await openEditor(page);
 
   // Selecting an existing note opens the Text panel in place of the idle one.
-  await expect(page.getByText("Play setup", { exact: true })).toBeVisible();
+  await expect(page.getByText("Play call", { exact: true })).toBeVisible();
   const note = page.locator('[data-scene-label="l2"]');
   const box = (await note.boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -549,7 +697,7 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
   await expect(page.getByRole("textbox", { name: "Label text" })).toHaveValue(
     "2-3 Yds",
   );
-  await expect(page.getByText("Play setup", { exact: true })).toBeHidden();
+  await expect(page.getByText("Play call", { exact: true })).toBeHidden();
 
   await page.getByRole("button", { name: "Alert", exact: true }).click();
   await expect(
@@ -563,7 +711,7 @@ test("gives a note its meaning and takes it away again", async ({ page }) => {
 
   // Escape steps back to the play and the idle panels return.
   await page.keyboard.press("Escape");
-  await expect(page.getByText("Play setup", { exact: true })).toBeVisible();
+  await expect(page.getByText("Play call", { exact: true })).toBeVisible();
 });
 
 test("will not paste a twelfth man onto a full side", async ({ page }) => {
@@ -664,7 +812,7 @@ test("restyles a route, then one segment of it on its own", async ({
   // Selecting a route opens the Route panel in place of the idle one.
   const onSegment = await fieldPoint(page, 262, 405);
   await page.mouse.click(onSegment.x, onSegment.y);
-  await expect(page.getByText("Play setup", { exact: true })).toBeHidden();
+  await expect(page.getByText("Play call", { exact: true })).toBeHidden();
   // "Route" is both the panel's heading and one of its kind buttons.
   await expect(
     page.locator(".label-heading").getByText("Route", { exact: true }),
@@ -860,9 +1008,7 @@ test("gives a man a second line off his stance and keeps the first", async ({
 
   const x = await playerCenter(page, "x");
   await page.mouse.click(x.x, x.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
   await expect(page.locator(".line-row")).toHaveCount(1);
   await expect(page.locator(".line-row span").first()).toHaveText(
     "Base stem · solid",
@@ -989,9 +1135,7 @@ test("greys what a man cannot be sent behind, and closes on Escape", async ({
   await expect(menu).toBeHidden();
   // Escape closed the menu and left what he had picked alone.
   await revealInspector(page);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
 });
 
 test("brings a line forward from the menu and from the keyboard", async ({
@@ -1061,9 +1205,7 @@ test("opens the same menu on a press held still", async ({ page }) => {
   // A press that lets go is a tap, and picks him without offering anything.
   await press("pointerdown", z);
   await press("pointerup", z);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
   // Waited out rather than checked at once: what is being tested is a timer,
   // and a menu that has not appeared yet looks exactly like one that never will.
   await page.waitForTimeout(700);
@@ -1139,6 +1281,50 @@ test("puts the men in another set, carries their routes, and takes it all back a
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
 });
 
+test("puts a dragged man back in the set he picked, from under the picker (ADR 0055)", async ({
+  page,
+}) => {
+  await openEditor(page);
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  const browser = page.getByRole("dialog", { name: "Formations" });
+  await browser
+    .getByRole("textbox", { name: "Search formations" })
+    .fill("trips");
+  await browser.getByText("Gun Trips Right", { exact: true }).click();
+  await expect(browser).toBeHidden();
+
+  // Once a set is picked the row is there to stay, under the sidebar's
+  // Formation row (ADR 0058), and says there is nothing to put back while
+  // everyone stands where the set put him.
+  const sidebar = page.getByRole("navigation", { name: "Sidebar" });
+  const reset = sidebar.getByRole("button", {
+    name: "Reset offense to Gun Trips Right",
+  });
+  await expect(reset).toBeDisabled();
+
+  const home = await playerAt(page, "z");
+  const start = await playerCenter(page, "z");
+  await drag(page, start, { x: start.x - 40, y: start.y + 25 });
+  await expect
+    .poll(async () => Math.abs((await playerAt(page, "z")).x - home.x))
+    .toBeGreaterThan(1);
+
+  // Letting go of him brings the Play's own panel back, reset and all. A Z
+  // brought in still reads as Trips — the split is his to tighten — but he
+  // is not where the set put him, so there is something to put back.
+  await page.keyboard.press("Escape");
+  await expect(reset).toBeEnabled();
+  await reset.click();
+  await expect(page.getByRole("status")).toContainText("1 man back in place");
+  await expect
+    .poll(async () => Math.abs((await playerAt(page, "z")).x - home.x))
+    .toBeLessThan(0.01);
+  await expect(page.locator("[data-formation-status]")).toHaveText(
+    "GUN TRIPS RIGHT · 11",
+  );
+  await expect(reset).toBeDisabled();
+});
+
 test("keeps eleven on when a set wants a man the side has no room for", async ({
   page,
 }) => {
@@ -1166,6 +1352,44 @@ test("keeps eleven on when a set wants a man the side has no room for", async ({
   await page.keyboard.press("Control+z");
   await expect
     .poll(async () => Math.abs((await playerAt(page, "z")).x - before.x))
+    .toBeLessThan(0.5);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+});
+
+test("puts a lineman dragged into the backfield back on the line when another set is picked", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const guard = await playerAt(page, "ol1");
+
+  // The left guard stood in the backfield beside the back is still the left
+  // guard; he has not become a back.
+  await drag(
+    page,
+    await playerCenter(page, "ol1"),
+    await fieldPoint(page, 430, 530),
+  );
+  await expect
+    .poll(async () => (await playerAt(page, "ol1")).y)
+    .toBeGreaterThan(500);
+
+  // Let go of him, so the inspector is back on the Play and its set.
+  await page.keyboard.press("Escape");
+  await page.getByTitle("Browse formations — ⇧⌘F").click();
+  const browser = page.getByRole("dialog", { name: "Formations" });
+  await browser.getByText("Gun Trips Right", { exact: true }).click();
+  await expect(browser).toBeHidden();
+
+  // He goes back to the guard's spot, and the back he was standing beside
+  // keeps the back's.
+  const toast = page.getByRole("status");
+  await expect(toast).toContainText("Gun Trips Right");
+  await expect(toast).not.toContainText("left in place");
+  await expect
+    .poll(async () => {
+      const at = await playerAt(page, "ol1");
+      return Math.hypot(at.x - guard.x, at.y - guard.y);
+    })
     .toBeLessThan(0.5);
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
 });
@@ -1333,9 +1557,7 @@ test("redraws one man's line as a call off the route tree", async ({
   await openEditor(page);
   const z = await playerCenter(page, "z");
   await page.mouse.click(z.x, z.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
 
   const before = await page.locator('[data-scene-path="rz"]').getAttribute("d");
 
@@ -1371,9 +1593,7 @@ test("puts a call off the tree on the man himself, drawn or redrawn", async ({
   // Coach with no way to give him a route but to add an alternate first.
   const q = await playerCenter(page, "q");
   await page.mouse.click(q.x, q.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
 
   const slant = page.getByRole("button", { name: "Slant", exact: true });
   await expect(slant).toBeVisible();
@@ -1382,9 +1602,7 @@ test("puts a call off the tree on the man himself, drawn or redrawn", async ({
   // The grid stays up, so the next call is one click away rather than a
   // trip back to the man.
   await expect(slant).toHaveAttribute("aria-pressed", "true");
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
 
   // Asking for another reshapes the stem he now has rather than piling a
   // second line on top of it.
@@ -1396,7 +1614,8 @@ test("puts a call off the tree on the man himself, drawn or redrawn", async ({
   ).toHaveAttribute("aria-pressed", "true");
 
   // A block sits alongside his route rather than replacing it, and the same
-  // button takes it off again.
+  // button takes it off again. A receiver's blocks are folded (ADR 0058).
+  await page.getByRole("button", { name: /^Quick blocks/ }).click();
   const drive = page.getByRole("button", { name: "Drive", exact: true });
   await drive.click();
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 2);
@@ -1461,6 +1680,11 @@ test("spots the ball on a hash and takes the whole Play with it", async ({
   const before = await playerAt(page, "z");
   const routes = await page.locator("[data-scene-path]").count();
 
+  // The ball's spot is behind the sidebar's Ball on row (ADR 0058).
+  await page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: /^Ball on/ })
+    .click();
   const middle = page.getByRole("button", { name: "Middle", exact: true });
   const rightHash = page.getByRole("button", { name: "R hash", exact: true });
   await expect(middle).toHaveAttribute("aria-pressed", "true");
@@ -1597,9 +1821,7 @@ test("keeps the field under the pointer once the Coach has zoomed in", async ({
   await openEditor(page);
   const q = await playerCenter(page, "q");
   await page.mouse.click(q.x, q.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
 
   // Shown on his own, he is now drawn somewhere else on screen entirely.
   await page.keyboard.press("Control+2");
@@ -1607,17 +1829,13 @@ test("keeps the field under the pointer once the Coach has zoomed in", async ({
     .poll(async () => (await cameraOf(page)).width)
     .toBeLessThan(VIEWBOX_WIDTH);
   await page.keyboard.press("Escape");
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeHidden();
+  await expect(page.locator(".player-heading")).toBeHidden();
 
   // Pressing where he is drawn must still be pressing him, which it only is
   // if a client pixel is read through the camera rather than the whole frame.
   const zoomedQ = await playerCenter(page, "q");
   await page.mouse.click(zoomedQ.x, zoomedQ.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".player-heading")).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Letter" })).toHaveValue("Q");
 
   // And how near his own drawn edge a press has to be does not grow with the
@@ -1627,9 +1845,7 @@ test("keeps the field under the pointer once the Coach has zoomed in", async ({
   const at = await playerAt(page, "q");
   const beside = await fieldPoint(page, at.x + 10, at.y);
   await page.mouse.click(beside.x, beside.y);
-  await expect(
-    page.locator(".label-heading").getByText("Player", { exact: true }),
-  ).toBeHidden();
+  await expect(page.locator(".player-heading")).toBeHidden();
 });
 
 test("flips the strength, so the picture and the words agree", async ({
@@ -1745,7 +1961,11 @@ test("lets a control the Coach tabbed to have its own Enter and Space", async ({
   await openEditor(page);
   // The field wants both keys — Enter finishes a route, Space pans it — and
   // swallowing them left every button in the app dead to anyone working
-  // without a pointer.
+  // without a pointer. Shortcuts is behind the sidebar's Help row (ADR 0058).
+  await page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: /^Help/ })
+    .click();
   const shortcuts = page.getByRole("button", {
     name: "Shortcuts ?",
     exact: true,
@@ -1756,6 +1976,11 @@ test("lets a control the Coach tabbed to have its own Enter and Space", async ({
   ).toBeVisible();
   await page.keyboard.press("Escape");
 
+  // Choosing Shortcuts put the Help popover away; open it again for Space.
+  await page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: /^Help/ })
+    .click();
   await shortcuts.press(" ");
   await expect(
     page.getByRole("dialog", { name: "Keyboard shortcuts" }),
@@ -2086,97 +2311,76 @@ test("moves the field under one finger on the grass, and still picks a man up", 
 });
 
 /**
- * A phone shows the Play and nothing that changes it (Phase 4.5). These run
- * at a phone's own size on whichever browser the project names, because what
- * makes a screen a phone here is how big it is, not what it is.
+ * A phone opens on the editor laid out for it (issue #92), with no read-only
+ * stop on the way in. These run at a phone's own size on whichever browser
+ * the project names, because what makes a screen a phone here is how big it
+ * is, not what it is.
  */
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("shows the Play to be read, and will not let it be changed", async ({
+  const phoneShell = (page: Page) =>
+    page.locator(".chalk-shell.phone-workspace");
+
+  test("opens on the editor, ready to draw, with the Play whole", async ({
     page,
   }) => {
     await page.goto("/");
     await expect(
       page.getByRole("img", { name: "Stick — Thunder football play" }),
     ).toBeVisible();
+    await expect(phoneShell(page)).toBeVisible();
     await expect(page.locator("[data-scene-player]")).toHaveCount(11);
-    await expect(page.getByText("Read only", { exact: true })).toBeVisible();
-    // None of the editing chrome is here to be reached at all.
-    await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
-    await expect(page.getByLabel("Drawing tools")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Inspector" })).toHaveCount(
-      0,
-    );
-
-    // A thumb dragged across a man moves the field, not the man.
-    const qBefore = await playerAt(page, "q");
-    const finger = contact(page, "touch", 71);
-    const q = await playerCenter(page, "q");
-    await finger.down(q);
-    await finger.move({ x: q.x - 70, y: q.y - 40 });
-    await finger.up({ x: q.x - 70, y: q.y - 40 });
-    expect(await playerAt(page, "q")).toEqual(qBefore);
-    expect((await cameraOf(page)).x).toBeGreaterThan(0);
-
-    // Nor does a keyboard reach the field — one arrives paired, and what it
-    // would reach is a Play the Coach cannot see he has changed. The camera
-    // keys are the visible proof that the shortcuts are off; the ones beside
-    // them delete men and undo the last thing he did on this device.
-    // Backspace is left out of this on purpose: with the field's shortcuts
-    // off, nothing swallows it, and WebKit still reads it as the back button.
-    const looking = await cameraOf(page);
-    await page.keyboard.press("ArrowLeft");
-    await page.keyboard.press("v");
-    await page.keyboard.press("Control+0");
-    await page.keyboard.press("Control+2");
-    await expect(page.locator("[data-scene-player]")).toHaveCount(11);
-    expect(await playerAt(page, "q")).toEqual(qBefore);
-    expect(await cameraOf(page)).toEqual(looking);
+    await expect(page.getByText("Read only", { exact: true })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Edit on this screen" }),
+    ).toHaveCount(0);
+    await expect(page.getByLabel("Drawing tools")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+    // The whole field, to begin with.
+    await expect
+      .poll(async () => (await cameraOf(page)).width)
+      .toBeCloseTo(VIEWBOX_WIDTH, 3);
 
     // And the Play is still readable without sight: every man, line and note
     // is named, in the order a Coach would read them out.
-    await expect(
-      page.getByRole("list", { name: "Everything on the field" }),
-    ).toHaveCount(1);
+    const outline = page.getByRole("list", { name: "Everything on the field" });
+    await expect(outline).toHaveCount(1);
     // Stick — Thunder is eleven men, five lines and twelve notes.
-    await expect(
-      page
-        .getByRole("list", { name: "Everything on the field" })
-        .getByRole("listitem"),
-    ).toHaveCount(11 + 5 + 12);
-    await expect(
-      page
-        .getByRole("list", { name: "Everything on the field" })
-        .getByRole("listitem")
-        .filter({ hasText: "X offense player" }),
-    ).toHaveCount(1);
+    await expect(outline.getByRole("listitem")).toHaveCount(11 + 5 + 12);
+
+    // A reload — what a phone browser does to a page left in the background —
+    // comes back to the editor, not to a screen he has to talk his way past.
+    await page.reload();
+    await expect(phoneShell(page)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByLabel("Drawing tools")).toBeVisible();
+    await expect(page.getByText("Read only", { exact: true })).toHaveCount(0);
   });
 
-  test("gives the editor back when the screen is big enough again", async ({
+  test("gives the full editor back when the screen is big enough again", async ({
     page,
   }) => {
     await page.goto("/");
-    await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+    await expect(phoneShell(page)).toBeVisible();
 
     // A phone turned on its side is still a phone: wide enough now, and
     // nowhere near deep enough.
     await page.setViewportSize({ width: 844, height: 390 });
-    await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+    await expect(phoneShell(page)).toBeVisible();
 
-    // A tablet is not, and the editor comes back without a reload.
+    // A tablet is not, and its editor comes back without a reload.
     await page.setViewportSize({ width: 834, height: 1194 });
     await expect(page.getByLabel("Drawing tools")).toBeVisible();
-    await expect(page.getByText("Read only", { exact: true })).toHaveCount(0);
+    await expect(phoneShell(page)).toHaveCount(0);
 
     // Gone in for a close look at one man, and then the window is a phone
-    // again: what he can only read, he reads whole.
+    // again: the phone starts from the whole field.
     await page.keyboard.press("Control+Equal");
     await expect
       .poll(async () => (await cameraOf(page)).width)
       .toBeLessThan(VIEWBOX_WIDTH);
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+    await expect(phoneShell(page)).toBeVisible();
     await expect
       .poll(async () => (await cameraOf(page)).width)
       .toBeCloseTo(VIEWBOX_WIDTH, 3);

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><style>body{margin:0;background:#eeece7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#171717;-webkit-font-smoothing:antialiased}a{color:#0072f5}a:hover{color:#005fcc}input{font:inherit;color:inherit}.dv-card span,.dv-card kbd,.dv-card b{white-space:nowrap}.dv-card p,.dv-card p *{white-space:normal}.dv-card *{scrollbar-width:none}.dv-card [style*="overflow:hidden"]>*{flex-shrink:0}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}.dv-card{max-width:none;flex:none;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}</style></helmet>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname"><a class="dv-oid" href="#1a">1a</a> on mobile web — same responsive app in a phone browser (Safari chrome, no native shell). Sidebar becomes a drawer, the inspector a sheet that goes full-height on a tap.</span></div>
+<div class="dv-opts">
+<div class="dv-opt" id="2a" style="width:100%">
+<div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Mobile web — idle · man selected · sidebar drawer · Settings</div>
+<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+
+<!-- 2a idle -->
+<div class="dv-card" data-screen-label="2a Mobile web — nothing selected" style="width:390px;border-radius:28px">
+<div style="width:390px;height:844px;display:flex;flex-direction:column;background:#fafafa;font-size:13px">
+  <div style="height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:15px;font-weight:600;background:#fafafa"><span>12:37</span><span style="font-size:11px;letter-spacing:1px">●●● ᯤ ▮</span></div>
+  <div style="flex:none;background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06)">
+    <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 10px"><span style="width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px">≡</span><div style="display:flex;background:#f2f2f2;border-radius:8px;padding:2px;gap:2px;font-size:12.5px"><span style="padding:0 10px;height:28px;display:flex;align-items:center;border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600">Editor</span><span style="padding:0 10px;height:28px;display:flex;align-items:center;color:#8f8f8f">Playbooks</span><span style="padding:0 10px;height:28px;display:flex;align-items:center;color:#8f8f8f">Game Day</span></div><span style="flex:1"></span><span style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:#8f8f8f;font-size:18px">···</span></div>
+    <div style="height:48px;display:flex;align-items:center;gap:6px;padding:0 12px 6px"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Stick — Thunder</div><div style="font-size:11.5px;color:#2e6bb0;font-weight:600;display:flex;align-items:center;gap:5px"><i style="width:6px;height:6px;border-radius:50%;background:#2e6bb0"></i>Offense · Gun Doubles Rt</div></div><span style="height:40px;padding:0 10px;display:flex;align-items:center">Undo</span><span style="height:40px;padding:0 10px;display:flex;align-items:center;color:#c9c9c9">Redo</span><span style="height:40px;padding:0 14px;border-radius:8px;background:#171717;color:#fff;display:flex;align-items:center;font-weight:600">Save</span></div>
+  </div>
+  <div style="flex:1;min-height:0;display:flex;align-items:center;padding:10px 8px"><div style="width:100%;border:1px solid rgba(0,0,0,.08);border-radius:6px;overflow:hidden;background:#fff"><dc-import name="Chalk Field" hint-size="100%,240px"></dc-import></div></div>
+  <div style="flex:none;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -2px 12px rgba(0,0,0,.06)">
+    <div style="display:flex;justify-content:center;padding:8px 0 0"><span style="width:36px;height:4px;border-radius:2px;background:#e5e5e5"></span></div>
+    <div style="display:flex;align-items:center;gap:8px;height:40px;padding:0 16px"><span style="font-weight:600;font-size:14px">Assignments</span><span style="color:#8f8f8f;font-size:12px">9 of 11</span><span style="flex:1"></span><span style="font-size:12px;color:#0072f5;font-weight:600">Stick · Slide left</span><span style="color:#8f8f8f">⌃</span></div>
+    <div style="display:flex;gap:6px;padding:0 12px 10px;overflow:hidden">
+      <sc-for list="{{ menChips }}" as="m" hint-placeholder-count="11"><div style="flex:none;width:52px;height:56px;border-radius:10px;border:1px solid rgba(0,0,0,.1);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px"><span style="font-weight:700;font-size:14px">{{ m.l }}</span><span style="font-size:8.5px;font-weight:600;color:{{ m.c }}">{{ m.a }}</span></div></sc-for>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-around;height:56px;box-shadow:0 -1px 0 rgba(0,0,0,.06)"><span style="width:48px;height:44px;border-radius:8px;background:#171717;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px">↖</span><span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#555">✎</span><span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#555">T</span><span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#555">⌫</span><span style="height:44px;padding:0 10px;display:flex;align-items:center;gap:6px;font-size:11.5px;color:#8f8f8f">− <span style="font-family:ui-monospace,Menlo,monospace;color:#171717">100%</span> +</span></div>
+  </div>
+  <div style="height:84px;flex:none;display:flex;align-items:center;gap:10px;padding:8px 14px 20px;background:#f2f2f2;box-shadow:0 -1px 0 rgba(0,0,0,.08)"><span style="width:44px;height:44px;border-radius:50%;background:#d8d8d8;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px">‹</span><span style="flex:1;height:44px;border-radius:22px;background:#d8d8d8;display:flex;align-items:center;justify-content:center;gap:10px;color:#fff;font-size:15px"><span>☰</span>arc-chalk.vercel.app<span>↻</span></span><span style="width:44px;height:44px;border-radius:50%;background:#d8d8d8;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px">▢</span></div>
+</div>
+</div>
+
+<!-- 2a player selected: sheet full height -->
+<div class="dv-card" data-screen-label="2a Mobile web — Y selected, sheet full-height" style="width:390px;border-radius:28px">
+<div style="width:390px;height:844px;display:flex;flex-direction:column;background:#fafafa;font-size:14px;position:relative">
+  <div style="height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:15px;font-weight:600"><span>12:37</span><span style="font-size:11px;letter-spacing:1px">●●● ᯤ ▮</span></div>
+  <div style="height:48px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px">≡</span><div style="display:flex;background:#f2f2f2;border-radius:8px;padding:2px;gap:2px;font-size:12.5px"><span style="padding:0 10px;height:28px;display:flex;align-items:center;border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600">Editor</span><span style="padding:0 10px;height:28px;display:flex;align-items:center;color:#8f8f8f">Playbooks</span><span style="padding:0 10px;height:28px;display:flex;align-items:center;color:#8f8f8f">Game Day</span></div><span style="flex:1"></span><span style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:#8f8f8f;font-size:18px">···</span></div>
+  <div style="flex:1;min-height:0;display:flex;flex-direction:column;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -2px 12px rgba(0,0,0,.08);margin-top:8px">
+    <div style="display:flex;justify-content:center;padding:8px 0 0;flex:none"><span style="width:36px;height:4px;border-radius:2px;background:#e5e5e5"></span></div>
+    <div style="display:flex;align-items:center;gap:6px;height:48px;padding:0 8px;flex:none;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="height:44px;padding:0 10px;display:flex;align-items:center;gap:6px;color:#0072f5;font-size:15px">‹ All 11</span><span style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600"><span style="width:24px;height:24px;border-radius:50%;background:#0072f5;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">Y</span>Tight end</span><span style="height:44px;padding:0 12px;display:flex;align-items:center;color:#0072f5;font-size:15px;font-weight:600">Field ⌄</span></div>
+    <div style="flex:1;min-height:0;overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:8px"><input value="Y" aria-label="Letter" style="width:64px;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;text-align:center;font-weight:600;font-size:16px"><input value="STICK" aria-label="Tag under" style="flex:1;min-width:0;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;padding:0 14px;font-size:15px"></div>
+      <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-top:4px">His route</div>
+      <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 8px 0 14px;border-radius:10px;background:#eef4ff;box-shadow:inset 0 0 0 1px #c7dcff"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">Base stem · solid · 2 breaks</span><span style="height:36px;padding:0 12px;border-radius:8px;background:#fff;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;color:#0072f5;font-weight:600;font-size:13px">Edit</span><span style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:#c9c9c9;font-size:18px">×</span></div>
+      <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-top:4px">Quick routes</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+        <sc-for list="{{ routes12 }}" as="q" hint-placeholder-count="12"><span style="height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 0 1px {{ q.bd }};background:{{ q.bg }};color:{{ q.fg }}">{{ q.n }}</span></sc-for>
+      </div>
+      <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-top:4px">Draw on the field</div>
+      <div style="display:flex;gap:8px"><span style="flex:1;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;display:flex;align-items:center;justify-content:center">Route</span><span style="flex:1;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;display:flex;align-items:center;justify-content:center">Block</span><span style="flex:1;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;display:flex;align-items:center;justify-content:center">Motion</span></div>
+      <div style="height:44px;border:1px dashed rgba(0,0,0,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#555">+ Alternate route</div>
+      <div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 4px"><span style="color:#8f8f8f">▸</span><span style="font-weight:600">Quick blocks</span><span style="color:#8f8f8f;font-size:12px;flex:1;text-align:right">Base · Reach · Pass set</span></div>
+      <div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 4px"><span style="color:#8f8f8f">▸</span><span style="font-weight:600">Appearance</span><span style="color:#8f8f8f;font-size:12px;flex:1;text-align:right">Circle · None · ink</span></div>
+      <p style="margin:0;font-size:12px;line-height:17px;color:#8f8f8f">Drawing a route puts the sheet down so the field is there to draw on; Done brings it back.</p>
+    </div>
+    <div style="height:60px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;box-shadow:0 -1px 0 rgba(0,0,0,.06)"><span style="height:44px;padding:0 14px;border-radius:10px;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;gap:6px"><span style="color:#8f8f8f">‹</span><b>H</b><span style="color:#8f8f8f;font-size:12px">Flat</span></span><span style="flex:1;text-align:center;font-size:12px;color:#8f8f8f">8 of 11</span><span style="height:44px;padding:0 14px;border-radius:10px;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;gap:6px"><span style="color:#8f8f8f;font-size:12px">Slant</span><b>Z</b><span style="color:#8f8f8f">›</span></span></div>
+  </div>
+  <div style="height:84px;flex:none;display:flex;align-items:center;gap:10px;padding:8px 14px 20px;background:#f2f2f2;box-shadow:0 -1px 0 rgba(0,0,0,.08)"><span style="width:44px;height:44px;border-radius:50%;background:#d8d8d8;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px">‹</span><span style="flex:1;height:44px;border-radius:22px;background:#d8d8d8;display:flex;align-items:center;justify-content:center;gap:10px;color:#fff;font-size:15px"><span>☰</span>arc-chalk.vercel.app<span>↻</span></span><span style="width:44px;height:44px;border-radius:50%;background:#d8d8d8;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px">▢</span></div>
+</div>
+</div>
+
+<!-- 2a sidebar drawer -->
+<div class="dv-card" data-screen-label="2a Mobile web — sidebar drawer" style="width:390px;border-radius:28px">
+<div style="width:390px;height:844px;position:relative;background:#fafafa;font-size:13px;overflow:hidden">
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+    <div style="height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:15px;font-weight:600"><span>12:37</span><span style="font-size:11px;letter-spacing:1px">●●● ᯤ ▮</span></div>
+    <div style="height:96px;flex:none;background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06)"></div>
+    <div style="flex:1;min-height:0;display:flex;align-items:center;padding:10px 8px"><div style="width:100%;border:1px solid rgba(0,0,0,.08);border-radius:6px;overflow:hidden;background:#fff"><dc-import name="Chalk Field" hint-size="100%,240px"></dc-import></div></div>
+    <div style="height:170px;flex:none;background:#fff;border-radius:16px 16px 0 0"></div>
+    <div style="height:84px;flex:none;background:#f2f2f2"></div>
+  </div>
+  <div style="position:absolute;inset:0;background:rgba(23,23,23,.35)"></div>
+  <nav aria-label="Sidebar" style="position:absolute;top:0;bottom:0;left:0;width:304px;background:#fff;box-shadow:8px 0 30px rgba(0,0,0,.2);display:flex;flex-direction:column;padding:50px 12px 20px">
+    <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 4px"><span style="font-weight:600;font-size:16px;flex:1">Chalk</span><span style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#8f8f8f">×</span></div>
+    <sc-for list="{{ sideA }}" as="s" hint-placeholder-count="2">
+      <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;padding:14px 8px 4px">{{ s.h }}</div>
+      <sc-for list="{{ s.rows }}" as="r" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 10px;border-radius:8px;background:{{ r.bg }};font-size:14px"><span style="width:18px;color:#8f8f8f;text-align:center">{{ r.g }}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">{{ r.n }}</span><span style="flex:none;color:#8f8f8f;font-size:12.5px">{{ r.v }}</span><span style="color:#c9c9c9">›</span></div>
+      </sc-for>
+    </sc-for>
+    <span style="flex:1"></span>
+    <div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 10px;border-radius:8px;font-size:14px"><span style="width:18px;color:#8f8f8f;text-align:center">⎙</span><span style="flex:1">Print &amp; export</span><span style="color:#c9c9c9">›</span></div>
+    <div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 10px;border-radius:8px;font-size:14px"><span style="width:18px;color:#8f8f8f;text-align:center">⚙</span><span style="flex:1">Settings</span><span style="color:#c9c9c9">›</span></div>
+    <div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 10px;border-radius:8px;font-size:14px"><span style="width:18px;color:#8f8f8f;text-align:center">?</span><span style="flex:1">Help</span></div>
+    <div style="display:flex;align-items:center;gap:8px;height:40px;padding:0 10px;margin-top:6px;font-size:12px;color:#2b6a3a"><i style="width:6px;height:6px;border-radius:50%;background:#2b6a3a"></i>Saved on this device</div>
+  </nav>
+</div>
+</div>
+
+<!-- 2a settings -->
+<div class="dv-card" data-screen-label="2a Mobile web — Settings" style="width:390px;border-radius:28px">
+<div style="width:390px;height:844px;display:flex;flex-direction:column;background:#fff;font-size:14px">
+  <div style="height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:15px;font-weight:600;background:#fafafa"><span>12:37</span><span style="font-size:11px;letter-spacing:1px">●●● ᯤ ▮</span></div>
+  <div style="height:48px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="height:44px;padding:0 10px;display:flex;align-items:center;color:#0072f5;font-size:15px">‹ Back</span><span style="flex:1;text-align:center;font-weight:600">Settings</span><span style="width:64px"></span></div>
+  <div style="flex:none;display:flex;gap:6px;padding:10px 12px;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.06)">
+    <sc-for list="{{ settingsTabs }}" as="t" hint-placeholder-count="6"><span style="flex:none;height:34px;padding:0 14px;border-radius:17px;display:flex;align-items:center;font-size:13px;box-shadow:0 0 0 1px {{ t.pillBd }};background:{{ t.pillBg }};color:{{ t.pillFg }}">{{ t.n }}</span></sc-for>
+  </div>
+  <div style="flex:1;min-height:0;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:14px">
+    <div><div style="font-weight:600;font-size:17px">Field</div><div style="font-size:12.5px;color:#8f8f8f;margin-top:2px">Standard high school</div></div>
+    <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f">Profile</div>
+    <div style="display:flex;background:#f2f2f2;border-radius:10px;padding:3px;gap:2px;font-size:13px"><span style="flex:1;height:38px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600">High school</span><span style="flex:1;height:38px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">College</span><span style="flex:1;height:38px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">NFL</span><span style="flex:1;height:38px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">Custom</span></div>
+    <div style="border:1px solid rgba(0,0,0,.08);border-radius:12px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 14px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.06)"><span style="flex:1">Shown</span><div style="display:flex;background:#f2f2f2;border-radius:8px;padding:2px;font-size:12px"><span style="padding:0 10px;height:28px;display:flex;align-items:center;border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600">Half field</span><span style="padding:0 10px;height:28px;display:flex;align-items:center;color:#8f8f8f">Full</span></div></div>
+      <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 14px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.06)"><span style="flex:1">Yard numbers</span><i style="width:44px;height:26px;border-radius:13px;background:#171717;position:relative;display:inline-block"><i style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff"></i></i></div>
+      <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 14px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.06)"><span style="flex:1">Hash marks</span><i style="width:44px;height:26px;border-radius:13px;background:#171717;position:relative;display:inline-block"><i style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff"></i></i></div>
+      <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 14px"><span style="flex:1">Sidelines</span><i style="width:44px;height:26px;border-radius:13px;background:#e5e5e5;position:relative;display:inline-block"><i style="position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)"></i></i></div>
+    </div>
+    <p style="margin:0;font-size:12px;line-height:17px;color:#8f8f8f">Changes what prints under the play — the players and lines never move.</p>
+  </div>
+  <div style="height:84px;flex:none;display:flex;align-items:center;gap:10px;padding:8px 14px 20px;background:#f2f2f2;box-shadow:0 -1px 0 rgba(0,0,0,.08)"><span style="width:44px;height:44px;border-radius:50%;background:#d8d8d8;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px">‹</span><span style="flex:1;height:44px;border-radius:22px;background:#d8d8d8;display:flex;align-items:center;justify-content:center;gap:10px;color:#fff;font-size:15px"><span>☰</span>arc-chalk.vercel.app<span>↻</span></span><span style="width:44px;height:44px;border-radius:50%;background:#d8d8d8;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px">▢</span></div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+<p class="dv-next">Try next: "make <a class="dv-oid" href="#2a">2a</a> a working prototype with real taps" · "show <a class="dv-oid" href="#2a">2a</a> in landscape" · "show the route-selected state in the sheet"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Inspector = assignments only. Admin moves to a left sidebar + a Settings panel. Two directions.</span></div>
+<div style="max-width:880px;margin:0 0 24px;font-size:12.5px;line-height:1.55;color:rgba(0,0,0,.62)">
+  <p style="margin:0 0 6px"><strong style="color:#171717">What moved out of the inspector.</strong> Formation, ball spot, shadow defense, library / play type, layers and help go to the left sidebar (per-play admin). Field profile, playbook settings, history, print &amp; export and account live in Settings. The inspector keeps only what a man is asked to do: concept, line call, and each player's routes, blocks or calls.</p>
+  <p style="margin:0"><strong style="color:#171717">Assignments follow the man.</strong> Selecting a receiver shows routes; a lineman shows blocks; a defender shows calls. Nothing else is offered to him. On the phone, a tap on a man opens his assignment full-screen with a pager to step through the unit.</p>
+</div>
+
+<div class="dv-opts">
+
+<!-- ================= 1a ROSTER DRILL-IN ================= -->
+<div class="dv-opt" id="1a" style="width:100%">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Roster drill-in — labeled sidebar, inspector lists every man and drills into one</div>
+<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+
+<!-- 1a desktop idle -->
+<div class="dv-card" data-screen-label="1a Desktop — nothing selected" style="width:1180px">
+<div style="width:1180px;height:720px;display:flex;flex-direction:column;background:#fafafa;font-size:13px">
+  <div style="height:44px;flex:none;display:flex;align-items:center;gap:12px;padding:0 12px;background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06)">
+    <div style="display:flex;background:#f2f2f2;border-radius:8px;padding:2px;gap:2px;font-size:12.5px"><span style="padding:0 10px;height:26px;display:flex;align-items:center;border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600">Editor</span><span style="padding:0 10px;height:26px;display:flex;align-items:center;color:#8f8f8f">Playbooks</span><span style="padding:0 10px;height:26px;display:flex;align-items:center;color:#8f8f8f">Game Day</span></div>
+    <span style="font-weight:600;font-size:14px">Stick — Thunder</span>
+    <span style="height:22px;padding:0 8px;border-radius:11px;background:#e6eff9;color:#2e6bb0;font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;flex:none"><i style="width:6px;height:6px;border-radius:50%;background:#2e6bb0"></i>Offense · Quick game</span>
+    <span style="flex:1"></span>
+    <span style="color:#171717;padding:0 8px">Undo</span><span style="color:#c9c9c9;padding:0 8px">Redo</span>
+    <span style="height:28px;padding:0 12px;border-radius:7px;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center">Read only</span>
+    <span style="height:28px;padding:0 14px;border-radius:7px;background:#171717;color:#fff;display:flex;align-items:center;font-weight:600">Save</span>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <nav aria-label="Sidebar" style="width:236px;flex:none;background:#fff;box-shadow:1px 0 rgba(0,0,0,.06);display:flex;flex-direction:column;padding:8px 10px 10px">
+      <sc-for list="{{ sideA }}" as="s" hint-placeholder-count="2">
+        <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;padding:12px 8px 4px">{{ s.h }}</div>
+        <sc-for list="{{ s.rows }}" as="r" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:6px;background:{{ r.bg }}"><span style="width:16px;color:#8f8f8f;font-size:13px;text-align:center">{{ r.g }}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">{{ r.n }}</span><span style="flex:none;color:#8f8f8f;font-size:12px">{{ r.v }}</span></div>
+        </sc-for>
+      </sc-for>
+      <span style="flex:1"></span>
+      <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:6px"><span style="width:16px;color:#8f8f8f;text-align:center">⎙</span><span style="flex:1">Print &amp; export</span></div>
+      <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:6px"><span style="width:16px;color:#8f8f8f;text-align:center">⚙</span><span style="flex:1">Settings</span></div>
+      <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:6px"><span style="width:16px;color:#8f8f8f;text-align:center">?</span><span style="flex:1">Help</span><span style="color:#8f8f8f;font-size:11px">⌘K</span></div>
+    </nav>
+    <div style="width:40px;flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:10px;background:#fff;box-shadow:1px 0 rgba(0,0,0,.06)">
+      <span style="width:28px;height:28px;border-radius:6px;background:#171717;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px">↖</span>
+      <span style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#555">✎</span>
+      <span style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#555;font-weight:700">T</span>
+      <span style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#555">⌫</span>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;align-items:center;justify-content:center;padding:24px">
+      <div style="width:100%;max-width:560px;border:1px solid rgba(0,0,0,.08);border-radius:4px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)"><dc-import name="Chalk Field" hint-size="100%,340px"></dc-import></div>
+    </div>
+    <aside aria-label="Assignments" style="width:300px;flex:none;background:#fff;box-shadow:-1px 0 rgba(0,0,0,.06);display:flex;flex-direction:column">
+      <div style="height:38px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="font-weight:600">Assignments</span><span style="color:#8f8f8f;font-size:12px">9 of 11</span><span style="flex:1"></span><span style="color:#8f8f8f">›</span></div>
+      <div style="padding:14px 16px 0;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-bottom:2px">Play call</div>
+        <div style="height:36px;border:1px solid rgba(0,0,0,.1);border-radius:8px;display:flex;align-items:center;justify-content:space-between;padding:0 12px"><span>Stick</span><span style="color:#8f8f8f;font-size:12px">Concept ›</span></div>
+        <div style="height:36px;border:1px solid rgba(0,0,0,.1);border-radius:8px;display:flex;align-items:center;justify-content:space-between;padding:0 12px"><span>Slide left</span><span style="color:#8f8f8f;font-size:12px">Line call ›</span></div>
+      </div>
+      <div style="padding:8px 8px 12px;overflow:hidden">
+        <sc-for list="{{ rosterA }}" as="grp" hint-placeholder-count="3">
+          <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;padding:12px 8px 4px">{{ grp.h }}</div>
+          <sc-for list="{{ grp.men }}" as="m" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 8px;border-radius:6px" style-hover="background:#f5f5f5"><span style="width:22px;height:22px;border-radius:50%;border:1.4px solid #171717;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">{{ m.l }}</span><span style="flex:1;color:{{ m.c }}">{{ m.a }}</span><span style="color:#8f8f8f;font-size:11.5px">{{ m.role }}</span><span style="color:#c9c9c9">›</span></div>
+          </sc-for>
+        </sc-for>
+      </div>
+    </aside>
+  </div>
+  <div style="height:28px;flex:none;display:flex;align-items:center;gap:12px;padding:0 12px;background:#fff;box-shadow:0 -1px 0 rgba(0,0,0,.06);font-size:11.5px;color:#8f8f8f"><span>−</span><span style="font-family:ui-monospace,Menlo,monospace;color:#171717">100%</span><span>+</span><span style="margin-left:8px">Fit</span><span style="flex:1"></span><span>▶</span><span style="width:220px;height:3px;border-radius:2px;background:#e5e5e5"></span><span style="font-family:ui-monospace,Menlo,monospace">0.0s</span><span style="margin-left:8px">1×</span><span style="margin-left:12px;color:#2b6a3a">Saved on this device</span></div>
+</div>
+</div>
+
+<!-- 1a desktop player selected + route selected: two inspectors side by side, sharing one field -->
+<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+<div class="dv-card" data-screen-label="1a Desktop — player selected (Y)" style="width:580px">
+<div style="width:580px;height:720px;display:flex;background:#fafafa;font-size:13px">
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:10px">
+    <div style="width:100%;border:1px solid rgba(0,0,0,.08);border-radius:4px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)"><dc-import name="Chalk Field" selected="Y" hint-size="100%,160px"></dc-import></div>
+    <div style="font-size:11px;color:#8f8f8f;text-align:center">Y picked on the field</div>
+  </div>
+  <aside aria-label="Player Y" style="width:300px;flex:none;background:#fff;box-shadow:-1px 0 rgba(0,0,0,.06);display:flex;flex-direction:column">
+    <div style="height:38px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px 0 8px;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">←</span><span style="width:22px;height:22px;border-radius:50%;background:#0072f5;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">Y</span><span style="font-weight:600;white-space:nowrap">Tight end</span><span style="flex:1"></span><span style="color:#2e6bb0;font-size:11px;font-weight:600">Offense</span></div>
+    <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;overflow:hidden">
+      <div style="display:flex;gap:6px"><input value="Y" aria-label="Letter" style="width:56px;height:32px;border:1px solid rgba(0,0,0,.12);border-radius:7px;padding:0 10px;font-weight:600;text-align:center"><input value="STICK" aria-label="Tag under" style="flex:1;min-width:0;height:32px;border:1px solid rgba(0,0,0,.12);border-radius:7px;padding:0 10px"></div>
+      <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-top:4px">Routes &amp; alternates</div>
+      <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 6px 0 10px;border:1px solid rgba(0,0,0,.1);border-radius:7px;background:#eef4ff;box-shadow:inset 0 0 0 1px #c7dcff"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Base stem · solid · 2 breaks</span><span style="height:22px;padding:0 8px;border-radius:5px;border:1px solid rgba(0,0,0,.12);font-size:11.5px;display:flex;align-items:center;gap:4px;background:#fff">Stick <span style="color:#8f8f8f">▾</span></span><span style="color:#0072f5;font-size:12px">Edit</span><span style="color:#c9c9c9;font-size:15px;padding:0 4px">×</span></div>
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-right:4px">Draw</span><span style="height:26px;padding:0 9px;border:1px solid rgba(0,0,0,.12);border-radius:6px;display:flex;align-items:center;gap:6px;font-size:12px">Route<kbd style="font:10px ui-monospace,Menlo,monospace;color:#8f8f8f">R</kbd></span><span style="height:26px;padding:0 9px;border:1px solid rgba(0,0,0,.12);border-radius:6px;display:flex;align-items:center;gap:6px;font-size:12px">Block<kbd style="font:10px ui-monospace,Menlo,monospace;color:#8f8f8f">B</kbd></span><span style="height:26px;padding:0 9px;border:1px solid rgba(0,0,0,.12);border-radius:6px;display:flex;align-items:center;gap:6px;font-size:12px">Motion<kbd style="font:10px ui-monospace,Menlo,monospace;color:#8f8f8f">M</kbd></span><span style="flex:1"></span><span style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#8f8f8f"><i style="width:26px;height:16px;border-radius:8px;background:#e5e5e5;position:relative;display:inline-block"><i style="position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)"></i></i>Free draw</span></div>
+      <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-top:4px">Quick routes</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px">
+        <sc-for list="{{ routes12 }}" as="q" hint-placeholder-count="12"><span style="height:29px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 0 0 1px {{ q.bd }};background:{{ q.bg }};color:{{ q.fg }}">{{ q.n }}</span></sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 4px;font-size:12.5px"><span style="color:#8f8f8f">▸</span><span style="font-weight:600">Quick blocks</span><span style="color:#8f8f8f;font-size:11.5px;flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Base · Reach · Pass set · Chip</span></div>
+      <div style="height:30px;border:1px dashed rgba(0,0,0,.2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12.5px;color:#555">+ Alternate route — new stem from stance</div>
+      <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 4px;font-size:12.5px;margin-top:auto"><span style="color:#8f8f8f">▸</span><span style="font-weight:600">Appearance</span><span style="color:#8f8f8f;font-size:11.5px;flex:1;text-align:right;white-space:nowrap">Circle · None · ink</span></div>
+      <p style="margin:0;font-size:11px;line-height:15px;color:#8f8f8f">Nothing about the play, the formation or the field lives here any more — those are in the sidebar and Settings.</p>
+    </div>
+  </aside>
+</div>
+</div>
+
+<div class="dv-card" data-screen-label="1a Desktop — route selected (Y base stem)" style="width:580px">
+<div style="width:580px;height:720px;display:flex;background:#fafafa;font-size:13px">
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:10px">
+    <div style="width:100%;border:1px solid rgba(0,0,0,.08);border-radius:4px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)"><dc-import name="Chalk Field" selected="Y" route-selected="{{ true }}" hint-size="100%,160px"></dc-import></div>
+    <div style="font-size:11px;color:#8f8f8f;text-align:center">Y's base stem picked</div>
+  </div>
+  <aside aria-label="Route" style="width:300px;flex:none;background:#fff;box-shadow:-1px 0 rgba(0,0,0,.06);display:flex;flex-direction:column">
+    <div style="height:38px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px 0 8px;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">←</span><span style="font-weight:600">Route</span><span style="color:#8f8f8f;font-size:12px">Y · Base stem</span><span style="flex:1"></span><span style="color:#0072f5;font-size:11px;font-weight:600">2 breaks</span></div>
+    <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;overflow:hidden">
+      <div style="display:flex;background:#f2f2f2;border-radius:8px;padding:2px;gap:2px;font-size:12px"><span style="flex:1;height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600">Route</span><span style="flex:1;height:26px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">Block</span><span style="flex:1;height:26px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">Motion</span></div>
+      <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-top:4px;display:flex;align-items:center;gap:6px">Coaching <span style="width:14px;height:14px;border-radius:50%;background:#f2f2f2;color:#8f8f8f;font-size:9px;display:inline-flex;align-items:center;justify-content:center;text-transform:none;letter-spacing:0">?</span></div>
+      <div style="display:flex;gap:6px"><label style="display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;border:1px solid rgba(0,0,0,.12);border-radius:7px;font-size:11.5px;color:#8f8f8f">Read<input value="2" aria-label="Read" style="width:18px;border:0;outline:0;font-weight:600;text-align:center;font-size:13px"></label><input value="STICK" aria-label="Assignment" style="flex:1;min-width:0;height:32px;border:1px solid rgba(0,0,0,.12);border-radius:7px;padding:0 10px;font-weight:600"></div>
+      <input value="vs man — sit at 6 · vs zone — work to 8" aria-label="Conversion" style="height:32px;border:1px solid rgba(0,0,0,.12);border-radius:7px;padding:0 10px;font-size:12.5px">
+      <input value="Throttle at 6, eyes to the Q" aria-label="Coaching note" style="height:32px;border:1px solid rgba(0,0,0,.12);border-radius:7px;padding:0 10px;font-size:12.5px">
+      <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="height:28px;padding:0 10px;border:1px solid rgba(0,0,0,.12);border-radius:6px;display:flex;align-items:center;font-size:12px">+ Choice at the end</span><span style="height:28px;padding:0 10px;border:1px solid rgba(0,0,0,.12);border-radius:6px;display:flex;align-items:center;font-size:12px">Flip</span><span style="height:28px;padding:0 10px;border:1px solid rgba(0,0,0,.12);border-radius:6px;display:flex;align-items:center;font-size:12px">Straighten</span></div>
+      <p style="margin:0;font-size:11px;line-height:15px;color:#8f8f8f">Read number and assignment print on the field. Conversion and note ride along with the route.</p>
+      <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 4px;font-size:12.5px;margin-top:6px"><span style="color:#8f8f8f">▸</span><span style="font-weight:600">Appearance</span><span style="color:#8f8f8f;font-size:11.5px;flex:1;text-align:right;white-space:nowrap">Solid · Arrow · ink</span></div>
+      <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 4px;font-size:12.5px"><span style="color:#8f8f8f">▸</span><span style="font-weight:600">Advanced</span><span style="color:#8f8f8f;font-size:11.5px;flex:1;text-align:right;white-space:nowrap">Timing · delete</span></div>
+    </div>
+  </aside>
+</div>
+</div>
+</div>
+
+<!-- 1a settings -->
+<div class="dv-card" data-screen-label="1a Settings panel" style="width:1180px">
+<div style="width:1180px;height:560px;position:relative;background:#fafafa;font-size:13px;overflow:hidden">
+  <div style="position:absolute;inset:0;display:flex;opacity:.55">
+    <div style="width:208px;background:#fff;box-shadow:1px 0 rgba(0,0,0,.06)"></div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px"><div style="width:100%;max-width:560px;border:1px solid rgba(0,0,0,.08)"><dc-import name="Chalk Field" hint-size="100%,340px"></dc-import></div></div>
+    <div style="width:300px;background:#fff;box-shadow:-1px 0 rgba(0,0,0,.06)"></div>
+  </div>
+  <div style="position:absolute;inset:0;background:rgba(23,23,23,.28);display:flex;align-items:center;justify-content:center">
+    <div role="dialog" aria-label="Settings" style="width:720px;height:440px;background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;overflow:hidden">
+      <div style="width:200px;flex:none;background:#fafafa;box-shadow:1px 0 rgba(0,0,0,.06);padding:14px 10px;display:flex;flex-direction:column;gap:2px">
+        <div style="font-weight:600;font-size:15px;padding:4px 8px 12px">Settings</div>
+        <sc-for list="{{ settingsTabs }}" as="t" hint-placeholder-count="6"><div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:6px;background:{{ t.bg }};font-weight:{{ t.w }}"><span style="flex:1">{{ t.n }}</span><span style="color:#8f8f8f;font-size:11.5px;white-space:nowrap">{{ t.v }}</span></div></sc-for>
+      </div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div style="height:48px;flex:none;display:flex;align-items:center;padding:0 22px;gap:10px;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="font-weight:600;font-size:15px">Field</span><span style="color:#8f8f8f;font-size:12px">Standard high school</span><span style="flex:1"></span><span style="height:26px;padding:0 10px;border-radius:6px;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;font-size:12px">Close</span></div>
+        <div style="padding:18px 22px;display:flex;flex-direction:column;gap:14px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:110px;color:#8f8f8f;font-size:12px">Profile</span><div style="flex:1;display:flex;background:#f2f2f2;border-radius:8px;padding:2px;gap:2px;font-size:12px"><span style="flex:1;height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600">High school</span><span style="flex:1;height:26px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">College</span><span style="flex:1;height:26px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">NFL</span><span style="flex:1;height:26px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">Custom…</span></div></div>
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:110px;color:#8f8f8f;font-size:12px">Shown</span><div style="flex:1;display:flex;background:#f2f2f2;border-radius:8px;padding:2px;gap:2px;font-size:12px"><span style="flex:1;height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600">Half field</span><span style="flex:1;height:26px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">Full field</span></div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:32px"><span style="width:110px;color:#8f8f8f;font-size:12px">Yard numbers</span><i style="width:34px;height:20px;border-radius:10px;background:#171717;position:relative;display:inline-block"><i style="position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:#fff"></i></i></div>
+          <div style="display:flex;align-items:center;gap:12px;height:32px"><span style="width:110px;color:#8f8f8f;font-size:12px">Hash marks</span><i style="width:34px;height:20px;border-radius:10px;background:#171717;position:relative;display:inline-block"><i style="position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:#fff"></i></i></div>
+          <div style="display:flex;align-items:center;gap:12px;height:32px"><span style="width:110px;color:#8f8f8f;font-size:12px">Sidelines</span><i style="width:34px;height:20px;border-radius:10px;background:#e5e5e5;position:relative;display:inline-block"><i style="position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)"></i></i></div>
+          <p style="margin:6px 0 0;font-size:11.5px;line-height:16px;color:#8f8f8f;max-width:420px">Changes what prints under the play — the players and lines never move. Playbook settings, History, Print &amp; export and Account are the other tabs; none of them are in the inspector any more.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- 1a mobile -->
+<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+<div class="dv-card" data-screen-label="1a Mobile — nothing selected" style="width:390px;border-radius:32px">
+<div style="width:390px;height:800px;display:flex;flex-direction:column;background:#fafafa;font-size:13px">
+  <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:14px;font-weight:600"><span>9:41</span><span style="font-size:11px;letter-spacing:1px;white-space:nowrap">●●● ᯤ ▮</span></div>
+  <div style="flex:none;display:flex;align-items:center;gap:8px;padding:2px 12px 8px;background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06)">
+    <span style="width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">≡</span>
+    <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Stick — Thunder</div><div style="font-size:11.5px;color:#2e6bb0;font-weight:600;display:flex;align-items:center;gap:5px"><i style="width:6px;height:6px;border-radius:50%;background:#2e6bb0"></i>Offense · Gun Doubles Rt</div></div>
+    <span style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:#171717;font-size:20px">↶</span><span style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:#c9c9c9;font-size:20px">↷</span>
+    <span style="height:36px;padding:0 14px;border-radius:8px;background:#171717;color:#fff;display:flex;align-items:center;font-weight:600">Save</span>
+  </div>
+  <div style="flex:1;min-height:0;display:flex;align-items:center;padding:12px 8px"><div style="width:100%;border:1px solid rgba(0,0,0,.08);border-radius:6px;overflow:hidden;background:#fff"><dc-import name="Chalk Field" hint-size="100%,240px"></dc-import></div></div>
+  <div style="flex:none;background:#fff;box-shadow:0 -1px 0 rgba(0,0,0,.06);border-radius:16px 16px 0 0">
+    <div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 16px"><span style="font-weight:600;font-size:14px">Assignments</span><span style="color:#8f8f8f;font-size:12px">9 of 11</span><span style="flex:1"></span><span style="font-size:12px;color:#0072f5;font-weight:600;white-space:nowrap">Stick · Slide left</span></div>
+    <div style="display:flex;gap:6px;padding:0 12px 12px;overflow:hidden">
+      <sc-for list="{{ menChips }}" as="m" hint-placeholder-count="11"><div style="flex:none;width:52px;height:56px;border-radius:10px;border:1px solid rgba(0,0,0,.1);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px"><span style="font-weight:700;font-size:14px">{{ m.l }}</span><span style="font-size:8.5px;font-weight:600;color:{{ m.c }};white-space:nowrap">{{ m.a }}</span></div></sc-for>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-around;height:60px;padding:0 8px 6px;box-shadow:0 -1px 0 rgba(0,0,0,.06)">
+      <span style="width:48px;height:44px;border-radius:8px;background:#171717;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px">↖</span><span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#555">✎</span><span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#555">T</span><span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#555">⌫</span><span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;color:#555">⚙</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="dv-card" data-screen-label="1a Mobile — player selected (Y) full-screen" style="width:390px;border-radius:32px">
+<div style="width:390px;height:800px;display:flex;flex-direction:column;background:#fff;font-size:14px">
+  <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:14px;font-weight:600"><span>9:41</span><span style="font-size:11px;letter-spacing:1px;white-space:nowrap">●●● ᯤ ▮</span></div>
+  <div style="height:48px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="height:44px;padding:0 10px;display:flex;align-items:center;color:#0072f5;font-size:15px">‹ Field</span><span style="flex:1;text-align:center;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px"><span style="width:24px;height:24px;border-radius:50%;background:#0072f5;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">Y</span>Tight end</span><span style="height:44px;padding:0 12px;display:flex;align-items:center;color:#0072f5;font-size:15px;font-weight:600">Done</span></div>
+  <div style="flex:1;min-height:0;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;gap:8px"><input value="Y" aria-label="Letter" style="width:64px;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;text-align:center;font-weight:600;font-size:16px"><input value="STICK" aria-label="Tag under" style="flex:1;min-width:0;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;padding:0 14px;font-size:15px"></div>
+    <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-top:6px">His route</div>
+    <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 8px 0 14px;border-radius:10px;background:#eef4ff;box-shadow:inset 0 0 0 1px #c7dcff"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Base stem · solid · 2 breaks</span><span style="height:36px;padding:0 12px;border-radius:8px;background:#fff;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;color:#0072f5;font-weight:600;font-size:13px">Edit</span></div>
+    <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-top:6px">Quick routes</div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+      <sc-for list="{{ routes12 }}" as="q" hint-placeholder-count="12"><span style="height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 0 1px {{ q.bd }};background:{{ q.bg }};color:{{ q.fg }}">{{ q.n }}</span></sc-for>
+    </div>
+    <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-top:6px">Draw on the field</div>
+    <div style="display:flex;gap:8px"><span style="flex:1;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;display:flex;align-items:center;justify-content:center">Route</span><span style="flex:1;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;display:flex;align-items:center;justify-content:center">Block</span><span style="flex:1;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;display:flex;align-items:center;justify-content:center">Motion</span></div>
+    <div style="height:44px;border:1px dashed rgba(0,0,0,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#555">+ Alternate route</div>
+    <div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 4px"><span style="color:#8f8f8f">▸</span><span style="font-weight:600">Quick blocks</span><span style="color:#8f8f8f;font-size:12px;flex:1;text-align:right;white-space:nowrap">Base · Reach · Pass set</span></div>
+    <div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 4px"><span style="color:#8f8f8f">▸</span><span style="font-weight:600">Appearance</span><span style="color:#8f8f8f;font-size:12px;flex:1;text-align:right;white-space:nowrap">Circle · None · ink</span></div>
+  </div>
+  <div style="height:64px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px 8px;box-shadow:0 -1px 0 rgba(0,0,0,.06)"><span style="height:44px;padding:0 14px;border-radius:10px;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;gap:6px"><span style="color:#8f8f8f">‹</span><b>H</b><span style="color:#8f8f8f;font-size:12px">Flat</span></span><span style="flex:1;text-align:center;font-size:12px;color:#8f8f8f">8 of 11</span><span style="height:44px;padding:0 14px;border-radius:10px;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;gap:6px"><span style="color:#8f8f8f;font-size:12px">Slant</span><b>Z</b><span style="color:#8f8f8f">›</span></span></div>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+
+<!-- ================= 1b CALL SHEET ================= -->
+<div class="dv-opt" id="1b" style="width:100%">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Call sheet — dark icon rail, inspector is one table of the unit; a man expands in place instead of navigating away</div>
+<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+
+<!-- 1b desktop idle -->
+<div class="dv-card" data-screen-label="1b Desktop — nothing selected" style="width:1180px">
+<div style="width:1180px;height:720px;display:flex;flex-direction:column;background:#fafafa;font-size:13px">
+  <div style="height:44px;flex:none;display:flex;align-items:center;gap:12px;padding:0 12px;background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06)">
+    <span style="font-weight:600;font-size:14px">Stick — Thunder</span>
+    <span style="height:22px;padding:0 8px;border-radius:11px;background:#e6eff9;color:#2e6bb0;font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;flex:none"><i style="width:6px;height:6px;border-radius:50%;background:#2e6bb0"></i>Offense · Quick game</span>
+    <span style="color:#8f8f8f;font-size:12px;white-space:nowrap">Gun Doubles Right · Middle · vs 4-3 Cover 3</span>
+    <span style="flex:1"></span>
+    <span style="padding:0 8px">Undo</span><span style="color:#c9c9c9;padding:0 8px">Redo</span>
+    <span style="height:28px;padding:0 12px;border-radius:7px;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center">Present</span>
+    <span style="height:28px;padding:0 14px;border-radius:7px;background:#171717;color:#fff;display:flex;align-items:center;font-weight:600">Save</span>
+  </div>
+  <div style="flex:1;display:flex;min-height:0">
+    <nav aria-label="Rail" style="width:64px;flex:none;background:#171717;display:flex;flex-direction:column;align-items:center;padding:8px 0 10px;gap:2px">
+      <sc-for list="{{ railB }}" as="r" hint-placeholder-count="8"><div style="width:56px;height:52px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:{{ r.bg }};color:{{ r.fg }};margin-top:{{ r.mt }}"><span style="font-size:17px;line-height:1">{{ r.g }}</span><span style="font-size:9px;font-weight:600;letter-spacing:.02em;white-space:nowrap">{{ r.n }}</span></div></sc-for>
+      <span style="flex:1"></span>
+      <div style="width:56px;height:52px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:rgba(255,255,255,.7)"><span style="font-size:17px;line-height:1">⚙</span><span style="font-size:9px;font-weight:600">Settings</span></div>
+    </nav>
+    <div style="width:40px;flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:10px;background:#fff;box-shadow:1px 0 rgba(0,0,0,.06)">
+      <span style="width:28px;height:28px;border-radius:6px;background:#171717;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px">↖</span><span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:#555">✎</span><span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:#555;font-weight:700">T</span><span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:#555">⌫</span>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;align-items:center;justify-content:center;padding:24px">
+      <div style="width:100%;max-width:560px;border:1px solid rgba(0,0,0,.08);border-radius:4px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)"><dc-import name="Chalk Field" hint-size="100%,340px"></dc-import></div>
+    </div>
+    <aside aria-label="Call sheet" style="width:340px;flex:none;background:#fff;box-shadow:-1px 0 rgba(0,0,0,.06);display:flex;flex-direction:column">
+      <div style="height:38px;flex:none;display:flex;align-items:center;gap:8px;padding:0 14px;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="font-weight:600;white-space:nowrap">Call sheet</span><span style="color:#8f8f8f;font-size:12px;white-space:nowrap">9 of 11 assigned</span><span style="flex:1"></span><div style="display:flex;background:#f2f2f2;border-radius:6px;padding:2px;font-size:11px"><span style="padding:0 8px;height:20px;display:flex;align-items:center;border-radius:4px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600">Offense</span><span style="padding:0 8px;height:20px;display:flex;align-items:center;color:#8f8f8f">Defense</span></div></div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;padding:8px 14px 4px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f"><span>Pos</span><span>Assignment</span><span style="text-align:right">Line</span></div>
+      <div style="overflow:hidden;padding:0 8px 10px">
+        <sc-for list="{{ sheetB }}" as="grp" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 6px;margin-top:6px;border-radius:6px;background:#fafafa"><span style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f">{{ grp.h }}</span><span style="flex:1"></span><span style="font-size:12px;color:#171717;font-weight:600;white-space:nowrap">{{ grp.call }}</span><span style="font-size:11px;color:#8f8f8f;white-space:nowrap">{{ grp.kind }} ▾</span></div>
+          <sc-for list="{{ grp.men }}" as="m" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;border-radius:6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)" style-hover="background:#f5f5f5"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">{{ m.l }}</span><span style="color:{{ m.c }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.a }}</span><span style="text-align:right;font-size:11px;color:{{ m.dc }}">{{ m.line }}</span></div>
+          </sc-for>
+        </sc-for>
+      </div>
+    </aside>
+  </div>
+  <div style="height:28px;flex:none;display:flex;align-items:center;gap:12px;padding:0 12px;background:#fff;box-shadow:0 -1px 0 rgba(0,0,0,.06);font-size:11.5px;color:#8f8f8f"><span>−</span><span style="font-family:ui-monospace,Menlo,monospace;color:#171717">100%</span><span>+</span><span style="margin-left:8px">Fit</span><span style="flex:1"></span><span>▶</span><span style="width:220px;height:3px;border-radius:2px;background:#e5e5e5"></span><span style="font-family:ui-monospace,Menlo,monospace">0.0s</span><span style="margin-left:8px">1×</span><span style="margin-left:12px;color:#2b6a3a">Saved on this device</span></div>
+</div>
+</div>
+
+<!-- 1b player + route -->
+<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+<div class="dv-card" data-screen-label="1b Desktop — player selected (Y expands in place)" style="width:620px">
+<div style="width:620px;height:720px;display:flex;background:#fafafa;font-size:13px">
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:10px"><div style="width:100%;border:1px solid rgba(0,0,0,.08);border-radius:4px;overflow:hidden"><dc-import name="Chalk Field" selected="Y" hint-size="100%,160px"></dc-import></div><div style="font-size:11px;color:#8f8f8f">Y picked on the field</div></div>
+  <aside aria-label="Call sheet — Y" style="width:340px;flex:none;background:#fff;box-shadow:-1px 0 rgba(0,0,0,.06);display:flex;flex-direction:column">
+    <div style="height:38px;flex:none;display:flex;align-items:center;gap:8px;padding:0 14px;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="font-weight:600;white-space:nowrap">Call sheet</span><span style="color:#8f8f8f;font-size:12px;white-space:nowrap">9 of 11 assigned</span><span style="flex:1"></span><span style="color:#0072f5;font-size:12px;font-weight:600;white-space:nowrap">Y · Tight end</span></div>
+    <div style="overflow:hidden;padding:8px 8px 10px">
+      <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 6px;border-radius:6px;background:#fafafa"><span style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f">Skill</span><span style="flex:1"></span><span style="font-size:12px;font-weight:600;white-space:nowrap">Stick</span><span style="font-size:11px;color:#8f8f8f;white-space:nowrap">Concept ▾</span></div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">X</span><span>Go</span><span style="text-align:right;font-size:11px;color:#171717">— solid</span></div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">H</span><span>Flat</span><span style="text-align:right;font-size:11px;color:#171717">— solid</span></div>
+      <div style="border-radius:8px;background:#eef4ff;box-shadow:inset 0 0 0 1px #c7dcff;margin:4px 0;padding:0 0 10px">
+        <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:40px;padding:0 6px"><span style="width:22px;height:22px;border-radius:5px;background:#0072f5;color:#fff;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">Y</span><input value="Stick" aria-label="Assignment" style="height:28px;border:0;background:#fff;border-radius:6px;padding:0 10px;font-weight:600;box-shadow:0 0 0 1px rgba(0,0,0,.1)"><span style="text-align:right;font-size:11px;color:#8f8f8f">Tight end</span></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;padding:4px 8px 6px">
+          <sc-for list="{{ routes12 }}" as="q" hint-placeholder-count="12"><span style="flex:none;height:26px;padding:0 10px;border-radius:13px;display:flex;align-items:center;font-size:12px;box-shadow:0 0 0 1px {{ q.bd }};background:{{ q.bg }};color:{{ q.fg }}">{{ q.n }}</span></sc-for>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;padding:2px 8px 0;font-size:12px"><span style="color:#8f8f8f;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-right:2px">Draw</span><span style="height:26px;padding:0 9px;border-radius:6px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.12);display:flex;align-items:center">Route</span><span style="height:26px;padding:0 9px;border-radius:6px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.12);display:flex;align-items:center">Block</span><span style="height:26px;padding:0 9px;border-radius:6px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.12);display:flex;align-items:center">Motion</span><span style="flex:1"></span><span style="color:#0072f5;font-size:12px;white-space:nowrap">+ Alternate</span></div>
+        <div style="display:flex;align-items:center;gap:8px;height:30px;margin:8px 8px 0;padding:0 8px;border-radius:6px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08);font-size:12px"><span style="color:#8f8f8f">—</span><span style="flex:1">Base stem · solid · 2 breaks</span><span style="color:#0072f5">Edit</span><span style="color:#c9c9c9;font-size:14px">×</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">Z</span><span>Slant</span><span style="text-align:right;font-size:11px;color:#171717">— solid</span></div>
+      <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 6px;margin-top:6px;border-radius:6px;background:#fafafa"><span style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f">Backs</span></div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">Q</span><span>Stick read — flat to stick</span><span style="text-align:right;font-size:11px;color:#c9c9c9">none</span></div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">F</span><span>Swing</span><span style="text-align:right;font-size:11px;color:#171717">— solid</span></div>
+      <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 6px;margin-top:6px;border-radius:6px;background:#fafafa"><span style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f">Line</span><span style="flex:1"></span><span style="font-size:12px;font-weight:600;white-space:nowrap">Slide left</span><span style="font-size:11px;color:#8f8f8f;white-space:nowrap">Line call ▾</span></div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">LT</span><span>Pass set — slide left</span><span style="text-align:right;font-size:11px;color:#171717">⊣ bar</span></div>
+      <p style="margin:10px 6px 0;font-size:11px;line-height:15px;color:#8f8f8f">The rest of the unit stays in view. Appearance is a right-click / long-press on the man; nothing about the play or the field lives in this panel.</p>
+    </div>
+  </aside>
+</div>
+</div>
+
+<div class="dv-card" data-screen-label="1b Desktop — route selected (Y base stem, coaching inline)" style="width:620px">
+<div style="width:620px;height:720px;display:flex;background:#fafafa;font-size:13px">
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:10px"><div style="width:100%;border:1px solid rgba(0,0,0,.08);border-radius:4px;overflow:hidden"><dc-import name="Chalk Field" selected="Y" route-selected="{{ true }}" hint-size="100%,160px"></dc-import></div><div style="font-size:11px;color:#8f8f8f">Y's base stem picked</div></div>
+  <aside aria-label="Call sheet — Y route" style="width:340px;flex:none;background:#fff;box-shadow:-1px 0 rgba(0,0,0,.06);display:flex;flex-direction:column">
+    <div style="height:38px;flex:none;display:flex;align-items:center;gap:8px;padding:0 14px;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="font-weight:600;white-space:nowrap">Call sheet</span><span style="flex:1"></span><span style="color:#0072f5;font-size:12px;font-weight:600;white-space:nowrap">Y · Base stem · 2 breaks</span></div>
+    <div style="overflow:hidden;padding:8px 8px 10px">
+      <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 6px;border-radius:6px;background:#fafafa"><span style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f">Skill</span><span style="flex:1"></span><span style="font-size:12px;font-weight:600;white-space:nowrap">Stick</span><span style="font-size:11px;color:#8f8f8f;white-space:nowrap">Concept ▾</span></div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">X</span><span>Go</span><span style="text-align:right;font-size:11px">— solid</span></div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">H</span><span>Flat</span><span style="text-align:right;font-size:11px">— solid</span></div>
+      <div style="border-radius:8px;background:#eef4ff;box-shadow:inset 0 0 0 1px #c7dcff;margin:4px 0;padding:0 8px 10px">
+        <div style="display:grid;grid-template-columns:26px 1fr 60px;align-items:center;height:40px"><span style="width:22px;height:22px;border-radius:5px;background:#0072f5;color:#fff;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">Y</span><span style="font-weight:600;padding-left:8px">Stick</span><span style="text-align:right;font-size:11px;color:#8f8f8f">Tight end</span></div>
+        <div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:6px;background:#0072f5;color:#fff;font-size:12px"><span>—</span><span style="flex:1">Base stem · solid · 2 breaks</span><span style="opacity:.8">Flip</span><span style="opacity:.8">Straighten</span></div>
+        <div style="display:flex;background:#fff;border-radius:7px;padding:2px;gap:2px;font-size:11.5px;margin-top:8px;box-shadow:0 0 0 1px rgba(0,0,0,.08)"><span style="flex:1;height:24px;display:flex;align-items:center;justify-content:center;border-radius:5px;background:#171717;color:#fff;font-weight:600">Route</span><span style="flex:1;height:24px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">Block</span><span style="flex:1;height:24px;display:flex;align-items:center;justify-content:center;color:#8f8f8f">Motion</span></div>
+        <div style="display:flex;gap:6px;margin-top:8px"><label style="display:flex;align-items:center;gap:6px;height:30px;padding:0 8px;background:#fff;border-radius:6px;box-shadow:0 0 0 1px rgba(0,0,0,.1);font-size:11px;color:#8f8f8f">Read<input value="2" aria-label="Read" style="width:16px;border:0;outline:0;font-weight:600;text-align:center;font-size:13px"></label><input value="STICK" aria-label="Assignment on the field" style="flex:1;min-width:0;height:30px;border:0;background:#fff;border-radius:6px;padding:0 10px;font-weight:600;box-shadow:0 0 0 1px rgba(0,0,0,.1)"></div>
+        <input value="vs man — sit at 6 · vs zone — work to 8" aria-label="Conversion" style="width:100%;box-sizing:border-box;height:30px;border:0;background:#fff;border-radius:6px;padding:0 10px;font-size:12px;box-shadow:0 0 0 1px rgba(0,0,0,.1);margin-top:6px">
+        <input value="Throttle at 6, eyes to the Q" aria-label="Coaching note" style="width:100%;box-sizing:border-box;height:30px;border:0;background:#fff;border-radius:6px;padding:0 10px;font-size:12px;box-shadow:0 0 0 1px rgba(0,0,0,.1);margin-top:6px">
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px"><span style="color:#0072f5">+ Choice at the end</span><span style="flex:1"></span><span style="color:#8f8f8f">Line style ▾</span><span style="color:#8f8f8f">Timing ▾</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">Z</span><span>Slant</span><span style="text-align:right;font-size:11px">— solid</span></div>
+      <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 6px;margin-top:6px;border-radius:6px;background:#fafafa"><span style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f">Backs</span></div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">Q</span><span>Stick read — flat to stick</span><span style="text-align:right;font-size:11px;color:#c9c9c9">none</span></div>
+      <div style="display:grid;grid-template-columns:34px 1fr 60px;align-items:center;height:36px;padding:0 6px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:22px;height:22px;border-radius:5px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,Menlo,monospace">F</span><span>Swing</span><span style="text-align:right;font-size:11px">— solid</span></div>
+    </div>
+  </aside>
+</div>
+</div>
+</div>
+
+<!-- 1b settings sheet -->
+<div class="dv-card" data-screen-label="1b Settings — right sheet" style="width:1180px">
+<div style="width:1180px;height:560px;position:relative;background:#fafafa;font-size:13px;overflow:hidden">
+  <div style="position:absolute;inset:0;display:flex">
+    <div style="width:64px;background:#171717"></div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;opacity:.6"><div style="width:100%;max-width:560px;border:1px solid rgba(0,0,0,.08)"><dc-import name="Chalk Field" hint-size="100%,340px"></dc-import></div></div>
+    <div style="width:340px;background:#fff;box-shadow:-1px 0 rgba(0,0,0,.06)"></div>
+  </div>
+  <div style="position:absolute;inset:0;background:rgba(23,23,23,.2)"></div>
+  <div role="dialog" aria-label="Settings" style="position:absolute;top:0;bottom:0;right:0;width:400px;background:#fff;box-shadow:-8px 0 30px rgba(0,0,0,.18);display:flex;flex-direction:column">
+    <div style="height:48px;flex:none;display:flex;align-items:center;padding:0 18px;gap:10px;box-shadow:0 1px 0 rgba(0,0,0,.06)"><span style="font-weight:600;font-size:15px">Settings</span><span style="flex:1"></span><span style="height:26px;padding:0 10px;border-radius:6px;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;font-size:12px">Close</span></div>
+    <div style="overflow:hidden;padding:6px 12px 16px">
+      <sc-for list="{{ settingsB }}" as="grp" hint-placeholder-count="5">
+        <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;padding:16px 8px 6px">{{ grp.h }}</div>
+        <div style="border:1px solid rgba(0,0,0,.08);border-radius:10px;overflow:hidden">
+          <sc-for list="{{ grp.rows }}" as="r" hint-placeholder-count="2"><div style="display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.06);background:#fff"><span style="flex:1">{{ r.n }}</span><span style="color:#8f8f8f;font-size:12px;white-space:nowrap">{{ r.v }}</span><span style="color:#c9c9c9">›</span></div></sc-for>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- 1b mobile -->
+<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+<div class="dv-card" data-screen-label="1b Mobile — nothing selected" style="width:390px;border-radius:32px">
+<div style="width:390px;height:800px;display:flex;flex-direction:column;background:#fafafa;font-size:13px">
+  <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:14px;font-weight:600"><span>9:41</span><span style="font-size:11px;letter-spacing:1px;white-space:nowrap">●●● ᯤ ▮</span></div>
+  <div style="height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06)">
+    <span style="width:44px;height:44px;border-radius:10px;background:#171717;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px">≡</span>
+    <div style="flex:1;min-width:0;padding-left:4px"><div style="font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Stick — Thunder</div><div style="font-size:11px;color:#8f8f8f">Gun Doubles Rt · vs 4-3 Cover 3</div></div>
+    <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:20px">↶</span>
+    <span style="height:36px;padding:0 14px;border-radius:8px;background:#171717;color:#fff;display:flex;align-items:center;font-weight:600">Save</span>
+  </div>
+  <div style="flex:none;padding:10px 8px 0"><div style="border:1px solid rgba(0,0,0,.08);border-radius:6px;overflow:hidden;background:#fff"><dc-import name="Chalk Field" hint-size="100%,240px"></dc-import></div></div>
+  <div style="flex:1;min-height:0;display:flex;flex-direction:column;margin-top:10px;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -1px 0 rgba(0,0,0,.06)">
+    <div style="display:flex;justify-content:center;padding:8px 0 0;flex:none"><span style="width:36px;height:4px;border-radius:2px;background:#e5e5e5"></span></div><div style="display:flex;align-items:center;gap:8px;height:40px;padding:0 16px;flex:none"><span style="font-weight:600;font-size:14px">Call sheet</span><span style="color:#8f8f8f;font-size:12px">9 of 11</span><span style="flex:1"></span><span style="font-size:12px;color:#0072f5;font-weight:600">Stick ▾</span></div>
+    <div style="flex:1;min-height:0;overflow:hidden;padding:0 8px">
+      <sc-for list="{{ sheetB }}" as="grp" hint-placeholder-count="3">
+        <div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f">{{ grp.h }}<span style="flex:1"></span><span style="text-transform:none;letter-spacing:0;font-size:12px;color:#171717">{{ grp.call }}</span></div>
+        <sc-for list="{{ grp.men }}" as="m" hint-placeholder-count="4"><div style="display:grid;grid-template-columns:36px 1fr 24px;align-items:center;height:44px;padding:0 8px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.05)"><span style="width:26px;height:26px;border-radius:6px;background:#f2f2f2;display:flex;align-items:center;justify-content:center;font:700 12px ui-monospace,Menlo,monospace">{{ m.l }}</span><span style="color:{{ m.c }};font-size:14px">{{ m.a }}</span><span style="color:#c9c9c9;text-align:right">›</span></div></sc-for>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-around;height:60px;flex:none;padding:0 8px 6px;box-shadow:0 -1px 0 rgba(0,0,0,.06)"><span style="width:48px;height:44px;border-radius:8px;background:#171717;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px">↖</span><span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#555">✎</span><span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#555">T</span><span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#555">⌫</span></div>
+  </div>
+</div>
+</div>
+
+<div class="dv-card" data-screen-label="1b Mobile — player selected (Y position card)" style="width:390px;border-radius:32px">
+<div style="width:390px;height:800px;display:flex;flex-direction:column;background:#fff;font-size:14px">
+  <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:14px;font-weight:600"><span>9:41</span><span style="font-size:11px;letter-spacing:1px;white-space:nowrap">●●● ᯤ ▮</span></div>
+  <div style="height:48px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px"><span style="height:44px;padding:0 10px;display:flex;align-items:center;color:#0072f5;font-size:15px">‹ Call sheet</span><span style="flex:1"></span><span style="height:44px;padding:0 12px;display:flex;align-items:center;color:#0072f5;font-size:15px;font-weight:600">Done</span></div>
+  <div style="flex:1;min-height:0;overflow:hidden;padding:4px 20px 16px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:flex-end;gap:14px"><span style="width:72px;height:72px;border-radius:50%;border:3px solid #171717;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700">Y</span><div style="padding-bottom:6px"><div style="font-size:12px;color:#8f8f8f;font-weight:600;letter-spacing:.06em;text-transform:uppercase">Tight end · Offense</div><div style="font-size:13px;color:#8f8f8f;margin-top:2px">Gun Doubles Right · Stick</div></div></div>
+    <input value="Stick" aria-label="Assignment" style="height:56px;border:0;border-bottom:2px solid #171717;font-size:26px;font-weight:600;padding:0;background:transparent;outline:0">
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <sc-for list="{{ routes12 }}" as="q" hint-placeholder-count="12"><span style="height:40px;padding:0 16px;border-radius:20px;display:flex;align-items:center;font-size:14px;box-shadow:0 0 0 1px {{ q.bd }};background:{{ q.bg }};color:{{ q.fg }}">{{ q.n }}</span></sc-for>
+    </div>
+    <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8f8f8f;margin-top:4px">On the field</div>
+    <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 8px 0 14px;border-radius:10px;background:#eef4ff;box-shadow:inset 0 0 0 1px #c7dcff"><span style="flex:1">Base stem · solid · 2 breaks</span><span style="height:36px;padding:0 12px;border-radius:8px;background:#fff;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;color:#0072f5;font-weight:600;font-size:13px">Edit</span></div>
+    <div style="display:flex;gap:8px"><span style="flex:1;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;display:flex;align-items:center;justify-content:center">Draw route</span><span style="flex:1;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;display:flex;align-items:center;justify-content:center">Draw block</span><span style="flex:1;height:44px;border:1px solid rgba(0,0,0,.12);border-radius:10px;display:flex;align-items:center;justify-content:center">Motion</span></div>
+    <div style="height:44px;border:1px dashed rgba(0,0,0,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#555">+ Alternate route</div>
+    <p style="margin:0;font-size:12px;line-height:17px;color:#8f8f8f">Read, conversion and note are on the line itself — tap Edit. Letter, tag and appearance: long-press him on the field.</p>
+  </div>
+  <div style="height:64px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px 8px;box-shadow:0 -1px 0 rgba(0,0,0,.06)"><span style="height:44px;padding:0 14px;border-radius:10px;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;gap:6px"><span style="color:#8f8f8f">‹</span><b>H</b><span style="color:#8f8f8f;font-size:12px">Flat</span></span><span style="flex:1;text-align:center;font-size:12px;color:#8f8f8f">8 of 11</span><span style="height:44px;padding:0 14px;border-radius:10px;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;gap:6px"><span style="color:#8f8f8f;font-size:12px">Slant</span><b>Z</b><span style="color:#8f8f8f">›</span></span></div>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "go with <a class="dv-oid" href="#1a">1a</a> but use the dark rail from <a class="dv-oid" href="#1b">1b</a>" · "show the defensive unit in <a class="dv-oid" href="#1b">1b</a>" · "prototype the mobile flow from <a class="dv-oid" href="#1a">1a</a> with real taps"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;activeRoute&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Stick&quot;,&quot;options&quot;:[&quot;Stick&quot;,&quot;Slant&quot;,&quot;Out&quot;,&quot;Flat&quot;,&quot;Curl&quot;,&quot;Go&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo state&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const ink = "#171717", muted = "#8f8f8f", off = "#c9c9c9";
+    const on = this.props.activeRoute ?? "Stick";
+    const routes12 = ["Stick", "Slant", "Out", "Flat", "Curl", "Hitch", "Go", "Post", "Corner", "Dig", "Wheel", "Swing"].map((n) => ({ n, bg: n === on ? ink : "#fff", fg: n === on ? "#fff" : ink, bd: n === on ? ink : "rgba(0,0,0,.12)" }));
+    const sideA = [
+      { h: "Playbook", rows: [{ g: "▤", n: "Plays", v: "24", bg: "#f2f2f2" }, { g: "◫", n: "Game plans", v: "3", bg: "transparent" }, { g: "◷", n: "Game Day", v: "", bg: "transparent" }] },
+      { h: "This play", rows: [{ g: "⊞", n: "Formation", v: "Gun Doubles Rt", bg: "transparent" }, { g: "●", n: "Ball on", v: "Middle", bg: "transparent" }, { g: "△", n: "Shadow defense", v: "4-3 Cover 3", bg: "transparent" }, { g: "⌗", n: "Play type", v: "Quick game", bg: "transparent" }, { g: "◑", n: "Show on field", v: "4 of 5", bg: "transparent" }] },
+    ];
+    const men = [
+      ["X", "Go", "Receiver", "skill"], ["H", "Flat", "Slot", "skill"], ["Y", "Stick", "Tight end", "skill"], ["Z", "Slant", "Receiver", "skill"],
+      ["Q", "Stick read — flat to stick", "Quarterback", "back", true], ["F", "Swing", "Back", "back"],
+      ["LT", "Pass set — slide left", "Tackle", "line"], ["LG", "Slide left", "Guard", "line"], ["C", "Slide left", "Center", "line"], ["RG", "Slide right", "Guard", "line"], ["RT", "", "Tackle", "line"],
+    ];
+    const row = ([l, a, role, g, noLine]) => ({ l, a: a || "No block yet", c: a ? ink : off, role, line: a ? (g === "line" ? "⊣ bar" : noLine ? "none" : "— solid") : "", dc: a && !noLine ? ink : off });
+    const grp = (h, g, call, kind) => ({ h, call, kind, men: men.filter((m) => m[3] === g).map(row) });
+    const rosterA = [grp("Skill", "skill"), grp("Backs", "back"), grp("Line", "line")];
+    const sheetB = [grp("Skill", "skill", "Stick", "Concept"), grp("Backs", "back", "", ""), grp("Line", "line", "Slide left", "Line call")];
+    const menChips = men.map(([l, a]) => ({ l, a: a ? a.split(" ")[0].toUpperCase() : "—", c: a ? "#2e6bb0" : off }));
+    const railB = [["▤", "Plays", 0], ["◫", "Plans", 0], ["◷", "Game day", 0], ["⊞", "Set", 1], ["△", "Shadow", 0], ["◑", "Layers", 0], ["⎙", "Print", 0]].map(([g, n, gap]) => ({ g, n, bg: n === "Plays" ? "rgba(255,255,255,.14)" : "transparent", fg: n === "Plays" ? "#fff" : "rgba(255,255,255,.7)", mt: gap ? "14px" : "0" }));
+    const settingsTabs = [["Field", "High school", 1], ["Playbook", "Types · labels"], ["History", "3"], ["Print & export", "Letter · Compact"], ["Account", "Local only"], ["About", "v0.9"]].map(([n, v, a]) => ({ n, v, bg: a ? "#fff" : "transparent", w: a ? 600 : 400, pillBg: a ? ink : "#fff", pillFg: a ? "#fff" : ink, pillBd: a ? ink : "rgba(0,0,0,.12)" }));
+    const settingsB = [
+      { h: "Field", rows: [{ n: "Profile", v: "Standard high school" }, { n: "Shown", v: "Half field" }] },
+      { h: "Playbook", rows: [{ n: "Play types", v: "9" }, { n: "Personnel labels", v: "11, 12, 21" }, { n: "Field profiles", v: "2" }] },
+      { h: "History", rows: [{ n: "Snapshots of this play", v: "3" }] },
+      { h: "Print & export", rows: [{ n: "Page", v: "Letter" }, { n: "Type", v: "Compact" }] },
+      { h: "Account", rows: [{ n: "Saved on this device", v: "Sign in to sync" }] },
+    ];
+    return { routes12, sideA, rosterA, sheetB, menChips, railB, settingsTabs, settingsB };
+  }
+}
+</script>
+</body>
+</html>

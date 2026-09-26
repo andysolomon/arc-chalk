@@ -19,11 +19,16 @@ export function playThumbnailSvg(
 ): string {
   const players = play.players.map((player) => {
     const at = yardsToLegacyCanvas(player.position);
+    const defense = player.unit === "defense";
     return {
       x: tenth(at.x),
       y: tenth(at.y),
-      filled: player.symbol === "square" || player.symbol === "triangle",
-      defense: player.unit === "defense",
+      // A defender's triangle stays hollow so the defense still reads as the
+      // muted side of the card rather than eleven solid dots.
+      filled:
+        !defense &&
+        (player.symbol === "square" || player.symbol === "triangle"),
+      defense,
     };
   });
   const paths = play.paths.map((path) =>
