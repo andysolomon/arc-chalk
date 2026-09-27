@@ -229,7 +229,7 @@ import {
 import { LibraryPanel } from "../library/library-panel";
 import { ScopeBar } from "../library/scope-bar";
 import { PlaybookBrowser } from "../library/playbook-browser";
-import { PlaybooksShelf } from "../library/playbooks-shelf";
+import { PlaybookNameForm, PlaybooksShelf } from "../library/playbooks-shelf";
 import { canSwitchPlay, createUntitledPlay } from "../library/library-actions";
 import { FormationsPage } from "../library/formations-page";
 import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
@@ -2683,6 +2683,8 @@ export function ChalkApp({
   const [bookTab, setBookTab] = useState<"plays" | "plans">("plays");
   /** The shelf shows the open book's pages until the Coach steps out to the books. */
   const [bookOpen, setBookOpen] = useState(true);
+  /** The open book's name is a field on its bar while the Coach renames it. */
+  const [renamingBook, setRenamingBook] = useState(false);
   /** The set the Plays page opens narrowed to, when a Coach came from the Formations page. */
   const [playsPreset, setPlaysPreset] = useState<{
     readonly formationId: string;
@@ -6881,6 +6883,26 @@ export function ChalkApp({
     };
 
     /**
+     * Saves a new, empty book under the name the Coach typed on the shelf and
+     * opens it, so the next Play he starts goes into it.
+     */
+    const createBook = async (name: string): Promise<void> => {
+      if (!canSwitchPlay(editorStore.getSnapshot().localSave.phase)) return;
+      await openBook(await runtime.createPlaybook(name));
+    };
+
+    /** Renames the open book; the shelf and every Playbook filter follow. */
+    const renameBook = async (name: string): Promise<void> => {
+      await runtime.library.savePlaybook({
+        ...playbook.snapshot.playbook,
+        name,
+        updatedAtMs: Date.now(),
+      });
+      await playbook.refresh();
+      setRenamingBook(false);
+    };
+
+    /**
      * A new Play in a set, from the Formations page: a blank offensive Play of
      * the open book with the set put on the field, open in the editor. The
      * defensive twin puts a call on a blank defensive Play.
@@ -7001,21 +7023,47 @@ export function ChalkApp({
                 <div className="book-head">
                   <button
                     className="book-back"
-                    onClick={() => setBookOpen(false)}
+                    onClick={() => {
+                      setRenamingBook(false);
+                      setBookOpen(false);
+                    }}
                     title="All playbooks on this device"
                     type="button"
                   >
                     <span aria-hidden="true">‹</span> Playbooks
                   </button>
-                  <div className="book-title">
-                    <strong>{playbook.snapshot.playbook.name}</strong>
-                    <span>
-                      {playbook.snapshot.members.length}{" "}
-                      {playbook.snapshot.members.length === 1
-                        ? "play"
-                        : "plays"}
-                    </span>
-                  </div>
+                  {renamingBook ? (
+                    <PlaybookNameForm
+                      autoFocus
+                      className="book-rename"
+                      initial={playbook.snapshot.playbook.name}
+                      label="Playbook name"
+                      onCancel={() => setRenamingBook(false)}
+                      onSave={renameBook}
+                      placeholder="Name this playbook…"
+                      taken={playbookSummaries
+                        .filter(({ id }) => id !== runtime.library.playbookId)
+                        .map(({ name }) => name)}
+                    />
+                  ) : (
+                    <div className="book-title">
+                      <strong>{playbook.snapshot.playbook.name}</strong>
+                      <span>
+                        {playbook.snapshot.members.length}{" "}
+                        {playbook.snapshot.members.length === 1
+                          ? "play"
+                          : "plays"}
+                      </span>
+                      <button
+                        aria-label={`Rename ${playbook.snapshot.playbook.name}`}
+                        className="book-rename-open"
+                        onClick={() => setRenamingBook(true)}
+                        type="button"
+                      >
+                        Rename
+                      </button>
+                    </div>
+                  )}
                   <nav
                     aria-label="Book pages"
                     className="destination-tabs book-tabs"
@@ -7074,6 +7122,7 @@ export function ChalkApp({
               <PlaybooksShelf
                 currentPlaybookId={runtime.library.playbookId}
                 members={playbook.snapshot.members}
+                onCreate={createBook}
                 onOpen={(id) => void openBook(id)}
                 playbooks={playbookSummaries}
                 savedSets={coachFormations.length}

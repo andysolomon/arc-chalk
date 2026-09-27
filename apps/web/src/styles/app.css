@@ -4102,6 +4102,89 @@ button.library-dot.target.small {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+.book-rename-open {
+  flex: none;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--blue-text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+.book-rename-open:hover {
+  background: var(--hover);
+}
+/* A book's name and Save: the shelf's New playbook, the bar's Rename. */
+.playbook-name-form {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.playbook-name-form input {
+  min-width: 0;
+  height: 32px;
+  flex: 1 1 200px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px rgb(var(--shade) / 0.12);
+  color: var(--ink);
+  font-size: 13px;
+  outline: 0;
+}
+.playbook-name-form input:focus-visible {
+  box-shadow: 0 0 0 2px var(--blue);
+}
+.playbook-name-form input[aria-invalid="true"] {
+  box-shadow: 0 0 0 1px var(--error);
+}
+.playbook-name-save,
+.playbook-name-cancel {
+  flex: none;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+.playbook-name-save {
+  background: var(--ink);
+  color: var(--paper);
+}
+.playbook-name-save:hover:not(:disabled) {
+  background: var(--ink-hover);
+}
+.playbook-name-save:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.playbook-name-cancel {
+  background: transparent;
+  color: var(--muted);
+}
+.playbook-name-cancel:hover {
+  background: var(--hover);
+}
+.playbook-name-clash {
+  flex-basis: 100%;
+  color: var(--red-text);
+  font-size: 12px;
+}
+.book-rename {
+  flex: 1;
+}
+.shelf-new {
+  max-width: 560px;
+  margin-bottom: 14px;
+}
 /* The shelf: one card per book on this device. */
 .shelf {
   flex: 1;

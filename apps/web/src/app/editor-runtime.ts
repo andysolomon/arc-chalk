@@ -304,6 +304,11 @@ export interface ChalkRuntime {
    * the caller opens one of the book's, or starts one.
    */
   openPlaybook(playbookId: string): Promise<readonly Formation[]>;
+  /**
+   * Saves a new, empty Playbook under the name the Coach gave it, beside the
+   * books already on this device, and returns its id. It is not opened here.
+   */
+  createPlaybook(name: string): Promise<string>;
   /** Fires after a local commit so background sync can drain. */
   subscribeLocalEdit(listener: () => void): () => void;
   /** Keeps a set the Coach named, so it is there the next time he opens Chalk. */
@@ -908,6 +913,14 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
       playbookId = next;
       await rememberJson(OPEN_PLAYBOOK_KEY, next);
       return repository.listFormations(next);
+    },
+    async createPlaybook(name) {
+      const book = {
+        ...blankPlaybook(createStableId("playbook"), Date.now()),
+        name: name.trim(),
+      };
+      await repository.savePlaybookRecord(book);
+      return book.id;
     },
     async saveCoachFormation(formation) {
       await repository.saveFormation(formation);
