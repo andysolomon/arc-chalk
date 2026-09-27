@@ -8,8 +8,8 @@ import {
   type PlayUnit,
 } from "@chalk/domain";
 import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type {
   ChalkLibrary,
@@ -75,6 +75,22 @@ function playCount(count: number): string {
  */
 export type PlaybookFilters = "compact" | "book" | "library";
 
+/**
+ * Where a list starts on the page, and how tall the header pinned over the
+ * page's top is — what a list virtualized against the window needs.
+ */
+function pageOffsetsOf(list: HTMLElement | null): {
+  readonly margin: number;
+  readonly header: number;
+} {
+  if (!list) return { margin: 0, header: 0 };
+  const header = list.ownerDocument.querySelector(".topbar");
+  return {
+    margin: Math.round(list.getBoundingClientRect().top + globalThis.scrollY),
+    header: Math.round(header?.getBoundingClientRect().height ?? 0),
+  };
+}
+
 export function PlaybookBrowser({
   concepts = [],
   currentPlayId,
@@ -94,6 +110,7 @@ export function PlaybookBrowser({
   onOpen,
   onOpenGamePlans,
   onRemember,
+  pageScroll = false,
   playbooks = [],
   playTypes,
 }: {
@@ -135,6 +152,12 @@ export function PlaybookBrowser({
   /** The Playbooks workspace (issue #66), reached from the library it curates. */
   onOpenGamePlans?: () => void;
   onRemember: (state: LibraryBrowserState) => void;
+  /**
+   * The page scrolls rather than the list inside it — a phone, where the
+   * browser folds its toolbar away only when the document moves. The list
+   * is still virtualized, against the window.
+   */
+  pageScroll?: boolean;
   playTypes: readonly PlayTypeDefinition[];
 }) {
   const [query, setQuery] = useState(initial.query);
@@ -162,6 +185,7 @@ export function PlaybookBrowser({
   const [focusedPlayId, setFocusedPlayId] = useState(initial.focusedPlayId);
   const [actionsFor, setActionsFor] = useState<string>();
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const restoredRef = useRef(false);
   const narrow = useNarrowBrowser();
   // A phone lists by default and a desk tiles; where the Coach may choose,
@@ -270,23 +294,75 @@ export function PlaybookBrowser({
     return grouped;
   }, [columns, shown]);
 
+  // Where the list starts on the page, and how much of the top a pinned
+  // header covers, when the page is what scrolls. Read again whenever the
+  // page changes size: a filter row opening above the list moves it down.
+  const [pageOffsets, setPageOffsets] = useState({ margin: 0, header: 0 });
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!pageScroll || !list) return;
+    const read = () =>
+      setPageOffsets((current) => {
+        const next = pageOffsetsOf(list);
+        return next.margin === current.margin && next.header === current.header
+          ? current
+          : next;
+      });
+    read();
+    if (typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(read);
+    observer.observe(list.ownerDocument.body);
+    return () => observer.disconnect();
+  }, [pageScroll]);
+
   // TanStack Virtual returns functions the compiler cannot memoize.
   // eslint-disable-next-line react-hooks/incompatible-library -- virtualizer API
-  const virtualizer = useVirtualizer({
+  const listVirtualizer = useVirtualizer({
     count: rows.length,
+    enabled: !pageScroll,
     getScrollElement: () => scrollerRef.current,
     estimateSize: () => rowHeight,
     overscan: 6,
   });
+  const pageVirtualizer = useWindowVirtualizer({
+    count: rows.length,
+    enabled: pageScroll,
+    estimateSize: () => rowHeight,
+    overscan: 6,
+    scrollMargin: pageOffsets.margin,
+    scrollPaddingStart: pageOffsets.header,
+  });
+  const virtualizer = pageScroll ? pageVirtualizer : listVirtualizer;
+  const scrollMargin = pageScroll ? pageOffsets.margin : 0;
   useEffect(() => {
     virtualizer.measure();
   }, [rowHeight, virtualizer]);
+
+  /** How far down the list the Coach has scrolled, whichever box scrolls. */
+  const listScrollTop = () =>
+    pageScroll
+      ? Math.max(
+          0,
+          Math.round(
+            globalThis.scrollY - pageOffsetsOf(listRef.current).margin,
+          ),
+        )
+      : (scrollerRef.current?.scrollTop ?? 0);
 
   useEffect(() => {
     const node = scrollerRef.current;
     if (!node || restoredRef.current) return;
     restoredRef.current = true;
-    node.scrollTop = initial.scrollTop;
+    if (pageScroll) {
+      if (initial.scrollTop > 0) {
+        globalThis.scrollTo(
+          0,
+          pageOffsetsOf(listRef.current).margin + initial.scrollTop,
+        );
+      }
+    } else {
+      node.scrollTop = initial.scrollTop;
+    }
     if (initial.focusedPlayId) {
       const index = shown.findIndex(
         (member) => member.playId === initial.focusedPlayId,
@@ -295,7 +371,14 @@ export function PlaybookBrowser({
         virtualizer.scrollToIndex(Math.floor(index / columns));
       }
     }
-  }, [columns, shown, initial.focusedPlayId, initial.scrollTop, virtualizer]);
+  }, [
+    columns,
+    shown,
+    initial.focusedPlayId,
+    initial.scrollTop,
+    pageScroll,
+    virtualizer,
+  ]);
 
   // A reflow regroups every row, so the card the Coach was on would land on
   // a different row than the one he is scrolled to. Keep it in view.
@@ -318,7 +401,7 @@ export function PlaybookBrowser({
   ) => {
     const kept = next.layout ?? layout;
     onRemember({
-      scrollTop: scrollerRef.current?.scrollTop ?? 0,
+      scrollTop: listScrollTop(),
       query,
       sort: next.sort ?? sort,
       ...(kept ? { layout: kept } : {}),
@@ -327,6 +410,18 @@ export function PlaybookBrowser({
         : {}),
     });
   };
+
+  // The page's scroll is the list's when the page is what scrolls.
+  const rememberRef = useRef(remember);
+  useLayoutEffect(() => {
+    rememberRef.current = remember;
+  });
+  useEffect(() => {
+    if (!pageScroll) return;
+    const onScroll = () => rememberRef.current();
+    globalThis.addEventListener("scroll", onScroll, { passive: true });
+    return () => globalThis.removeEventListener("scroll", onScroll);
+  }, [pageScroll]);
 
   const chooseLayout = (next: PlaybookLayout) => {
     setLayout(next);
@@ -673,10 +768,11 @@ export function PlaybookBrowser({
           data-grid-columns={columns}
           data-layout={list ? "list" : "grid"}
           data-virtual-count={shown.length}
-          onScroll={() => remember()}
+          onScroll={pageScroll ? undefined : () => remember()}
           ref={scrollerRef}
         >
           <div
+            ref={listRef}
             style={{
               height: virtualizer.getTotalSize(),
               position: "relative",
@@ -698,7 +794,7 @@ export function PlaybookBrowser({
                     height: row.size,
                     paddingBottom: list ? 0 : PLAY_CARD_ROW_GAP,
                     gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                    transform: `translateY(${row.start}px)`,
+                    transform: `translateY(${row.start - scrollMargin}px)`,
                   }}
                 >
                   {cards.map((member) => (

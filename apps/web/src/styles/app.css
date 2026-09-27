@@ -8454,3 +8454,44 @@ button.shell-quiet:hover {
 .phone-workspace .settings-body .page-kinds button {
   min-height: 38px;
 }
+
+/*
+ * On a phone the Playbooks pages scroll the document itself rather than a
+ * box inside a pinned shell. A phone browser folds its address bar away
+ * only when the document scrolls, so a list read in a box kept the bar up
+ * and gave the plays a third of the glass. The header stays pinned to the
+ * top; everything under it scrolls with the page, and the Plays list is
+ * still virtualized, against the window. The editor and the Game Day reader
+ * keep their pinned shells: the field takes the drag, and the reader keeps
+ * the call and Previous / Next on the glass.
+ */
+html:has(.chalk-shell.phone-page),
+html:has(.chalk-shell.phone-page) body,
+html:has(.chalk-shell.phone-page) #root {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
+.chalk-shell.phone-page {
+  height: auto;
+  min-height: 100dvh;
+}
+.chalk-shell.phone-page > .topbar {
+  position: sticky;
+  top: 0;
+}
+.phone-page .destination,
+.phone-page .browser-overlay.embedded,
+.phone-page .shelf,
+.phone-page .browser-body {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+}
+.phone-page .browser-overlay.embedded .browser,
+.phone-page .browser.formations-page {
+  height: auto;
+  max-height: none;
+  flex: none;
+  overflow: visible;
+}
