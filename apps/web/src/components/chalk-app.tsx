@@ -5442,6 +5442,14 @@ export function ChalkApp({
     return () => query.removeEventListener("change", read);
   }, []);
 
+  // On a phone the Playbooks pages scroll the document, so the browser can
+  // fold its toolbar away. Each page opens at its top rather
+  // than at the last page's depth; laid out before the Plays list restores
+  // its own place.
+  useLayoutEffect(() => {
+    if (globalThis.scrollY > 0) globalThis.scrollTo(0, 0);
+  }, [activeView, bookOpen, bookTab, playbooksPage]);
+
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(undefined), TOAST_MS);
@@ -6979,7 +6987,9 @@ export function ChalkApp({
         : "It will be removed from this Playbook. This can’t be undone.";
     };
     return (
-      <div className="chalk-shell view-playbooks">
+      <div
+        className={`chalk-shell view-playbooks${phoneWorkspace ? " phone-page" : ""}`}
+      >
         {header}
         <main className="destination" aria-label="Playbooks">
           {/* One bar for the destination: which of its three pages, and
@@ -7103,6 +7113,7 @@ export function ChalkApp({
                     onDelete={(playId) => playbook.removePlay(playId, true)}
                     onOpen={openPlay}
                     onRemember={playbook.rememberBrowser}
+                    pageScroll={phoneWorkspace}
                     playbooks={playbookSummaries}
                     playTypes={playbook.snapshot.playbook.playTypes}
                   />
@@ -7171,6 +7182,7 @@ export function ChalkApp({
               onDelete={(playId) => playbook.removePlay(playId, true)}
               onOpen={openPlay}
               onRemember={playbook.rememberBrowser}
+              pageScroll={phoneWorkspace}
               playbooks={playbookSummaries}
               playTypes={playbook.snapshot.playbook.playTypes}
             />
