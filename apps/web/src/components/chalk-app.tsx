@@ -40,7 +40,7 @@ import {
   playbackShowsAnimation,
   resolvePathTiming,
   lineKindNames,
-  lineKindsFor,
+  lineKindChoices,
   labelSizeChoices,
   playErasureCommand,
   playErasures,
@@ -1984,8 +1984,9 @@ function RouteInspector({
   segmentIndex?: number;
   timing: Readonly<Record<RouteTimingField, string>>;
   /**
-   * What the man running the line can be given — a shadow defender's drop is
-   * still a drop, and a lineman's block is only ever a block.
+   * What this line can still be turned into — a receiver's route can become
+   * a motion but never a block or the ball's flight, and a lineman's block is
+   * only ever a block. With nothing else to offer, no picker is shown.
    */
   kinds: readonly MovementPath["kind"][];
 }) {
@@ -2030,6 +2031,14 @@ function RouteInspector({
     shownEnding;
   const timed =
     timing.delay !== "" || timing.hold !== "" || timing.speed !== "";
+  // A read number, a conversion and a choice are a route's: the quarterback
+  // reads receivers, not blocks or drops. One already written on a line that
+  // was since retyped stays in view, so it can be cleared.
+  const isRoute = path.kind === "route";
+  const showRead = isRoute || coaching.readOrder !== "";
+  const showConversion = isRoute || coaching.conversion !== "";
+  const bent = line.some(({ control }) => control !== undefined);
+  const kindName = lineKindNames[path.kind];
 
   return (
     <div className="label-inspector route-inspector">
@@ -2044,7 +2053,7 @@ function RouteInspector({
           >
             ←
           </button>
-          <span>{lineKindNames[path.kind]}</span>
+          <span>{kindName}</span>
           {ownerLetter || lineTitle ? (
             <span className="route-owner">
               {[ownerLetter, lineTitle].filter(Boolean).join(" · ")}
@@ -2054,42 +2063,49 @@ function RouteInspector({
           <span className="scope-tag scope-tag-blue">{scope}</span>
         </div>
       )}
-      <div className="segments">
-        {kinds.map((kind) => (
-          <button
-            className={path.kind === kind ? "active" : undefined}
-            key={kind}
-            onClick={() => onKind(kind)}
-            type="button"
-          >
-            {lineKindNames[kind]}
-          </button>
-        ))}
-      </div>
+      {kinds.length > 1 ? (
+        <div aria-label="Kind of line" className="segments" role="group">
+          {kinds.map((kind) => (
+            <button
+              aria-pressed={path.kind === kind}
+              className={path.kind === kind ? "active" : undefined}
+              key={kind}
+              onClick={() => onKind(kind)}
+              type="button"
+            >
+              {lineKindNames[kind]}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <span className="section-heading">
         Coaching
         <Hint about="coaching">
-          Read number and assignment print on the field. Conversion and note
-          ride along with the route — they follow it through mirror, duplicate
-          and save.
+          {showRead
+            ? "Read number and assignment print on the field. "
+            : "The assignment prints on the field. "}
+          {showConversion ? "Conversion and note ride" : "The note rides"} along
+          with the line — through mirror, duplicate and save.
         </Hint>
       </span>
       <div className="coaching-row">
-        <label className="read-field">
-          <span>Read</span>
-          <input
-            inputMode="numeric"
-            onBlur={() => onCoachingCommitted("readOrder")}
-            onChange={(event) =>
-              onCoaching(
-                "readOrder",
-                event.target.value.replaceAll(/\D/g, "").slice(0, 2),
-              )
-            }
-            spellCheck={false}
-            value={coaching.readOrder}
-          />
-        </label>
+        {showRead ? (
+          <label className="read-field">
+            <span>Read</span>
+            <input
+              inputMode="numeric"
+              onBlur={() => onCoachingCommitted("readOrder")}
+              onChange={(event) =>
+                onCoaching(
+                  "readOrder",
+                  event.target.value.replaceAll(/\D/g, "").slice(0, 2),
+                )
+              }
+              spellCheck={false}
+              value={coaching.readOrder}
+            />
+          </label>
+        ) : null}
         <input
           aria-label="Assignment"
           maxLength={ROUTE_COACHING_LIMITS.assignment}
@@ -2100,15 +2116,17 @@ function RouteInspector({
           value={coaching.assignment}
         />
       </div>
-      <input
-        aria-label="Conversion"
-        maxLength={ROUTE_COACHING_LIMITS.conversion}
-        onBlur={() => onCoachingCommitted("conversion")}
-        onChange={(event) => onCoaching("conversion", event.target.value)}
-        placeholder="Conversion — vs man / vs zone"
-        spellCheck={false}
-        value={coaching.conversion}
-      />
+      {showConversion ? (
+        <input
+          aria-label="Conversion"
+          maxLength={ROUTE_COACHING_LIMITS.conversion}
+          onBlur={() => onCoachingCommitted("conversion")}
+          onChange={(event) => onCoaching("conversion", event.target.value)}
+          placeholder="Conversion — vs man / vs zone"
+          spellCheck={false}
+          value={coaching.conversion}
+        />
+      ) : null}
       <input
         aria-label="Coaching note"
         maxLength={ROUTE_COACHING_LIMITS.coachingNote}
@@ -2119,9 +2137,11 @@ function RouteInspector({
         value={coaching.coachingNote}
       />
       <div className="help-row">
-        <button onClick={onAddChoice} type="button">
-          + Choice at {nodeName}
-        </button>
+        {isRoute ? (
+          <button onClick={onAddChoice} type="button">
+            + Choice at {nodeName}
+          </button>
+        ) : null}
         <button
           onClick={onFlip}
           title="Mirror this line about where it starts — turns it in the other direction without redrawing"
@@ -2129,14 +2149,19 @@ function RouteInspector({
         >
           Flip
         </button>
-        <button onClick={onStraighten} type="button">
-          Straighten
-        </button>
-        <Hint about="choices">
-          A <strong>choice</strong> forks this same stem at the break you picked
-          — one release, then he reads. For a whole second line off his stance,
-          use <strong>alternate route</strong> in the player panel.
-        </Hint>
+        {/* A line with no bends in it has nothing to straighten. */}
+        {bent ? (
+          <button onClick={onStraighten} type="button">
+            Straighten
+          </button>
+        ) : null}
+        {isRoute ? (
+          <Hint about="choices">
+            A <strong>choice</strong> forks this same stem at the break you
+            picked — one release, then he reads. For a whole second line off his
+            stance, use <strong>alternate route</strong> in the player panel.
+          </Hint>
+        ) : null}
       </div>
       {branchIndex === undefined ? undefined : (
         <div className="help-row">
@@ -2250,7 +2275,7 @@ function RouteInspector({
         </p>
         <div className="help-row">
           <button className="danger" onClick={onDelete} type="button">
-            Delete this route
+            Delete this {kindName.toLowerCase()}
           </button>
         </div>
       </Disclosure>
@@ -7642,12 +7667,7 @@ export function ChalkApp({
                   path={selectedPath}
                   segmentIndex={interaction.selectedSegmentIndex}
                   timing={routeTiming(selectedPath)}
-                  kinds={(() => {
-                    const owner = editor.document.players.find(
-                      ({ id }) => id === selectedPath.playerId,
-                    );
-                    return owner ? lineKindsFor(owner) : [selectedPath.kind];
-                  })()}
+                  kinds={lineKindChoices(editor.document, selectedPath)}
                 />
               ) : selectedPlayer ? (
                 <PlayerInspector
