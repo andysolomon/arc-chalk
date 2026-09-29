@@ -45,6 +45,15 @@ read, assignment, conversion, note — come first, with choice/flip/straighten b
 them; line, ending and colour fold under _Appearance_; timing and delete under
 _Advanced_.
 
+**Only what fits the picked line** (2026-09-29). A line's panel offers what that line
+can still be, not everything its man could be given: a route and a motion trade with
+each other, Ball joins them only on a back's line (the quarterback's or a running
+back's), a block stays a block, and a defender's drop, blitz and stunt trade among
+themselves; with one kind to offer the picker is not shown. Read, Conversion and
+_+ Choice_ are a route's and show on no other kind unless a retyped line still holds a
+value to clear; _Straighten_ shows while the line has a bend. The original offered
+Route · Motion · Block · Ball on every offensive line.
+
 **Help.** Each panel's paragraph becomes a `?` control that opens the same sentence
 by tap or click, with the sentence also on hover.
 
