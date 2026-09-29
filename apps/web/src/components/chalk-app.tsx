@@ -3497,6 +3497,18 @@ export function ChalkApp({
       .catch(() => undefined);
   };
   /**
+   * An option picked in the inspector is the answer (product request
+   * 2026-09-29): a call, a shape, a colour or a man to cover. The drawer or
+   * sheet covering the field gets out of the way the moment he picks, so the
+   * field shows what he chose — a phone's sheet drops to its peek and a
+   * tablet's drawer closes. The desktop's inspector stands beside the field
+   * rather than over it, and stays.
+   */
+  const putInspectorAway = (): void => {
+    if (phoneWorkspace) setSheetSnap("peek");
+    else if (inspectorFloats) setInspectorOpen(false);
+  };
+  /**
    * A call off a catalogue put on the man the Coach has picked out. A route
    * reshapes his base stem, or is drawn from his stance where he has none —
    * without that second case a man with nothing on him has to be given an
@@ -3515,10 +3527,7 @@ export function ChalkApp({
       (item) => item.kind === "player",
     )?.id;
     if (playerId === undefined) return;
-    // Over a tablet's field a chosen call is the answer, and the drawer that
-    // was covering it goes. A phone's sheet stays: the chip and the field
-    // behind it show the call, and the next man is a page away.
-    if (inspectorFloats && !phoneWorkspace) setInspectorOpen(false);
+    putInspectorAway();
     runPanelCommand(
       kind === "route"
         ? applyPlayerRoutePresetCommand(document, playerId, presetKey, () =>
@@ -3547,7 +3556,7 @@ export function ChalkApp({
   const runLinePreset = (pathId: string, presetKey: string): void => {
     const document = editorStore.getSnapshot().document;
     const line = document.paths.find(({ id }) => id === pathId);
-    if (inspectorFloats && !phoneWorkspace) setInspectorOpen(false);
+    putInspectorAway();
     runPanelCommand(
       line?.kind === "route"
         ? applyRoutePresetCommand(document, pathId, presetKey)
@@ -5984,6 +5993,7 @@ export function ChalkApp({
   };
   const pickPreset = (choice: PresetChoice) => {
     const key = choice.key.replace(/^(concept|line):/, "");
+    putInspectorAway();
     if (choice.group === "concept") runConcept(key);
     else runLineCall(key);
     rememberChrome({
@@ -7614,15 +7624,16 @@ export function ChalkApp({
                       { selectedBranchIndex: undefined },
                     )
                   }
-                  onKind={(kind) =>
+                  onKind={(kind) => {
+                    putInspectorAway();
                     runLabelCommand(
                       setRouteKindCommand(
                         editor.document,
                         selectedPath.id,
                         kind,
                       ),
-                    )
-                  }
+                    );
+                  }}
                   onStraighten={() =>
                     runLabelCommand(
                       straightenRouteCommand(editor.document, selectedPath.id, {
@@ -7630,7 +7641,8 @@ export function ChalkApp({
                       }),
                     )
                   }
-                  onStyle={(style) =>
+                  onStyle={(style) => {
+                    putInspectorAway();
                     runLabelCommand(
                       setRouteStyleCommand(
                         editor.document,
@@ -7641,8 +7653,8 @@ export function ChalkApp({
                         },
                         style,
                       ),
-                    )
-                  }
+                    );
+                  }}
                   onTiming={(field, value) =>
                     editRouteTiming(selectedPath.id, field, value)
                   }
@@ -7663,6 +7675,7 @@ export function ChalkApp({
                   coverage={playerCoverage(selectedPlayer)}
                   onCover={(receiverId) => {
                     setCoverPick(undefined);
+                    putInspectorAway();
                     runLabelCommand(
                       coverReceiverCommand(
                         editor.document,
@@ -7698,15 +7711,16 @@ export function ChalkApp({
                       },
                     );
                   }}
-                  onAppearance={(appearance) =>
+                  onAppearance={(appearance) => {
+                    putInspectorAway();
                     runLabelCommand(
                       setPlayerCommand(
                         editor.document,
                         selectedPlayer.id,
                         appearance,
                       ),
-                    )
-                  }
+                    );
+                  }}
                   freeDraw={freeDraw}
                   onDeselect={() => dispatchField({ type: "escape" })}
                   onDraw={(kind) => startDrawingFrom(selectedPlayer.id, kind)}
@@ -7767,26 +7781,28 @@ export function ChalkApp({
                 <LabelInspector
                   bare={phoneWorkspace}
                   label={selectedLabel}
-                  onAppearance={(appearance) =>
+                  onAppearance={(appearance) => {
+                    putInspectorAway();
                     runLabelCommand(
                       setLabelAppearanceCommand(
                         editor.document,
                         selectedLabel.id,
                         appearance,
                       ),
-                    )
-                  }
+                    );
+                  }}
                   onDelete={() => dispatchField({ type: "delete" })}
                   onDeselect={() => dispatchField({ type: "escape" })}
-                  onRole={(role) =>
+                  onRole={(role) => {
+                    putInspectorAway();
                     runLabelCommand(
                       applyLabelRoleCommand(
                         editor.document,
                         selectedLabel.id,
                         role,
                       ),
-                    )
-                  }
+                    );
+                  }}
                   onText={(text) => {
                     setLabelTextDraft({ id: selectedLabel.id, text });
                     void editorStore
