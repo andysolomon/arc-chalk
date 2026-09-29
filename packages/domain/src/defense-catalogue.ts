@@ -21,6 +21,12 @@ export interface DefensiveAssignment {
   readonly slotId: string;
   /** Beginning at his stance, so the line starts on the man. */
   readonly points: readonly Coordinate[];
+  /**
+   * What a drop is called in this coverage — Deep 1/3, Curl / flat — which
+   * the shape alone cannot say: the same bubble is a third in Cover 3 and a
+   * quarter in Quarters. A man call and a rush are named off the field.
+   */
+  readonly name?: string;
 }
 
 export interface DefensiveCall {
@@ -45,6 +51,8 @@ interface LegacyDefense {
   readonly front: string;
   readonly coverage: string;
   readonly description: string;
+  /** The zone each dropping defender owns, by his index in `players`. */
+  readonly names?: Readonly<Record<number, string>>;
   readonly players: readonly LegacyDefender[];
   readonly drops?: readonly LegacyLine[];
   readonly mans?: readonly LegacyLine[];
@@ -64,6 +72,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "4-3",
     coverage: "Cover 3",
     description: "3 deep",
+    names: {
+      7: "Deep 1/3",
+      8: "Deep 1/3",
+      9: "Middle 1/3",
+      4: "Curl / flat",
+      5: "Hook",
+      6: "Hook",
+      10: "Curl / flat",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -135,6 +152,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "Nickel",
     coverage: "Cover 2",
     description: "2 deep",
+    names: {
+      7: "Flat",
+      8: "Flat",
+      9: "Deep 1/2",
+      10: "Deep 1/2",
+      4: "Hook",
+      5: "Hook",
+      6: "Curl",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -206,6 +232,14 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "Nickel",
     coverage: "Fire zone",
     description: "5 rush",
+    names: {
+      6: "Deep 1/3",
+      7: "Deep 1/3",
+      8: "Middle 1/3",
+      4: "Curl / flat",
+      3: "Curl / flat",
+      10: "Hook",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -311,6 +345,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "4-3",
     coverage: "Cover 2",
     description: "2 deep",
+    names: {
+      7: "Flat",
+      8: "Flat",
+      9: "Deep 1/2",
+      10: "Deep 1/2",
+      4: "Curl",
+      5: "Hook",
+      6: "Curl",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -382,6 +425,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "4-3",
     coverage: "Tampa 2",
     description: "M runs",
+    names: {
+      7: "Flat",
+      8: "Flat",
+      9: "Deep 1/2",
+      10: "Deep 1/2",
+      5: "Deep middle",
+      4: "Curl",
+      6: "Curl",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -453,6 +505,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "4-3",
     coverage: "Cover 4",
     description: "4 deep",
+    names: {
+      7: "Deep 1/4",
+      8: "Deep 1/4",
+      9: "Deep 1/4",
+      10: "Deep 1/4",
+      4: "Curl / flat",
+      5: "Hook",
+      6: "Curl / flat",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -524,6 +585,9 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "Nickel",
     coverage: "Cover 1",
     description: "man free",
+    names: {
+      9: "Deep middle",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -597,6 +661,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "Nickel",
     coverage: "Cover 6",
     description: "quarter-half",
+    names: {
+      7: "Flat",
+      9: "Deep 1/2",
+      8: "Deep 1/4",
+      10: "Deep 1/4",
+      4: "Hook",
+      5: "Hook",
+      6: "Curl / flat",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -668,6 +741,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "Dime",
     coverage: "Cover 3",
     description: "6 DB",
+    names: {
+      7: "Deep 1/3",
+      8: "Deep 1/3",
+      9: "Middle 1/3",
+      4: "Hook",
+      5: "Curl / flat",
+      6: "Curl",
+      10: "Curl / flat",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -739,6 +821,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "3-4",
     coverage: "Cover 3",
     description: "3 deep",
+    names: {
+      7: "Deep 1/3",
+      8: "Deep 1/3",
+      9: "Middle 1/3",
+      5: "Hook",
+      6: "Hook",
+      3: "Curl / flat",
+      10: "Curl / flat",
+    },
     players: [
       at(440, 404, "E"),
       at(500, 404, "N"),
@@ -925,11 +1016,15 @@ function build(defense: LegacyDefense): DefensiveCall {
     kind: DefensiveAssignmentKind,
     list: readonly LegacyLine[] = [],
   ): DefensiveAssignment[] =>
-    list.map(([index, points]) => ({
-      kind,
-      slotId: slotId(defense.key, index),
-      points: points.map(([x, y]) => legacyCanvasToYards({ x, y })),
-    }));
+    list.map(([index, points]) => {
+      const name = kind === "drop" ? defense.names?.[index] : undefined;
+      return {
+        kind,
+        slotId: slotId(defense.key, index),
+        points: points.map(([x, y]) => legacyCanvasToYards({ x, y })),
+        ...(name === undefined ? {} : { name }),
+      };
+    });
 
   return {
     formation,

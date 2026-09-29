@@ -19,6 +19,7 @@ import {
   opposingUnit,
   playbackShowsAnimation,
   planPlay,
+  quickCallName,
 } from "@chalk/domain";
 
 import {
@@ -273,8 +274,8 @@ export function buildRenderScene(
       }),
     ),
     paths: [
-      ...play.paths.map(
-        ({
+      ...play.paths.map((path) => {
+        const {
           id,
           kind,
           playerId,
@@ -287,22 +288,13 @@ export function buildRenderScene(
           readOrder,
           conversion,
           coachingNote,
-        }) => {
-          const assignment = assignmentForPath(play, id)?.text.trim();
-          if (faded(playerId)) {
-            return {
-              id,
-              kind,
-              playerId,
-              points,
-              branches,
-              style,
-              ...(variant === undefined ? {} : { variant }),
-              ...(coverageArea === undefined ? {} : { coverageArea }),
-              ...(covers === undefined ? {} : { covers }),
-              opacity: fadedOpacity,
-            };
-          }
+        } = path;
+        // A quick route is named for its call under the line, the way a
+        // concept's routes are named by the words the concept gives them.
+        const assignment =
+          assignmentForPath(play, id)?.text.trim() ||
+          (kind === "route" ? quickCallName(path) : undefined);
+        if (faded(playerId)) {
           return {
             id,
             kind,
@@ -313,16 +305,28 @@ export function buildRenderScene(
             ...(variant === undefined ? {} : { variant }),
             ...(coverageArea === undefined ? {} : { coverageArea }),
             ...(covers === undefined ? {} : { covers }),
-            ...(layers.reads && readOrder !== undefined ? { readOrder } : {}),
-            ...(layers.notes && conversion !== undefined ? { conversion } : {}),
-            ...(layers.notes && coachingNote !== undefined
-              ? { coachingNote }
-              : {}),
-            ...(layers.assigns && assignment ? { assignment } : {}),
-            ...(frame === undefined ? {} : { opacity: GHOST_TRAIL_OPACITY }),
+            opacity: fadedOpacity,
           };
-        },
-      ),
+        }
+        return {
+          id,
+          kind,
+          playerId,
+          points,
+          branches,
+          style,
+          ...(variant === undefined ? {} : { variant }),
+          ...(coverageArea === undefined ? {} : { coverageArea }),
+          ...(covers === undefined ? {} : { covers }),
+          ...(layers.reads && readOrder !== undefined ? { readOrder } : {}),
+          ...(layers.notes && conversion !== undefined ? { conversion } : {}),
+          ...(layers.notes && coachingNote !== undefined
+            ? { coachingNote }
+            : {}),
+          ...(layers.assigns && assignment ? { assignment } : {}),
+          ...(frame === undefined ? {} : { opacity: GHOST_TRAIL_OPACITY }),
+        };
+      }),
       ...(frame?.trails ?? []).flatMap((trail) => {
         const source = play.paths.find(({ id }) => id === trail.pathId);
         if (!source || trail.points.length < 2) return [];
