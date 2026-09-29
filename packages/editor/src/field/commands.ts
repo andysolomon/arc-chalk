@@ -3,6 +3,7 @@ import {
   applyFormation,
   applyPlayCommand,
   assignRoles,
+  backfieldBlockPoints,
   assignmentForPath,
   ballSpotNames,
   canRunLine,
@@ -18,6 +19,7 @@ import {
   isLineman,
   linePresetByKey,
   mirrorPlayGeometry,
+  playSideOf,
   recognizeFormation,
   RECOGNITION_THRESHOLD,
   resetAlignment,
@@ -26,8 +28,10 @@ import {
   routePresetNames,
   routePresetPoints,
   settleZoneShell,
+  snapSpotOf,
   spotBall,
   stockFormations,
+  tackleBoxOf,
   legacyCanvasToYards,
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
@@ -932,16 +936,19 @@ export function addAlternateRouteCommand(
 ): PlayCommand | undefined {
   const player = document.players.find(({ id }) => id === playerId);
   if (!player || !canRunLine(player, "route")) return undefined;
-  // Exactly where he stands, not a rounding of it: the stem starts on the man.
-  const stance = player.position;
-  // Every line he already has, not just his routes: any of them means the new
-  // one is an alternate to something, which is what makes it dotted.
+  // Exactly where he is at the snap, not a rounding of it: the stem starts on
+  // the man, or at the end of his motion when he goes in motion first.
+  const stance = snapSpotOf(document, playerId);
+  // Every line he already has after the snap, not just his routes: any of
+  // them means the new one is an alternate to something, which is what makes
+  // it dotted. His motion comes before the snap, so it is nothing to be an
+  // alternate to.
   const base = document.paths
-    .filter(({ playerId: on }) => on === playerId)
+    .filter(({ playerId: on, kind }) => on === playerId && kind !== "motion")
     .at(-1);
   // Away from the middle of the field, so the new stem clears the old one on
   // the side he has room.
-  const side = player.position.lateralYards < 0 ? -1 : 1;
+  const side = stance.lateralYards < 0 ? -1 : 1;
 
   const points: PathPoint[] = base
     ? base.points.map((point, index) =>
@@ -1359,12 +1366,11 @@ export function applyRoutePresetCommand(
   if (!player || !canRunLine(player, "route")) return undefined;
 
   const continuing = mode === "continue" && path.points.length > 1;
-  const anchor = continuing ? path.points.at(-1)! : player.position;
-  const shape = routePresetPoints(
-    presetKey,
-    anchor,
-    handednessOf(player.position),
-  );
+  // A route is run from where he is at the snap: the end of his motion, if
+  // he has one, and his stance if not (issue #164).
+  const snapSpot = snapSpotOf(document, player.id);
+  const anchor = continuing ? path.points.at(-1)! : snapSpot;
+  const shape = routePresetPoints(presetKey, anchor, handednessOf(snapSpot));
   if (!shape) return undefined;
   // The anchor is left exactly as it is: a man already stands inside the
   // paint, and a break he already has was held there when it was made, so
@@ -1431,11 +1437,8 @@ export function applyPlayerRoutePresetCommand(
   const base = baseRouteOf(document, playerId);
   if (base) return applyRoutePresetCommand(document, base.id, presetKey);
 
-  const shape = routePresetPoints(
-    presetKey,
-    player.position,
-    handednessOf(player.position),
-  );
+  const snapSpot = snapSpotOf(document, playerId);
+  const shape = routePresetPoints(presetKey, snapSpot, handednessOf(snapSpot));
   if (!shape) return undefined;
   const name =
     routePresetNames.find(({ key }) => key === presetKey)?.name ?? presetKey;
@@ -1453,12 +1456,10 @@ export function applyPlayerRoutePresetCommand(
               id: createId(),
               kind: "route",
               playerId,
-              // The stance is left exactly as it is — a man already stands
-              // inside the paint — and the rest is held there.
-              points: [
-                player.position,
-                ...insidePoints(document, shape.slice(1)),
-              ],
+              // Where he sets out from is left exactly as it is — a man
+              // already stands inside the paint, and so does the end of his
+              // motion — and the rest is held there.
+              points: [snapSpot, ...insidePoints(document, shape.slice(1))],
               branches: [],
               style: routeKindStyle("route", {
                 line: "solid",
@@ -1628,13 +1629,42 @@ export function applyConceptCommand(
 // Blocking, and what a defender is asked to do
 // ---------------------------------------------------------------------------
 
+/** Further off the line than this and a man pulls from the backfield. */
+const BACKFIELD_OFF_LINE_YARDS = 1;
+
+/**
+ * The shape a call draws for this man on this Play. A pull runs to the side
+ * the Play says the run is going (issue #164), and from the backfield it runs
+ * upfield to the edge rather than back off a line he is not on. With nothing
+ * on the Play to say which way, it is drawn to his own side as before.
+ */
+function presetShape(
+  document: PlayDocument,
+  player: Player,
+  preset: LinePreset,
+): readonly PathPoint[] {
+  if (!preset.pull) return preset.pointsFrom(player.position);
+  const side = playSideOf(document, player.id);
+  if (side === undefined) return preset.pointsFrom(player.position);
+  const box = tackleBoxOf(document);
+  const fromBackfield =
+    box !== undefined &&
+    !box.men.some(({ id }) => id === player.id) &&
+    player.position.depthYards < box.lineDepthYards - BACKFIELD_OFF_LINE_YARDS;
+  return (
+    (fromBackfield
+      ? backfieldBlockPoints(preset.key, player.position, side, box)
+      : undefined) ?? preset.pointsFrom(player.position, side)
+  );
+}
+
 function presetPath(
   document: PlayDocument,
   player: Player,
   preset: LinePreset,
   id: string,
 ): MovementPath {
-  const drawn = preset.pointsFrom(player.position);
+  const drawn = presetShape(document, player, preset);
   return {
     id,
     kind: preset.kind,

@@ -227,6 +227,12 @@ export interface FieldDrawingState {
   readonly depthBuffer: string;
   /** True while the pointer is held after placing a break — dragging bends it. */
   readonly pointerDown: boolean;
+  /**
+   * Where the pointer pressed to place the last break. A snap can land the
+   * break away from the pointer, so a bend is measured from the press, not
+   * from the break, or a held click would bend the line it just placed.
+   */
+  readonly pressedAt?: Coordinate | undefined;
   /** The initial blue-dot drag places a break on release, not on press. */
   readonly initialDrag?: FieldPointerInput | undefined;
   /**

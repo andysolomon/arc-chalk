@@ -1346,6 +1346,7 @@ function lineName(
     return `${assignment?.trim() || path.kind} · ${path.style.line}`;
   }
   if (path.kind === "block") return `Block · ${path.style.line}`;
+  if (path.kind === "motion") return `Motion · ${path.style.line}`;
   const stem = index === 0 ? "Base stem" : `Alternate ${index}`;
   const choices =
     path.branches.length > 0 ? ` · ${path.branches.length} choice` : "";
@@ -1361,6 +1362,19 @@ const quickBlockCalls: readonly {
   readonly key: string;
   readonly name: string;
 }[] = blockPresets.map(({ key, name }) => ({ key, name }));
+/**
+ * What a back or a tight end blocks, the run game first: the pulls, the trap
+ * and the cut lead his folded Quick blocks and its summary, so a Coach sees
+ * they are there before he goes drawing them by hand (issue #164).
+ */
+const runGameFirst = new Set(["kick", "wrap", "trap", "cut", "chip"]);
+const quickBackBlockCalls: readonly {
+  readonly key: string;
+  readonly name: string;
+}[] = [
+  ...quickBlockCalls.filter(({ key }) => runGameFirst.has(key)),
+  ...quickBlockCalls.filter(({ key }) => !runGameFirst.has(key)),
+];
 const quickAssignmentCalls: readonly {
   readonly key: string;
   readonly name: string;
@@ -1654,7 +1668,7 @@ function PlayerInspector({
     playerFillChoices.find(({ fill }) => fill === player.fill)?.name ??
     player.fill;
   const letter = player.label.trim();
-  const quickBlocksSummary = quickBlockCalls
+  const quickBlocksSummary = quickBackBlockCalls
     .slice(0, 4)
     .map(({ name }) => name)
     .join(" · ");
@@ -1814,8 +1828,8 @@ function PlayerInspector({
           title="Quick blocks"
         >
           <QuickCallGrid
-            calls={quickBlockCalls}
-            hint="Backs and tight ends block too — a block sits alongside his route rather than replacing it."
+            calls={quickBackBlockCalls}
+            hint="Backs and tight ends block too — a block sits alongside his route rather than replacing it. From the backfield a kick-out or lead heads upfield to the play-side edge."
             kind="line"
             onApply={onQuickCall}
             running={activePresets}
@@ -1826,7 +1840,7 @@ function PlayerInspector({
         <QuickCallGrid
           calls={quickBlockCalls}
           heading="Quick blocks"
-          hint="Bar endings for contact, dashed for a pull, a tick where he chips before releasing. Click the one he has to take it off."
+          hint="Bar endings for contact, dashed for a pull — a pull or trap runs to the play side the down blocks and the ball carrier show. A tick where he chips before releasing. Click the one he has to take it off."
           kind="line"
           onApply={onQuickCall}
           running={activePresets}
@@ -3049,6 +3063,21 @@ export function ChalkApp({
   );
   const playbackRef = useRef(playback);
   const [sceneAnchorMs, setSceneAnchorMs] = useState<number | null>(null);
+  // Drawing a motion moves where the timeline starts, back before the snap.
+  // A clock at rest stays at rest — at the new start, with everybody at his
+  // stance — rather than being left at the snap, which would show the man at
+  // the end of his motion and grey the rest of the Play (issue #164).
+  const restStartRef = useRef(animationPlan.startMs);
+  useLayoutEffect(() => {
+    const was = restStartRef.current;
+    restStartRef.current = animationPlan.startMs;
+    const clock = playbackRef.current;
+    if (was === animationPlan.startMs || clock.playing || clock.timeMs !== was)
+      return;
+    const next = resetPlayback(clock, animationPlan.startMs);
+    playbackRef.current = next;
+    setPlayback(next);
+  }, [animationPlan.startMs]);
   const reducedMotion =
     typeof globalThis.matchMedia === "function" &&
     globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -3402,31 +3431,36 @@ export function ChalkApp({
         )
       : undefined;
   /** Every line he has, named the way the original names them. */
-  const playerLines = (player: Player) =>
-    editor.document.paths
-      .filter(({ playerId }) => playerId === player.id)
-      .map((path, index) => ({
-        id: path.id,
-        name: lineName(
-          path,
-          index,
-          assignmentForPath(editor.document, path.id)?.text,
-        ),
-        // Each kind of line is offered the calls that belong to it: a route
-        // gets the tree, a block gets the blocking calls, and a defender's
-        // line gets the drops, the man calls and the rushes. A motion and a
-        // ball flight have no catalogue of their own, so they are offered
-        // none rather than somebody else's.
-        presets:
-          path.kind === "route"
-            ? routePresetNames
-            : path.kind === "block"
-              ? blockPresets.map(({ key, name }) => ({ key, name }))
-              : defensiveLineKinds.has(path.kind)
-                ? defensivePresets.map(({ key, name }) => ({ key, name }))
-                : [],
-        ...(path.preset === undefined ? {} : { preset: path.preset }),
-      }));
+  const playerLines = (player: Player) => {
+    const his = editor.document.paths.filter(
+      ({ playerId }) => playerId === player.id,
+    );
+    return his.map((path, index) => ({
+      id: path.id,
+      // A route is his base stem or an alternate to it, counted among his
+      // routes: a motion or a block before it is not a route he could run
+      // instead (issue #164).
+      name: lineName(
+        path,
+        his.slice(0, index).filter(({ kind }) => kind === path.kind).length,
+        assignmentForPath(editor.document, path.id)?.text,
+      ),
+      // Each kind of line is offered the calls that belong to it: a route
+      // gets the tree, a block gets the blocking calls, and a defender's
+      // line gets the drops, the man calls and the rushes. A motion and a
+      // ball flight have no catalogue of their own, so they are offered
+      // none rather than somebody else's.
+      presets:
+        path.kind === "route"
+          ? routePresetNames
+          : path.kind === "block"
+            ? blockPresets.map(({ key, name }) => ({ key, name }))
+            : defensiveLineKinds.has(path.kind)
+              ? defensivePresets.map(({ key, name }) => ({ key, name }))
+              : [],
+      ...(path.preset === undefined ? {} : { preset: path.preset }),
+    }));
+  };
   /** Whom a defender in man covers, and whom he could (ADR 0060). */
   const playerCoverage = (player: Player): PlayerCoverage | undefined => {
     if (player.unit !== "defense") return undefined;

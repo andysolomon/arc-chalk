@@ -13,6 +13,7 @@ import {
   snapRouteEndpoint,
   type AxisSnapGuide,
 } from "../smart-snapping";
+import { tackleBoxFor } from "./drawing";
 import {
   clampToField,
   coordinate,
@@ -138,8 +139,13 @@ function dragNode(
   if (!original) return { update: updatePath(path), guides: [] };
   const previous = predecessorOf(path, branchIndex, pointIndex);
   const constrain = context.snap.enabled !== (shiftKey === true);
+  // In the tackle box a break is not held to 45°, and it finds the gaps
+  // rather than the men on the line, whose spots and depth are left out of
+  // what it can line up with (issue #164).
+  const box = tackleBoxFor(context, path.playerId, path.kind, point);
+  const inBox = new Set(box?.men.map(({ id }) => id));
   const angled =
-    constrain && previous
+    constrain && previous && !box
       ? snapRouteEndpoint({
           origin: coordinate(previous.lateralYards, previous.depthYards),
           point,
@@ -150,12 +156,15 @@ function dragNode(
   const snapped = snapPosition({
     point: angled,
     fieldProfile: context.document.fieldProfile,
-    references: context.document.players.map(({ id, position, label }) => ({
-      id,
-      kind: "player" as const,
-      position,
-      ...(label.trim() === "" ? {} : { label }),
-    })),
+    references: context.document.players
+      .filter(({ id }) => !inBox.has(id))
+      .map(({ id, position, label }) => ({
+        id,
+        kind: "player" as const,
+        position,
+        ...(label.trim() === "" ? {} : { label }),
+      })),
+    ...(box ? { gaps: box.gaps } : {}),
     screenScale: context.screenScale,
     settings: context.snap,
   });

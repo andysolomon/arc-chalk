@@ -414,6 +414,11 @@ interface LegacyLinePreset {
   readonly ending: "arrow" | "bar" | "dot" | "bubble" | "chevron";
   /** Left is left: the shape is not mirrored to the side the man is on. */
   readonly absolute?: boolean;
+  /**
+   * He pulls: the shape runs to the play side rather than out from his own
+   * side of the ball, wherever the Play says the run is going (issue #164).
+   */
+  readonly pull?: boolean;
 }
 
 const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
@@ -459,6 +464,7 @@ const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
     controls: { 0: [8, 0, 20] },
     line: "dashed",
     ending: "bar",
+    pull: true,
   },
   wrap: {
     name: "Pull — wrap",
@@ -470,6 +476,20 @@ const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
     controls: { 0: [6, 0, 22] },
     line: "dashed",
     ending: "bar",
+    pull: true,
+  },
+  // A short pull along the line that kicks out the first man past the
+  // centre on the play side, inside out.
+  trap: {
+    name: "Trap",
+    points: [
+      [16, 0, 14],
+      [72, 0, -24],
+    ],
+    controls: { 0: [4, 0, 16] },
+    line: "dashed",
+    ending: "bar",
+    pull: true,
   },
   cut: { name: "Cut", points: [[26, 0, -14]], line: "solid", ending: "dot" },
   passset: {
@@ -618,13 +638,19 @@ export interface LinePreset {
     readonly line: "solid" | "dashed" | "dotted";
     readonly ending: "arrow" | "bar" | "dot" | "bubble" | "chevron";
   };
+  /** He pulls, so the shape goes to the play side when there is one. */
+  readonly pull: boolean;
   /** The ground it owns, where it owns any. */
   readonly area?: {
     readonly type: "deep" | "curl" | "hook" | "flat" | "spy";
     readonly radiusLateralYards: number;
     readonly radiusDepthYards: number;
   };
-  pointsFrom(stance: Coordinate): readonly PathPoint[];
+  /**
+   * The shape drawn from his spot. `toward` sends a pull to the play side;
+   * without it, and for every other call, the shape is his own side's.
+   */
+  pointsFrom(stance: Coordinate, toward?: 1 | -1): readonly PathPoint[];
 }
 
 function buildLinePreset(
@@ -638,6 +664,7 @@ function buildLinePreset(
     name: preset.name,
     kind,
     style: { line: preset.line, ending: preset.ending },
+    pull: preset.pull === true,
     ...(area
       ? {
           area: {
@@ -647,12 +674,15 @@ function buildLinePreset(
           },
         }
       : {}),
-    pointsFrom(stance: Coordinate) {
-      // A call that carries a real field direction is drawn as written; the
-      // rest mirror about the ball to the side the man lines up on.
+    pointsFrom(stance: Coordinate, toward?: 1 | -1) {
+      // A call that carries a real field direction is drawn as written, and a
+      // pull runs to the play side; the rest mirror about the ball to the
+      // side the man lines up on.
       const hand: Handedness = preset.absolute
         ? { outward: 1 }
-        : handednessOf(stance);
+        : preset.pull && toward !== undefined
+          ? { outward: toward }
+          : handednessOf(stance);
       return [
         stance,
         ...preset.points.map((offset, index) => {
