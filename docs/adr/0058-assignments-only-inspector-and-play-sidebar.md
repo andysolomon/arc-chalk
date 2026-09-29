@@ -69,8 +69,8 @@ two heights over the field, above the tools: _peek_ — one bar, _Assignments ·
 M · the concept · the line call_ — and _full_ — the roster, or the picked man with
 _‹ All 11_, _Field ⌄_ and a pager through the unit in roster order. Tapping the bar opens it full, on
 the picked man if there is one; Field, a tap past it, or starting a line by hand
-drops it to its peek; a quick call chosen in the sheet or the tray keeps the sheet
-where it is. The floating _Inspector_ stub is gone. Settings on a phone is a
+drops it to its peek; so does an option picked in the sheet (see _Amended_ below),
+and a quick call from the tray leaves it where it is. The floating _Inspector_ stub is gone. Settings on a phone is a
 full-screen page with pill tabs. Every target is 44 px, and the header stands above
 the sheet and both drawers, so its menus open over them. A man with no letter is
 marked by the spot he plays (LT, C) wherever the roster draws him.
@@ -100,3 +100,15 @@ Defenses 22,221 → 25,856. Present, Print and Demo did not move. Giving each ro
 is the 236 px sidebar column the original does not draw; the ratchets are raised to
 the branch measurements and the numbers are recorded in
 `docs/original-prototype-parity-matrix.md`.
+
+## Amended 2026-09-29: an option picked puts the inspector away
+
+Product request: when the Coach is in the inspector, picking an option should close
+it. An **option** is a choice among several: a quick route, block or assignment; a
+line's _Quick call…_; _Covers_; a man's shape, fill or colour; a line's kind, style,
+ending or colour; a label's side, meaning, size, box or colour; and a concept or line
+call from the catalogue. Picking one drops the phone's sheet to its peek and closes
+the tablet's drawer, so the field shows what was chosen. Going somewhere (a roster
+row, _Edit_, the pager, _‹ All 11_), opening a fold, typing, and actions such as
+Flip, Straighten, a choice or an alternate leave it where it is. The desktop's
+inspector is docked beside the field rather than over it, and stays open.

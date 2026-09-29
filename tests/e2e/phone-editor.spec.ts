@@ -684,20 +684,18 @@ for (const viewport of WORKSPACES) {
       await expect(slant).toHaveAttribute("aria-pressed", "true");
       await expectSavedOnThisDevice(page);
 
-      // A quick route chosen in the sheet keeps the sheet (ADR 0058): the
-      // chip and the field behind say what he runs, and the tray agrees.
+      // A quick route chosen in the sheet puts the sheet away (ADR 0058):
+      // the field behind says what he runs, and the tray agrees.
       await page.getByRole("button", { name: "Show all assignments" }).tap();
       const sheet = page.getByRole("complementary", { name: "Play inspector" });
       await expect(sheet).toHaveAttribute("data-sheet", "full");
       await sheet.getByRole("button", { name: "Curl" }).tap();
-      await expect(sheet).toHaveAttribute("data-sheet", "full");
+      await expect(sheet).toHaveAttribute("data-sheet", "peek");
       await expect(tray.getByRole("button", { name: "Curl" })).toHaveAttribute(
         "aria-pressed",
         "true",
       );
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
-      await page.getByRole("button", { name: "Show the field" }).tap();
-      await expect(sheet).toHaveAttribute("data-sheet", "peek");
     });
 
     test("moves a picked man under a finger that lands a little high, and still draws from his dot", async ({
