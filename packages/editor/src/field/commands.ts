@@ -17,6 +17,8 @@ import {
   handednessOf,
   isLineman,
   linePresetByKey,
+  defensiveFieldOf,
+  twistPartnerOf,
   mirrorPlayGeometry,
   recognizeFormation,
   RECOGNITION_THRESHOLD,
@@ -1689,7 +1691,8 @@ function presetPath(
   preset: LinePreset,
   id: string,
 ): MovementPath {
-  const drawn = preset.pointsFrom(player.position);
+  // A call aimed at the field reads the gaps and the quarterback off it.
+  const drawn = preset.pointsFrom(player.position, defensiveFieldOf(document));
   return {
     id,
     kind: preset.kind,
@@ -1740,9 +1743,17 @@ export function applyLinePresetCommand(
 ): PlayCommand | undefined {
   const preset = linePresetByKey(presetKey);
   if (!preset) return undefined;
+  // A game is played by two: his partner on the front is given it with him.
+  const partners = preset.pair
+    ? playerIds.flatMap((id) => {
+        const partner = twistPartnerOf(document, id);
+        return partner ? [partner.id] : [];
+      })
+    : [];
   const players = document.players.filter(
     (player) =>
-      playerIds.includes(player.id) && canRunLine(player, preset.kind),
+      (playerIds.includes(player.id) || partners.includes(player.id)) &&
+      canRunLine(player, preset.kind),
   );
   if (players.length === 0) return undefined;
 

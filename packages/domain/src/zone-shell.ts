@@ -29,6 +29,15 @@ import type {
  */
 export type ZoneShellLevel = "deep" | "underneath";
 
+/**
+ * What the shell reads of a Play: the men, their lines and the width of the
+ * field. A call in the catalogue is laid out on the same rule before it is
+ * ever put on a Play, so it asks for no more than that.
+ */
+export type ZoneShellPlay = Pick<PlayDocument, "players" | "paths"> & {
+  readonly fieldProfile: Pick<PlayDocument["fieldProfile"], "widthYards">;
+};
+
 export const zoneShellLevels: readonly ZoneShellLevel[] = Object.freeze([
   "deep",
   "underneath",
@@ -65,7 +74,7 @@ function levelOf(type: CoverageArea["type"]): ZoneShellLevel | undefined {
  * instead of owning ground, so it ends in an arrow and has no place here; nor
  * has an alternate, which is a choice between lines rather than one more man.
  */
-function dropsOf(play: PlayDocument): readonly Drop[] {
+function dropsOf(play: ZoneShellPlay): readonly Drop[] {
   const stances = new Map(
     play.players
       .filter(({ unit }) => unit === "defense")
@@ -138,7 +147,7 @@ function landed(
  * depth, so the shell reads as one line of coverage.
  */
 function layDeep(
-  play: PlayDocument,
+  play: ZoneShellPlay,
   drops: readonly Drop[],
 ): Map<string, MovementPath> {
   const moved = new Map<string, MovementPath>();
@@ -275,7 +284,7 @@ function spreadAcross(
 }
 
 function layUnderneath(
-  play: PlayDocument,
+  play: ZoneShellPlay,
   drops: readonly Drop[],
 ): Map<string, MovementPath> {
   const moved = new Map<string, MovementPath>();
@@ -299,10 +308,10 @@ function layUnderneath(
  * that are not part of the shell, and drops already where the shell puts
  * them, come back exactly as they were.
  */
-export function layoutZoneShell(
-  play: PlayDocument,
+export function layoutZoneShell<Play extends ZoneShellPlay>(
+  play: Play,
   levels: readonly ZoneShellLevel[] = zoneShellLevels,
-): PlayDocument {
+): Play {
   const drops = dropsOf(play);
   const at = (level: ZoneShellLevel) =>
     drops.filter((drop) => drop.level === level);

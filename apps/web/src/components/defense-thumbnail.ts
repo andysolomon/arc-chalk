@@ -76,7 +76,7 @@ export function defenseThumbnail(
     ? call.assignments.flatMap((assignment) => {
         if (assignment.kind !== "drop") return [];
         const end = assignment.points.at(-1)!;
-        const area = coverageForDrop(end);
+        const area = assignment.coverageArea ?? coverageForDrop(end);
         const at = yardsToLegacyCanvas(end);
         return [
           {

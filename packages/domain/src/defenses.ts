@@ -62,6 +62,10 @@ function assignmentPath(
 ): MovementPath {
   const points = assignment.points.map((point) => ({ ...point }));
   const blue = { line: "dashed", ending: "bubble", color: "blue" } as const;
+  // Named as the quick assignment it is, so the roster says so and its
+  // button reads pressed.
+  const preset =
+    assignment.preset === undefined ? {} : { preset: assignment.preset };
   if (assignment.kind === "blitz") {
     return {
       id,
@@ -70,6 +74,7 @@ function assignmentPath(
       points,
       branches: [],
       style: routeKindStyle("blitz", blue),
+      ...preset,
     };
   }
   if (assignment.kind === "man") {
@@ -86,6 +91,7 @@ function assignmentPath(
         line: "dotted",
         ending: "arrow",
       },
+      ...preset,
     };
   }
   return {
@@ -95,7 +101,10 @@ function assignmentPath(
     points,
     branches: [],
     style: routeKindStyle("zone", blue),
-    coverageArea: coverageForDrop(points.at(-1)!),
+    coverageArea: assignment.coverageArea
+      ? { ...assignment.coverageArea }
+      : coverageForDrop(points.at(-1)!),
+    ...preset,
   };
 }
 
