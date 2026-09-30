@@ -99,11 +99,12 @@ test("stands corners and deep safeties at the Coach's depths in every call he pu
   for (const depth of await yardsOff(page, "C", "M", 92 / 12)) {
     expect(depth).toBeCloseTo(1, 1);
   }
-  // Both safeties drop deep in this call.
-  for (const label of ["F", "$"]) {
-    const [safety] = await yardsOff(page, label, "M", 92 / 12);
-    expect(safety).toBeCloseTo(14, 1);
-  }
+  // The free safety drops deep and takes the setting. The $ rolls down to
+  // the curl/flat (issue #165), so he keeps the call's spot.
+  const [deep] = await yardsOff(page, "F", "M", 92 / 12);
+  expect(deep).toBeCloseTo(14, 1);
+  const [rolled] = await yardsOff(page, "$", "M", 92 / 12);
+  expect(rolled).toBeCloseTo(128 / 12, 1);
   await saveField(page, testInfo.outputPath("1-cover-3-press-and-14.png"));
 
   // In Nickel Cover 1 the free safety is deep and takes the setting; the

@@ -1510,7 +1510,8 @@ test("puts a call on the field as an alignment, then again with what each man ha
   await browser.getByRole("button", { name: "With assignments" }).click();
   await browser.getByText("Nickel Cover 2", { exact: true }).click();
   await expect(page.locator("[data-scene-player]")).toHaveCount(22);
-  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 7);
+  // Seven drops, and the four linemen's contain and rush (issue #165).
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 11);
   await expect(page.getByRole("status")).toContainText(
     "alignment and assignments",
   );
@@ -1545,7 +1546,8 @@ test("swaps one call for another without leaving the last one underneath", async
   await page.keyboard.press("Escape");
 
   await pick("4-3 Cover 3");
-  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 7);
+  // Seven drops, and the four linemen's contain and rush (issue #165).
+  await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 11);
 
   await pick("Fire Zone Blitz");
   // Eleven men, five rush paths and six coverage drops, replacing the old call.

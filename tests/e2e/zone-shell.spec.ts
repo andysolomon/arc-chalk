@@ -139,7 +139,7 @@ test("divides the deep field between the defenders called into it, and closes ov
   await saveField(page, testInfo, "4-cover-3-with-a-hook");
 
   // A corner sent on a blitz leaves the deep field to the two still in it.
-  await call(page, rightCorner!, "Blitz");
+  await call(page, rightCorner!, "D gap");
   await expect.poll(() => deepCenters(page)).toEqual(halves);
 
   // Clearing the safety's lines hands the whole middle back to the corner.
