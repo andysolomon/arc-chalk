@@ -178,7 +178,15 @@ export async function deleteLibraryPlay(input: {
   if (currentId === playId) {
     const next = snapshot.members.find((entry) => entry.playId !== playId);
     if (next) await openLibraryPlay(library, editorStore, next.playId);
-    else await createUntitledPlay(library, editorStore);
+    // The book is empty now: a blank Play that is written only once the
+    // Coach draws on it, rather than an untitled one left in it (issue #166).
+    else
+      await editorStore.showUnsavedPlay(
+        emptyPlayDocument({
+          playbookId: library.playbookId,
+          fieldProfile: editorStore.getSnapshot().document.fieldProfile,
+        }),
+      );
   } else {
     await openLibraryPlay(library, editorStore, currentId);
   }

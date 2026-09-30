@@ -47,7 +47,9 @@ test("picks a defender's man with a tap on the field", async ({
   if ((await toggle.getAttribute("aria-pressed")) !== "true") {
     await toggle.tap();
   }
-  await browser.getByRole("textbox").fill("Nickel Cover 1");
+  await browser
+    .getByRole("textbox", { name: "Search defenses" })
+    .fill("Nickel Cover 1");
   await browser.getByText("Nickel Cover 1", { exact: true }).tap();
   await expect(browser).toBeHidden();
   await expect(page.locator("[data-scene-player]")).toHaveCount(22);

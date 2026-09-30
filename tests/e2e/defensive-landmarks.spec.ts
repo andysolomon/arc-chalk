@@ -36,7 +36,7 @@ async function putOnDefense(
     await toggle.click();
   }
   await expect(toggle).toHaveAttribute("aria-pressed", String(withAssignments));
-  await browser.getByRole("textbox").fill(name);
+  await browser.getByRole("textbox", { name: "Search defenses" }).fill(name);
   await browser.getByText(name, { exact: true }).click();
   await expect(browser).toBeHidden();
   await expect(page.locator("[data-scene-player]")).toHaveCount(players);

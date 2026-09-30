@@ -77,7 +77,17 @@ const parityGap: Readonly<Record<string, number>> = {
   // to the top of a card two-thirds empty). Measured on the same Linux
   // machine, branch against main: 34,548 → 36,770 px (+2,222).
   formations: 0.0247, // 2.3043% (31,854 px) + 2,222 px, from 2.0059% (27,730 px)
-  defenses: 0.019, // 1.8893% (26,118 px), from 1.5938% (22,033 px)
+  // Raised 0.019 → 0.0197 under ADR 0064 (issue #166, the product owner's
+  // request for a Mine tab and "Save the defense on the field as…"): the
+  // tab and the save row are chrome the original's Defenses does not have.
+  // Measured on one Linux machine, branch against main: 28,542 → 29,609 px
+  // (+1,067); Formations did not move (34,547 → 34,548). Added to the
+  // recorded 26,118 px that is 27,185 px, 1.9665%.
+  // Raised 0.0197 → 0.0198 under issue #167: at 100 % the status bar no
+  // longer claims "labels hidden — zoom in" over labels that are drawn, and
+  // the shorter hint shows in this capture. Measured on the same Linux
+  // machine, branch against main: 29,609 → 29,679 px (+70).
+  defenses: 0.0198, // 1.9716% (27,255 px), from 1.8893% (26,118 px)
 };
 
 /**

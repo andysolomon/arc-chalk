@@ -142,7 +142,9 @@ test("a defensive install page lists every defender's job under the call it is",
   if ((await withLines.getAttribute("aria-pressed")) !== "true") {
     await withLines.click();
   }
-  await browser.getByRole("textbox").fill("4-3 Cover 3");
+  await browser
+    .getByRole("textbox", { name: "Search defenses" })
+    .fill("4-3 Cover 3");
   await browser.getByText("4-3 Cover 3", { exact: true }).click();
   await expect(browser).toBeHidden();
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);

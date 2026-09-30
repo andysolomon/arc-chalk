@@ -111,6 +111,7 @@ export function OutputWorkspace({
   const [libraryPlays, setLibraryPlays] = useState<{
     readonly plays: readonly PlayDocument[];
     readonly concepts: readonly Concept[];
+    readonly installOrder?: boolean;
   }>();
   const [plans, setPlans] = useState<readonly GamePlan[]>([]);
   const [sheetConfigs, setSheetConfigs] = useState<
@@ -314,7 +315,9 @@ export function OutputWorkspace({
           kind: "book",
           label: "Full playbook",
           plays: libraryPlays?.plays ?? [],
-          order: "in library order",
+          order: libraryPlays?.installOrder
+            ? "in install order"
+            : "in library order",
         };
     }
   }, [
@@ -609,7 +612,8 @@ export function OutputWorkspace({
           ) : null}
           {source.kind === "book" ? (
             <p className="output-note">
-              Every saved play in the library, in library order —{" "}
+              Every saved play in the library, in{" "}
+              {libraryPlays?.installOrder ? "install" : "library"} order —{" "}
               {libraryPlays ? libraryPlays.plays.length : "…"} plays. Nothing
               here prints the whole book unless you choose it.
             </p>

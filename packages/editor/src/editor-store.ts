@@ -170,6 +170,12 @@ export interface EditorStore {
    */
   adoptPlay(this: void, document: PlayDocument): Promise<EditorCommitOutcome>;
   /**
+   * Shows a blank Play that is not written until the Coach puts something on
+   * it — an empty book's first Play, so opening a book never leaves an
+   * untitled Play behind in it (issue #166). Its first commit writes it.
+   */
+  showUnsavedPlay(this: void, document: PlayDocument): Promise<void>;
+  /**
    * Switches to a Play already stored on this device. History and versions
    * come with it; the open Play is not rewritten.
    */
@@ -551,6 +557,25 @@ export function createEditorStore({
     });
   };
 
+  const showUnsavedPlay = (nextDocument: PlayDocument): Promise<void> =>
+    enqueue(async () => {
+      const shown = playDocumentSchema.parse(nextDocument);
+      history = createUndoHistory(shown.id, wallClockNow());
+      documentHash = await canonicalSha256(shown);
+      persistedDocumentHash = undefined;
+      showDocument(shown);
+      publishUndo();
+      publishVersions([]);
+      state.setState((current) => ({
+        ...current,
+        localSave: {
+          phase: "saved",
+          documentHash,
+          budgetMs: saveBudgetMs,
+        },
+      }));
+    });
+
   const openStoredPlay = (input: {
     readonly document: PlayDocument;
     readonly documentHash: string;
@@ -659,6 +684,7 @@ export function createEditorStore({
     applyEdit,
     commitDocument,
     adoptPlay,
+    showUnsavedPlay,
     openStoredPlay,
     revealPersistedPlay,
     retryLocalSave() {

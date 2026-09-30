@@ -1075,3 +1075,14 @@ export const defensiveFronts: readonly string[] = Object.freeze([
   "Nickel",
   "Dime",
 ]);
+
+/** The front a Coach's own saved defenses are filed under (issue #166). */
+export const COACH_FRONT = "Mine";
+
+/**
+ * A front the Coach saved from the field, as a call the Defenses book can
+ * put on a Play: its alignment only, since the Coach draws its coverage.
+ */
+export function coachDefensiveCall(formation: Formation): DefensiveCall {
+  return { formation, front: COACH_FRONT, coverage: "", assignments: [] };
+}
