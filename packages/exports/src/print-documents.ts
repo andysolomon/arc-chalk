@@ -354,21 +354,55 @@ export interface LibraryOptions {
   readonly productName?: string;
 }
 
+/**
+ * How a wristband cell's picture is read on a wrist: the play cropped to
+ * itself, heavy lines and men, and none of the yard numbers, hash ticks or
+ * pale grid that turn to grey noise at an inch and a half (issue #167). The
+ * line of scrimmage stays; it is the one mark a player reads the play from.
+ */
+export const WRISTBAND_CELL_CSS =
+  ".wc svg{display:block;width:100%;min-height:0;flex:1 1 0}" +
+  ".wc svg .yard-numbers,.wc svg .hash,.wc svg .field-grid{display:none}" +
+  ".wc svg .field-paper{stroke:none}" +
+  ".wc svg .line-of-scrimmage{stroke:#171717;stroke-width:3}" +
+  ".wc svg .players :is(circle,rect,ellipse,path){stroke-width:3.2}" +
+  // The route word under a man is 9 frame pixels — a speck at this size.
+  '.wc svg .players text[font-family="Geist Mono, monospace"]{display:none}';
+
 /** The wristband sheet: eight 2.1×1.4in cells, two columns, dashed cut lines. */
 export const WRISTBAND_CSS =
   "@page{size:letter portrait;margin:0.5in}" +
   ".wg{display:grid;grid-template-columns:2.1in 2.1in;grid-auto-rows:1.4in;justify-content:start}" +
-  ".wc{width:2.1in;height:1.4in;border:0.5px dashed #8F8F8F;padding:3px 6px;display:flex;flex-direction:column;align-items:center;overflow:hidden}" +
-  ".wc b{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;align-self:flex-start;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
-  ".wc svg{width:1.3in;height:auto;flex:1;min-height:0}" +
-  ".wc span{font-size:7px;font-family:ui-monospace,Menlo,monospace;color:#4D4D4D;align-self:flex-start}";
+  ".wc{width:2.1in;height:1.4in;border:0.5px dashed #8F8F8F;padding:3px 6px;display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box}" +
+  ".wc b{flex:none;font-size:10px;font-weight:700;line-height:1.2;text-transform:uppercase;letter-spacing:0.3px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+  ".wc .pn{flex:none;font-size:7px;font-family:ui-monospace,Menlo,monospace;color:#4D4D4D}" +
+  WRISTBAND_CELL_CSS;
 
-/** The thin, unlabeled way a wristband cell draws a Play. */
+/**
+ * The thin, unlabeled way a small thumbnail draws a Play — the call sheet's
+ * picture column.
+ */
 export const WRISTBAND_DIAGRAM_OPTIONS = Object.freeze({
   typePreset: "print",
   lineWeight: 1.5,
   layers: { text: false, assigns: false, notes: false, reads: false },
 } as const);
+
+/**
+ * A wristband cell's picture: the same unlabeled Play on the full page,
+ * cropped to the men and their lines and drawn heavy enough to read on a
+ * wrist. Paired with `WRISTBAND_CELL_CSS`.
+ */
+export const WRISTBAND_CELL_DIAGRAM_OPTIONS = Object.freeze({
+  ...WRISTBAND_DIAGRAM_OPTIONS,
+  pageKind: "full",
+  frame: "play",
+  lineWeight: 5,
+} as const);
+
+/** A cell's personnel line, when the Play has an offense to count. */
+export const personnelLine = (personnel: string): string =>
+  personnel === "" ? "" : `<span class="pn">${escapeHtml(personnel)}</span>`;
 
 /** Wristband — eight 2.1×1.4in cells, two columns, dashed cut lines. */
 export function wristbandHtml(
@@ -381,8 +415,9 @@ export function wristbandHtml(
     .map(
       (play) =>
         `<div class="wc"><b>${escapeHtml(play.name)}</b>` +
-        options.render(play, WRISTBAND_DIAGRAM_OPTIONS) +
-        `<span>${escapeHtml(playMeta(play, options.formations).personnel)}</span></div>`,
+        options.render(play, WRISTBAND_CELL_DIAGRAM_OPTIONS) +
+        personnelLine(playMeta(play, options.formations).personnel) +
+        "</div>",
     )
     .join("");
   return printDocumentHtml({

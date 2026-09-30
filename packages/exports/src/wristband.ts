@@ -7,7 +7,8 @@ import {
 import type { DiagramRenderer } from "./diagram";
 import { preparedStamp } from "./game-plan-documents";
 import {
-  WRISTBAND_DIAGRAM_OPTIONS,
+  WRISTBAND_CELL_CSS,
+  WRISTBAND_CELL_DIAGRAM_OPTIONS,
   escapeHtml,
   printDocumentHtml,
 } from "./print-documents";
@@ -288,7 +289,7 @@ export function configuredWristbandHtml(
     const missing = !item.row?.play;
     const diagram =
       config.layout !== "code-name" && item.row?.play
-        ? options.render(item.row.play, WRISTBAND_DIAGRAM_OPTIONS)
+        ? options.render(item.row.play, WRISTBAND_CELL_DIAGRAM_OPTIONS)
         : "";
     const name =
       config.layout !== "code-diagram" || missing
@@ -309,7 +310,10 @@ export function configuredWristbandHtml(
     )
     .join("");
   const code =
-    config.layout === "code-name" ? Math.min(26, Math.round(h * 20)) : 12;
+    config.layout === "code-name"
+      ? Math.min(26, Math.round(h * 20))
+      : // Beside a diagram the code still reads first: 15 pt in a 1.4 in cell.
+        Math.max(12, Math.min(18, Math.round(h * 11)));
   return printDocumentHtml({
     title: `${revision.plan.name} — wristband inserts`,
     css:
@@ -326,7 +330,7 @@ export function configuredWristbandHtml(
       "pt}" +
       ".wc .nm{font-size:8pt;line-height:1.15;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;overflow-wrap:anywhere;flex:none}" +
       ".wc.code-name .nm{font-size:10pt}" +
-      ".wc svg{width:100%;height:auto;flex:1;min-height:0;display:block}" +
+      WRISTBAND_CELL_CSS +
       ".wc.miss{color:#8F8F8F}" +
       ".wc i{position:absolute;width:0.12in;height:0.12in;border:0 solid #171717;pointer-events:none}" +
       ".wc .tl{top:-1px;left:-1px;border-top-width:1px;border-left-width:1px}" +

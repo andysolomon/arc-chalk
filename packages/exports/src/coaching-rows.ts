@@ -247,7 +247,9 @@ export function playMeta(
       : { personnelLabel: "—", strength: "—" };
   const formation = currentFormation(play, formations);
   return {
-    personnel: `${meta.personnelLabel}P`,
+    // An offense with nobody on the field has no count to give; it says
+    // nothing rather than "—P" (issue #167).
+    personnel: offense.length > 0 ? `${meta.personnelLabel}P` : "",
     formation: formation?.name ?? "Custom alignment",
     strength: meta.strength,
     hash: playBallSpot(play) ?? "middle",

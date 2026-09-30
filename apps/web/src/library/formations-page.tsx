@@ -17,7 +17,10 @@ import { useMemo, useState } from "react";
 
 import { defenseThumbnail } from "../components/defense-thumbnail";
 import { FavoriteStar } from "../components/editor-overlays";
-import { formationThumbnail } from "../components/formation-thumbnail";
+import {
+  FORMATION_THUMBNAIL,
+  formationThumbnail,
+} from "../components/formation-thumbnail";
 import { ANY, FilterChip, type FilterChoice } from "./filter-chip";
 import { countBy, personnelChoices, setChoices } from "./play-filters";
 
@@ -486,7 +489,10 @@ function SetCard({
         type="button"
       >
         <div className="browser-shape">
-          <svg role="presentation" viewBox="0 0 140 74">
+          <svg
+            role="presentation"
+            viewBox={`0 0 ${FORMATION_THUMBNAIL.width} ${FORMATION_THUMBNAIL.height}`}
+          >
             <line
               className="shape-scrimmage"
               strokeWidth={1}

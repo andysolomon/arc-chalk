@@ -209,7 +209,8 @@ export function PresetPicker({
               ] as const
             ).map(([id, name]) => (
               <button
-                className={group === id ? "active" : undefined}
+                aria-pressed={group === id}
+                className={`chip${group === id ? " active" : ""}`}
                 key={id}
                 onClick={() => setGroup(id)}
                 type="button"
@@ -266,7 +267,9 @@ export function PresetPicker({
                       }
                       type="button"
                     >
-                      {star ? "★" : "☆"}
+                      <svg aria-hidden="true" viewBox="0 0 16 16">
+                        <path d="M8 1.9 9.9 5.8 14.2 6.4 11.1 9.4 11.8 13.7 8 11.7 4.2 13.7 4.9 9.4 1.8 6.4 6.1 5.8 Z" />
+                      </svg>
                     </button>
                   </div>
                 );

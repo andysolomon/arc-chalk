@@ -3114,7 +3114,9 @@ button.play-type.open {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: baseline;
+  /* Centred, not baseline: baseline pinned the words to the top of the
+     row, above the star beside them (issue #167). */
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   height: 32px;
@@ -3142,20 +3144,34 @@ button.play-type.open {
   font-family: "Geist Mono", monospace;
   font-size: 10px;
 }
+/* The star is drawn, not a font glyph, so it sits on the row's centre line
+   like the formation cards' star rather than below the name (issue #167). */
 .preset-star {
+  display: flex;
   width: 28px;
   height: 28px;
   flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--disabled);
-  font-size: 14px;
+  color: var(--hover);
   cursor: pointer;
+  line-height: 1;
 }
-.preset-star:hover,
+.preset-star svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+.preset-star:hover {
+  background: var(--wash);
+  color: var(--disabled);
+}
 .preset-star.on {
-  color: var(--blue-text);
+  color: var(--amber);
 }
 .library-saved {
   color: var(--green-text);
@@ -7845,6 +7861,7 @@ button.shell-quiet:hover {
   .back-button,
   .browser-close,
   .browser-star,
+  .preset-star,
   .browser-remove,
   .reader-star,
   .browser-link,

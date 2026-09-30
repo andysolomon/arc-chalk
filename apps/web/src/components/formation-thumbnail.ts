@@ -12,6 +12,13 @@ import { yardsToLegacyCanvas, type Formation } from "@chalk/domain";
  */
 const tenth = (value: number): number => Number(value.toFixed(1));
 
+/**
+ * The picture's frame. A set is wide and shallow — the deepest stock one,
+ * an I, is 19 units tall here — so the frame is cut to that shape rather
+ * than leaving most of every card blank below the players (issue #167).
+ */
+export const FORMATION_THUMBNAIL = { width: 140, height: 48 } as const;
+
 export function formationThumbnail(formation: Formation): {
   readonly dots: readonly {
     readonly x: number;
@@ -36,6 +43,15 @@ export function formationThumbnail(formation: Formation): {
   const top = Math.min(...ys) - 16;
   const spanY = Math.max(150, Math.max(...ys) - top + 16);
   const scaleY = Math.min(scaleX, 66 / spanY);
+  // The set sits in the middle of its card, not along the top edge with
+  // two-thirds of the picture empty below it (issue #167).
+  const drawnHeight = (Math.max(...ys) - Math.min(...ys)) * scaleY;
+  const down = (y: number) =>
+    tenth(
+      FORMATION_THUMBNAIL.height / 2 -
+        drawnHeight / 2 +
+        (y - Math.min(...ys)) * scaleY,
+    );
 
   // The line is wherever most of them are standing, which is the five up
   // front in every set worth drawing.
@@ -48,9 +64,9 @@ export function formationThumbnail(formation: Formation): {
   return {
     dots: drawn.map(({ x, y, filled }) => ({
       x: tenth(70 + (x - middle) * scaleX),
-      y: tenth(6 + (y - top) * scaleY),
+      y: down(y),
       filled,
     })),
-    lineOfScrimmage: tenth(6 + (busiest - top) * scaleY),
+    lineOfScrimmage: down(busiest),
   };
 }

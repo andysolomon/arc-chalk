@@ -22,6 +22,14 @@ export interface EditorStatusHintInput {
   readonly firstUse?: boolean;
 }
 
+/**
+ * Labels are always drawn; below this many screen pixels they are too small
+ * to read and the bar says so. The original's 11 px fired at 100 % once the
+ * play sidebar narrowed the field, over labels a Coach could plainly read,
+ * and claimed they were hidden when none ever is (issue #167).
+ */
+export const SMALL_LABEL_PX = 9;
+
 export const FIRST_USE_HINT =
   "new here? Help → Demo walks the drawing tools on a real play";
 
@@ -60,5 +68,7 @@ export function editorStatusHint(input: EditorStatusHintInput): string {
   }
   if (input.firstUse && input.tool === "select") return FIRST_USE_HINT;
   const hint = toolHint[input.tool](input.atFit);
-  return input.labelsTooSmall ? `labels hidden — zoom in   ·   ${hint}` : hint;
+  return input.labelsTooSmall
+    ? `labels are small — zoom in to read them   ·   ${hint}`
+    : hint;
 }

@@ -17,6 +17,13 @@ export interface DiagramOptions {
   readonly emphasisPlayerIds?: ReadonlySet<string>;
   /** Absolute timeline time for an animation frame; absent is the still. */
   readonly atMs?: number;
+  /**
+   * How much of the field the picture takes in. `field`, the default, is the
+   * whole page window; `play` crops to the men and their lines with a little
+   * grass around them, so a small cell spends its width on the play rather
+   * than on empty field (issue #167).
+   */
+  readonly frame?: "field" | "play";
 }
 
 /**

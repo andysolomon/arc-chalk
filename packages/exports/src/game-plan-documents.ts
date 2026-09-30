@@ -16,8 +16,9 @@ import type { DiagramOptions, DiagramRenderer } from "./diagram";
 import {
   BOOK_CSS,
   CALL_SHEET_CSS,
+  personnelLine,
+  WRISTBAND_CELL_DIAGRAM_OPTIONS,
   WRISTBAND_CSS,
-  WRISTBAND_DIAGRAM_OPTIONS,
   callSheetBody,
   escapeHtml,
   installBody,
@@ -51,12 +52,9 @@ export const HANDOUT_DIAGRAM_OPTIONS: DiagramOptions = Object.freeze({
   layers: defaultLayers,
 });
 
-/** The wristband's thin cell, likewise complete. */
+/** The wristband's cell, likewise complete. */
 export const GAME_PLAN_WRISTBAND_DIAGRAM_OPTIONS: DiagramOptions =
-  Object.freeze({
-    ...WRISTBAND_DIAGRAM_OPTIONS,
-    pageKind: "full",
-  });
+  WRISTBAND_CELL_DIAGRAM_OPTIONS;
 
 /** Cells on one band; the original's sheet cuts eight. */
 export const WRISTBAND_CELLS = 8;
@@ -205,13 +203,14 @@ export function gamePlanWristbandHtml(
     if (!play) {
       return (
         `<div class="wc miss"><b><span class="cc">${escapeHtml(code)}</span> ${escapeHtml(row?.name ?? MISSING_NAME)}</b>` +
-        `<span>${MISSING_NAME.toLowerCase()}</span></div>`
+        `<span class="pn">${MISSING_NAME.toLowerCase()}</span></div>`
       );
     }
     return (
       `<div class="wc"><b><span class="cc">${escapeHtml(code)}</span> ${escapeHtml(play.name)}</b>` +
       options.render(play, GAME_PLAN_WRISTBAND_DIAGRAM_OPTIONS) +
-      `<span>${escapeHtml(playMeta(play).personnel)}</span></div>`
+      personnelLine(playMeta(play).personnel) +
+      "</div>"
     );
   };
   const bands = bandsOf(planPlayIds(revision.plan), size);
@@ -231,7 +230,9 @@ export function gamePlanWristbandHtml(
       ".wb{page-break-after:always;break-after:page}" +
       ".wb:last-of-type{page-break-after:auto;break-after:auto}" +
       ".wl{font-size:9px;color:#8F8F8F;font-family:ui-monospace,Menlo,monospace;margin:0 0 6px}" +
-      ".wc .cc{font-family:ui-monospace,Menlo,monospace;color:#171717;margin-right:2px}" +
+      // The code is what the sideline calls, so it is the biggest thing in
+      // the cell, not the smallest (issue #167).
+      ".wc .cc{font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:700;letter-spacing:0;color:#171717;margin-right:3px;vertical-align:-1px}" +
       ".wc.miss{color:#8F8F8F;justify-content:space-between}",
     body,
     ...(options.productName === undefined
