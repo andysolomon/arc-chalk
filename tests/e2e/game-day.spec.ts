@@ -54,6 +54,24 @@ test.describe("Game Day on a tablet", () => {
     const stage = reader.getByRole("region", { name: "Selected call" });
     await expect(stage.getByText("12", { exact: true })).toBeVisible();
     await expect(stage.locator("svg.field-diagram")).toBeVisible();
+    // The header reads the plan, not the editor's play (issue #163), and the
+    // diagram leaves Previous / Next on the glass without a scroll.
+    const banner = page.getByRole("banner");
+    await expect(
+      banner.getByRole("textbox", { name: "Play name" }),
+    ).toHaveCount(0);
+    await expect(
+      banner.getByRole("button", { name: /^(Undo|Redo|Save)\b/ }),
+    ).toHaveCount(0);
+    const viewport = page.viewportSize()!;
+    for (const name of ["Previous call", "Next call"]) {
+      const button = (await reader
+        .getByRole("button", { name })
+        .boundingBox())!;
+      expect(button.y + button.height).toBeLessThanOrEqual(viewport.height);
+    }
+    const field = (await stage.locator("svg.field-diagram").boundingBox())!;
+    expect(field.y + field.height).toBeLessThanOrEqual(viewport.height);
     // A finger on the diagram moves nothing: the men are where they were.
     const before = await stage
       .locator("[data-scene-player]")

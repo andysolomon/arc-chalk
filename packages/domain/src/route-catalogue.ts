@@ -19,7 +19,8 @@ import { legacyDepthSpanToYards, legacyLateralSpanToYards } from "./geometry";
 import type { Coordinate, PathPoint, PlayDocument, Player } from "./schema";
 
 /**
- * The route tree, and the concepts drawn out of it.
+ * The route tree, and the block and defensive calls drawn the same way. The
+ * concepts built from it live in `concepts.ts`.
  *
  * A preset is a shape measured from the man's own spot rather than a place on
  * the field, so the same call lands correctly on a variation that lines him
@@ -180,241 +181,6 @@ export function routePresetPoints(
 }
 
 /**
- * A concept is a distribution, not a route: each man gets his job by the
- * position he plays, mirrored to the side he lines up on, so one entry covers
- * both sides of the ball. Some jobs are a preset off the tree; the rest are
- * drawn out here because they belong to the concept rather than to the tree.
- */
-interface LegacyJob {
-  /** What the man is told, in the words the original prints on the card. */
-  readonly assignment: string;
-  readonly preset?: string;
-  readonly points?: readonly LegacyOffset[];
-  readonly ending?: "arrow" | "hook";
-}
-
-interface LegacyConcept {
-  readonly key: string;
-  readonly name: string;
-  readonly hint: string;
-  readonly jobs: Readonly<Record<string, LegacyJob>>;
-}
-
-const legacyConcepts: readonly LegacyConcept[] = [
-  {
-    key: "mesh",
-    name: "Mesh",
-    hint: "shallow crossers underneath, dig behind, back to the flat",
-    jobs: {
-      X: {
-        assignment: "SHALLOW",
-        points: [
-          [0, 0, -24],
-          [0, 320, -66],
-        ],
-      },
-      H: {
-        assignment: "SHALLOW",
-        points: [
-          [0, 0, -30],
-          [0, 300, -80],
-        ],
-      },
-      TE: { assignment: "DIG", preset: "dig" },
-      Z: { assignment: "CORNER", preset: "corner" },
-      RB: { assignment: "FLAT", preset: "flat" },
-    },
-  },
-  {
-    key: "stick",
-    name: "Stick",
-    hint: "stick to the flat with a fade over the top",
-    jobs: {
-      TE: {
-        assignment: "STICK",
-        points: [
-          [0, 0, -66],
-          [34, 0, -74],
-        ],
-        ending: "hook",
-      },
-      H: { assignment: "FLAT", preset: "flat" },
-      X: { assignment: "FADE", preset: "go" },
-      Z: { assignment: "HITCH", preset: "hitch" },
-      RB: { assignment: "CHECK", preset: "flat" },
-    },
-  },
-  {
-    key: "smash",
-    name: "Smash",
-    hint: "hitch under, corner over the top — high / low on the corner",
-    jobs: {
-      X: { assignment: "HITCH", preset: "hitch" },
-      Z: { assignment: "HITCH", preset: "hitch" },
-      H: { assignment: "CORNER", preset: "corner" },
-      TE: { assignment: "CORNER", preset: "corner" },
-      RB: { assignment: "CHECK", preset: "flat" },
-    },
-  },
-  {
-    key: "flood",
-    name: "Flood",
-    hint: "three levels to one side — deep, intermediate, flat",
-    jobs: {
-      Z: { assignment: "CORNER", preset: "corner" },
-      TE: { assignment: "OUT", preset: "out" },
-      H: { assignment: "FLAT", preset: "flat" },
-      X: { assignment: "GO", preset: "go" },
-      RB: { assignment: "CHECK", preset: "flat" },
-    },
-  },
-  {
-    key: "dagger",
-    name: "Dagger",
-    hint: "seam clears the middle, dig comes in behind it",
-    jobs: {
-      H: { assignment: "SEAM", preset: "go" },
-      X: { assignment: "DIG", preset: "dig" },
-      Z: { assignment: "GO", preset: "go" },
-      TE: { assignment: "FLAT", preset: "flat" },
-      RB: { assignment: "CHECK", preset: "flat" },
-    },
-  },
-  {
-    key: "drive",
-    name: "Drive",
-    hint: "shallow drive with the dig right behind it",
-    jobs: {
-      X: {
-        assignment: "DRIVE",
-        points: [
-          [0, 0, -20],
-          [0, 300, -52],
-        ],
-      },
-      TE: { assignment: "DIG", preset: "dig" },
-      H: { assignment: "CURL", preset: "curl" },
-      Z: { assignment: "GO", preset: "go" },
-      RB: { assignment: "CHECK", preset: "flat" },
-    },
-  },
-  {
-    key: "ycross",
-    name: "Y-Cross",
-    hint: "Y crosses deep, post on top, back checks",
-    jobs: {
-      TE: {
-        assignment: "CROSS",
-        points: [
-          [0, 0, -44],
-          [0, 300, -158],
-        ],
-      },
-      X: { assignment: "POST", preset: "post" },
-      Z: { assignment: "CURL", preset: "curl" },
-      H: { assignment: "FLAT", preset: "flat" },
-      RB: { assignment: "CHECK", preset: "flat" },
-    },
-  },
-  {
-    key: "levels",
-    name: "Levels",
-    hint: "two ins at different depths on the same side",
-    jobs: {
-      X: { assignment: "SLANT", preset: "slant" },
-      H: { assignment: "DIG", preset: "dig" },
-      Z: { assignment: "SLANT", preset: "slant" },
-      TE: { assignment: "DIG", preset: "dig" },
-      RB: { assignment: "CHECK", preset: "flat" },
-    },
-  },
-  {
-    key: "spacing",
-    name: "Spacing",
-    hint: "everybody sits in a window — beats zone, moves the ball",
-    jobs: {
-      X: { assignment: "HITCH", preset: "hitch" },
-      Z: { assignment: "HITCH", preset: "hitch" },
-      H: { assignment: "FLAT", preset: "flat" },
-      TE: {
-        assignment: "STICK",
-        points: [
-          [0, 0, -62],
-          [30, 0, -70],
-        ],
-        ending: "hook",
-      },
-      RB: { assignment: "CHECK", preset: "flat" },
-    },
-  },
-  {
-    key: "verts",
-    name: "4 Verts",
-    hint: "four straight up, back checks underneath",
-    jobs: {
-      X: { assignment: "GO", preset: "go" },
-      Z: { assignment: "GO", preset: "go" },
-      H: { assignment: "SEAM", preset: "go" },
-      TE: { assignment: "SEAM", preset: "go" },
-      RB: { assignment: "CHECK", preset: "flat" },
-    },
-  },
-];
-
-export interface ConceptJob {
-  readonly role: string;
-  readonly assignment: string;
-  readonly preset?: string;
-  readonly ending: "arrow" | "hook";
-}
-
-export interface ConceptDefinition {
-  readonly key: string;
-  readonly name: string;
-  readonly hint: string;
-  readonly roles: readonly string[];
-  /** What the man playing this position is asked to run, drawn from his spot. */
-  jobFor(
-    role: string,
-    stance: Coordinate,
-  ):
-    | (ConceptJob & {
-        readonly points: readonly PathPoint[];
-      })
-    | undefined;
-}
-
-export const stockConcepts: readonly ConceptDefinition[] = Object.freeze(
-  legacyConcepts.map((concept) => ({
-    key: concept.key,
-    name: concept.name,
-    hint: concept.hint,
-    roles: Object.keys(concept.jobs),
-    jobFor(role: string, stance: Coordinate) {
-      const job = concept.jobs[role];
-      if (!job) return undefined;
-      const ending = job.ending ?? "arrow";
-      const points = job.preset
-        ? routePresetPoints(job.preset, stance)
-        : [
-            stance,
-            ...job.points!.map((offset) =>
-              shifted(stance, offsetToYards(offset, handednessOf(stance))),
-            ),
-          ];
-      if (!points) return undefined;
-      return {
-        role,
-        assignment: job.assignment,
-        ...(job.preset === undefined ? {} : { preset: job.preset }),
-        ending,
-        points,
-      };
-    },
-  })),
-);
-
-/**
  * How a man blocks, and how a defender plays. Both are shapes from his own
  * spot like a route is, with one difference that belongs to blocking: a
  * handful of calls carry a real field direction rather than mirroring about
@@ -431,6 +197,11 @@ interface LegacyLinePreset {
   readonly ending: "arrow" | "bar" | "dot" | "bubble" | "chevron";
   /** Left is left: the shape is not mirrored to the side the man is on. */
   readonly absolute?: boolean;
+  /**
+   * He pulls: the shape runs to the play side rather than out from his own
+   * side of the ball, wherever the Play says the run is going (issue #164).
+   */
+  readonly pull?: boolean;
 }
 
 const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
@@ -476,6 +247,7 @@ const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
     controls: { 0: [8, 0, 20] },
     line: "dashed",
     ending: "bar",
+    pull: true,
   },
   wrap: {
     name: "Pull — wrap",
@@ -487,6 +259,20 @@ const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
     controls: { 0: [6, 0, 22] },
     line: "dashed",
     ending: "bar",
+    pull: true,
+  },
+  // A short pull along the line that kicks out the first man past the
+  // centre on the play side, inside out.
+  trap: {
+    name: "Trap",
+    points: [
+      [16, 0, 14],
+      [72, 0, -24],
+    ],
+    controls: { 0: [4, 0, 16] },
+    line: "dashed",
+    ending: "bar",
+    pull: true,
   },
   cut: { name: "Cut", points: [[26, 0, -14]], line: "solid", ending: "dot" },
   passset: {
@@ -770,6 +556,8 @@ export interface LinePreset {
     readonly line: "solid" | "dashed" | "dotted";
     readonly ending: "arrow" | "bar" | "dot" | "bubble" | "chevron";
   };
+  /** He pulls, so the shape goes to the play side when there is one. */
+  readonly pull: boolean;
   /** The ground it owns, where it owns any. */
   readonly area?: {
     readonly type: "deep" | "curl" | "hook" | "flat" | "spy";
@@ -786,8 +574,14 @@ export interface LinePreset {
    * The line from his stance. A call aimed at the field reads it off the
    * field given — where the ball, the gaps and the quarterback are — and
    * without one is aimed at the original's line with the ball in the middle.
+   * `toward` sends a pull to the play side; without it, and for every other
+   * call, the shape is his own side's.
    */
-  pointsFrom(stance: Coordinate, field?: DefensiveField): readonly PathPoint[];
+  pointsFrom(
+    stance: Coordinate,
+    field?: DefensiveField,
+    toward?: 1 | -1,
+  ): readonly PathPoint[];
 }
 
 function buildLinePreset(
@@ -805,6 +599,7 @@ function buildLinePreset(
     name: preset.name,
     kind,
     style: { line: preset.line, ending: preset.ending },
+    pull: preset.pull === true,
     ...(area
       ? {
           area: {
@@ -817,15 +612,22 @@ function buildLinePreset(
     ...(defensive ? { group: defensive.group } : {}),
     ...(defensive?.pair ? { pair: true } : {}),
     ...(defensive?.retired ? { retired: true } : {}),
-    pointsFrom(stance: Coordinate, field = DEFAULT_DEFENSIVE_FIELD) {
+    pointsFrom(
+      stance: Coordinate,
+      field = DEFAULT_DEFENSIVE_FIELD,
+      toward?: 1 | -1,
+    ) {
       if (defensive?.aim) {
         return [stance, ...defensive.aim(stance, field, radiusLateralYards)];
       }
-      // A call that carries a real field direction is drawn as written; the
-      // rest mirror about the ball to the side the man lines up on.
+      // A call that carries a real field direction is drawn as written, and a
+      // pull runs to the play side; the rest mirror about the ball to the
+      // side the man lines up on.
       const hand: Handedness = preset.absolute
         ? { outward: 1 }
-        : handednessOf(stance);
+        : preset.pull && toward !== undefined
+          ? { outward: toward }
+          : handednessOf(stance);
       return [
         stance,
         ...(preset.points ?? []).map((offset, index) => {

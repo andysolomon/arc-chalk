@@ -26,9 +26,17 @@ const SPOT_TOLERANCE_YARDS = legacyLateralSpanToYards(6);
 
 /** Which spot the ball is on now, if it is on one. */
 export function currentBallSpot(play: PlayDocument): BallSpot | undefined {
-  const ball = ballLateralYards(
-    play.players.filter(({ unit }) => unit !== "defense"),
+  return ballSpotAt(
+    play,
+    ballLateralYards(play.players.filter(({ unit }) => unit !== "defense")),
   );
+}
+
+/** Which spot a ball this far across the field is on, if it is on one. */
+export function ballSpotAt(
+  play: Pick<PlayDocument, "fieldProfile">,
+  ball: number,
+): BallSpot | undefined {
   const spots = hashSpots(play);
   let best: { spot: BallSpot; gap: number } | undefined;
   for (const spot of ["left", "middle", "right"] as const) {

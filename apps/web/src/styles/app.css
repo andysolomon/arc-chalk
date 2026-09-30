@@ -2128,6 +2128,18 @@ button.play-type.open {
   overflow: auto;
   padding-bottom: 12px;
 }
+/*
+ * The call, its diagram and Previous / Next fill the stage's height and no
+ * more, so the whole play is on the glass with the way to the next call
+ * under it (issue #163); the marks and the note scroll in below.
+ */
+.reader-card {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  height: 100%;
+  min-height: 16rem;
+}
 .reader-call-head {
   display: flex;
   flex: none;
@@ -2152,21 +2164,51 @@ button.play-type.open {
   color: var(--muted);
   font-size: 12px;
 }
+/*
+ * The field is as wide as the room allows and no taller than it, less the
+ * room the play toggle keeps under it (or beside it, on a phone held
+ * sideways), so the toggle sits against the field rather than at the far
+ * end of the room. With playback open the field takes what the bar leaves.
+ */
 .reader-diagram {
+  --reader-under: 38px;
+  --reader-beside: 0px;
+  display: flex;
+  min-height: 9rem;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 6px;
+  container-type: size;
+}
+.reader-diagram[data-playback="none"],
+.reader-diagram[data-playback="open"] {
+  --reader-under: 0px;
+}
+.reader-field {
+  display: flex;
+  min-height: 0;
   flex: none;
-  padding: 8px;
+  justify-content: center;
+}
+.reader-diagram[data-playback="open"] .reader-field {
+  flex: 1 1 0;
+  align-items: flex-start;
+  container-type: size;
+}
+.reader-field .field-diagram {
+  width: min(
+    calc(100cqw - var(--reader-beside)),
+    calc((100cqh - var(--reader-under)) * 1000 / 620)
+  );
+  height: auto;
+  max-width: none;
   border-radius: 8px;
   background: var(--paper);
   box-shadow: 0 0 0 1px var(--line);
-}
-.reader-diagram .field-diagram {
-  width: 100%;
-  height: auto;
-  max-width: none;
   touch-action: pan-y;
 }
 .reader-playback {
-  padding-top: 6px;
+  flex: none;
 }
 .reader-play-toggle,
 .reader-back,
@@ -2252,22 +2294,20 @@ button.play-type.open {
 }
 /*
  * A phone gives the selected call the glass (issue #93): the list folds
- * behind one button, the search takes its own row, the code and name have
- * the head to themselves with the section under them, and Previous / Next
- * share a row that stays in reach at the bottom of the scrolling stage.
+ * behind one button, and the plan's meta, the search and the situations
+ * fold with it (issue #163), so the head is one row — the way back, the
+ * plan's name and that button. Open, it is everything that finds a call
+ * and the stage waits; closed, the code and name have the head of the
+ * stage, the section under them, and Previous / Next share a row at the
+ * bottom of the stage with the section return below.
  */
-@media (max-width: 767px) {
+@media (max-width: 767px), (max-height: 439px) {
+  .game-day.reader {
+    padding-top: 8px;
+  }
   .reader-head {
+    flex-wrap: wrap;
     gap: 8px;
-  }
-  .reader-search {
-    width: auto;
-    flex: 1 1 100%;
-    order: 2;
-  }
-  /* The title keeps one line; List / Grid is a tablet's choice. */
-  .reader-head > .reader-layout {
-    display: none;
   }
   .reader-title-block {
     flex: 1 1 0;
@@ -2278,15 +2318,33 @@ button.play-type.open {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* List / Grid is a tablet's choice. */
+  .reader-head > .reader-layout {
+    display: none;
+  }
+  .reader-search {
+    width: auto;
+    flex: 1 1 100%;
+    order: 2;
+  }
   .reader-ready {
     max-width: 40%;
+  }
+  /* Folded: what is left is the plan's name, and a packet that is not
+     ready offline, which a Coach must see before the game, not after. */
+  .reader[data-picker="closed"] .game-day-sub,
+  .reader[data-picker="closed"] .reader-ready:not(.missing),
+  .reader[data-picker="closed"] .reader-search,
+  .reader[data-picker="closed"] .reader-tabs,
+  .reader[data-picker="closed"] .reader-list,
+  .reader[data-picker="open"] .reader-stage {
+    display: none;
   }
   .reader-picker-toggle {
     display: flex;
     flex: none;
     align-items: center;
     min-height: 44px;
-    margin-bottom: 8px;
     padding: 0 14px;
     border: 0;
     border-radius: 8px;
@@ -2309,10 +2367,8 @@ button.play-type.open {
   .reader-list,
   .reader-list.grid {
     width: auto;
-    max-height: 50%;
-  }
-  .reader-body[data-picker="closed"] .reader-list {
-    display: none;
+    flex: 1 1 auto;
+    margin-bottom: 8px;
   }
   .reader-call-head {
     flex-wrap: wrap;
@@ -2327,15 +2383,14 @@ button.play-type.open {
   .reader-section-name {
     flex: 1 1 100%;
     order: 3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .reader-nav {
-    position: sticky;
-    bottom: 0;
-    z-index: 1;
     flex-wrap: wrap;
     gap: 8px;
-    padding: 8px 0;
-    background: var(--canvas);
+    padding: 8px 0 0;
   }
   .reader-step {
     flex: 1 1 0;
@@ -2356,6 +2411,157 @@ button.play-type.open {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+}
+/*
+ * A phone held sideways has width to spare and no depth (issue #163). The
+ * head stands as a rail down the left, and the stage puts Previous and Next
+ * in columns either side of the diagram, one under each thumb, with the
+ * call, its place in the order and the section return in one row above it.
+ * The diagram gets the rest of the height; the play toggle sits beside it
+ * until playback is open.
+ */
+@media (max-height: 439px) {
+  .game-day.reader {
+    display: grid;
+    grid-template-columns: minmax(0, 8.5rem) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    column-gap: 10px;
+    padding: 6px max(12px, env(safe-area-inset-right)) 0
+      max(12px, env(safe-area-inset-left));
+  }
+  .reader-head {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 6px;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 6px;
+  }
+  .reader-head > .browser-link {
+    align-self: flex-start;
+  }
+  .reader-title-block {
+    flex: none;
+  }
+  .reader-title-block .game-day-title {
+    display: -webkit-box;
+    font-size: 13px;
+    line-height: 1.3;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+  .reader-title-block .game-day-sub {
+    white-space: normal;
+  }
+  .reader-ready {
+    max-width: none;
+    white-space: normal;
+  }
+  .reader-search {
+    flex: none;
+    order: 0;
+    width: 100%;
+  }
+  .reader-picker-toggle {
+    justify-content: center;
+    padding: 6px 10px;
+    text-align: center;
+  }
+  .reader-notice {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .reader-tabs {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .reader-body {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  .reader-stage {
+    padding-bottom: 6px;
+  }
+  .reader-card {
+    display: grid;
+    min-height: 12rem;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "prev head pos back next"
+      "prev view view view next";
+    gap: 4px 8px;
+  }
+  .reader-call-head {
+    grid-area: head;
+    flex-wrap: nowrap;
+    min-width: 0;
+    padding: 0;
+  }
+  .reader-name {
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .reader-section-name {
+    min-width: 0;
+    flex: 1 1 0;
+    order: 0;
+  }
+  .reader-diagram,
+  .reader-missing {
+    grid-area: view;
+    min-height: 0;
+  }
+  /* Scoped to the card so a coarse pointer's taller toggle, set later in
+     the sheet, does not put the room back under the field. */
+  .reader-card .reader-diagram[data-playback="closed"] {
+    --reader-under: 0px;
+    --reader-beside: 82px;
+    flex-direction: row;
+  }
+  .reader-diagram[data-playback="closed"] .reader-playback {
+    width: 76px;
+    align-self: flex-end;
+  }
+  .reader-diagram[data-playback="closed"] .reader-play-toggle {
+    width: 100%;
+    padding: 0 6px;
+  }
+  .reader-nav {
+    display: contents;
+  }
+  .reader-step {
+    display: flex;
+    width: 76px;
+    height: auto;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    white-space: normal;
+  }
+  .reader-nav .reader-step:first-child {
+    grid-area: prev;
+  }
+  .reader-nav .reader-step:last-child {
+    grid-area: next;
+  }
+  .reader-position {
+    grid-area: pos;
+    align-self: center;
+  }
+  .reader-back {
+    grid-area: back;
+    max-width: 11rem;
+    min-height: 0;
+    align-self: center;
   }
 }
 .game-day h1 {
@@ -7571,18 +7777,6 @@ button.shell-quiet:hover {
   }
 }
 
-/* A phone held sideways keeps the list beside the call but has no depth;
-   Previous / Next stay in reach while the diagram scrolls. */
-@media (max-height: 439px) {
-  .reader-nav {
-    position: sticky;
-    bottom: 0;
-    z-index: 1;
-    padding: 8px 0;
-    background: var(--canvas);
-  }
-}
-
 /*
  * Game-plan forms and browser heads on a phone (issue #94): one column,
  * actions that wrap rather than crush, and a search box with the row to
@@ -7677,6 +7871,9 @@ button.shell-quiet:hover {
   .reader-results button,
   .reader-layout button {
     border-radius: 6px;
+  }
+  .reader-diagram[data-playback="closed"] {
+    --reader-under: 50px;
   }
   .game-plan-outputs button,
   .game-plan-inline button,

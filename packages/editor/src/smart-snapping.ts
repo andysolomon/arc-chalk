@@ -28,6 +28,7 @@ export type SnapGuideSource =
   | "yard-mark"
   | "alignment"
   | "equal-split"
+  | "gap"
   | "grid"
   | "direction";
 
@@ -53,12 +54,24 @@ export interface DirectionSnapGuide {
 
 export type SnapGuide = AxisSnapGuide | DirectionSnapGuide;
 
+/** A gap between men on the line, which a break in the box lands in. */
+export interface SnapGap {
+  readonly lateralYards: number;
+  readonly name: string;
+}
+
 export interface SnapPositionRequest {
   /** The relevant drag anchor. Group members are translated by its snap delta. */
   readonly point: Coordinate;
   readonly movingPoints?: readonly Coordinate[];
   readonly fieldProfile: FieldProfile;
   readonly references?: readonly SnapReference[];
+  /**
+   * The point is in the tackle box: these gaps claim it across the field
+   * ahead of everything else, and the ball does not, because the ball is
+   * where the centre stands (issue #164).
+   */
+  readonly gaps?: readonly SnapGap[];
   readonly excludeReferenceIds?: readonly string[];
   readonly screenScale: SnapScreenScale;
   readonly settings: SnapSettings;
@@ -98,6 +111,12 @@ interface AxisCandidate {
 }
 
 const DEFAULT_ACTIVATION_THRESHOLD_PX = 8;
+/**
+ * How far a gap reaches for a break. Wider than the other landmarks, so a
+ * break aimed at a hole finds it, and short of half the width of a man's
+ * split at the default zoom, so a gap never reaches past the man beside it.
+ */
+const GAP_ACTIVATION_THRESHOLD_PX = 12;
 const MAX_SNAP_REFERENCES = 2_048;
 const PRECISION_DIGITS = 9;
 const DIRECTION_INCREMENT_DEGREES = 45;
@@ -242,20 +261,38 @@ function fieldCandidates(
   const halfWidth = fieldProfile.widthYards / 2;
   const hashFromMidfield = halfWidth - fieldProfile.hashInsetYards;
 
-  addCandidate(
-    candidates,
-    {
-      axis: "lateral",
-      valueYards: 0,
-      priority: PRIORITY.footballOrigin,
-      source: "ball",
-      label: "On the ball",
-      strong: true,
-    },
-    point,
-    screenScale,
-    thresholdPx,
-  );
+  if (request.gaps === undefined) {
+    addCandidate(
+      candidates,
+      {
+        axis: "lateral",
+        valueYards: 0,
+        priority: PRIORITY.footballOrigin,
+        source: "ball",
+        label: "On the ball",
+        strong: true,
+      },
+      point,
+      screenScale,
+      thresholdPx,
+    );
+  }
+  for (const gap of request.gaps ?? []) {
+    addCandidate(
+      candidates,
+      {
+        axis: "lateral",
+        valueYards: rounded(gap.lateralYards),
+        priority: PRIORITY.footballOrigin,
+        source: "gap",
+        label: gap.name,
+        strong: true,
+      },
+      point,
+      screenScale,
+      Math.max(thresholdPx, GAP_ACTIVATION_THRESHOLD_PX),
+    );
+  }
   addCandidate(
     candidates,
     {
@@ -463,7 +500,8 @@ function asGuide(candidate: AxisCandidate): AxisSnapGuide {
 
 /**
  * Ranks football-aware snap candidates in yard space. Priority is invariant:
- * ball/LOS, Field Profile landmarks, nearby diagram alignment, then grid.
+ * ball/LOS — or, in the tackle box, its gaps/LOS — Field Profile landmarks,
+ * nearby diagram alignment, then grid.
  */
 export function snapPosition(request: SnapPositionRequest): SnapPositionResult {
   assertFiniteCoordinate(request.point, "Snap point");
