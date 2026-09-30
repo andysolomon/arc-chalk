@@ -35,7 +35,7 @@ async function meshFromGunTripsRight(page: Page): Promise<void> {
     .first()
     .click();
   await expect(
-    inspector(page).getByRole("button", { name: "Y: DIG — Tight end" }),
+    inspector(page).getByRole("button", { name: "H: DIG — Slot" }),
   ).toBeVisible();
 }
 
@@ -50,31 +50,29 @@ test("renames a concept's route when a quick route replaces it", async ({
   page,
 }, testInfo) => {
   await meshFromGunTripsRight(page);
-  await expect(page.getByRole("img", { name: "Y route: DIG" })).toHaveCount(1);
+  await expect(page.getByRole("img", { name: "H route: DIG" })).toHaveCount(1);
 
-  await inspector(page)
-    .getByRole("button", { name: "Y: DIG — Tight end" })
-    .click();
+  await inspector(page).getByRole("button", { name: "H: DIG — Slot" }).click();
   await inspector(page).getByRole("button", { name: "Curl" }).click();
 
   // The field, its accessible name and the roster all say what he now runs.
-  await expect(page.getByRole("img", { name: "Y route: CURL" })).toHaveCount(1);
-  await expect(page.getByRole("img", { name: "Y route: DIG" })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "H route: CURL" })).toHaveCount(1);
+  await expect(page.getByRole("img", { name: "H route: DIG" })).toHaveCount(0);
   await backToRoster(page);
   await expect(
-    inspector(page).getByRole("button", { name: "Y: CURL — Tight end" }),
+    inspector(page).getByRole("button", { name: "H: CURL — Slot" }),
   ).toBeVisible();
 
   // One undo takes the shape and its name back together.
   await page.getByTitle("Undo Edit route").click();
-  await expect(page.getByRole("img", { name: "Y route: DIG" })).toHaveCount(1);
+  await expect(page.getByRole("img", { name: "H route: DIG" })).toHaveCount(1);
   await expect(
-    inspector(page).getByRole("button", { name: "Y: DIG — Tight end" }),
+    inspector(page).getByRole("button", { name: "H: DIG — Slot" }),
   ).toBeVisible();
   await page.getByTitle("Redo Edit route").click();
-  await expect(page.getByRole("img", { name: "Y route: CURL" })).toHaveCount(1);
+  await expect(page.getByRole("img", { name: "H route: CURL" })).toHaveCount(1);
   await expect(
-    inspector(page).getByRole("button", { name: "Y: CURL — Tight end" }),
+    inspector(page).getByRole("button", { name: "H: CURL — Slot" }),
   ).toBeVisible();
 
   // The toast times out, so the artifact is the same on every run.
@@ -87,9 +85,7 @@ test("renames a concept's route when a quick route replaces it", async ({
 test("keeps a name the Coach typed, and says so", async ({ page }) => {
   await meshFromGunTripsRight(page);
 
-  await inspector(page)
-    .getByRole("button", { name: "Y: DIG — Tight end" })
-    .click();
+  await inspector(page).getByRole("button", { name: "H: DIG — Slot" }).click();
   await inspector(page).getByRole("button", { name: "Edit" }).first().click();
   const assignment = inspector(page).getByRole("textbox", {
     name: "Assignment",
@@ -97,14 +93,14 @@ test("keeps a name the Coach typed, and says so", async ({ page }) => {
   await assignment.fill("Sit vs zone");
   await assignment.blur();
   await expect(
-    page.getByRole("img", { name: "Y route: Sit vs zone" }),
+    page.getByRole("img", { name: "H route: Sit vs zone" }),
   ).toHaveCount(1);
 
   await inspector(page)
     .getByRole("button", { name: "Back to the play" })
     .click();
   await inspector(page)
-    .getByRole("button", { name: "Y: Sit vs zone — Tight end" })
+    .getByRole("button", { name: "H: Sit vs zone — Slot" })
     .click();
   await inspector(page).getByRole("button", { name: "Curl" }).click();
 
@@ -112,7 +108,7 @@ test("keeps a name the Coach typed, and says so", async ({ page }) => {
   await expect(page.getByRole("status")).toContainText("Sit vs zone");
   await expect(page.getByRole("status")).toContainText("kept");
   await expect(
-    page.getByRole("img", { name: "Y route: Sit vs zone" }),
+    page.getByRole("img", { name: "H route: Sit vs zone" }),
   ).toHaveCount(1);
 });
 
