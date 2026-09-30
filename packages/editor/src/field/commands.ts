@@ -1410,12 +1410,7 @@ function isCallName(path: MovementPath, text: string): boolean {
   const preset = routePresetNames.find(({ key }) => key === path.preset);
   if (preset && preset.name.toUpperCase() === said) return true;
   const concept = stockConcepts.find(({ key }) => key === path.concept);
-  const stance = path.points[0];
-  if (!concept || !stance) return false;
-  return concept.roles.some(
-    (role) =>
-      concept.jobFor(role, stance)?.assignment.trim().toUpperCase() === said,
-  );
+  return concept?.assignments.includes(said) ?? false;
 }
 
 /**

@@ -1,3 +1,5 @@
+import { isLineman } from "./classifications";
+import { stockFormations } from "./formation-catalogue";
 import { assignRoles } from "./formations";
 import { routePresetPoints } from "./route-catalogue";
 import type { Coordinate, PathPoint, Player } from "./schema";
@@ -36,6 +38,11 @@ export interface ConceptDefinition {
   readonly key: string;
   readonly name: string;
   readonly hint: string;
+  /**
+   * Every word this concept can put on a route, so a name it wrote can be
+   * told apart from one the Coach typed (ADR 0064).
+   */
+  readonly assignments: readonly string[];
   /**
    * Every man's job in this concept, drawn from where he stands. The men are
    * the offense's eligible ones — the line is left out by the caller — and
@@ -556,7 +563,7 @@ const recipes: readonly Recipe[] = [
   },
 ];
 
-function toDefinition(recipe: Recipe): ConceptDefinition {
+function toDefinition(recipe: Recipe): Omit<ConceptDefinition, "assignments"> {
   return {
     key: recipe.key,
     name: recipe.name,
@@ -615,6 +622,28 @@ function toDefinition(recipe: Recipe): ConceptDefinition {
   };
 }
 
+/**
+ * The words a concept writes, read off what it draws on every stock set
+ * rather than listed by hand, so the list cannot drift from the recipe. The
+ * words any concept can fall back on are added whether a stock set needs
+ * them or not.
+ */
+function withAssignments(
+  concept: Omit<ConceptDefinition, "assignments">,
+): ConceptDefinition {
+  const words = new Set(["HITCH", "CHECK"]);
+  for (const formation of stockFormations) {
+    const men = formation.slots.filter((slot) => !isLineman(slot));
+    for (const job of concept.jobsFor(
+      men,
+      formation.ball.position.lateralYards,
+    )) {
+      words.add(job.assignment);
+    }
+  }
+  return { ...concept, assignments: Object.freeze([...words]) };
+}
+
 export const stockConcepts: readonly ConceptDefinition[] = Object.freeze(
-  recipes.map(toDefinition),
+  recipes.map((recipe) => withAssignments(toDefinition(recipe))),
 );
