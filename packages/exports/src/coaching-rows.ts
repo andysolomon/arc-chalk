@@ -222,6 +222,10 @@ export interface PlayMeta {
  * The bottom strip: personnel, formation, strength, hash. A defensive Play
  * reads its call instead — base, nickel or dime, and the call's name — and a
  * defense has no strength of its own to print, so it has none.
+ *
+ * Personnel is the Play's own label, else the set the Play is in — the same
+ * words the editor's status bar and the Formations browser use for it —
+ * else the count read off the men (issue #154).
  */
 export function playMeta(
   play: PlayDocument,
@@ -237,15 +241,14 @@ export function playMeta(
     };
   }
   const offense = offensivePlayers(play);
+  const formation = currentFormation(play, formations);
+  const declared = play.personnelLabel ?? formation?.personnelLabel;
   const meta =
     offense.length > 0
       ? formationMeta(offense, {
-          ...(play.personnelLabel === undefined
-            ? {}
-            : { personnelLabel: play.personnelLabel }),
+          ...(declared === undefined ? {} : { personnelLabel: declared }),
         })
       : { personnelLabel: "—", strength: "—" };
-  const formation = currentFormation(play, formations);
   return {
     // An offense with nobody on the field has no count to give; it says
     // nothing rather than "—P" (issue #167).

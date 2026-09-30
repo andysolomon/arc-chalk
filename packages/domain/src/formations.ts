@@ -77,6 +77,26 @@ const BACKFIELD_LATERAL_YARDS = legacyCanvasToYards({
 }).lateralYards;
 
 /**
+ * Where the backfield is, for a man whose letter does not say what he is
+ * (ADR 0060, ADR 0066): at least two and a half yards off the ball and
+ * within six yards of it. An H standing here is a back; split out, he is a
+ * slot. A defender this close to the ball is on it.
+ */
+export const BACKFIELD_STANCE_DEPTH_YARDS = 2.5;
+export const BACKFIELD_STANCE_LATERAL_YARDS = 6;
+
+export function isBackfieldStance(
+  position: Coordinate,
+  ballLateralYards: number,
+): boolean {
+  return (
+    position.depthYards <= -BACKFIELD_STANCE_DEPTH_YARDS &&
+    Math.abs(position.lateralYards - ballLateralYards) <=
+      BACKFIELD_STANCE_LATERAL_YARDS
+  );
+}
+
+/**
  * A role for every man, declared where he has one and inferred where he does
  * not: his letter first, since X, Y, Z, H, Q and F are unambiguous, then his
  * position — the five unlettered men nearest the ball are the line, a line
@@ -382,6 +402,50 @@ const STRENGTH_MARGIN_YARDS = legacyCanvasToYards({
 }).lateralYards;
 
 /**
+ * Where the ball is among placed men: under the centre when one is drawn,
+ * else in the middle of the line, else in the middle of the field.
+ */
+function ballOfPlaced(
+  slots: readonly Placed[],
+  roles: readonly (string | undefined)[],
+): number {
+  const centre = slots.find(({ symbol }) => symbol === "square");
+  if (centre) return centre.position.lateralYards;
+  const line = slots.filter((_, index) =>
+    (LINE_ROLES as readonly string[]).includes(roles[index] ?? ""),
+  );
+  if (line.length === 0) return 0;
+  return (
+    line.reduce((total, { position }) => total + position.lateralYards, 0) /
+    line.length
+  );
+}
+
+/**
+ * How many backs a set has on the field. F, B, T and R are backs by their
+ * letters wherever they line up — Empty is still 11 personnel — and an H or
+ * an A is a back when he stands in the backfield, since his letter is the
+ * slot's in a gun set and the tailback's under center (issue #154). The two
+ * readings never count one man twice: the backs are the larger count.
+ */
+function backCount(
+  slots: readonly Placed[],
+  roles: readonly (string | undefined)[],
+): number {
+  const ball = ballOfPlaced(slots, roles);
+  const lettered = roles.filter((role) => role === "RB").length;
+  const atBack = slots.filter(
+    (slot, index) =>
+      (roles[index] === "RB" || roles[index] === "H") &&
+      isBackfieldStance(slot.position, ball),
+  ).length;
+  // A back's letter and a back's stance are two ways of seeing the same
+  // man. With the F split wide and the H behind the quarterback there is one
+  // back on the field, not two, so the larger count is the backs.
+  return Math.max(lettered, atBack);
+}
+
+/**
  * What a set is, read off the men in it: personnel counted from the backs and
  * tight ends, and strength from which side the skill men are on. Both defer
  * to what the Formation declares, because a Coach who named his set means the
@@ -405,7 +469,8 @@ export function formationMeta(
   }
   return {
     roles,
-    personnelLabel: declared.personnelLabel ?? `${count("RB")}${count("TE")}`,
+    personnelLabel:
+      declared.personnelLabel ?? `${backCount(slots, roles)}${count("TE")}`,
     strength:
       declared.strength ??
       (right > left ? "right" : left > right ? "left" : "balanced"),

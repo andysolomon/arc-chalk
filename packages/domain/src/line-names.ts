@@ -1,5 +1,6 @@
 import { ballSpotAt, currentBallSpot, type BallSpot } from "./ball-spot";
 import { stockDefensiveCalls, type DefensiveCall } from "./defense-catalogue";
+import { lineKindNames } from "./classifications";
 import { currentDefensiveCall } from "./defenses";
 import {
   defensiveFieldOf,
@@ -28,6 +29,28 @@ export function quickCallName(path: MovementPath): string | undefined {
     return routePresetNames.find(({ key }) => key === path.preset)?.name;
   }
   return linePresetByKey(path.preset)?.name;
+}
+
+/**
+ * A man call, named for the man it is on: "Man on Z", or "Man" while it
+ * follows nobody. Nothing for a line that is not a man call.
+ */
+export function manCallName(
+  play: Pick<PlayDocument, "players">,
+  path: MovementPath,
+): string | undefined {
+  if (!isManLine(path)) return undefined;
+  const man = play.players.find(({ id }) => id === path.covers?.playerId);
+  return man?.label.trim() ? `Man on ${man.label.trim()}` : "Man";
+}
+
+/**
+ * What kind of line this is, said the way a Coach says it. A man call is a
+ * zone line to the model — it owns no ground and ends in an arrow at a man —
+ * but to him it is Man, never Zone (issue #154).
+ */
+export function lineKindWord(path: MovementPath): string {
+  return isManLine(path) ? "Man" : lineKindNames[path.kind];
 }
 
 /** The original's rush, which names no gap: the line itself has to say which. */
@@ -158,10 +181,8 @@ export function lineCallName(
   } = {},
 ): string | undefined {
   const calls = options.calls ?? stockDefensiveCalls;
-  if (isManLine(path)) {
-    const man = play.players.find(({ id }) => id === path.covers?.playerId);
-    return man?.label.trim() ? `Man on ${man.label.trim()}` : "Man";
-  }
+  const man = manCallName(play, path);
+  if (man) return man;
   if (
     path.kind === "blitz" &&
     (path.preset === undefined || path.preset === UNAIMED_RUSH)
