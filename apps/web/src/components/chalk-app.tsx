@@ -105,6 +105,8 @@ import {
   applyLabelRoleCommand,
   applyPlayerRoutePresetCommand,
   applyRoutePresetCommand,
+  baseRouteOf,
+  keptRouteName,
   canDrawFrom,
   spotBallCommand,
   conceptIsOn,
@@ -3597,6 +3599,20 @@ export function ChalkApp({
     else if (inspectorFloats) setInspectorOpen(false);
   };
   /**
+   * A quick route renames a line it reshapes, but never over the Coach's own
+   * words for it (issue #160). When it keeps them it says so, where he is
+   * looking, so the name left on the new shape is one he chose to keep.
+   */
+  const sayKeptName = (
+    command: PlayCommand | undefined,
+    document: PlayDocument,
+    pathId: string | undefined,
+  ): void => {
+    if (!command || pathId === undefined) return;
+    const kept = keptRouteName(document, pathId);
+    if (kept) setToast({ name: kept, text: "— kept as the route's name" });
+  };
+  /**
    * A call off a catalogue put on the man the Coach has picked out. A route
    * reshapes his base stem, or is drawn from his stance where he has none —
    * without that second case a man with nothing on him has to be given an
@@ -3616,7 +3632,7 @@ export function ChalkApp({
     )?.id;
     if (playerId === undefined) return;
     putInspectorAway();
-    runPanelCommand(
+    const command =
       kind === "route"
         ? applyPlayerRoutePresetCommand(document, playerId, presetKey, () =>
             createStableId("path"),
@@ -3626,13 +3642,15 @@ export function ChalkApp({
             [playerId],
             presetKey,
             createStableId,
-          ),
-      {
-        selectedNodeIndex: undefined,
-        selectedBranchIndex: undefined,
-        selectedSegmentIndex: undefined,
-      },
-    );
+          );
+    if (kind === "route") {
+      sayKeptName(command, document, baseRouteOf(document, playerId)?.id);
+    }
+    runPanelCommand(command, {
+      selectedNodeIndex: undefined,
+      selectedBranchIndex: undefined,
+      selectedSegmentIndex: undefined,
+    });
   };
   /**
    * A call off a catalogue put on a line the Coach has picked out. A route is
@@ -3645,7 +3663,7 @@ export function ChalkApp({
     const document = editorStore.getSnapshot().document;
     const line = document.paths.find(({ id }) => id === pathId);
     putInspectorAway();
-    runPanelCommand(
+    const command =
       line?.kind === "route"
         ? applyRoutePresetCommand(document, pathId, presetKey)
         : applyLinePresetCommand(
@@ -3653,16 +3671,16 @@ export function ChalkApp({
             line ? [line.playerId] : [],
             presetKey,
             createStableId,
-          ),
-      {
-        ...(line?.kind === "route"
-          ? { selection: [{ kind: "path", id: pathId }] }
-          : {}),
-        selectedNodeIndex: undefined,
-        selectedBranchIndex: undefined,
-        selectedSegmentIndex: undefined,
-      },
-    );
+          );
+    if (line?.kind === "route") sayKeptName(command, document, pathId);
+    runPanelCommand(command, {
+      ...(line?.kind === "route"
+        ? { selection: [{ kind: "path", id: pathId }] }
+        : {}),
+      selectedNodeIndex: undefined,
+      selectedBranchIndex: undefined,
+      selectedSegmentIndex: undefined,
+    });
   };
   /**
    * The original offers the draw-a-route dot on the selected or hovered
