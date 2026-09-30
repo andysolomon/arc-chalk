@@ -1,8 +1,13 @@
 import { ballSpotAt, currentBallSpot, type BallSpot } from "./ball-spot";
-import { isLineman } from "./classifications";
 import { stockDefensiveCalls, type DefensiveCall } from "./defense-catalogue";
 import { currentDefensiveCall } from "./defenses";
-import { ballLateralYards, offensivePlayers } from "./formations";
+import {
+  defensiveFieldOf,
+  gapLateralYards,
+  gapLetters,
+  sideOfBall,
+} from "./defensive-field";
+import { offensivePlayers } from "./formations";
 import { classifyZoneCoverage } from "./geometry";
 import { isManLine } from "./man-coverage";
 import { linePresetByKey, routePresetNames } from "./route-catalogue";
@@ -25,6 +30,9 @@ export function quickCallName(path: MovementPath): string | undefined {
   return linePresetByKey(path.preset)?.name;
 }
 
+/** The original's rush, which names no gap: the line itself has to say which. */
+const UNAIMED_RUSH = "blitz";
+
 /** The call the defense was put in, if the catalogue still has it. */
 function sourceCall(
   play: PlayDocument,
@@ -37,45 +45,10 @@ function sourceCall(
 }
 
 /**
- * Where the ball is across the field. The offense stands around it; a
- * defense drawn alone is read off the call it was put in — how far its men
- * have travelled from where the call stands them with the ball in the
- * middle. A man in man stands on his receiver, so he says nothing about it.
+ * The gap a rush goes through, read where it crosses the line of scrimmage
+ * against the field's own gaps (ADR 0064): the nearest one on that side.
  */
-function ballLateral(play: PlayDocument, calls: readonly DefensiveCall[]) {
-  const offense = offensivePlayers(play);
-  if (offense.length > 0) return ballLateralYards(offense);
-  const call = sourceCall(play, calls);
-  const inMan = new Set(
-    play.paths.filter(isManLine).map(({ playerId }) => playerId),
-  );
-  const offsets = (play.defensiveCallSource?.slotBindings ?? []).flatMap(
-    ({ playerId, slotId }) => {
-      const player = play.players.find(({ id }) => id === playerId);
-      const slot = call?.formation.slots.find(({ id }) => id === slotId);
-      return player && slot && !inMan.has(playerId)
-        ? [player.position.lateralYards - slot.position.lateralYards]
-        : [];
-    },
-  );
-  return offsets.length === 0
-    ? undefined
-    : offsets.reduce((total, offset) => total + offset, 0) / offsets.length;
-}
-
-/**
- * The gap a rush goes through, read where it crosses the line against the
- * offense's own splits — or a stock line's when there is no offense on the
- * field: A between center and guard, B between guard and tackle, C outside
- * the tackle for one more split, and the edge beyond that.
- */
-const STOCK_SPLIT_YARDS = 1.97;
-
-function rushGap(
-  play: PlayDocument,
-  path: MovementPath,
-  calls: readonly DefensiveCall[],
-): "A" | "B" | "C" | "edge" {
+function rushGap(play: PlayDocument, path: MovementPath): string {
   const points = path.points;
   let cross = points.at(-1)!.lateralYards;
   for (let index = 1; index < points.length; index += 1) {
@@ -87,21 +60,15 @@ function rushGap(
       break;
     }
   }
-  const ball = ballLateral(play, calls) ?? 0;
-  const off = cross - ball;
-  const side = Math.sign(off) || 1;
-  const splits = offensivePlayers(play)
-    .filter(isLineman)
-    .map(({ position }) => (position.lateralYards - ball) * side)
-    .filter((distance) => distance > STOCK_SPLIT_YARDS / 2)
-    .sort((a, b) => a - b);
-  const guard = splits[0] ?? STOCK_SPLIT_YARDS;
-  const tackle = splits[1] ?? guard + STOCK_SPLIT_YARDS;
-  const across = Math.abs(off);
-  if (across < guard) return "A";
-  if (across < tackle) return "B";
-  if (across < tackle + (tackle - guard)) return "C";
-  return "edge";
+  const field = defensiveFieldOf(play);
+  const side = sideOfBall(field, cross);
+  let nearest = 0;
+  gapLetters.forEach((_, index) => {
+    const off = (at: number) =>
+      Math.abs(gapLateralYards(field, side, at) - cross);
+    if (off(index) < off(nearest)) nearest = index;
+  });
+  return `${gapLetters[nearest]} gap`;
 }
 
 /** A drop: a zone line that ends in the ground it owns. */
@@ -134,9 +101,10 @@ const ZONE_WORDS = {
 } as const;
 
 /**
- * A drop nobody called by name. The call the defense was put in names the
- * drops it drew; one it did not draw is named for the ground it owns, and a
- * deep one for its share of the deep shell.
+ * A drop that is not a quick assignment. A Play saved before the catalogue
+ * named its lines (ADR 0064) still remembers the call that drew them, and
+ * that call now says what each of its drops is; one it did not draw is named
+ * for the ground it owns, and a deep one for its share of the deep shell.
  */
 function dropName(
   play: PlayDocument,
@@ -148,8 +116,9 @@ function dropName(
   )?.slotId;
   const called = sourceCall(play, calls)?.assignments.find(
     (assignment) => assignment.slotId === slotId && assignment.kind === "drop",
-  )?.name;
-  if (called) return called;
+  )?.preset;
+  const name = called === undefined ? undefined : linePresetByKey(called);
+  if (name) return name.name;
   const type = dropType(path);
   if (type !== "deep") return ZONE_WORDS[type];
   const deep = play.paths.filter(
@@ -193,9 +162,11 @@ export function lineCallName(
     const man = play.players.find(({ id }) => id === path.covers?.playerId);
     return man?.label.trim() ? `Man on ${man.label.trim()}` : "Man";
   }
-  if (path.kind === "blitz") {
-    const gap = rushGap(play, path, calls);
-    return gap === "edge" ? "Edge blitz" : `${gap}-gap blitz`;
+  if (
+    path.kind === "blitz" &&
+    (path.preset === undefined || path.preset === UNAIMED_RUSH)
+  ) {
+    return `${rushGap(play, path)} blitz`;
   }
   const called = quickCallName(path);
   if (called) return called;
@@ -236,12 +207,12 @@ export function defensivePersonnel(call: DefensiveCall): string {
   return "Base";
 }
 
-/** Which hash the ball is on, for a Play of either side of the ball. */
-export function playBallSpot(
-  play: PlayDocument,
-  calls: readonly DefensiveCall[] = stockDefensiveCalls,
-): BallSpot | undefined {
+/**
+ * Which hash the ball is on, for a Play of either side of the ball. A
+ * defense drawn alone lines up on the ball, so its front says where it is.
+ */
+export function playBallSpot(play: PlayDocument): BallSpot | undefined {
   if (offensivePlayers(play).length > 0) return currentBallSpot(play);
-  const ball = ballLateral(play, calls);
-  return ball === undefined ? undefined : ballSpotAt(play, ball);
+  if (!play.players.some(({ unit }) => unit === "defense")) return undefined;
+  return ballSpotAt(play, defensiveFieldOf(play).ballLateralYards);
 }
