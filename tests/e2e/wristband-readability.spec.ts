@@ -98,10 +98,13 @@ test("prints a prepared plan's wristband that reads on a wrist", async ({
   expect(codeSize).toBeGreaterThan(nameSize);
   expect(codeSize).toBeGreaterThanOrEqual(14);
 
-  // Offense counts its personnel; the defense prints none, not "—P".
+  // Offense counts its personnel; the defense names its own package, never
+  // "—P" or its scout offense's count.
   await expect(cells.nth(0).locator(".pn")).toHaveText("11P");
   await expect(cells.nth(2)).toContainText("Cover 3 — Fire Zone");
-  await expect(cells.nth(2).locator(".pn")).toHaveCount(0);
+  for (const personnel of await cells.nth(2).locator(".pn").allTextContents()) {
+    expect(personnel).toMatch(/^(Base|Nickel|Dime)$/);
+  }
   await expect(band.locator("body")).not.toContainText("—P");
 
   await band.screenshot({ path: testInfo.outputPath("wristband.png") });

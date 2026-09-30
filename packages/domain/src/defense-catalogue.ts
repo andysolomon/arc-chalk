@@ -1,6 +1,15 @@
+import { coverageForDrop } from "./defenses";
+import {
+  DEFAULT_DEFENSIVE_FIELD,
+  frontCallFor,
+  isOnDefensiveFront,
+  type DefensiveField,
+} from "./defensive-field";
 import { STOCK_PLAYBOOK_ID } from "./formation-catalogue";
 import { legacyCanvasToYards } from "./geometry";
-import type { Coordinate, Formation } from "./schema";
+import { linePresetByKey } from "./route-catalogue";
+import type { Coordinate, CoverageArea, Formation } from "./schema";
+import { layoutZoneShell } from "./zone-shell";
 
 /**
  * A defense is a front and a coverage — that is how it is called, and how it
@@ -11,6 +20,13 @@ import type { Coordinate, Formation } from "./schema";
  * As with the sets, everything here is written in the canvas pixels the
  * original drew it in, so each number can be read straight off the frozen
  * specification and converted once on the axis it belongs to.
+ *
+ * Each line also says which of the Coach's quick assignments it is, so the
+ * roster names it and the button for it reads pressed (issue #165). Where the
+ * original's art put a man somewhere no coach would — the Cover 3 $ in the
+ * deep third, a blitz stopping short of the line — the line is aimed at the
+ * field instead, the way a quick assignment is, and the men on the front the
+ * original left standing are given the front's own calls.
  */
 
 export type DefensiveAssignmentKind = "drop" | "man" | "blitz";
@@ -21,6 +37,10 @@ export interface DefensiveAssignment {
   readonly slotId: string;
   /** Beginning at his stance, so the line starts on the man. */
   readonly points: readonly Coordinate[];
+  /** The quick assignment it is, by its key. */
+  readonly preset?: string;
+  /** The ground a drop aimed at its landmark owns; art owns what its end says. */
+  readonly coverageArea?: CoverageArea;
 }
 
 export interface DefensiveCall {
@@ -49,6 +69,13 @@ interface LegacyDefense {
   readonly drops?: readonly LegacyLine[];
   readonly mans?: readonly LegacyLine[];
   readonly blitzes?: readonly LegacyLine[];
+  /** Which quick assignment each man's art is, by defender index. */
+  readonly named?: Readonly<Record<number, string>>;
+  /**
+   * Lines drawn as the quick assignment would draw them rather than from
+   * art, by defender index. They replace any art he has.
+   */
+  readonly aimed?: Readonly<Record<number, string>>;
 }
 
 const at = (x: number, y: number, label: string): LegacyDefender => ({
@@ -64,6 +91,16 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "4-3",
     coverage: "Cover 3",
     description: "3 deep",
+    named: {
+      4: "curlflat",
+      5: "hook",
+      6: "hook",
+      7: "deep3",
+      8: "deep3",
+      9: "mid3",
+    },
+    // Cover 3 Sky: the $ is the strong curl/flat, not a fourth deep man.
+    aimed: { 10: "curlflat" },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -120,13 +157,6 @@ const legacyDefenses: readonly LegacyDefense[] = [
           [638, 300],
         ],
       ],
-      [
-        10,
-        [
-          [704, 302],
-          [762, 260],
-        ],
-      ],
     ],
   },
   {
@@ -135,6 +165,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "Nickel",
     coverage: "Cover 2",
     description: "2 deep",
+    named: {
+      4: "hook",
+      5: "hook",
+      6: "curlflat",
+      7: "curlflat",
+      8: "curlflat",
+      9: "deep2",
+      10: "deep2",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -206,6 +245,16 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "Nickel",
     coverage: "Fire zone",
     description: "5 rush",
+    named: {
+      3: "curlflat",
+      4: "curlflat",
+      6: "deep3",
+      7: "deep3",
+      8: "mid3",
+      10: "hook",
+    },
+    // Five rush, each through his gap and on past the line.
+    aimed: { 0: "cgap", 1: "agap", 2: "agap", 5: "bgap", 9: "dgap" },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -219,45 +268,6 @@ const legacyDefenses: readonly LegacyDefense[] = [
       at(700, 316, "$"),
       // Append to preserve the existing slot IDs and assignment indices.
       at(540, 310, "N"),
-    ],
-    blitzes: [
-      [
-        0,
-        [
-          [392, 404],
-          [414, 442],
-        ],
-      ],
-      [
-        1,
-        [
-          [452, 404],
-          [472, 442],
-        ],
-      ],
-      [
-        2,
-        [
-          [548, 404],
-          [514, 442],
-        ],
-      ],
-      [
-        5,
-        [
-          [568, 350],
-          [556, 412],
-          [538, 442],
-        ],
-      ],
-      [
-        9,
-        [
-          [700, 316],
-          [654, 390],
-          [626, 436],
-        ],
-      ],
     ],
     drops: [
       [
@@ -311,6 +321,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "4-3",
     coverage: "Cover 2",
     description: "2 deep",
+    named: {
+      4: "hook",
+      5: "hook",
+      6: "hook",
+      7: "curlflat",
+      8: "curlflat",
+      9: "deep2",
+      10: "deep2",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -382,6 +401,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "4-3",
     coverage: "Tampa 2",
     description: "M runs",
+    named: {
+      4: "hook",
+      5: "mid3",
+      6: "hook",
+      7: "curlflat",
+      8: "curlflat",
+      9: "deep2",
+      10: "deep2",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -453,6 +481,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "4-3",
     coverage: "Cover 4",
     description: "4 deep",
+    named: {
+      4: "curlflat",
+      5: "hook",
+      6: "curlflat",
+      7: "quarter",
+      8: "quarter",
+      9: "quarter",
+      10: "quarter",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -524,6 +561,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "Nickel",
     coverage: "Cover 1",
     description: "man free",
+    named: {
+      4: "man",
+      5: "man",
+      6: "man",
+      7: "man",
+      8: "man",
+      9: "mid3",
+      10: "man",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -597,6 +643,15 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "Nickel",
     coverage: "Cover 6",
     description: "quarter-half",
+    named: {
+      4: "hook",
+      5: "hook",
+      6: "curlflat",
+      7: "curlflat",
+      8: "quarter",
+      9: "deep2",
+      10: "quarter",
+    },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -668,6 +723,9 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "Dime",
     coverage: "Cover 3",
     description: "6 DB",
+    named: { 4: "hook", 5: "curlflat", 7: "deep3", 8: "deep3", 9: "mid3" },
+    // Four under: the nickel takes the strong hook and the $ the curl/flat.
+    aimed: { 6: "hook", 10: "curlflat" },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -717,20 +775,6 @@ const legacyDefenses: readonly LegacyDefense[] = [
           [262, 314],
         ],
       ],
-      [
-        6,
-        [
-          [700, 356],
-          [738, 314],
-        ],
-      ],
-      [
-        10,
-        [
-          [780, 296],
-          [818, 258],
-        ],
-      ],
     ],
   },
   {
@@ -739,6 +783,16 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "3-4",
     coverage: "Cover 3",
     description: "3 deep",
+    named: {
+      3: "curlflat",
+      5: "hook",
+      6: "hook",
+      7: "deep3",
+      8: "deep3",
+      9: "mid3",
+    },
+    // Cover 3 Sky with the strong backer through the C gap.
+    aimed: { 4: "cgap", 10: "curlflat" },
     players: [
       at(440, 404, "E"),
       at(500, 404, "N"),
@@ -751,16 +805,6 @@ const legacyDefenses: readonly LegacyDefense[] = [
       at(860, 372, "C"),
       at(500, 196, "F"),
       at(700, 300, "$"),
-    ],
-    blitzes: [
-      [
-        4,
-        [
-          [620, 368],
-          [604, 408],
-          [590, 440],
-        ],
-      ],
     ],
     drops: [
       [
@@ -805,13 +849,6 @@ const legacyDefenses: readonly LegacyDefense[] = [
           [344, 326],
         ],
       ],
-      [
-        10,
-        [
-          [700, 300],
-          [742, 262],
-        ],
-      ],
     ],
   },
   {
@@ -820,6 +857,8 @@ const legacyDefenses: readonly LegacyDefense[] = [
     front: "Bear",
     coverage: "Cover 0",
     description: "all out",
+    named: { 7: "man", 8: "man", 9: "man", 10: "man" },
+    aimed: { 5: "agap", 6: "bgap" },
     players: [
       at(392, 404, "E"),
       at(452, 404, "T"),
@@ -832,24 +871,6 @@ const legacyDefenses: readonly LegacyDefense[] = [
       at(860, 384, "C"),
       at(740, 356, "N"),
       at(300, 356, "$"),
-    ],
-    blitzes: [
-      [
-        5,
-        [
-          [430, 346],
-          [452, 406],
-          [466, 438],
-        ],
-      ],
-      [
-        6,
-        [
-          [570, 346],
-          [552, 406],
-          [540, 438],
-        ],
-      ],
     ],
     mans: [
       [
@@ -921,26 +942,125 @@ function build(defense: LegacyDefense): DefensiveCall {
     rolePairs: [],
   };
 
+  const aimedAt = new Set(Object.keys(defense.aimed ?? {}).map(Number));
   const lines = (
     kind: DefensiveAssignmentKind,
     list: readonly LegacyLine[] = [],
   ): DefensiveAssignment[] =>
-    list.map(([index, points]) => ({
-      kind,
-      slotId: slotId(defense.key, index),
-      points: points.map(([x, y]) => legacyCanvasToYards({ x, y })),
-    }));
+    list
+      .filter(([index]) => !aimedAt.has(index))
+      .map(([index, points]) => {
+        const preset = defense.named?.[index];
+        return {
+          kind,
+          slotId: slotId(defense.key, index),
+          points: points.map(([x, y]) => legacyCanvasToYards({ x, y })),
+          ...(preset === undefined ? {} : { preset }),
+        };
+      });
+  const art = [
+    ...lines("drop", defense.drops),
+    ...lines("man", defense.mans),
+    ...lines("blitz", defense.blitzes),
+  ];
+
+  // The call is drawn against the original's line with the ball in the
+  // middle, which is where a call is put on the field, and its own front.
+  const field: DefensiveField = {
+    ...DEFAULT_DEFENSIVE_FIELD,
+    front: formation.slots
+      .map(({ position }) => position)
+      .filter((position) =>
+        isOnDefensiveFront(position, DEFAULT_DEFENSIVE_FIELD),
+      ),
+  };
+  const lined = new Set([
+    ...art.map((assignment) => assignment.slotId),
+    ...[...aimedAt].map((index) => slotId(defense.key, index)),
+  ]);
+  const aimed: DefensiveAssignment[] = [
+    ...Object.entries(defense.aimed ?? {}).map(([index, key]) =>
+      aim(formation.slots[Number(index)]!, key, field),
+    ),
+    // A man on the front the original left standing keeps contain on the
+    // outside or rushes his gap inside, as a front does when nobody says.
+    ...formation.slots
+      .filter(
+        (slot) =>
+          !lined.has(slot.id) && isOnDefensiveFront(slot.position, field),
+      )
+      .map((slot) => aim(slot, frontCallFor(slot.position, field), field)),
+  ];
 
   return {
     formation,
     front: defense.front,
     coverage: defense.coverage,
-    assignments: [
-      ...lines("drop", defense.drops),
-      ...lines("man", defense.mans),
-      ...lines("blitz", defense.blitzes),
-    ],
+    assignments: laidUnderneath(formation, [...art, ...aimed]),
   };
+}
+
+/** A line drawn the way the quick assignment `key` draws it. */
+function aim(
+  slot: Formation["slots"][number],
+  key: string,
+  field: DefensiveField,
+): DefensiveAssignment {
+  const preset = linePresetByKey(key);
+  if (!preset || preset.kind === "block" || preset.kind === "stunt") {
+    throw new Error(`A call cannot be drawn with ${key}.`);
+  }
+  return {
+    kind: preset.kind === "blitz" ? "blitz" : preset.area ? "drop" : "man",
+    slotId: slot.id,
+    points: preset.pointsFrom(slot.position, field),
+    preset: key,
+    ...(preset.area ? { coverageArea: { ...preset.area } } : {}),
+  };
+}
+
+/**
+ * The call's underneath drops laid out as a shell (ADR 0059), so no two of
+ * its bubbles stack. Drops already clear of each other stay exactly where the
+ * original drew them; the deep shell is the original's.
+ */
+function laidUnderneath(
+  formation: Formation,
+  assignments: readonly DefensiveAssignment[],
+): DefensiveAssignment[] {
+  const pathId = (index: number) => `drop_${index}`;
+  const shell = layoutZoneShell(
+    {
+      fieldProfile: { widthYards: DEFAULT_DEFENSIVE_FIELD.halfWidthYards * 2 },
+      players: formation.slots.map((slot) => ({ ...slot })),
+      paths: assignments.flatMap((assignment, index) =>
+        assignment.kind === "drop"
+          ? [
+              {
+                id: pathId(index),
+                kind: "zone" as const,
+                playerId: assignment.slotId,
+                points: assignment.points.map((point) => ({ ...point })),
+                branches: [],
+                style: {
+                  line: "dashed" as const,
+                  ending: "bubble" as const,
+                  color: "blue" as const,
+                },
+                coverageArea:
+                  assignment.coverageArea ??
+                  coverageForDrop(assignment.points.at(-1)!),
+              },
+            ]
+          : [],
+      ),
+    },
+    ["underneath"],
+  );
+  return assignments.map((assignment, index) => {
+    const laid = shell.paths.find(({ id }) => id === pathId(index));
+    return laid ? { ...assignment, points: laid.points } : assignment;
+  });
 }
 
 export const stockDefensiveCalls: readonly DefensiveCall[] = Object.freeze(

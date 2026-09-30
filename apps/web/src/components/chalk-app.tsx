@@ -47,7 +47,7 @@ import {
   legacyCanvasToYards,
   PRODUCT_NAME,
   blockPresets,
-  defensivePresets,
+  defensivePresetsFor,
   lineCallKeys,
   linePresetByKey,
   routePresetNames,
@@ -100,6 +100,8 @@ import {
   applyLabelRoleCommand,
   applyPlayerRoutePresetCommand,
   applyRoutePresetCommand,
+  baseRouteOf,
+  keptRouteName,
   canDrawFrom,
   spotBallCommand,
   conceptIsOn,
@@ -1346,6 +1348,7 @@ function lineName(
     return `${assignment?.trim() || path.kind} · ${path.style.line}`;
   }
   if (path.kind === "block") return `Block · ${path.style.line}`;
+  if (path.kind === "motion") return `Motion · ${path.style.line}`;
   const stem = index === 0 ? "Base stem" : `Alternate ${index}`;
   const choices =
     path.branches.length > 0 ? ` · ${path.branches.length} choice` : "";
@@ -1361,10 +1364,29 @@ const quickBlockCalls: readonly {
   readonly key: string;
   readonly name: string;
 }[] = blockPresets.map(({ key, name }) => ({ key, name }));
-const quickAssignmentCalls: readonly {
+/**
+ * What a back or a tight end blocks, the run game first: the pulls, the trap
+ * and the cut lead his folded Quick blocks and its summary, so a Coach sees
+ * they are there before he goes drawing them by hand (issue #164).
+ */
+const runGameFirst = new Set(["kick", "wrap", "trap", "cut", "chip"]);
+const quickBackBlockCalls: readonly {
   readonly key: string;
   readonly name: string;
-}[] = defensivePresets.map(({ key, name }) => ({ key, name }));
+}[] = [
+  ...quickBlockCalls.filter(({ key }) => runGameFirst.has(key)),
+  ...quickBlockCalls.filter(({ key }) => !runGameFirst.has(key)),
+];
+/**
+ * What a defender can be given, in the order he is offered it: the front's
+ * own calls first for a man on the line, then the gaps, then the drops
+ * (issue #165). It depends on where he stands, so it is asked of the Play.
+ */
+const assignmentCallsFor = (
+  play: PlayDocument,
+  player: Player,
+): readonly { readonly key: string; readonly name: string }[] =>
+  defensivePresetsFor(play, player).map(({ key, name }) => ({ key, name }));
 
 /**
  * A catalogue as a grid of buttons, which is how the original offers one: the
@@ -1560,6 +1582,7 @@ function CoverRow({
  */
 function PlayerInspector({
   activePresets,
+  assignmentCalls,
   bare = false,
   coverage,
   freeDraw,
@@ -1589,6 +1612,8 @@ function PlayerInspector({
 }: {
   /** Every call he is already running, so a button can say so. */
   activePresets: ReadonlySet<string>;
+  /** What a defender can be given, in the order he is offered it. */
+  assignmentCalls: readonly { readonly key: string; readonly name: string }[];
   /** Without its own heading — the phone sheet's head names him instead. */
   bare?: boolean;
   /** Whom his man call follows, while he is in man (ADR 0060). */
@@ -1654,7 +1679,7 @@ function PlayerInspector({
     playerFillChoices.find(({ fill }) => fill === player.fill)?.name ??
     player.fill;
   const letter = player.label.trim();
-  const quickBlocksSummary = quickBlockCalls
+  const quickBlocksSummary = quickBackBlockCalls
     .slice(0, 4)
     .map(({ name }) => name)
     .join(" · ");
@@ -1814,8 +1839,8 @@ function PlayerInspector({
           title="Quick blocks"
         >
           <QuickCallGrid
-            calls={quickBlockCalls}
-            hint="Backs and tight ends block too — a block sits alongside his route rather than replacing it."
+            calls={quickBackBlockCalls}
+            hint="Backs and tight ends block too — a block sits alongside his route rather than replacing it. From the backfield a kick-out or lead heads upfield to the play-side edge."
             kind="line"
             onApply={onQuickCall}
             running={activePresets}
@@ -1826,7 +1851,7 @@ function PlayerInspector({
         <QuickCallGrid
           calls={quickBlockCalls}
           heading="Quick blocks"
-          hint="Bar endings for contact, dashed for a pull, a tick where he chips before releasing. Click the one he has to take it off."
+          hint="Bar endings for contact, dashed for a pull — a pull or trap runs to the play side the down blocks and the ball carrier show. A tick where he chips before releasing. Click the one he has to take it off."
           kind="line"
           onApply={onQuickCall}
           running={activePresets}
@@ -1834,7 +1859,7 @@ function PlayerInspector({
       )}
       {defense && (
         <QuickCallGrid
-          calls={quickAssignmentCalls}
+          calls={assignmentCalls}
           heading="Quick assignments"
           hint="Coverage drops draw dashed to a zone bubble, man dotted, blitz solid red, stunt orange. Each one replaces what he was doing and names it under the line."
           kind="line"
@@ -3049,6 +3074,21 @@ export function ChalkApp({
   );
   const playbackRef = useRef(playback);
   const [sceneAnchorMs, setSceneAnchorMs] = useState<number | null>(null);
+  // Drawing a motion moves where the timeline starts, back before the snap.
+  // A clock at rest stays at rest — at the new start, with everybody at his
+  // stance — rather than being left at the snap, which would show the man at
+  // the end of his motion and grey the rest of the Play (issue #164).
+  const restStartRef = useRef(animationPlan.startMs);
+  useLayoutEffect(() => {
+    const was = restStartRef.current;
+    restStartRef.current = animationPlan.startMs;
+    const clock = playbackRef.current;
+    if (was === animationPlan.startMs || clock.playing || clock.timeMs !== was)
+      return;
+    const next = resetPlayback(clock, animationPlan.startMs);
+    playbackRef.current = next;
+    setPlayback(next);
+  }, [animationPlan.startMs]);
   const reducedMotion =
     typeof globalThis.matchMedia === "function" &&
     globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -3402,31 +3442,36 @@ export function ChalkApp({
         )
       : undefined;
   /** Every line he has, named the way the original names them. */
-  const playerLines = (player: Player) =>
-    editor.document.paths
-      .filter(({ playerId }) => playerId === player.id)
-      .map((path, index) => ({
-        id: path.id,
-        name: lineName(
-          path,
-          index,
-          assignmentForPath(editor.document, path.id)?.text,
-        ),
-        // Each kind of line is offered the calls that belong to it: a route
-        // gets the tree, a block gets the blocking calls, and a defender's
-        // line gets the drops, the man calls and the rushes. A motion and a
-        // ball flight have no catalogue of their own, so they are offered
-        // none rather than somebody else's.
-        presets:
-          path.kind === "route"
-            ? routePresetNames
-            : path.kind === "block"
-              ? blockPresets.map(({ key, name }) => ({ key, name }))
-              : defensiveLineKinds.has(path.kind)
-                ? defensivePresets.map(({ key, name }) => ({ key, name }))
-                : [],
-        ...(path.preset === undefined ? {} : { preset: path.preset }),
-      }));
+  const playerLines = (player: Player) => {
+    const his = editor.document.paths.filter(
+      ({ playerId }) => playerId === player.id,
+    );
+    return his.map((path, index) => ({
+      id: path.id,
+      // A route is his base stem or an alternate to it, counted among his
+      // routes: a motion or a block before it is not a route he could run
+      // instead (issue #164).
+      name: lineName(
+        path,
+        his.slice(0, index).filter(({ kind }) => kind === path.kind).length,
+        assignmentForPath(editor.document, path.id)?.text,
+      ),
+      // Each kind of line is offered the calls that belong to it: a route
+      // gets the tree, a block gets the blocking calls, and a defender's
+      // line gets the drops, the man calls and the rushes. A motion and a
+      // ball flight have no catalogue of their own, so they are offered
+      // none rather than somebody else's.
+      presets:
+        path.kind === "route"
+          ? routePresetNames
+          : path.kind === "block"
+            ? blockPresets.map(({ key, name }) => ({ key, name }))
+            : defensiveLineKinds.has(path.kind)
+              ? assignmentCallsFor(editor.document, player)
+              : [],
+      ...(path.preset === undefined ? {} : { preset: path.preset }),
+    }));
+  };
   /** Whom a defender in man covers, and whom he could (ADR 0060). */
   const playerCoverage = (player: Player): PlayerCoverage | undefined => {
     if (player.unit !== "defense") return undefined;
@@ -3509,6 +3554,20 @@ export function ChalkApp({
     else if (inspectorFloats) setInspectorOpen(false);
   };
   /**
+   * A quick route renames a line it reshapes, but never over the Coach's own
+   * words for it (issue #160). When it keeps them it says so, where he is
+   * looking, so the name left on the new shape is one he chose to keep.
+   */
+  const sayKeptName = (
+    command: PlayCommand | undefined,
+    document: PlayDocument,
+    pathId: string | undefined,
+  ): void => {
+    if (!command || pathId === undefined) return;
+    const kept = keptRouteName(document, pathId);
+    if (kept) setToast({ name: kept, text: "— kept as the route's name" });
+  };
+  /**
    * A call off a catalogue put on the man the Coach has picked out. A route
    * reshapes his base stem, or is drawn from his stance where he has none —
    * without that second case a man with nothing on him has to be given an
@@ -3528,7 +3587,7 @@ export function ChalkApp({
     )?.id;
     if (playerId === undefined) return;
     putInspectorAway();
-    runPanelCommand(
+    const command =
       kind === "route"
         ? applyPlayerRoutePresetCommand(document, playerId, presetKey, () =>
             createStableId("path"),
@@ -3538,13 +3597,15 @@ export function ChalkApp({
             [playerId],
             presetKey,
             createStableId,
-          ),
-      {
-        selectedNodeIndex: undefined,
-        selectedBranchIndex: undefined,
-        selectedSegmentIndex: undefined,
-      },
-    );
+          );
+    if (kind === "route") {
+      sayKeptName(command, document, baseRouteOf(document, playerId)?.id);
+    }
+    runPanelCommand(command, {
+      selectedNodeIndex: undefined,
+      selectedBranchIndex: undefined,
+      selectedSegmentIndex: undefined,
+    });
   };
   /**
    * A call off a catalogue put on a line the Coach has picked out. A route is
@@ -3557,7 +3618,7 @@ export function ChalkApp({
     const document = editorStore.getSnapshot().document;
     const line = document.paths.find(({ id }) => id === pathId);
     putInspectorAway();
-    runPanelCommand(
+    const command =
       line?.kind === "route"
         ? applyRoutePresetCommand(document, pathId, presetKey)
         : applyLinePresetCommand(
@@ -3565,16 +3626,16 @@ export function ChalkApp({
             line ? [line.playerId] : [],
             presetKey,
             createStableId,
-          ),
-      {
-        ...(line?.kind === "route"
-          ? { selection: [{ kind: "path", id: pathId }] }
-          : {}),
-        selectedNodeIndex: undefined,
-        selectedBranchIndex: undefined,
-        selectedSegmentIndex: undefined,
-      },
-    );
+          );
+    if (line?.kind === "route") sayKeptName(command, document, pathId);
+    runPanelCommand(command, {
+      ...(line?.kind === "route"
+        ? { selection: [{ kind: "path", id: pathId }] }
+        : {}),
+      selectedNodeIndex: undefined,
+      selectedBranchIndex: undefined,
+      selectedSegmentIndex: undefined,
+    });
   };
   /**
    * The original offers the draw-a-route dot on the selected or hovered
@@ -3604,7 +3665,15 @@ export function ChalkApp({
    * Coach's finger wherever he is working.
    */
   const fieldScreenScale = () => {
-    const zoom = fieldWidthPx / cameraRef.current.width;
+    // Measured now, like the pointer is, rather than read from the last
+    // resize the observer reported: WebKit can report the field part way
+    // through its first layout and not again, and a field thought four times
+    // smaller than it is gives a finger four times the reach, so a tap on a
+    // line picks the man beside it.
+    const drawnWidth = fieldSvgRef.current?.getBoundingClientRect().width;
+    const zoom =
+      (drawnWidth && drawnWidth > 0 ? drawnWidth : fieldWidthPx) /
+      cameraRef.current.width;
     return {
       lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard * zoom,
       depthPixelsPerYard: scene.viewport.depthPixelsPerYard * zoom,
@@ -6300,18 +6369,18 @@ export function ChalkApp({
   const quickTray = (() => {
     if (!phoneWorkspace || interaction.drawing) return null;
     if (selectedPath) {
+      const who = editor.document.players.find(
+        ({ id }) => id === selectedPath.playerId,
+      );
       const calls =
         selectedPath.kind === "route"
           ? routePresetNames
           : selectedPath.kind === "block"
             ? quickBlockCalls
-            : defensiveLineKinds.has(selectedPath.kind)
-              ? quickAssignmentCalls
+            : defensiveLineKinds.has(selectedPath.kind) && who
+              ? assignmentCallsFor(editor.document, who)
               : [];
       if (calls.length === 0) return null;
-      const who = editor.document.players.find(
-        ({ id }) => id === selectedPath.playerId,
-      );
       return (
         <QuickTray
           calls={calls}
@@ -6337,7 +6406,7 @@ export function ChalkApp({
         <QuickTray
           calls={
             defense
-              ? quickAssignmentCalls
+              ? assignmentCallsFor(editor.document, selectedPlayer)
               : lineman
                 ? quickBlockCalls
                 : routePresetNames
@@ -7696,6 +7765,10 @@ export function ChalkApp({
                   onToggle={toggleDisclosure}
                   open={chrome.open}
                   activePresets={playerPresets(selectedPlayer)}
+                  assignmentCalls={assignmentCallsFor(
+                    editor.document,
+                    selectedPlayer,
+                  )}
                   scopeBadge={playbook.scopeBadge}
                   lines={playerLines(selectedPlayer)}
                   onApplyPreset={runLinePreset}
@@ -8704,9 +8777,10 @@ function Header({
           <span className="demo-title">{DEMO_HEADER_TITLE}</span>
           <span className="demo-play-name">{demoPlayName}</span>
         </>
-      ) : activeView === "Playbooks" ? (
-        // The Playbook is managed here, not the open Play: its name, type,
-        // undo and save belong to the editor and wait there.
+      ) : activeView === "Playbooks" || activeView === "GameDay" ? (
+        // The Playbook is managed here, and a prepared plan is read here
+        // (issue #163) — not the open Play: its name, type, undo and save
+        // belong to the editor and wait there.
         <>
           <span className="topbar-fill" />
           <HelpMenu

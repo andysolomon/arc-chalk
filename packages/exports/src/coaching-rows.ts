@@ -1,12 +1,15 @@
 import {
   assignRoles,
   assignmentForPath,
-  currentBallSpot,
   currentFormation,
+  defensiveCallOf,
+  defensivePersonnel,
+  defensivePlayers,
   formatClassification,
   formationMeta,
-  isManLine,
+  lineCallName,
   offensivePlayers,
+  playBallSpot,
   type Concept,
   type Formation,
   type MovementPath,
@@ -68,33 +71,47 @@ export interface CoachingRow {
   readonly readOrder?: number;
 }
 
-const KIND_WORDS: Readonly<Partial<Record<MovementPath["kind"], string>>> = {
-  block: "Block",
-  zone: "Zone drop",
-  blitz: "Blitz",
-  stunt: "Stunt",
-};
-
 function assignmentText(play: PlayDocument, path: MovementPath): string {
   return assignmentForPath(play, path.id)?.text.trim() ?? "";
 }
 
 /**
- * What a line is when nothing was written for it. A man call is named for
- * the receiver it follows (ADR 0060) rather than as a drop.
+ * Who a row is about: his letter, else his position. A defense plays the
+ * same letter twice — two corners, two ends — so a letter the defense has
+ * one of on each side is told apart by the side he lines up on.
  */
-function kindWords(play: PlayDocument, path: MovementPath): string {
-  if (isManLine(path)) {
-    const man = play.players.find(({ id }) => id === path.covers?.playerId);
-    return man?.label.trim() ? `Man on ${man.label.trim()}` : "Man";
-  }
-  return KIND_WORDS[path.kind] ?? "";
+function whoLabels(
+  players: readonly Player[],
+  roles?: readonly (string | undefined)[],
+): readonly string[] {
+  const base = players.map(
+    (player, index) => player.label || roles?.[index] || "—",
+  );
+  const side = (player: Player) =>
+    player.position.lateralYards < 0 ? "L" : "R";
+  return players.map((player, index) => {
+    const who = base[index]!;
+    if (player.unit !== "defense" || who === "—") return who;
+    const same = players.filter(
+      (other, at) => other.unit === "defense" && base[at] === who,
+    );
+    const sides = new Set(same.map(side));
+    return same.length > 1 && sides.size === same.length
+      ? `${side(player)}${who}`
+      : who;
+  });
 }
+
+/** A defender this close to the ball is down on the line, and rushes. */
+const DOWN_LINE_YARDS = 3;
 
 /**
  * One row per man who has a line that is not a motion. His words are the
  * Assignment on his main line — the first one with wording, else the first —
- * falling back to his sublabel, then to what kind of line it is.
+ * falling back to his sublabel, then to what the line was drawn as: the quick
+ * call it is, the zone, man or gap a defender has, a quarterback's drop. A
+ * quarterback with no line of his own still has a job when the Play has a
+ * progression, and a defender down on the line with none rushes.
  */
 export function rowsFor(
   play: PlayDocument,
@@ -102,22 +119,45 @@ export function rowsFor(
   roles?: readonly (string | undefined)[],
 ): readonly CoachingRow[] {
   const rows: CoachingRow[] = [];
+  const who = whoLabels(players, roles);
+  const reads = progressionStrip(play);
   players.forEach((player, index) => {
+    const role = roles?.[index] ?? "";
+    const quarterback = role === "QB";
     const lines = play.paths.filter(
       (path) => path.playerId === player.id && path.kind !== "motion",
     );
-    if (lines.length === 0) return;
+    if (lines.length === 0) {
+      const job =
+        quarterback && reads
+          ? `Read ${reads}`
+          : player.unit === "defense" &&
+              player.position.depthYards <= DOWN_LINE_YARDS
+            ? "Rush"
+            : "";
+      if (job) {
+        rows.push({
+          playerId: player.id,
+          role,
+          who: who[index]!,
+          assignment: job,
+          conversion: "",
+          note: "",
+        });
+      }
+      return;
+    }
     const main =
       lines.find((path) => assignmentText(play, path) !== "") ?? lines[0]!;
-    const role = roles?.[index] ?? "";
+    const named = lineCallName(play, main, { role });
     rows.push({
       playerId: player.id,
       role,
-      who: player.label || role || "—",
+      who: who[index]!,
       assignment:
         assignmentText(play, main) ||
         (player.sublabel ? player.sublabel.toUpperCase() : "") ||
-        kindWords(play, main) ||
+        (named && quarterback && reads ? `${named}, read ${reads}` : named) ||
         "As drawn",
       conversion: main.conversion ?? "",
       note: main.coachingNote ?? "",
@@ -127,8 +167,13 @@ export function rowsFor(
   return rows;
 }
 
-/** The install-page table: the offense, in football order. */
+/**
+ * The install-page table: the offense in football order, or the defense on
+ * a defensive Play.
+ */
 export function playRows(play: PlayDocument): readonly CoachingRow[] {
+  // A defensive Play is taught to the defense, in the order it was called.
+  if (play.unit === "defense") return rowsFor(play, defensivePlayers(play));
   const offense = offensivePlayers(play);
   const roles = assignRoles(offense);
   return [...rowsFor(play, offense, roles)].sort((left, right) => {
@@ -168,15 +213,29 @@ export function progressionStrip(play: PlayDocument): string {
 export interface PlayMeta {
   readonly personnel: string;
   readonly formation: string;
+  /** Empty for a defense, which has no strength of its own. */
   readonly strength: string;
   readonly hash: string;
 }
 
-/** The bottom strip: personnel, formation, strength, hash. */
+/**
+ * The bottom strip: personnel, formation, strength, hash. A defensive Play
+ * reads its call instead — base, nickel or dime, and the call's name — and a
+ * defense has no strength of its own to print, so it has none.
+ */
 export function playMeta(
   play: PlayDocument,
   formations: readonly Formation[] = [],
 ): PlayMeta {
+  if (play.unit === "defense") {
+    const call = defensiveCallOf(play);
+    return {
+      personnel: call ? defensivePersonnel(call) : "",
+      formation: call?.formation.name ?? "Custom front",
+      strength: "",
+      hash: playBallSpot(play) ?? "middle",
+    };
+  }
   const offense = offensivePlayers(play);
   const meta =
     offense.length > 0
@@ -188,16 +247,12 @@ export function playMeta(
       : { personnelLabel: "—", strength: "—" };
   const formation = currentFormation(play, formations);
   return {
-    // Personnel is the offense's count of backs and ends. A defensive call
-    // has none of its own — its shadow offense is the opponent's — so it
-    // says nothing rather than "—P" or the scout team's count (issue #167).
-    personnel:
-      play.unit === "offense" && offense.length > 0
-        ? `${meta.personnelLabel}P`
-        : "",
+    // An offense with nobody on the field has no count to give; it says
+    // nothing rather than "—P" (issue #167).
+    personnel: offense.length > 0 ? `${meta.personnelLabel}P` : "",
     formation: formation?.name ?? "Custom alignment",
     strength: meta.strength,
-    hash: currentBallSpot(play) ?? "middle",
+    hash: playBallSpot(play) ?? "middle",
   };
 }
 

@@ -157,7 +157,15 @@ export function installBody(
         `<tbody>${body}</tbody></table>`
       : "") +
     (strip ? `<div class="ps">${escapeHtml(strip)}</div>` : "") +
-    `<div class="mt">${meta.personnel ? `<span>${escapeHtml(meta.personnel)}</span>` : ""}<span>${escapeHtml(meta.formation)}</span><span>strength ${escapeHtml(meta.strength)}</span><span>${escapeHtml(meta.hash)} hash</span></div>` +
+    `<div class="mt">${[
+      meta.personnel,
+      meta.formation,
+      meta.strength && `strength ${meta.strength}`,
+      `${meta.hash} hash`,
+    ]
+      .filter(Boolean)
+      .map((part) => `<span>${escapeHtml(part)}</span>`)
+      .join("")}</div>` +
     (options.pageNo === undefined
       ? ""
       : `<div class="pno">${options.pageNo}</div>`) +

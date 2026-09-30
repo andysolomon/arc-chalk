@@ -2,8 +2,9 @@ import {
   applyDefensiveCall,
   applyFormation,
   applyPlayCommand,
-  assignRoles,
+  backfieldBlockPoints,
   assignmentForPath,
+  ballLateralYards,
   ballSpotNames,
   canRunLine,
   depthLimitForUnit,
@@ -17,7 +18,10 @@ import {
   handednessOf,
   isLineman,
   linePresetByKey,
+  defensiveFieldOf,
+  twistPartnerOf,
   mirrorPlayGeometry,
+  playSideOf,
   recognizeFormation,
   RECOGNITION_THRESHOLD,
   resetAlignment,
@@ -26,8 +30,11 @@ import {
   routePresetNames,
   routePresetPoints,
   settleZoneShell,
+  snapSpotOf,
   spotBall,
+  stockConcepts,
   stockFormations,
+  tackleBoxOf,
   legacyCanvasToYards,
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
@@ -36,6 +43,7 @@ import {
   type AlignmentReset,
   type AlignmentResetTarget,
   type ConceptDefinition,
+  type ConceptJob,
   type BallSpot,
   type Coordinate,
   type DefensiveCall,
@@ -932,16 +940,19 @@ export function addAlternateRouteCommand(
 ): PlayCommand | undefined {
   const player = document.players.find(({ id }) => id === playerId);
   if (!player || !canRunLine(player, "route")) return undefined;
-  // Exactly where he stands, not a rounding of it: the stem starts on the man.
-  const stance = player.position;
-  // Every line he already has, not just his routes: any of them means the new
-  // one is an alternate to something, which is what makes it dotted.
+  // Exactly where he is at the snap, not a rounding of it: the stem starts on
+  // the man, or at the end of his motion when he goes in motion first.
+  const stance = snapSpotOf(document, playerId);
+  // Every line he already has after the snap, not just his routes: any of
+  // them means the new one is an alternate to something, which is what makes
+  // it dotted. His motion comes before the snap, so it is nothing to be an
+  // alternate to.
   const base = document.paths
-    .filter(({ playerId: on }) => on === playerId)
+    .filter(({ playerId: on, kind }) => on === playerId && kind !== "motion")
     .at(-1);
   // Away from the middle of the field, so the new stem clears the old one on
   // the side he has room.
-  const side = player.position.lateralYards < 0 ? -1 : 1;
+  const side = stance.lateralYards < 0 ? -1 : 1;
 
   const points: PathPoint[] = base
     ? base.points.map((point, index) =>
@@ -1359,12 +1370,11 @@ export function applyRoutePresetCommand(
   if (!player || !canRunLine(player, "route")) return undefined;
 
   const continuing = mode === "continue" && path.points.length > 1;
-  const anchor = continuing ? path.points.at(-1)! : player.position;
-  const shape = routePresetPoints(
-    presetKey,
-    anchor,
-    handednessOf(player.position),
-  );
+  // A route is run from where he is at the snap: the end of his motion, if
+  // he has one, and his stance if not (issue #164).
+  const snapSpot = snapSpotOf(document, player.id);
+  const anchor = continuing ? path.points.at(-1)! : snapSpot;
+  const shape = routePresetPoints(presetKey, anchor, handednessOf(snapSpot));
   if (!shape) return undefined;
   // The anchor is left exactly as it is: a man already stands inside the
   // paint, and a break he already has was held there when it was made, so
@@ -1390,9 +1400,65 @@ export function applyRoutePresetCommand(
       };
   if (next.preset === undefined) delete (next as { preset?: string }).preset;
 
-  return canonicalStringify(next) === canonicalStringify(path)
-    ? undefined
-    : { kind: "update-path", path: next };
+  if (canonicalStringify(next) === canonicalStringify(path)) return undefined;
+  const reshape: PrimitivePlayCommand = { kind: "update-path", path: next };
+  const renamed = renameForCall(document, path, next.preset);
+  return renamed
+    ? { kind: "batch", label: "Edit route", commands: [reshape, renamed] }
+    : reshape;
+}
+
+/**
+ * The name a call gave a route: the call off the tree it was drawn as, or
+ * the job a concept put on it. Anything else is the Coach's own wording.
+ */
+function isCallName(path: MovementPath, text: string): boolean {
+  const said = text.trim().toUpperCase();
+  if (said === "") return false;
+  const preset = routePresetNames.find(({ key }) => key === path.preset);
+  if (preset && preset.name.toUpperCase() === said) return true;
+  const concept = stockConcepts.find(({ key }) => key === path.concept);
+  return concept?.assignments.includes(said) ?? false;
+}
+
+/**
+ * The words a quick route leaves standing on a line: the Coach's own, which
+ * a call never overwrites. Nothing when the line has no name or when its
+ * name is only the call it was drawn as.
+ */
+export function keptRouteName(
+  document: PlayDocument,
+  pathId: string,
+): string | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  const text = assignmentForPath(document, pathId)?.text.trim();
+  if (!path || !text || isCallName(path, text)) return undefined;
+  return text;
+}
+
+/**
+ * A route reshaped to a new call is named for it (issue #160): a name the
+ * last call gave it would otherwise say DIG over a curl. A line continued
+ * past its call is no longer any one call, so it loses the name. The
+ * Coach's own words stay whichever it is.
+ */
+function renameForCall(
+  document: PlayDocument,
+  path: MovementPath,
+  presetKey: string | undefined,
+): PrimitivePlayCommand | undefined {
+  const existing = assignmentForPath(document, path.id);
+  if (!existing || !isCallName(path, existing.text)) return undefined;
+  const name = routePresetNames.find(({ key }) => key === presetKey)?.name;
+  if (name !== undefined) {
+    const text = name.toUpperCase();
+    return existing.text === text
+      ? undefined
+      : { kind: "update-assignment", assignment: { ...existing, text } };
+  }
+  return existing.actions.length <= 1
+    ? { kind: "remove-assignments", assignmentIds: [existing.id] }
+    : { kind: "update-assignment", assignment: { ...existing, text: "" } };
 }
 
 /**
@@ -1431,11 +1497,8 @@ export function applyPlayerRoutePresetCommand(
   const base = baseRouteOf(document, playerId);
   if (base) return applyRoutePresetCommand(document, base.id, presetKey);
 
-  const shape = routePresetPoints(
-    presetKey,
-    player.position,
-    handednessOf(player.position),
-  );
+  const snapSpot = snapSpotOf(document, playerId);
+  const shape = routePresetPoints(presetKey, snapSpot, handednessOf(snapSpot));
   if (!shape) return undefined;
   const name =
     routePresetNames.find(({ key }) => key === presetKey)?.name ?? presetKey;
@@ -1453,12 +1516,10 @@ export function applyPlayerRoutePresetCommand(
               id: createId(),
               kind: "route",
               playerId,
-              // The stance is left exactly as it is — a man already stands
-              // inside the paint — and the rest is held there.
-              points: [
-                player.position,
-                ...insidePoints(document, shape.slice(1)),
-              ],
+              // Where he sets out from is left exactly as it is — a man
+              // already stands inside the paint, and so does the end of his
+              // motion — and the rest is held there.
+              points: [snapSpot, ...insidePoints(document, shape.slice(1))],
               branches: [],
               style: routeKindStyle("route", {
                 line: "solid",
@@ -1475,27 +1536,26 @@ export function applyPlayerRoutePresetCommand(
 }
 
 /**
- * Who a concept is about: the men who could be given a job in one. A defender
- * is on the other side of it and a lineman blocks, so neither is a target —
- * and being a lineman is read off where a man stands rather than off the
- * position he was given, which is what keeps an extra tackle out of the
- * distribution even though a sixth man on the line reads as a slot.
- *
- * Whether the quarterback has a job is left to the concept: none of the ten
- * gives him one, and a screen that did would be naming him deliberately.
+ * Who a concept is about, and what each of them is given. A defender is on
+ * the other side of it and a lineman blocks, so neither is a target — and
+ * being a lineman is read off where a man stands rather than off the position
+ * he was given, which is what keeps an extra tackle out of the distribution
+ * even though a sixth man on the line reads as a slot. The concept reads the
+ * rest by alignment — #1, #2 and #3 from the sideline, strong side and weak,
+ * backs — and gives the quarterback nothing (issue #162).
  */
 export function conceptTargets(
   document: PlayDocument,
   concept: ConceptDefinition,
-): readonly { readonly player: Player; readonly role: string }[] {
-  const eligible = document.players.filter(
-    (player) => player.unit !== "defense" && !isLineman(player),
+): readonly { readonly player: Player; readonly job: ConceptJob }[] {
+  const offense = document.players.filter(
+    (player) => player.unit !== "defense",
   );
-  const roles = assignRoles(eligible);
-  return eligible.flatMap((player, index) => {
-    const role = roles[index];
-    if (!role || !concept.roles.includes(role)) return [];
-    return [{ player, role }];
+  const eligible = offense.filter((player) => !isLineman(player));
+  const byId = new Map(eligible.map((player) => [player.id, player]));
+  return concept.jobsFor(eligible, ballLateralYards(offense)).flatMap((job) => {
+    const player = byId.get(job.playerId);
+    return player ? [{ player, job }] : [];
   });
 }
 
@@ -1525,8 +1585,8 @@ export interface ConceptResult {
 
 /**
  * Drawing a concept. It is a distribution rather than a route: every man it
- * is about is given his job by the position he plays, mirrored to the side he
- * lines up on. Asking for the one already on takes it off again, which is how
+ * is about is given his job by where he lines up — which receiver he is,
+ * counted from the sideline, on the strong side or the weak. Asking for the one already on takes it off again, which is how
  * the original lets the same button put it up and pull it down.
  */
 export function applyConceptCommand(
@@ -1553,11 +1613,11 @@ export function applyConceptCommand(
           ),
         )
       : document;
-  // Deleting a line a Coach drew leaves his wording for that man standing,
-  // because the words are his and the line was only what they were about
-  // (ADR 0011). A concept is not that: it says what each of these men does,
-  // so the words it is replacing go with the line they described — which is
-  // what the original did by keeping them on the line in the first place.
+  // Deleting a line takes the words that named it (issue #160), but a Coach
+  // can also have written words for the man himself, about no line at all
+  // (ADR 0011). A concept says what each of these men does, so those words
+  // go too — which is what the original did by keeping them on the line in
+  // the first place.
   const cleared: PlayDocument = {
     ...deleted,
     assignments: deleted.assignments.filter(
@@ -1580,9 +1640,7 @@ export function applyConceptCommand(
 
   const paths: MovementPath[] = [];
   const assignments: PlayDocument["assignments"][number][] = [];
-  for (const { player, role } of targets) {
-    const job = concept.jobFor(role, player.position);
-    if (!job) continue;
+  for (const { player, job } of targets) {
     const pathId = createId("path");
     paths.push({
       id: pathId,
@@ -1628,13 +1686,44 @@ export function applyConceptCommand(
 // Blocking, and what a defender is asked to do
 // ---------------------------------------------------------------------------
 
+/** Further off the line than this and a man pulls from the backfield. */
+const BACKFIELD_OFF_LINE_YARDS = 1;
+
+/**
+ * The shape a call draws for this man on this Play. A pull runs to the side
+ * the Play says the run is going (issue #164), and from the backfield it runs
+ * upfield to the edge rather than back off a line he is not on. With nothing
+ * on the Play to say which way, it is drawn to his own side as before.
+ */
+function presetShape(
+  document: PlayDocument,
+  player: Player,
+  preset: LinePreset,
+): readonly PathPoint[] {
+  // A call aimed at the field reads the gaps and the quarterback off it.
+  const field = defensiveFieldOf(document);
+  if (!preset.pull) return preset.pointsFrom(player.position, field);
+  const side = playSideOf(document, player.id);
+  if (side === undefined) return preset.pointsFrom(player.position, field);
+  const box = tackleBoxOf(document);
+  const fromBackfield =
+    box !== undefined &&
+    !box.men.some(({ id }) => id === player.id) &&
+    player.position.depthYards < box.lineDepthYards - BACKFIELD_OFF_LINE_YARDS;
+  return (
+    (fromBackfield
+      ? backfieldBlockPoints(preset.key, player.position, side, box)
+      : undefined) ?? preset.pointsFrom(player.position, field, side)
+  );
+}
+
 function presetPath(
   document: PlayDocument,
   player: Player,
   preset: LinePreset,
   id: string,
 ): MovementPath {
-  const drawn = preset.pointsFrom(player.position);
+  const drawn = presetShape(document, player, preset);
   return {
     id,
     kind: preset.kind,
@@ -1685,9 +1774,17 @@ export function applyLinePresetCommand(
 ): PlayCommand | undefined {
   const preset = linePresetByKey(presetKey);
   if (!preset) return undefined;
+  // A game is played by two: his partner on the front is given it with him.
+  const partners = preset.pair
+    ? playerIds.flatMap((id) => {
+        const partner = twistPartnerOf(document, id);
+        return partner ? [partner.id] : [];
+      })
+    : [];
   const players = document.players.filter(
     (player) =>
-      playerIds.includes(player.id) && canRunLine(player, preset.kind),
+      (playerIds.includes(player.id) || partners.includes(player.id)) &&
+      canRunLine(player, preset.kind),
   );
   if (players.length === 0) return undefined;
 
