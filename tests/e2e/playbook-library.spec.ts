@@ -58,6 +58,17 @@ const playAction = async (page: Page, play: string, action: string) => {
   return sheet;
 };
 
+/**
+ * Steps a Play once in the install order from its sheet, then closes the
+ * sheet with its own Cancel: WebKit does not focus a tapped button, so an
+ * Escape would reach the page and leave it for the editor.
+ */
+const closeSheet = async (page: Page, play: string) => {
+  const sheet = await playAction(page, play, "Move earlier");
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+  await expect(sheet).toBeHidden();
+};
+
 const toEditor = (page: Page) =>
   views(page).getByRole("button", { name: "Editor", exact: true }).click();
 
@@ -216,9 +227,7 @@ test("organizes a library: empty books, saved fronts, copy and move, install ord
     .click();
   await page.getByRole("button", { name: "Advanced" }).click();
   await page.getByRole("button", { name: /^Concept/ }).click();
-  await expect(
-    page.getByRole("button", { name: /^Stick\b/ }).first(),
-  ).toBeVisible();
+  await expect(page.getByRole("option", { name: /^Stick\b/ })).toBeVisible();
   await page.keyboard.press("Escape");
 
   // The book's own page puts its Plays in install order.
@@ -235,8 +244,7 @@ test("organizes a library: empty books, saved fronts, copy and move, install ord
     "Goal Line Pinch",
     "Stick — Thunder",
   ]);
-  await playAction(page, "Goal Line Pinch", "Move earlier");
-  await page.keyboard.press("Escape");
+  await closeSheet(page, "Goal Line Pinch");
   await expect(playNames(page)).toHaveText([
     "Base Cover 3",
     "Goal Line Pinch",
@@ -252,8 +260,7 @@ test("organizes a library: empty books, saved fronts, copy and move, install ord
       });
   } else {
     for (let step = 0; step < 3; step += 1) {
-      await playAction(page, "Stick — Thunder", "Move earlier");
-      await page.keyboard.press("Escape");
+      await closeSheet(page, "Stick — Thunder");
     }
   }
   const installed = [
