@@ -64,6 +64,10 @@ _Avoid_: Collaboration, invitation, public playbook
 An external link associated with a Play for coaching context. Chalk does not own, upload, transcode, stream, or offline-cache the referenced video.
 _Avoid_: Hosted video, film library
 
+**Film Observation**:
+What was seen on one snap of film: where each man lined up and how each moved, measured from the ball, before anything is named. It records what happened on that snap, not what was called, so it becomes a Play only when the Coach accepts a draft of it.
+_Avoid_: Recognized play, detected formation, film import
+
 **Game Plan**:
 A named, durable view of one Playbook for one game and one coordinator unit: which Plays will be called, the Sections they are called from, and the code each answers to. It references Plays and never copies their editable source.
 _Avoid_: Game playbook, weekly playbook copy, folder

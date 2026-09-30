@@ -33,3 +33,4 @@ export type {
 } from "./sync";
 export * from "./assets";
 export * from "./share";
+export type { FilmEnginePort, FilmFrame, FilmRecognitionRequest } from "./film";
