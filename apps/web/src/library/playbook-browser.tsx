@@ -1,6 +1,7 @@
 import {
   UNCLASSIFIED_PLAY_TYPE_NAME,
   CLASSIFICATION_SEPARATOR,
+  movePlayInOrder,
   playUnits,
   type Concept,
   type Formation,
@@ -9,7 +10,14 @@ import {
 } from "@chalk/domain";
 import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
 import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+} from "react";
 
 import type {
   ChalkLibrary,
@@ -110,8 +118,12 @@ export function PlaybookBrowser({
   onOpen,
   onOpenGamePlans,
   onRemember,
+  onReorder,
+  onStartPlay,
+  onTransfer,
   pageScroll = false,
   playbooks = [],
+  playOrder,
   playTypes,
 }: {
   /** The Concepts of the book, for the Advanced row's Concept filter. */
@@ -153,6 +165,21 @@ export function PlaybookBrowser({
   onOpenGamePlans?: () => void;
   onRemember: (state: LibraryBrowserState) => void;
   /**
+   * Saves the book's install order (issue #166). Offered on a book's own
+   * page, where Sort reads Install order and a Play is dragged into place.
+   */
+  onReorder?: (order: readonly string[]) => void;
+  /** An empty book offers its first Play of either side (issue #166). */
+  onStartPlay?: (unit: PlayUnit) => void;
+  /** Copies or moves a Play into another book (issue #166). */
+  onTransfer?: (
+    playId: string,
+    playbookId: string,
+    mode: "copy" | "move",
+  ) => void;
+  /** The install order the book keeps, read with Sort on Install order. */
+  playOrder?: readonly string[];
+  /**
    * The page scrolls rather than the list inside it — a phone, where the
    * browser folds its toolbar away only when the document moves. The list
    * is still virtualized, against the window.
@@ -177,7 +204,24 @@ export function PlaybookBrowser({
   const advancedSet =
     values.conceptId !== ANY || values.tag !== ANY || values.motion !== ANY;
   const [advancedOpen, setAdvancedOpen] = useState(advancedSet);
-  const [sort, setSort] = useState<PlaybookSort>(initial.sort ?? "name");
+  const [chosenSort, setSort] = useState<PlaybookSort>(initial.sort ?? "name");
+  // The install order belongs to one book, so it is read only on a book's
+  // own page; elsewhere a remembered Install order reads by name.
+  const sort: PlaybookSort =
+    chosenSort === "order" && !onReorder ? "name" : chosenSort;
+  // Held here too, so a Play dropped into place stays there while the book
+  // saves the new order.
+  const [order, setOrder] = useState(playOrder);
+  const [orderSeen, setOrderSeen] = useState(playOrder);
+  if (orderSeen !== playOrder) {
+    setOrderSeen(playOrder);
+    setOrder(playOrder);
+  }
+  const [dragging, setDragging] = useState<string>();
+  const [dropAt, setDropAt] = useState<{
+    readonly playId: string;
+    readonly place: "before" | "after";
+  }>();
   const [layout, setLayout] = useState<PlaybookLayout | undefined>(
     initial.layout,
   );
@@ -281,9 +325,34 @@ export function PlaybookBrowser({
 
   const searching = query.trim() !== "";
   const shown = useMemo(
-    () => (searching ? hits : sortPlays(hits, sort)),
-    [hits, searching, sort],
+    () => (searching ? hits : sortPlays(hits, sort, order)),
+    [hits, order, searching, sort],
   );
+  const reordering = onReorder !== undefined && sort === "order" && !searching;
+  /**
+   * Puts one Play before or after another. The order saved lists the whole
+   * book, filtered or not, so a Play the filters hide keeps its place.
+   */
+  const placePlay = (
+    playId: string,
+    targetId: string,
+    place: "before" | "after",
+  ) => {
+    if (!onReorder || playId === targetId) return;
+    const whole = sortPlays(members, "order", order).map(
+      (member) => member.playId,
+    );
+    const next = movePlayInOrder(whole, playId, targetId, place);
+    setOrder(next);
+    onReorder(next);
+  };
+  /** One step earlier or later among the Plays showing. */
+  const stepPlay = (playId: string, step: -1 | 1) => {
+    const at = shown.findIndex((member) => member.playId === playId);
+    const target = shown[at + step];
+    if (at < 0 || !target) return;
+    placePlay(playId, target.playId, step < 0 ? "before" : "after");
+  };
   const narrowed = searching || playFiltersNarrow(values);
 
   const rows = useMemo(() => {
@@ -403,7 +472,9 @@ export function PlaybookBrowser({
     onRemember({
       scrollTop: listScrollTop(),
       query,
-      sort: next.sort ?? sort,
+      // What he chose, even where a page reads it by name: the install order
+      // stays his choice for the book's own page.
+      sort: next.sort ?? chosenSort,
       ...(kept ? { layout: kept } : {}),
       ...((playId ?? focusedPlayId)
         ? { focusedPlayId: playId ?? focusedPlayId }
@@ -757,6 +828,9 @@ export function PlaybookBrowser({
                 >
                   <option value="name">Name</option>
                   <option value="recent">Recently edited</option>
+                  {onReorder ? (
+                    <option value="order">Install order</option>
+                  ) : null}
                 </select>
               </label>
             )}
@@ -767,6 +841,7 @@ export function PlaybookBrowser({
           data-card-row-height={rowHeight}
           data-grid-columns={columns}
           data-layout={list ? "list" : "grid"}
+          data-reordering={reordering ? "true" : undefined}
           data-virtual-count={shown.length}
           onScroll={pageScroll ? undefined : () => remember()}
           ref={scrollerRef}
@@ -800,17 +875,48 @@ export function PlaybookBrowser({
                   {cards.map((member) => (
                     <PlayItem
                       current={member.playId === currentPlayId}
+                      drop={
+                        dropAt?.playId === member.playId &&
+                        dragging !== member.playId
+                          ? dropAt.place
+                          : undefined
+                      }
                       focused={member.playId === focusedPlayId}
                       key={member.playId}
                       layout={list ? "list" : "grid"}
                       member={member}
+                      reorder={
+                        reordering
+                          ? {
+                              dragging,
+                              onDragEnd: () => {
+                                setDragging(undefined);
+                                setDropAt(undefined);
+                              },
+                              onDragStart: () => setDragging(member.playId),
+                              onDragOver: (place) =>
+                                setDropAt((current) =>
+                                  current?.playId === member.playId &&
+                                  current.place === place
+                                    ? current
+                                    : { playId: member.playId, place },
+                                ),
+                              onDrop: (playId, place) => {
+                                setDragging(undefined);
+                                setDropAt(undefined);
+                                placePlay(playId, member.playId, place);
+                              },
+                            }
+                          : undefined
+                      }
                       set={
                         choices
                           ? playFacets(member, formationsById).formation?.name
                           : undefined
                       }
                       onActions={
-                        embedded && onDelete && deletable(member)
+                        embedded &&
+                        ((onDelete && deletable(member)) || onTransfer)
                           ? () => setActionsFor(member.playId)
                           : undefined
                       }
@@ -828,9 +934,19 @@ export function PlaybookBrowser({
               <strong>No plays yet</strong>
               <span>
                 {embedded
-                  ? "Start one with New play. Every play you draw is kept here."
+                  ? "Start its first play on either side of the ball. Every play you draw is kept here."
                   : "Every play you draw is kept here."}
               </span>
+              {embedded && onStartPlay ? (
+                <div className="playbook-start">
+                  <button onClick={() => onStartPlay("offense")} type="button">
+                    New offensive play
+                  </button>
+                  <button onClick={() => onStartPlay("defense")} type="button">
+                    New defensive play
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : shown.length === 0 ? (
             <div className="playbook-none">
@@ -846,20 +962,51 @@ export function PlaybookBrowser({
           ) : null}
         </div>
       </div>
-      {actionsMember && onDelete ? (
+      {actionsMember ? (
         <PlayActions
           current={actionsMember.playId === currentPlayId}
+          destinations={
+            onTransfer
+              ? playbooks.filter(
+                  ({ archivedAtMs, id }) =>
+                    archivedAtMs === undefined &&
+                    id !== actionsMember.playbookId,
+                )
+              : []
+          }
           detail={deletePrompt?.(actionsMember.playId)}
+          key={actionsMember.playId}
           member={actionsMember}
           onClose={() => setActionsFor(undefined)}
-          onDelete={() => {
-            setActionsFor(undefined);
-            onDelete(actionsMember.playId);
-          }}
+          onDelete={
+            onDelete && deletable(actionsMember)
+              ? () => {
+                  setActionsFor(undefined);
+                  onDelete(actionsMember.playId);
+                }
+              : undefined
+          }
           onOpen={() => {
             setActionsFor(undefined);
             open(actionsMember.playId);
           }}
+          onStep={
+            reordering
+              ? (step) => stepPlay(actionsMember.playId, step)
+              : undefined
+          }
+          onTransfer={(playbookId, mode) => {
+            setActionsFor(undefined);
+            onTransfer?.(actionsMember.playId, playbookId, mode);
+          }}
+          place={
+            reordering
+              ? {
+                  first: shown[0]?.playId === actionsMember.playId,
+                  last: shown.at(-1)?.playId === actionsMember.playId,
+                }
+              : undefined
+          }
         />
       ) : null}
     </div>
@@ -908,24 +1055,40 @@ function PlayMeta({
  * the Play, and on the Playbooks page a second button beside it offers what
  * else can be done with it.
  */
+/** What a card does while the book is in install order and cards drag. */
+interface ReorderHandlers {
+  readonly dragging?: string;
+  readonly onDragStart: () => void;
+  readonly onDragOver: (place: "before" | "after") => void;
+  readonly onDrop: (playId: string, place: "before" | "after") => void;
+  readonly onDragEnd: () => void;
+}
+
+const DRAGGED_PLAY = "application/x-chalk-play";
+
 function PlayItem({
   current,
+  drop,
   focused,
   layout,
   member,
   onActions,
   onFocus,
   onOpen,
+  reorder,
   set,
   urlFor,
 }: {
   current: boolean;
+  /** Where a dragged Play would land beside this one. */
+  drop?: "before" | "after";
   focused: boolean;
   layout: "grid" | "list";
   member: PlaySearchProjection;
   onActions?: () => void;
   onFocus: () => void;
   onOpen: () => void;
+  reorder?: ReorderHandlers;
   set?: string;
   urlFor: (
     request: ThumbnailRequest,
@@ -952,13 +1115,59 @@ function PlayItem({
   );
   const frame =
     layout === "list" ? "playbook-row" : "browser-card playbook-card";
+  // A list stacks, so a Play lands above or below; cards run across a row.
+  const placeFor = (event: DragEvent<HTMLElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    return (
+      layout === "list"
+        ? event.clientY > box.top + box.height / 2
+        : event.clientX > box.left + box.width / 2
+    )
+      ? ("after" as const)
+      : ("before" as const);
+  };
 
   return (
     <div
       className={`${frame}${current ? " current" : ""}${
         focused ? " focused" : ""
-      }`}
+      }${reorder ? " reorderable" : ""}${
+        reorder?.dragging === member.playId ? " dragging" : ""
+      }${drop ? ` drop-${drop}` : ""}`}
       data-play-id={member.playId}
+      draggable={reorder ? true : undefined}
+      onDragEnd={reorder ? () => reorder.onDragEnd() : undefined}
+      onDragOver={
+        reorder
+          ? (event) => {
+              if (!event.dataTransfer.types.includes(DRAGGED_PLAY)) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              reorder.onDragOver(placeFor(event));
+            }
+          : undefined
+      }
+      onDragStart={
+        reorder
+          ? (event) => {
+              event.dataTransfer.setData(DRAGGED_PLAY, member.playId);
+              event.dataTransfer.setData("text/plain", member.name);
+              event.dataTransfer.effectAllowed = "move";
+              reorder.onDragStart();
+            }
+          : undefined
+      }
+      onDrop={
+        reorder
+          ? (event) => {
+              const playId = event.dataTransfer.getData(DRAGGED_PLAY);
+              if (!playId) return;
+              event.preventDefault();
+              reorder.onDrop(playId, placeFor(event));
+            }
+          : undefined
+      }
+      title={reorder ? "Drag to put it in install order" : undefined}
     >
       <button
         className="playbook-open"
@@ -983,7 +1192,7 @@ function PlayItem({
           aria-label={`Actions for ${member.name}`}
           className="playbook-more"
           onClick={onActions}
-          title="Open or delete"
+          title="Open, copy, move or delete"
           type="button"
         >
           <svg aria-hidden="true" viewBox="0 0 16 16">
@@ -998,26 +1207,39 @@ function PlayItem({
 }
 
 /**
- * What can be done with one Play from the Playbooks page. A sheet from the
- * bottom on a phone, a small card on a desk; deleting asks once more,
- * because nothing brings a deleted Play back.
+ * What can be done with one Play from the Playbooks page: open it, copy or
+ * move it into another book (issue #166), step it earlier or later in the
+ * install order, or delete it. A sheet from the bottom on a phone, a small
+ * card on a desk; deleting asks once more, because nothing brings a deleted
+ * Play back.
  */
 function PlayActions({
   current,
+  destinations,
   detail,
   member,
   onClose,
   onDelete,
   onOpen,
+  onStep,
+  onTransfer,
+  place,
 }: {
   current: boolean;
+  /** The other books on the shelf a Play can be copied or moved into. */
+  destinations: readonly PlaybookSummary[];
   detail?: string;
   member: PlaySearchProjection;
   onClose: () => void;
-  onDelete: () => void;
+  /** Offered only for a Play of the open book. */
+  onDelete?: () => void;
   onOpen: () => void;
+  /** Offered while the book reads in install order. */
+  onStep?: (step: -1 | 1) => void;
+  onTransfer: (playbookId: string, mode: "copy" | "move") => void;
+  place?: { readonly first: boolean; readonly last: boolean };
 }) {
-  const [confirming, setConfirming] = useState(false);
+  const [step, setStep] = useState<"menu" | "delete" | "copy" | "move">("menu");
   return (
     <div className="play-sheet-backdrop" onClick={onClose} role="presentation">
       <div
@@ -1029,21 +1251,37 @@ function PlayActions({
           if (event.key !== "Escape") return;
           // The page's Escape goes back to the editor; here it only closes.
           event.stopPropagation();
-          onClose();
+          if (step === "menu") onClose();
+          else setStep("menu");
         }}
         role="dialog"
       >
         <div className="play-sheet-head">
           <strong>
-            {confirming ? `Delete “${member.name}”?` : member.name}
+            {step === "delete"
+              ? `Delete “${member.name}”?`
+              : step === "copy"
+                ? `Copy “${member.name}” to…`
+                : step === "move"
+                  ? `Move “${member.name}” to…`
+                  : member.name}
           </strong>
-          {confirming ? (
+          {step === "delete" ? (
             <span>{detail ?? "It will be removed from this Playbook."}</span>
+          ) : step === "copy" ? (
+            <span>
+              The copy keeps its type, concept and saved set; this one stays
+              where it is.
+            </span>
+          ) : step === "move" ? (
+            <span>
+              It keeps its type, concept and saved set, and leaves this book.
+            </span>
           ) : (
             <PlayMeta member={member} />
           )}
         </div>
-        {confirming ? (
+        {step === "delete" && onDelete ? (
           <div className="play-sheet-actions">
             <button
               autoFocus
@@ -1053,8 +1291,32 @@ function PlayActions({
             >
               Delete play
             </button>
-            <button onClick={() => setConfirming(false)} type="button">
+            <button onClick={() => setStep("menu")} type="button">
               Keep it
+            </button>
+          </div>
+        ) : step === "copy" || step === "move" ? (
+          <div
+            aria-label={step === "copy" ? "Copy to" : "Move to"}
+            className="play-sheet-actions"
+            role="group"
+          >
+            {destinations.map((book, index) => (
+              <button
+                autoFocus={index === 0}
+                className="play-sheet-book"
+                key={book.id}
+                onClick={() => onTransfer(book.id, step)}
+                type="button"
+              >
+                <span>{book.name}</span>
+                <span className="play-sheet-count">
+                  {playCount(book.playCount)}
+                </span>
+              </button>
+            ))}
+            <button onClick={() => setStep("menu")} type="button">
+              Back
             </button>
           </div>
         ) : (
@@ -1062,13 +1324,43 @@ function PlayActions({
             <button autoFocus onClick={onOpen} type="button">
               {current ? "Back to the editor" : "Open in editor"}
             </button>
-            <button
-              className="play-sheet-danger"
-              onClick={() => setConfirming(true)}
-              type="button"
-            >
-              Delete…
-            </button>
+            {destinations.length > 0 ? (
+              <>
+                <button onClick={() => setStep("copy")} type="button">
+                  Copy to…
+                </button>
+                <button onClick={() => setStep("move")} type="button">
+                  Move to…
+                </button>
+              </>
+            ) : null}
+            {onStep && place ? (
+              <div className="play-sheet-steps">
+                <button
+                  disabled={place.first}
+                  onClick={() => onStep(-1)}
+                  type="button"
+                >
+                  Move earlier
+                </button>
+                <button
+                  disabled={place.last}
+                  onClick={() => onStep(1)}
+                  type="button"
+                >
+                  Move later
+                </button>
+              </div>
+            ) : null}
+            {onDelete ? (
+              <button
+                className="play-sheet-danger"
+                onClick={() => setStep("delete")}
+                type="button"
+              >
+                Delete…
+              </button>
+            ) : null}
             <button onClick={onClose} type="button">
               Cancel
             </button>

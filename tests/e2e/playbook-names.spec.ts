@@ -41,14 +41,15 @@ test("saves a new playbook by name, renames it, and keeps both names", async ({
     "Chalk Starter Playbook is already on this device.",
   );
 
-  // A new name saves a book and opens it on the blank Play the editor
-  // takes up in an empty book (ADR 0060).
+  // A new name saves a book and opens it. The editor takes up a blank Play
+  // in it that is not written until something is drawn, so the new book
+  // starts empty (issue #166).
   await newName.fill("  Spring   Install ");
   await expect(save).toBeEnabled();
   await newName.press("Enter");
   const title = page.locator(".book-title strong");
   await expect(title).toHaveText("Spring Install");
-  await expect(page.locator(".book-title span")).toHaveText("1 play");
+  await expect(page.locator(".book-title span")).toHaveText("0 plays");
 
   // The bar renames the open book; another book's name is refused there too.
   await page.getByRole("button", { name: "Rename Spring Install" }).click();

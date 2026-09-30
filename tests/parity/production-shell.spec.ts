@@ -73,7 +73,13 @@ const parityGap: Readonly<Record<string, number>> = {
   // the panel. Card name-row and thumbnail-dot arithmetic now match the
   // original; any remaining gap is the Play behind the panel.
   formations: 0.0231, // 2.3043% (31,854 px), from 2.0059% (27,730 px)
-  defenses: 0.019, // 1.8893% (26,118 px), from 1.5938% (22,033 px)
+  // Raised 0.019 → 0.0197 under ADR 0064 (issue #166, the product owner's
+  // request for a Mine tab and "Save the defense on the field as…"): the
+  // tab and the save row are chrome the original's Defenses does not have.
+  // Measured on one Linux machine, branch against main: 28,542 → 29,609 px
+  // (+1,067); Formations did not move (34,547 → 34,548). Added to the
+  // recorded 26,118 px that is 27,185 px, 1.9665%.
+  defenses: 0.0197, // 1.9665% (27,185 px), from 1.8893% (26,118 px)
 };
 
 /**

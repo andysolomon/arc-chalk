@@ -1,4 +1,5 @@
 import {
+  COACH_FRONT,
   defensiveFronts,
   formationFamilies,
   formationMeta,
@@ -1279,23 +1280,32 @@ export function FormationBrowser({
 export function DefenseBrowser({
   calls,
   currentCallId,
+  defensivePlayerCount,
   favoriteIds,
   focusSearch = true,
   onClose,
   onPick,
   onPreview,
+  onRemove,
+  onSave,
   onToggleAssignments,
   onToggleFavorite,
   withAssignments,
 }: {
   calls: readonly DefensiveCall[];
   currentCallId?: string;
+  /** How many defenders stand on the field, which is what Save keeps. */
+  defensivePlayerCount: number;
   favoriteIds: readonly string[];
   /** Search takes focus for a keyboard, not for a finger (issue #68). */
   focusSearch?: boolean;
   onClose: () => void;
   onPick: (callId: string) => void;
   onPreview: (callId?: string) => void;
+  /** Lets a front the Coach saved go. */
+  onRemove: (callId: string) => void;
+  /** Keeps the defense on the field as a front of his own (issue #166). */
+  onSave: (name: string) => void;
   onToggleAssignments: () => void;
   onToggleFavorite: (callId: string) => void;
   withAssignments: boolean;
@@ -1304,13 +1314,32 @@ export function DefenseBrowser({
   const [front, setFront] = useState("all");
   const [coverage, setCoverage] = useState("all");
   const [tab, setTab] = useState("all");
+  const [draftName, setDraftName] = useState("");
+
+  const canSave = draftName.trim().length > 0 && defensivePlayerCount > 0;
+  const saveHint =
+    defensivePlayerCount > 0
+      ? `Saves the ${defensivePlayerCount} defender${
+          defensivePlayerCount === 1 ? "" : "s"
+        } on the field — alignment, symbols and letters. Their lines are not included.`
+      : "Put a defense on the field first, then save it under Mine.";
+  const save = () => {
+    if (!canSave) return;
+    onSave(draftName.trim());
+    setDraftName("");
+    setTab("custom");
+  };
 
   const starred = new Set(favoriteIds);
   const search = query.trim().toLowerCase();
+  const fronts = [...defensiveFronts, COACH_FRONT];
   const hits = favoritesFirst(
     calls.filter(
       (call) =>
-        (tab === "all" || starred.has(call.formation.id)) &&
+        (tab === "all" ||
+          (tab === "favorites"
+            ? starred.has(call.formation.id)
+            : call.front === COACH_FRONT)) &&
         (front === "all" || call.front === front) &&
         (coverage === "all" || call.coverage === coverage) &&
         (!search ||
@@ -1321,14 +1350,17 @@ export function DefenseBrowser({
     (call) => starred.has(call.formation.id),
   );
 
-  const coverages = [...new Set(calls.map((call) => call.coverage))].sort();
+  // A front the Coach saved has no coverage of its own: he draws it.
+  const coverages = [
+    ...new Set(calls.flatMap(({ coverage }) => (coverage ? [coverage] : []))),
+  ].sort();
   // With one front picked the useful heading is the coverage, not the front
-  // again.
+  // again; the Coach's own fronts have none, so they stay under Mine.
   const groups = (
-    front === "all"
-      ? defensiveFronts.map((key) => ({
+    front === "all" || front === COACH_FRONT
+      ? fronts.map((key) => ({
           key,
-          name: `${key} front`,
+          name: key === COACH_FRONT ? "Mine" : `${key} front`,
           cards: hits.filter((call) => call.front === key),
         }))
       : coverages.map((key) => ({
@@ -1365,6 +1397,7 @@ export function DefenseBrowser({
             tabs={[
               { value: "all", name: "All" },
               { value: "favorites", name: "Favorites" },
+              { value: "custom", name: "Mine" },
             ]}
             value={tab}
           />
@@ -1386,7 +1419,7 @@ export function DefenseBrowser({
                 name: "All",
                 title: `Every front — ${calls.length}`,
               },
-              ...defensiveFronts
+              ...fronts
                 .filter((key) => calls.some((call) => call.front === key))
                 .map((key) => {
                   const total = calls.filter(
@@ -1522,6 +1555,20 @@ export function DefenseBrowser({
                           favorite={starred.has(call.formation.id)}
                           onToggle={() => onToggleFavorite(call.formation.id)}
                         />
+                        {call.front === COACH_FRONT ? (
+                          <button
+                            aria-label={`Remove ${call.formation.name}`}
+                            className="browser-remove"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onRemove(call.formation.id);
+                            }}
+                            title="Remove this defense"
+                            type="button"
+                          >
+                            ×
+                          </button>
+                        ) : null}
                       </div>
                       <span className="browser-chip">
                         {call.formation.slots.length} men ·{" "}
@@ -1538,7 +1585,9 @@ export function DefenseBrowser({
             <p className="browser-empty">
               {tab === "favorites"
                 ? "No favorites yet — star a call to keep it here."
-                : "No defense matches that."}
+                : tab === "custom"
+                  ? "Nothing saved yet. Set a defense on the field and save it below."
+                  : "No defense matches that."}
             </p>
           ) : null}
         </div>
@@ -1558,6 +1607,34 @@ export function DefenseBrowser({
               ? "Brings the call’s dashed zone drops and red blitz paths in with the alignment."
               : "Just the front and secondary — a triangle for each man, so you can draw your own coverage on top."}
           </span>
+        </div>
+        <div className="browser-foot save-foot">
+          <input
+            aria-label="Save the defense on the field as"
+            onChange={(event) => setDraftName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              save();
+            }}
+            placeholder="Save the defense on the field as…"
+            spellCheck={false}
+            value={draftName}
+          />
+          <button
+            className="browser-save"
+            disabled={!canSave}
+            onClick={save}
+            title={
+              defensivePlayerCount > 0
+                ? "Save the defense on the field under Mine"
+                : "Put a defense on the field first"
+            }
+            type="button"
+          >
+            Save
+          </button>
+          <span>{saveHint}</span>
         </div>
       </div>
     </div>

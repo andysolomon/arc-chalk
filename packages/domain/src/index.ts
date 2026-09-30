@@ -30,6 +30,7 @@ export * from "./migrations";
 export * from "./play-classification";
 export * from "./play-propagation";
 export * from "./play-search";
+export * from "./playbook-organize";
 export * from "./product";
 export * from "./route-catalogue";
 export * from "./run-game";
