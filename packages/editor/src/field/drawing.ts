@@ -1,7 +1,12 @@
 import {
   canRunLine,
   DEFAULT_ZONE_COVERAGE_RADII,
+  inTackleBox,
   routeKindStyle,
+  snapSpotOf,
+  tackleBoxOf,
+  type MovementPath,
+  type TackleBox,
   type Coordinate,
   type PathPoint,
   type PathStyle,
@@ -9,7 +14,7 @@ import {
   type Player,
 } from "@chalk/domain";
 
-import { snapRouteEndpoint } from "../smart-snapping";
+import { snapPosition, snapRouteEndpoint } from "../smart-snapping";
 import { fitFreehandStroke, isStraightStroke } from "./freehand";
 import {
   clampToField,
@@ -75,9 +80,56 @@ export function routeDragAim(
   );
 }
 
+/** The lines a run is drawn with: a block, a pull, a back's path, motion. */
+const RUN_LINE_KINDS: ReadonlySet<MovementPath["kind"]> = new Set([
+  "block",
+  "route",
+  "motion",
+]);
+
+/**
+ * The tackle box, when a break on this man's line is landing in it. There
+ * the men stand shoulder to shoulder, so a break is not held to 45° off the
+ * last one — that lays a pull along the line, behind the men on it — and it
+ * finds the gaps rather than the men (issue #164).
+ */
+export function tackleBoxFor(
+  context: FieldInteractionContext,
+  playerId: string,
+  kind: MovementPath["kind"],
+  point: Coordinate,
+): TackleBox | undefined {
+  if (!RUN_LINE_KINDS.has(kind)) return undefined;
+  const player = context.document.players.find(({ id }) => id === playerId);
+  if (!player || player.unit === "defense") return undefined;
+  const box = tackleBoxOf(context.document);
+  return box && inTackleBox(box, point) ? box : undefined;
+}
+
+/**
+ * A break in the box put in the gap it is aimed at, when it is aimed near
+ * one; nothing else there claims it, so it lands where it was put.
+ */
+export function snapIntoGap(
+  box: TackleBox,
+  point: Coordinate,
+  context: FieldInteractionContext,
+): Coordinate {
+  const snapped = snapPosition({
+    point,
+    fieldProfile: context.document.fieldProfile,
+    gaps: box.gaps,
+    screenScale: context.screenScale,
+    settings: context.snap,
+  });
+  const gap = snapped.guides.find(({ source }) => source === "gap");
+  return gap ? coordinate(gap.valueYards, point.depthYards) : point;
+}
+
 export /**
  * Where the next break would land: constrained to grass-true 45° increments
- * from the last one while snap is on (Shift inverts), then clamped, then
+ * from the last one while snap is on (Shift inverts) — or, in the tackle box,
+ * put in the gap it is aimed at instead — then clamped, then
  * overridden in depth by any digits the Coach has typed. A traced line is
  * neither constrained nor given a depth — it goes where the hand goes.
  */
@@ -90,14 +142,22 @@ function drawTarget(
   const last = drawing.points.at(-1)!;
   if (drawing.mode === "free") return holdDrawPoint(drawing, point, context);
   const constrain = context.snap.enabled !== (shiftKey === true);
-  const snapped = constrain
-    ? snapRouteEndpoint({
-        origin: coordinate(last.lateralYards, last.depthYards),
-        point,
-        mode: "constrain",
-        screenScale: context.screenScale,
-      }).point
-    : point;
+  const box = constrain
+    ? tackleBoxFor(context, drawing.playerId, drawing.kind, point)
+    : undefined;
+  const snapped = box
+    ? snapIntoGap(box, point, {
+        ...context,
+        snap: { ...context.snap, enabled: true },
+      })
+    : constrain
+      ? snapRouteEndpoint({
+          origin: coordinate(last.lateralYards, last.depthYards),
+          point,
+          mode: "constrain",
+          screenScale: context.screenScale,
+        }).point
+      : point;
   const clamped = holdDrawPoint(drawing, snapped, context);
   const typedDepth = Number.parseFloat(drawing.depthBuffer);
   if (drawing.depthBuffer !== "" && !Number.isNaN(typedDepth)) {
@@ -132,6 +192,7 @@ export function addDrawPoint(
       cursor: target,
       depthBuffer: "",
       pointerDown: true,
+      pressedAt: input.point,
     },
   };
 }
@@ -395,6 +456,10 @@ export function startDrawing(
 ): FieldInteractionModel | undefined {
   const player = context.document.players.find(({ id }) => id === playerId);
   if (!player || !canDrawFrom(kind, player)) return undefined;
+  // A route is what he runs after the snap, so it sets out from where his
+  // motion leaves him; everything else starts at his stance (issue #164).
+  const from =
+    kind === "route" ? snapSpotOf(context.document, playerId) : player.position;
   return {
     selection: [],
     gesture: { kind: "idle" },
@@ -404,11 +469,11 @@ export function startDrawing(
       mode,
       points: [
         {
-          lateralYards: player.position.lateralYards,
-          depthYards: player.position.depthYards,
+          lateralYards: from.lateralYards,
+          depthYards: from.depthYards,
         },
       ],
-      cursor: player.position,
+      cursor: from,
       depthBuffer: "",
       pointerDown: false,
     },
