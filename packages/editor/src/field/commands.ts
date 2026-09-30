@@ -30,6 +30,7 @@ import {
   settleZoneShell,
   snapSpotOf,
   spotBall,
+  stockConcepts,
   stockFormations,
   tackleBoxOf,
   legacyCanvasToYards,
@@ -1396,9 +1397,70 @@ export function applyRoutePresetCommand(
       };
   if (next.preset === undefined) delete (next as { preset?: string }).preset;
 
-  return canonicalStringify(next) === canonicalStringify(path)
-    ? undefined
-    : { kind: "update-path", path: next };
+  if (canonicalStringify(next) === canonicalStringify(path)) return undefined;
+  const reshape: PrimitivePlayCommand = { kind: "update-path", path: next };
+  const renamed = renameForCall(document, path, next.preset);
+  return renamed
+    ? { kind: "batch", label: "Edit route", commands: [reshape, renamed] }
+    : reshape;
+}
+
+/**
+ * The name a call gave a route: the call off the tree it was drawn as, or
+ * the job a concept put on it. Anything else is the Coach's own wording.
+ */
+function isCallName(path: MovementPath, text: string): boolean {
+  const said = text.trim().toUpperCase();
+  if (said === "") return false;
+  const preset = routePresetNames.find(({ key }) => key === path.preset);
+  if (preset && preset.name.toUpperCase() === said) return true;
+  const concept = stockConcepts.find(({ key }) => key === path.concept);
+  const stance = path.points[0];
+  if (!concept || !stance) return false;
+  return concept.roles.some(
+    (role) =>
+      concept.jobFor(role, stance)?.assignment.trim().toUpperCase() === said,
+  );
+}
+
+/**
+ * The words a quick route leaves standing on a line: the Coach's own, which
+ * a call never overwrites. Nothing when the line has no name or when its
+ * name is only the call it was drawn as.
+ */
+export function keptRouteName(
+  document: PlayDocument,
+  pathId: string,
+): string | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  const text = assignmentForPath(document, pathId)?.text.trim();
+  if (!path || !text || isCallName(path, text)) return undefined;
+  return text;
+}
+
+/**
+ * A route reshaped to a new call is named for it (issue #160): a name the
+ * last call gave it would otherwise say DIG over a curl. A line continued
+ * past its call is no longer any one call, so it loses the name. The
+ * Coach's own words stay whichever it is.
+ */
+function renameForCall(
+  document: PlayDocument,
+  path: MovementPath,
+  presetKey: string | undefined,
+): PrimitivePlayCommand | undefined {
+  const existing = assignmentForPath(document, path.id);
+  if (!existing || !isCallName(path, existing.text)) return undefined;
+  const name = routePresetNames.find(({ key }) => key === presetKey)?.name;
+  if (name !== undefined) {
+    const text = name.toUpperCase();
+    return existing.text === text
+      ? undefined
+      : { kind: "update-assignment", assignment: { ...existing, text } };
+  }
+  return existing.actions.length <= 1
+    ? { kind: "remove-assignments", assignmentIds: [existing.id] }
+    : { kind: "update-assignment", assignment: { ...existing, text: "" } };
 }
 
 /**
@@ -1554,11 +1616,11 @@ export function applyConceptCommand(
           ),
         )
       : document;
-  // Deleting a line a Coach drew leaves his wording for that man standing,
-  // because the words are his and the line was only what they were about
-  // (ADR 0011). A concept is not that: it says what each of these men does,
-  // so the words it is replacing go with the line they described — which is
-  // what the original did by keeping them on the line in the first place.
+  // Deleting a line takes the words that named it (issue #160), but a Coach
+  // can also have written words for the man himself, about no line at all
+  // (ADR 0011). A concept says what each of these men does, so those words
+  // go too — which is what the original did by keeping them on the line in
+  // the first place.
   const cleared: PlayDocument = {
     ...deleted,
     assignments: deleted.assignments.filter(
