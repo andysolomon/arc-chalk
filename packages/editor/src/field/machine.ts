@@ -260,8 +260,11 @@ function pointerMove(
       drawing.mode === "breaks" &&
       drawing.pointerDown &&
       drawing.points.length > 1 &&
-      screenDistancePx(last, input.point, context.screenScale) >
-        DRAW_CURVE_THRESHOLD_PX
+      screenDistancePx(
+        drawing.pressedAt ?? last,
+        input.point,
+        context.screenScale,
+      ) > DRAW_CURVE_THRESHOLD_PX
     ) {
       return {
         model: {
