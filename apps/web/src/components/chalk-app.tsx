@@ -289,7 +289,7 @@ import {
   PresetPicker,
 } from "./inspector-sections";
 import type { PresetChoice } from "./preset-choices";
-import { editorStatusHint } from "./editor-status-hint";
+import { editorStatusHint, SMALL_LABEL_PX } from "./editor-status-hint";
 import {
   drawChoicesFor,
   drawKindForKey,
@@ -5932,6 +5932,10 @@ export function ChalkApp({
     }
     rememberChrome({ inspectorOpen, railOpen, sidebarOpen });
   }, [inspectorOpen, railOpen, sidebarOpen, rememberChrome]);
+  // Read again whenever the count could have moved: the overlay closing, a
+  // plan made or prepared on the Playbooks page, another book opened. Only
+  // re-reading on the overlay left a book with a plan reading 0 (issue #167).
+  const openBookId = playbook.snapshot.playbook.id;
   useEffect(() => {
     let cancelled = false;
     if (overlay === "game-plans") return;
@@ -5944,7 +5948,7 @@ export function ChalkApp({
     return () => {
       cancelled = true;
     };
-  }, [overlay, runtime.library]);
+  }, [activeView, openBookId, overlay, runtime.library]);
   const toggleDisclosure = (id: string) =>
     rememberChrome({
       open: { ...chromeRef.current.open, [id]: !chromeRef.current.open[id] },
@@ -6800,7 +6804,8 @@ export function ChalkApp({
               mode: interaction.drawing.mode,
             }
           : undefined,
-        labelsTooSmall: labelDensity * (fieldWidthPx / camera.width) < 11,
+        labelsTooSmall:
+          labelDensity * (fieldWidthPx / camera.width) < SMALL_LABEL_PX,
         animating: showAnimation,
         firstUse:
           playbook.snapshot.members.length === 0 &&

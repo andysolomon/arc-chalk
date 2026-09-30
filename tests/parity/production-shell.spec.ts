@@ -72,7 +72,11 @@ const parityGap: Readonly<Record<string, number>> = {
   // Raised 317 px with the field-aspect slice: more of the Play shows around
   // the panel. Card name-row and thumbnail-dot arithmetic now match the
   // original; any remaining gap is the Play behind the panel.
-  formations: 0.0231, // 2.3043% (31,854 px), from 2.0059% (27,730 px)
+  // Raised 0.0231 → 0.0247 under issue #167 (product decision: the set sits
+  // in the middle of a card cut to its shape, where the original pinned it
+  // to the top of a card two-thirds empty). Measured on the same Linux
+  // machine, branch against main: 34,548 → 36,770 px (+2,222).
+  formations: 0.0247, // 2.3043% (31,854 px) + 2,222 px, from 2.0059% (27,730 px)
   defenses: 0.019, // 1.8893% (26,118 px), from 1.5938% (22,033 px)
 };
 

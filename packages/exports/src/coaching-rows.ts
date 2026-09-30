@@ -188,7 +188,13 @@ export function playMeta(
       : { personnelLabel: "—", strength: "—" };
   const formation = currentFormation(play, formations);
   return {
-    personnel: `${meta.personnelLabel}P`,
+    // Personnel is the offense's count of backs and ends. A defensive call
+    // has none of its own — its shadow offense is the opponent's — so it
+    // says nothing rather than "—P" or the scout team's count (issue #167).
+    personnel:
+      play.unit === "offense" && offense.length > 0
+        ? `${meta.personnelLabel}P`
+        : "",
     formation: formation?.name ?? "Custom alignment",
     strength: meta.strength,
     hash: currentBallSpot(play) ?? "middle",

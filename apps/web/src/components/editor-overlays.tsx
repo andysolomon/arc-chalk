@@ -22,7 +22,7 @@ import {
   type MenuEntry,
 } from "./editor-command-surface";
 import { defenseThumbnail } from "./defense-thumbnail";
-import { formationThumbnail } from "./formation-thumbnail";
+import { FORMATION_THUMBNAIL, formationThumbnail } from "./formation-thumbnail";
 
 function MenuItem({
   actions,
@@ -1168,7 +1168,10 @@ export function FormationBrowser({
                       onPointerLeave={() => onPreview(undefined)}
                     >
                       <div className="browser-shape">
-                        <svg role="presentation" viewBox="0 0 140 74">
+                        <svg
+                          role="presentation"
+                          viewBox={`0 0 ${FORMATION_THUMBNAIL.width} ${FORMATION_THUMBNAIL.height}`}
+                        >
                           <line
                             className="shape-scrimmage"
                             strokeWidth={1}

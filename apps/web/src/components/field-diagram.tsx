@@ -183,6 +183,9 @@ export function FieldDiagram({
   const selected = (kind: "player" | "path" | "label", id: string): boolean =>
     selection?.has(selectionKey(kind, id)) === true;
   const routeDot = routeDotGeometry(routeDotZoom, routeDotPrecise);
+  // A line drawn heavier than the editor's 2.5 — a wristband's — keeps its
+  // arrowheads and endings in proportion instead of lost in the stroke.
+  const endScale = Math.max(1, (scene.lineWeight ?? 2.5) / 2.5);
   const viewBox = camera
     ? `${camera.x} ${camera.y} ${camera.width} ${camera.height}`
     : `0 0 ${scene.viewport.width} ${scene.viewport.height}`;
@@ -217,9 +220,9 @@ export function FieldDiagram({
           <g key={token}>
             <marker
               id={`chalk-arrow-${token}`}
-              markerHeight="13"
+              markerHeight={13 * endScale}
               markerUnits="userSpaceOnUse"
-              markerWidth="13"
+              markerWidth={13 * endScale}
               orient="auto-start-reverse"
               refX="8.5"
               refY="5"
@@ -229,9 +232,9 @@ export function FieldDiagram({
             </marker>
             <marker
               id={`chalk-dot-${token}`}
-              markerHeight="10"
+              markerHeight={10 * endScale}
               markerUnits="userSpaceOnUse"
-              markerWidth="10"
+              markerWidth={10 * endScale}
               orient="auto"
               refX="5"
               refY="5"
@@ -241,9 +244,9 @@ export function FieldDiagram({
             </marker>
             <marker
               id={`chalk-bar-${token}`}
-              markerHeight="14"
+              markerHeight={14 * endScale}
               markerUnits="userSpaceOnUse"
-              markerWidth="14"
+              markerWidth={14 * endScale}
               orient="auto"
               refX="5"
               refY="5"
@@ -253,9 +256,9 @@ export function FieldDiagram({
             </marker>
             <marker
               id={`chalk-bubble-${token}`}
-              markerHeight="20"
+              markerHeight={20 * endScale}
               markerUnits="userSpaceOnUse"
-              markerWidth="20"
+              markerWidth={20 * endScale}
               orient="auto"
               refX="10"
               refY="10"
@@ -272,9 +275,9 @@ export function FieldDiagram({
             </marker>
             <marker
               id={`chalk-hook-${token}`}
-              markerHeight="15"
+              markerHeight={15 * endScale}
               markerUnits="userSpaceOnUse"
-              markerWidth="15"
+              markerWidth={15 * endScale}
               orient="auto"
               refX="2"
               refY="6"
@@ -289,9 +292,9 @@ export function FieldDiagram({
             </marker>
             <marker
               id={`chalk-chevron-${token}`}
-              markerHeight="15"
+              markerHeight={15 * endScale}
               markerUnits="userSpaceOnUse"
-              markerWidth="15"
+              markerWidth={15 * endScale}
               orient="auto"
               refX="10"
               refY="6"
@@ -308,9 +311,9 @@ export function FieldDiagram({
             </marker>
             <marker
               id={`chalk-diamond-${token}`}
-              markerHeight="14"
+              markerHeight={14 * endScale}
               markerUnits="userSpaceOnUse"
-              markerWidth="14"
+              markerWidth={14 * endScale}
               orient="auto"
               refX="6"
               refY="6"
@@ -326,9 +329,9 @@ export function FieldDiagram({
             </marker>
             <marker
               id={`chalk-square-${token}`}
-              markerHeight="12"
+              markerHeight={12 * endScale}
               markerUnits="userSpaceOnUse"
-              markerWidth="12"
+              markerWidth={12 * endScale}
               orient="auto"
               refX="6"
               refY="6"
@@ -466,7 +469,7 @@ export function FieldDiagram({
                       opacity={tickOpacity}
                       stroke={sceneColors[color]}
                       strokeLinecap="round"
-                      strokeWidth="2.5"
+                      strokeWidth={2.5 * endScale}
                       {...tick}
                     />
                   ))
@@ -530,7 +533,7 @@ export function FieldDiagram({
                           opacity={branchTick}
                           stroke={sceneColors[color]}
                           strokeLinecap="round"
-                          strokeWidth="2.5"
+                          strokeWidth={2.5 * endScale}
                           {...tick}
                         />
                       ))

@@ -291,39 +291,38 @@ function ShareLinkForm({ runtime }: { runtime: ChalkRuntime }) {
   };
 
   const publish = () => {
-    if (!runtime.shareCloud) {
-      setState({
-        phase: "error",
-        message:
-          "Sharing needs an account. Images and Film References still stay on this device.",
-      });
-      return;
-    }
+    if (!runtime.shareCloud) return;
     setState({ phase: "working" });
     const secret = generateShareSecret();
     void runtime.shareCloud
       .createShare({ publicationJson: publicationJson(), secret })
-      .then(async (created) => {
-        const url = shareLinkUrl(
-          window.location.origin,
-          created.publicId,
-          secret,
-        );
-        setPublicId(created.publicId);
-        setCopiedUrl(url);
-        await navigator.clipboard.writeText(url);
-        setState({
-          phase: "done",
-          message:
-            "Share Link copied. Anyone with the complete address can view this publication.",
-        });
-      })
-      .catch(() =>
-        setState({
-          phase: "error",
-          message:
-            "Sharing needs an account. Images and Film References still stay on this device.",
-        }),
+      .then(
+        async (created) => {
+          const url = shareLinkUrl(
+            window.location.origin,
+            created.publicId,
+            secret,
+          );
+          setPublicId(created.publicId);
+          setCopiedUrl(url);
+          // The link exists whether or not the clipboard takes it; a refused
+          // copy is not a refused share (issue #167).
+          const copied = await navigator.clipboard.writeText(url).then(
+            () => true,
+            () => false,
+          );
+          setState({
+            phase: "done",
+            message: copied
+              ? "Share Link copied. Anyone with the complete address can view this publication."
+              : "Share Link made. Copy the address below; anyone with all of it can view this publication.",
+          });
+        },
+        () =>
+          setState({
+            phase: "error",
+            message: "Chalk could not create the Share Link. Try again.",
+          }),
       );
   };
 
@@ -378,12 +377,23 @@ function ShareLinkForm({ runtime }: { runtime: ChalkRuntime }) {
         except to Convex over TLS.
       </p>
       <button
-        disabled={state.phase === "working"}
+        aria-describedby={
+          runtime.shareCloud ? undefined : "share-link-needs-account"
+        }
+        disabled={!runtime.shareCloud || state.phase === "working"}
         onClick={publish}
         type="button"
       >
         Create Share Link
       </button>
+      {runtime.shareCloud ? null : (
+        // Said before the click, not after it: without an account there is
+        // nothing to publish to (issue #167).
+        <p className="version-empty" id="share-link-needs-account">
+          Sharing needs an account. Images and Film References still stay on
+          this device.
+        </p>
+      )}
       {copiedUrl ? (
         <label className="backup-field">
           <span>Address</span>
