@@ -902,7 +902,8 @@ export function assignmentForPath(
 /**
  * Removing Players or routes leaves other Assignments pointing at them. Those
  * Assignments lose only the actions that dangle, and disappear entirely when
- * nothing the Coach wrote is left.
+ * nothing the Coach wrote is left, or when what he wrote named lines that
+ * are all gone.
  */
 function dependentCleanup(
   play: PlayDocument,
@@ -934,7 +935,17 @@ function dependentCleanup(
       );
     });
     if (actions.length === assignment.actions.length) continue;
-    if (actions.length === 0 && assignment.text.trim().length === 0) {
+    // Words that named a line are that line's name (issue #160): when every
+    // line they were about goes, they go too, or the man keeps a route name
+    // for a route he no longer runs.
+    const namedRemovedLine = assignment.actions.some(
+      (action) =>
+        action.kind === "movement" && removedPathIds.has(action.pathId),
+    );
+    if (
+      actions.length === 0 &&
+      (namedRemovedLine || assignment.text.trim().length === 0)
+    ) {
       assignmentIds.push(assignment.id);
     } else {
       updates.push({ ...assignment, actions });
