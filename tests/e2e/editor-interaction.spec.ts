@@ -1530,7 +1530,7 @@ test("swaps one call for another without leaving the last one underneath", async
     await page.keyboard.press("Control+Shift+d");
     const browser = page.getByRole("dialog", { name: "Defenses" });
     await expect(browser).toBeVisible();
-    await browser.getByRole("textbox").fill(name);
+    await browser.getByRole("textbox", { name: "Search defenses" }).fill(name);
     await browser.getByText(name, { exact: true }).click();
     await expect(browser).toBeHidden();
   };

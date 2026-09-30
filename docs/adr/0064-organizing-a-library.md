@@ -99,8 +99,11 @@ are queued for sync the way a Play the Coach draws is.
 ## Parity
 
 The Defenses dialog now has a tab and a footer row that the original's does
-not. The parity ratchet for Defenses is re-measured below under this product
-request, the way ADR 0058's sidebar was.
+not. The Defenses ratchet is raised under this product request, the way ADR
+0058's sidebar raised it. On one Linux machine, measuring this branch
+against main, Defenses went from 28,542 to 29,609 px (+1,067) and
+Formations did not move (34,547 to 34,548). The ratchet moves from 0.019
+(26,118 px) to 0.0197 (27,185 px, 1.9665%).
 
 ## Evidence
 
