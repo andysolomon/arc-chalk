@@ -18,6 +18,8 @@ import {
   handednessOf,
   isLineman,
   linePresetByKey,
+  defensiveFieldOf,
+  twistPartnerOf,
   mirrorPlayGeometry,
   playSideOf,
   recognizeFormation,
@@ -1705,9 +1707,11 @@ function presetShape(
   player: Player,
   preset: LinePreset,
 ): readonly PathPoint[] {
-  if (!preset.pull) return preset.pointsFrom(player.position);
+  // A call aimed at the field reads the gaps and the quarterback off it.
+  const field = defensiveFieldOf(document);
+  if (!preset.pull) return preset.pointsFrom(player.position, field);
   const side = playSideOf(document, player.id);
-  if (side === undefined) return preset.pointsFrom(player.position);
+  if (side === undefined) return preset.pointsFrom(player.position, field);
   const box = tackleBoxOf(document);
   const fromBackfield =
     box !== undefined &&
@@ -1716,7 +1720,7 @@ function presetShape(
   return (
     (fromBackfield
       ? backfieldBlockPoints(preset.key, player.position, side, box)
-      : undefined) ?? preset.pointsFrom(player.position, side)
+      : undefined) ?? preset.pointsFrom(player.position, field, side)
   );
 }
 
@@ -1777,9 +1781,17 @@ export function applyLinePresetCommand(
 ): PlayCommand | undefined {
   const preset = linePresetByKey(presetKey);
   if (!preset) return undefined;
+  // A game is played by two: his partner on the front is given it with him.
+  const partners = preset.pair
+    ? playerIds.flatMap((id) => {
+        const partner = twistPartnerOf(document, id);
+        return partner ? [partner.id] : [];
+      })
+    : [];
   const players = document.players.filter(
     (player) =>
-      playerIds.includes(player.id) && canRunLine(player, preset.kind),
+      (playerIds.includes(player.id) || partners.includes(player.id)) &&
+      canRunLine(player, preset.kind),
   );
   if (players.length === 0) return undefined;
 

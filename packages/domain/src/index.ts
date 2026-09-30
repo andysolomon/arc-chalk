@@ -9,6 +9,7 @@ export * from "./commands";
 export * from "./coverage-depths";
 export * from "./defense-catalogue";
 export * from "./defenses";
+export * from "./defensive-field";
 export * from "./demo";
 export * from "./demo-catalogue";
 export * from "./default-playbook";
