@@ -8772,9 +8772,10 @@ function Header({
           <span className="demo-title">{DEMO_HEADER_TITLE}</span>
           <span className="demo-play-name">{demoPlayName}</span>
         </>
-      ) : activeView === "Playbooks" ? (
-        // The Playbook is managed here, not the open Play: its name, type,
-        // undo and save belong to the editor and wait there.
+      ) : activeView === "Playbooks" || activeView === "GameDay" ? (
+        // The Playbook is managed here, and a prepared plan is read here
+        // (issue #163) — not the open Play: its name, type, undo and save
+        // belong to the editor and wait there.
         <>
           <span className="topbar-fill" />
           <HelpMenu
