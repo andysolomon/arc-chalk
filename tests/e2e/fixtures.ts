@@ -22,6 +22,11 @@ export { expect };
 /** Opens the editor with the Stick starter Playbook on a clean device. */
 export async function openSeededEditor(page: Page): Promise<void> {
   await page.addInitScript(() => {
+    // A clean device is cleared once, by the page itself: the script runs
+    // again in every frame the page opens, and the Print preview is one,
+    // so without the guard opening a preview would delete the library
+    // under the app (issue #156).
+    if (window !== window.top) return;
     window.localStorage.clear();
     indexedDB.deleteDatabase("chalk-production-beta");
     try {
@@ -39,6 +44,8 @@ export async function openSeededEditor(page: Page): Promise<void> {
 /** Opens the editor with a blank canvas and an empty library. */
 export async function openBlankEditor(page: Page): Promise<void> {
   await page.addInitScript(() => {
+    // Top frame only, for the reason openSeededEditor gives.
+    if (window !== window.top) return;
     window.localStorage.clear();
     indexedDB.deleteDatabase("chalk-production-beta");
     try {

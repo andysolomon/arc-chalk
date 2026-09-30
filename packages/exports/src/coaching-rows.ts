@@ -343,6 +343,30 @@ export function libraryOrder(
   return out;
 }
 
+/**
+ * The Plays in the order given, each with its Concept beside it and none
+ * leading a group: a book read in the Coach's own sort (issue #156), where a
+ * Concept's Plays may be pages apart and the contents names the Concept on
+ * each row instead of heading them.
+ */
+export function conceptEntries(
+  plays: readonly PlayDocument[],
+  concepts: readonly Concept[] = [],
+): readonly LibraryEntry[] {
+  const conceptById = new Map(concepts.map((concept) => [concept.id, concept]));
+  return plays.map((play) => {
+    const concept =
+      play.conceptSource === undefined
+        ? undefined
+        : conceptById.get(play.conceptSource.conceptId);
+    return {
+      play,
+      ...(concept === undefined ? {} : { concept }),
+      leadsConcept: false,
+    };
+  });
+}
+
 /** The note at the top of an install page: the Concept's, else the Play's. */
 export function conceptNote(entry: LibraryEntry): string {
   return (entry.concept?.notes ?? "").trim() || entry.play.notes.trim();

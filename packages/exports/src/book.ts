@@ -1,5 +1,6 @@
 import {
   revisionRows,
+  type Concept,
   type Formation,
   type GamePlanRevision,
   type PlayDocument,
@@ -81,13 +82,23 @@ export interface BookEntry {
   readonly name: string;
   readonly code?: string;
   readonly section?: string;
+  /** The Concept the Play belongs to, named beside it in the contents. */
+  readonly concept?: string;
   readonly missing: boolean;
 }
 
-export function bookEntriesOf(source: {
-  readonly revision?: GamePlanRevision;
-  readonly plays: readonly PlayDocument[];
-}): readonly BookEntry[] {
+/**
+ * The book's entries in the order the source gives them. A library's Plays
+ * carry their Concept's name so the contents can say it (issue #156); a
+ * plan's carry their code and section instead.
+ */
+export function bookEntriesOf(
+  source: {
+    readonly revision?: GamePlanRevision;
+    readonly plays: readonly PlayDocument[];
+  },
+  concepts: readonly Concept[] = [],
+): readonly BookEntry[] {
   if (source.revision) {
     const seen = new Set<string>();
     const out: BookEntry[] = [];
@@ -107,12 +118,20 @@ export function bookEntriesOf(source: {
     }
     return out;
   }
-  return source.plays.map((play) => ({
-    id: play.id,
-    play,
-    name: play.name,
-    missing: false,
-  }));
+  const conceptById = new Map(concepts.map((concept) => [concept.id, concept]));
+  return source.plays.map((play) => {
+    const concept =
+      play.conceptSource === undefined
+        ? undefined
+        : conceptById.get(play.conceptSource.conceptId);
+    return {
+      id: play.id,
+      play,
+      name: play.name,
+      ...(concept === undefined ? {} : { concept: concept.name }),
+      missing: false,
+    };
+  });
 }
 
 /** Page numbers as measured: where each page element starts and how many sheets it takes. */
@@ -131,6 +150,11 @@ export interface BookOptions {
   /** The plan's Unit, as a badge on the cover beside the subtitle. */
   readonly unit?: PlayUnit;
   readonly revisionLine?: string;
+  /**
+   * The words for the order the pages turn in — "in name order" — on the
+   * contents page, so a reader knows why the list runs as it does.
+   */
+  readonly order?: string;
 }
 
 const pageSize = (paper: BookPaper, orientation: BookOrientation) =>
@@ -198,7 +222,9 @@ export function binderHtml(
     }</div></div>`;
   pages.push(cover);
   if (config.contents) {
-    let contents = `<div class="pg" data-book-page="contents"><div class="hd"><h1>Contents</h1><span>${entries.length} ${entries.length === 1 ? "play" : "plays"}</span></div>`;
+    let contents = `<div class="pg" data-book-page="contents"><div class="hd"><h1>Contents</h1><span>${entries.length} ${entries.length === 1 ? "play" : "plays"}${
+      options.order ? ` · ${escapeHtml(options.order)}` : ""
+    }</span></div>`;
     let section: string | undefined;
     for (const entry of entries) {
       if (entry.section !== section) {
@@ -210,7 +236,11 @@ export function binderHtml(
         (entry.code
           ? `<span class="cc">${escapeHtml(entry.code)}</span> · `
           : "") +
-        `${escapeHtml(entry.name)}${entry.missing ? ' <em class="mp">missing</em>' : ""}</span><i></i>` +
+        `${escapeHtml(entry.name)}${entry.missing ? ' <em class="mp">missing</em>' : ""}${
+          entry.concept
+            ? ` <span class="tcn">${escapeHtml(entry.concept)}</span>`
+            : ""
+        }</span><i></i>` +
         `<span class="tp">${entry.missing ? "—" : number(entry.id)}</span></div>`;
     }
     contents += "</div>";

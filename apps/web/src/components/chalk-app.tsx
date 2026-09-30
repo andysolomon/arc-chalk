@@ -50,6 +50,7 @@ import {
   defensivePresetsFor,
   lineCallKeys,
   linePresetByKey,
+  quickCallName,
   routePresetNames,
   stockConcepts,
   formationFromOffense,
@@ -245,6 +246,7 @@ import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
 import { GamePlansWorkspace } from "../library/game-plans-workspace";
 import { GameDayView } from "../library/game-day-view";
 import { defaultOutputSpec, type OutputSpec } from "../output/output-spec";
+import { bookDefaultOrder, bookPlaysInOrder } from "../output/book-order";
 import { OutputWorkspace } from "../output/output-workspace";
 import { usePlaybookLibrary } from "../library/use-playbook-library";
 import { AccountPanel } from "./account-panel";
@@ -1356,7 +1358,11 @@ function lineName(
   if (defensiveLineKinds.has(path.kind)) {
     return `${assignment?.trim() || path.kind} · ${path.style.line}`;
   }
-  if (path.kind === "block") return `Block · ${path.style.line}`;
+  // A block drawn as a call is listed as that call (issue #156), so a
+  // lineman's Drive and his neighbour's Reach are told apart in the list.
+  if (path.kind === "block") {
+    return `${quickCallName(path) ?? "Block"} · ${path.style.line}`;
+  }
   if (path.kind === "motion") return `Motion · ${path.style.line}`;
   const stem = index === 0 ? "Base stem" : `Alternate ${index}`;
   const choices =
@@ -5327,11 +5333,29 @@ export function ChalkApp({
       );
     },
     printPlaybook: () => {
+      // The book prints under its own name, in its install order once the
+      // Coach sets one (issue #166) and until then in the order its page
+      // reads (issue #156).
+      const order = bookDefaultOrder(
+        playbook.browserState,
+        playbook.snapshot.playbook,
+      );
       printOrSay(
-        playbookHtml(libraryPlays, {
-          ...libraryOptions,
-          year: new Date().getFullYear(),
-        }),
+        playbookHtml(
+          bookPlaysInOrder(
+            libraryPlays,
+            order,
+            playbook.snapshot.members,
+            libraryConcepts,
+            playbook.snapshot.playbook.playOrder,
+          ),
+          {
+            ...libraryOptions,
+            year: new Date().getFullYear(),
+            title: playbook.snapshot.playbook.name,
+            order,
+          },
+        ),
         "The library is empty",
         "— save a play first",
       );
