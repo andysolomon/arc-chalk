@@ -47,7 +47,7 @@ import {
   legacyCanvasToYards,
   PRODUCT_NAME,
   blockPresets,
-  defensivePresets,
+  defensivePresetsFor,
   lineCallKeys,
   linePresetByKey,
   routePresetNames,
@@ -1361,10 +1361,16 @@ const quickBlockCalls: readonly {
   readonly key: string;
   readonly name: string;
 }[] = blockPresets.map(({ key, name }) => ({ key, name }));
-const quickAssignmentCalls: readonly {
-  readonly key: string;
-  readonly name: string;
-}[] = defensivePresets.map(({ key, name }) => ({ key, name }));
+/**
+ * What a defender can be given, in the order he is offered it: the front's
+ * own calls first for a man on the line, then the gaps, then the drops
+ * (issue #165). It depends on where he stands, so it is asked of the Play.
+ */
+const assignmentCallsFor = (
+  play: PlayDocument,
+  player: Player,
+): readonly { readonly key: string; readonly name: string }[] =>
+  defensivePresetsFor(play, player).map(({ key, name }) => ({ key, name }));
 
 /**
  * A catalogue as a grid of buttons, which is how the original offers one: the
@@ -1560,6 +1566,7 @@ function CoverRow({
  */
 function PlayerInspector({
   activePresets,
+  assignmentCalls,
   bare = false,
   coverage,
   freeDraw,
@@ -1589,6 +1596,8 @@ function PlayerInspector({
 }: {
   /** Every call he is already running, so a button can say so. */
   activePresets: ReadonlySet<string>;
+  /** What a defender can be given, in the order he is offered it. */
+  assignmentCalls: readonly { readonly key: string; readonly name: string }[];
   /** Without its own heading — the phone sheet's head names him instead. */
   bare?: boolean;
   /** Whom his man call follows, while he is in man (ADR 0060). */
@@ -1834,7 +1843,7 @@ function PlayerInspector({
       )}
       {defense && (
         <QuickCallGrid
-          calls={quickAssignmentCalls}
+          calls={assignmentCalls}
           heading="Quick assignments"
           hint="Coverage drops draw dashed to a zone bubble, man dotted, blitz solid red, stunt orange. Each one replaces what he was doing and names it under the line."
           kind="line"
@@ -3423,7 +3432,7 @@ export function ChalkApp({
             : path.kind === "block"
               ? blockPresets.map(({ key, name }) => ({ key, name }))
               : defensiveLineKinds.has(path.kind)
-                ? defensivePresets.map(({ key, name }) => ({ key, name }))
+                ? assignmentCallsFor(editor.document, player)
                 : [],
         ...(path.preset === undefined ? {} : { preset: path.preset }),
       }));
@@ -6296,18 +6305,18 @@ export function ChalkApp({
   const quickTray = (() => {
     if (!phoneWorkspace || interaction.drawing) return null;
     if (selectedPath) {
+      const who = editor.document.players.find(
+        ({ id }) => id === selectedPath.playerId,
+      );
       const calls =
         selectedPath.kind === "route"
           ? routePresetNames
           : selectedPath.kind === "block"
             ? quickBlockCalls
-            : defensiveLineKinds.has(selectedPath.kind)
-              ? quickAssignmentCalls
+            : defensiveLineKinds.has(selectedPath.kind) && who
+              ? assignmentCallsFor(editor.document, who)
               : [];
       if (calls.length === 0) return null;
-      const who = editor.document.players.find(
-        ({ id }) => id === selectedPath.playerId,
-      );
       return (
         <QuickTray
           calls={calls}
@@ -6333,7 +6342,7 @@ export function ChalkApp({
         <QuickTray
           calls={
             defense
-              ? quickAssignmentCalls
+              ? assignmentCallsFor(editor.document, selectedPlayer)
               : lineman
                 ? quickBlockCalls
                 : routePresetNames
@@ -7691,6 +7700,10 @@ export function ChalkApp({
                   onToggle={toggleDisclosure}
                   open={chrome.open}
                   activePresets={playerPresets(selectedPlayer)}
+                  assignmentCalls={assignmentCallsFor(
+                    editor.document,
+                    selectedPlayer,
+                  )}
                   scopeBadge={playbook.scopeBadge}
                   lines={playerLines(selectedPlayer)}
                   onApplyPreset={runLinePreset}
