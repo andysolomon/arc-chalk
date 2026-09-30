@@ -37,9 +37,21 @@ export const gamePlanSectionSchema = z.object({
 });
 
 /**
+ * Where a plan's picker looks for Plays: the plan's own Playbook, or every
+ * Playbook the Coach keeps on the device. A plan lives in one book — it is
+ * listed, printed and prepared from there — but a Call may name a Play from
+ * any of his books, so a coordinator who keeps base, trips, personnel and
+ * red-zone material apart can still call one week's plan from all of them.
+ */
+export const playPickScopeSchema = z.enum(["book", "all"]);
+
+/**
  * How the plan was gathered. A fixed selection is what the Coach picked and
  * nothing more; a saved filter remembers the search that found the Plays so
- * he can expand it later on purpose, never automatically.
+ * he can expand it later on purpose, never automatically. It remembers where
+ * it looked, too: a search saved across every book finds the same Plays when
+ * it is expanded, not only the home book's. Unset reads as the home book,
+ * which is all a plan saved before that choice existed could search.
  */
 export const gamePlanFilterSchema = z.object({
   text: z.string(),
@@ -47,6 +59,7 @@ export const gamePlanFilterSchema = z.object({
   playTypeId: z.optional(entityIdSchema),
   conceptId: z.optional(entityIdSchema),
   tags: z.optional(z.array(z.string())),
+  scope: z.optional(playPickScopeSchema),
 });
 
 const gamePlanStructureSchema = z.object({
@@ -189,6 +202,7 @@ export const gamePlanRevisionSchema = gamePlanRevisionStructureSchema.check(
   }),
 );
 
+export type PlayPickScope = z.infer<typeof playPickScopeSchema>;
 export type GamePlanCall = z.infer<typeof gamePlanCallSchema>;
 export type GamePlanSection = z.infer<typeof gamePlanSectionSchema>;
 export type GamePlanFilter = z.infer<typeof gamePlanFilterSchema>;

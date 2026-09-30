@@ -7717,6 +7717,25 @@ button.shell-quiet:hover {
   height: 22px;
   padding: 0 8px;
 }
+/* Where Add plays looks: this book, or every book on the shelf (ADR 0067). */
+.game-plan-scope {
+  flex: none;
+}
+/* The book a pick is from, when it is not the plan's own. */
+.game-plan-pick-book {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--wash);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 14px;
+}
 .game-plan-pick-tools {
   display: flex;
   align-items: center;
@@ -7894,6 +7913,7 @@ button.shell-quiet:hover {
   }
   .game-plan-outputs button,
   .game-plan-inline button,
+  .game-plan-scope button,
   .game-plan-pick-tools button,
   .game-plan-saved button,
   .game-plan-row-actions button:not(.library-remove),

@@ -3,6 +3,7 @@ import {
   prepareGamePlan,
   type GamePlan,
   type GamePlanRevision,
+  type PlayPickScope,
   type PlaySource,
 } from "@chalk/domain";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -44,6 +45,12 @@ export function useGamePlans(library: ChalkLibrary) {
   const [revision, setRevision] = useState<GamePlanRevision>();
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<string>();
+  /**
+   * Where Add plays looks — this book or every book on the shelf. Read once
+   * with the plans and written as the Coach changes it, so the choice is
+   * already in place by the time a plan is open (ADR 0067).
+   */
+  const [pickScope, setPickScope] = useState<PlayPickScope>("book");
   const openRef = useRef(openId);
   useEffect(() => {
     openRef.current = openId;
@@ -94,10 +101,21 @@ export function useGamePlans(library: ChalkLibrary) {
     void library.listGamePlans().then((next) => {
       if (!cancelled && versionRef.current === version) publish(next);
     });
+    void library.loadPlanPickScope().then((scope) => {
+      if (!cancelled) setPickScope(scope);
+    });
     return () => {
       cancelled = true;
     };
   }, [library, publish]);
+
+  const choosePickScope = useCallback(
+    (scope: PlayPickScope) => {
+      setPickScope(scope);
+      void library.savePlanPickScope(scope).catch(() => undefined);
+    },
+    [library],
+  );
 
   /** Writes a plan; if the write does not land, shows what the library holds. */
   const write = useCallback(
@@ -149,9 +167,12 @@ export function useGamePlans(library: ChalkLibrary) {
 
   /**
    * Prepare for game: the plan is read as it stands once every pending save
-   * ahead of it has settled, every referenced Play is read as it stands now,
-   * the revision is written first so a plan never points at a revision that
-   * is not there, then the plan follows.
+   * ahead of it has settled, every referenced Play is read as it stands now
+   * from whichever book holds it, the revision is written first so a plan
+   * never points at a revision that is not there, then the plan follows. A
+   * Play in the Trash is no source: it is carried from the last packet, or
+   * listed missing, the way ADR 0042 says a deleted Play is — the same word
+   * the plan's status line already uses for it.
    */
   const prepare = useCallback(
     (plan: GamePlan, nowMs: number, label?: string): Promise<PrepareReport> => {
@@ -168,7 +189,7 @@ export function useGamePlans(library: ChalkLibrary) {
             const stored = await library.getPlay(playId);
             sources.set(
               playId,
-              stored
+              stored && stored.deletedAtMs === undefined
                 ? {
                     document: stored.document,
                     documentHash: stored.documentHash,
@@ -211,6 +232,8 @@ export function useGamePlans(library: ChalkLibrary) {
     busy,
     report,
     setReport,
+    pickScope,
+    choosePickScope,
     refresh,
     apply,
     open,
