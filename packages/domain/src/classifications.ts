@@ -1,7 +1,12 @@
-import { LEGACY_FIELD_GEOMETRY, legacyCanvasToYards } from "./geometry";
+import {
+  LEGACY_FIELD_GEOMETRY,
+  legacyCanvasToYards,
+  legacyDepthSpanToYards,
+} from "./geometry";
 import {
   playTypeDefinitionSchema,
   type Color,
+  type Coordinate,
   type LabelBox,
   type LabelRole,
   type LegacyPlayType,
@@ -173,6 +178,26 @@ export function isLineman(
     letter === "" &&
     Math.abs(player.position.depthYards - LINEMAN_DEPTH_YARDS) <
       LINEMAN_DEPTH_TOLERANCE_YARDS
+  );
+}
+
+/**
+ * Who is on the defensive front: a man within the roster's 50 canvas pixels
+ * of the line, and inside the width a front can be of the ball. A corner
+ * pressed at the line is on the numbers, not on the front. The ball has to
+ * be given, since the front is the men gathered on it.
+ */
+const FRONT_DEPTH_YARDS = legacyDepthSpanToYards(50);
+const FRONT_REACH_YARDS = 10;
+
+export function isOnDefensiveFrontAt(
+  position: Coordinate,
+  ballLateralYards: number,
+): boolean {
+  return (
+    position.depthYards >= 0 &&
+    position.depthYards <= FRONT_DEPTH_YARDS &&
+    Math.abs(position.lateralYards - ballLateralYards) <= FRONT_REACH_YARDS
   );
 }
 

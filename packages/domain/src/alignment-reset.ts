@@ -4,7 +4,6 @@ import { stockFormations } from "./formation-catalogue";
 import {
   applyFormation,
   moveMenWithTheirLines,
-  offensivePlayers,
   planRealignment,
   playersOnSideOfBall,
   type PlayerSideOfBall,
@@ -205,8 +204,7 @@ function placeSlots(
   const read = [own, spots.left, spots.middle, spots.right]
     .map(reading)
     .reduce((best, next) => (next.agree > best.agree ? next : best));
-  const spot =
-    offensivePlayers(play).length > 0 ? currentBallSpot(play) : undefined;
+  const spot = currentBallSpot(play);
   const ball =
     read.agree >= 2 ? read.ball : spot === undefined ? own : spots[spot];
 
