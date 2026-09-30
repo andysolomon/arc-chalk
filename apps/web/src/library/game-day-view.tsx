@@ -347,14 +347,20 @@ function Reader({
   const layout: GameDayLayout = place.layout;
   /**
    * On a phone the call list folds away so the selected call has the glass
-   * (issue #93); picking a call folds it. Wider screens ignore this and
-   * show the list beside the call.
+   * (issue #93); picking a call folds it. The plan's meta, the search and
+   * the situations fold with it, so one control opens everything that finds
+   * a call and a phone held sideways keeps its height for the diagram
+   * (issue #163). Wider screens ignore this and show it all beside the call.
    */
   const [pickerOpen, setPickerOpen] = useState(false);
   const callCount = order.length;
 
   return (
-    <main aria-label="Game Day" className="destination game-day reader">
+    <main
+      aria-label="Game Day"
+      className="destination game-day reader"
+      data-picker={pickerOpen ? "open" : "closed"}
+    >
       <div className="reader-head">
         <button
           aria-label="Back to plans"
@@ -402,6 +408,17 @@ function Reader({
             </button>
           ))}
         </div>
+        <button
+          aria-controls="reader-calls"
+          aria-expanded={pickerOpen}
+          className="reader-picker-toggle"
+          onClick={() => setPickerOpen((open) => !open)}
+          type="button"
+        >
+          {pickerOpen
+            ? "Hide the calls"
+            : `${callCount} ${callCount === 1 ? "call" : "calls"} — pick one`}
+        </button>
       </div>
       {newerPrepared || status.stale ? (
         <div className="reader-notice" role="status">
@@ -455,18 +472,7 @@ function Reader({
           );
         })}
       </nav>
-      <button
-        aria-controls="reader-calls"
-        aria-expanded={pickerOpen}
-        className="reader-picker-toggle"
-        onClick={() => setPickerOpen((open) => !open)}
-        type="button"
-      >
-        {pickerOpen
-          ? "Hide the calls"
-          : `${callCount} ${callCount === 1 ? "call" : "calls"} — pick one`}
-      </button>
-      <div className="reader-body" data-picker={pickerOpen ? "open" : "closed"}>
+      <div className="reader-body">
         <CallList
           current={current?.callId}
           favorites={notes.favorites}
@@ -482,67 +488,71 @@ function Reader({
         <section aria-label="Selected call" className="reader-stage">
           {current ? (
             <>
-              <div className="reader-call-head">
-                <code className="reader-code">{current.code || "—"}</code>
-                <span className="reader-name">{current.name}</span>
-                {sectionOfCurrent ? (
-                  <span className="reader-section-name">
-                    {sectionOfCurrent.name}
+              {/* The call, its diagram and the way to the next one share the
+                  stage's height; the marks and the note are below it. */}
+              <div className="reader-card">
+                <div className="reader-call-head">
+                  <code className="reader-code">{current.code || "—"}</code>
+                  <span className="reader-name">{current.name}</span>
+                  {sectionOfCurrent ? (
+                    <span className="reader-section-name">
+                      {sectionOfCurrent.name}
+                    </span>
+                  ) : null}
+                  <button
+                    aria-label={
+                      notes.favorites.includes(current.callId)
+                        ? "Remove from favorites"
+                        : "Add to favorites"
+                    }
+                    aria-pressed={notes.favorites.includes(current.callId)}
+                    className="reader-star"
+                    onClick={() =>
+                      onNotes((n) => toggleFavorite(n, current.callId))
+                    }
+                    type="button"
+                  >
+                    ★
+                  </button>
+                </div>
+                {current.play ? (
+                  <Diagram key={current.playId} play={current.play} />
+                ) : (
+                  <p className="reader-missing">
+                    This call's play is not in the packet. It was deleted from
+                    the library before the plan was prepared.
+                  </p>
+                )}
+                <div className="reader-nav">
+                  <button
+                    aria-label="Previous call"
+                    className="reader-step"
+                    disabled={order.length < 2}
+                    onClick={() => step(-1)}
+                    type="button"
+                  >
+                    ‹ Previous
+                  </button>
+                  <span className="reader-position">
+                    {index >= 0 ? `${index + 1} / ${order.length}` : "—"}
                   </span>
-                ) : null}
-                <button
-                  aria-label={
-                    notes.favorites.includes(current.callId)
-                      ? "Remove from favorites"
-                      : "Add to favorites"
-                  }
-                  aria-pressed={notes.favorites.includes(current.callId)}
-                  className="reader-star"
-                  onClick={() =>
-                    onNotes((n) => toggleFavorite(n, current.callId))
-                  }
-                  type="button"
-                >
-                  ★
-                </button>
-              </div>
-              {current.play ? (
-                <Diagram key={current.playId} play={current.play} />
-              ) : (
-                <p className="reader-missing">
-                  This call's play is not in the packet. It was deleted from the
-                  library before the plan was prepared.
-                </p>
-              )}
-              <div className="reader-nav">
-                <button
-                  aria-label="Previous call"
-                  className="reader-step"
-                  disabled={order.length < 2}
-                  onClick={() => step(-1)}
-                  type="button"
-                >
-                  ‹ Previous
-                </button>
-                <span className="reader-position">
-                  {index >= 0 ? `${index + 1} / ${order.length}` : "—"}
-                </span>
-                <button
-                  className="reader-back"
-                  onClick={backToSection}
-                  type="button"
-                >
-                  Back to {sectionOfCurrent?.name ?? "all"}
-                </button>
-                <button
-                  aria-label="Next call"
-                  className="reader-step"
-                  disabled={order.length < 2}
-                  onClick={() => step(1)}
-                  type="button"
-                >
-                  Next ›
-                </button>
+                  <button
+                    className="reader-back"
+                    onClick={backToSection}
+                    type="button"
+                  >
+                    Back to {sectionOfCurrent?.name ?? "all"}
+                  </button>
+                  <button
+                    aria-label="Next call"
+                    className="reader-step"
+                    disabled={order.length < 2}
+                    onClick={() => step(1)}
+                    type="button"
+                  >
+                    Next ›
+                  </button>
+                </div>
               </div>
               <div
                 className="reader-marks"
@@ -762,8 +772,16 @@ function Diagram({ play }: { play: NonNullable<CallRow["play"]> }) {
     [animating, clock.playing, play, timeMs],
   );
   return (
-    <div className="reader-diagram">
-      <FieldDiagram scene={scene} />
+    <div
+      className="reader-diagram"
+      data-playback={
+        plan.items.length === 0 ? "none" : showPlayback ? "open" : "closed"
+      }
+    >
+      {/* Sized to the room it has, so the whole play fits (issue #163). */}
+      <div className="reader-field">
+        <FieldDiagram scene={scene} />
+      </div>
       {plan.items.length > 0 ? (
         <div className="reader-playback">
           <button
