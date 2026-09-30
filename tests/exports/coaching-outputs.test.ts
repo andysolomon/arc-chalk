@@ -73,9 +73,18 @@ const concept = offensivePlaybookGolden.concepts[0]!;
 describe("coaching rows", () => {
   it("orders the install table in football order, not document order", () => {
     const rows = playRows(readPlay);
-    expect(rows.map((row) => row.role)).toEqual(["RB", "H", "X", "Z", "TE"]);
-    expect(rows.map((row) => row.who)).toEqual(["H", "F", "X", "Z", "Y"]);
-    expect(rows[0]?.assignment).toBe("Check release to the flat.");
+    expect(rows.map((row) => row.role)).toEqual([
+      "QB",
+      "RB",
+      "H",
+      "X",
+      "Z",
+      "TE",
+    ]);
+    expect(rows.map((row) => row.who)).toEqual(["Q", "H", "F", "X", "Z", "Y"]);
+    // The quarterback has no line of his own; his job is the progression.
+    expect(rows[0]?.assignment).toBe(`Read ${progressionStrip(readPlay)}`);
+    expect(rows[1]?.assignment).toBe("Check release to the flat.");
     // The unlettered line has no routes, so it has no rows.
     expect(rows.some((row) => row.role === "C")).toBe(false);
   });
@@ -187,8 +196,8 @@ describe("teaching documents", () => {
     const answers = key!.match(
       /<td class="n">(\d+)<\/td><td class="w">([^<]+)<\/td><td>/g,
     )!;
-    expect(blanks).toHaveLength(5);
-    expect(answers).toHaveLength(5);
+    expect(blanks).toHaveLength(6);
+    expect(answers).toHaveLength(6);
     expect(
       blanks.map((row) => row.replace('<td class="bl"></td>', "<td>")),
     ).toEqual(answers);
