@@ -3665,7 +3665,15 @@ export function ChalkApp({
    * Coach's finger wherever he is working.
    */
   const fieldScreenScale = () => {
-    const zoom = fieldWidthPx / cameraRef.current.width;
+    // Measured now, like the pointer is, rather than read from the last
+    // resize the observer reported: WebKit can report the field part way
+    // through its first layout and not again, and a field thought four times
+    // smaller than it is gives a finger four times the reach, so a tap on a
+    // line picks the man beside it.
+    const drawnWidth = fieldSvgRef.current?.getBoundingClientRect().width;
+    const zoom =
+      (drawnWidth && drawnWidth > 0 ? drawnWidth : fieldWidthPx) /
+      cameraRef.current.width;
     return {
       lateralPixelsPerYard: scene.viewport.lateralPixelsPerYard * zoom,
       depthPixelsPerYard: scene.viewport.depthPixelsPerYard * zoom,
