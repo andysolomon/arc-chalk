@@ -53,6 +53,11 @@ import {
   routePresetNames,
   stockConcepts,
   formationFromOffense,
+  formationFromDefense,
+  coachDefensiveCall,
+  copyNameFor,
+  emptyPlayDocument,
+  inInstallOrder,
   stockDefensiveCalls,
   stockFormations,
   baseAlignment,
@@ -218,6 +223,7 @@ import {
 import type { AppLifecycle } from "../app/app-lifecycle";
 import {
   defaultChromeState,
+  SHELF_SORT_KEY,
   type ChalkRuntime,
   type ChromeState,
 } from "../app/editor-runtime";
@@ -230,6 +236,7 @@ import { LibraryPanel } from "../library/library-panel";
 import { ScopeBar } from "../library/scope-bar";
 import { PlaybookBrowser } from "../library/playbook-browser";
 import { PlaybookNameForm, PlaybooksShelf } from "../library/playbooks-shelf";
+import { sortShelf, type ShelfSort } from "../library/shelf-order";
 import { canSwitchPlay, createUntitledPlay } from "../library/library-actions";
 import { FormationsPage } from "../library/formations-page";
 import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
@@ -398,6 +405,8 @@ const EDITOR_FRAME = Object.freeze({
 });
 /** How long the original leaves what just happened on screen. */
 const TOAST_MS = 4200;
+/** How long what the shelf just did stays said (issue #166). */
+const NOTICE_MS = 6000;
 /** What the status bar says while a defender's man is picked on the field. */
 const COVER_PICK_HINT =
   "cover who? click the receiver he should cover · anywhere else or esc cancels";
@@ -2719,6 +2728,28 @@ export function ChalkApp({
   const [playbookSummaries, setPlaybookSummaries] = useState<
     readonly PlaybookSummary[]
   >([]);
+  /** How the shelf lists its books, remembered on this device (issue #166). */
+  const [shelfSort, setShelfSort] = useState<ShelfSort>("recent");
+  useEffect(() => {
+    let cancelled = false;
+    void runtime.repository
+      .getPreference(SHELF_SORT_KEY)
+      .then((stored) => {
+        if (cancelled) return;
+        if (stored?.value === "name" || stored?.value === "recent") {
+          setShelfSort(stored.value);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [runtime.repository]);
+  /**
+   * What the last thing done on the shelf or to a Play from the Playbooks
+   * pages did — copied, moved, duplicated — said once under the bar.
+   */
+  const [libraryNotice, setLibraryNotice] = useState<string>();
   /** Every Play on the device, across its books, which is what the Plays page lists. */
   const [everyPlay, setEveryPlay] = useState<readonly PlaySearchProjection[]>(
     [],
@@ -3015,10 +3046,6 @@ export function ChalkApp({
    * safeties at the depths the Coach set in Settings (ADR 0061).
    */
   const coverageDepths = playbook.snapshot.playbook.coverageDepths;
-  const defensiveCalls = useMemo(
-    () => defensiveCallsAt(stockDefensiveCalls, coverageDepths),
-    [coverageDepths],
-  );
   // The book is read again each time the Coach comes to it, so a Play he
   // just drew or started from a set is on the page with its set and type.
   const refreshLibrary = playbook.refresh;
@@ -3026,6 +3053,12 @@ export function ChalkApp({
     if (activeView !== "Playbooks") return;
     void refreshLibrary();
   }, [activeView, refreshLibrary]);
+  // What the shelf last did is said once, then goes, as a toast does.
+  useEffect(() => {
+    if (!libraryNotice) return;
+    const timer = setTimeout(() => setLibraryNotice(undefined), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [libraryNotice]);
   useEffect(() => {
     let cancelled = false;
     void Promise.all([
@@ -3068,10 +3101,29 @@ export function ChalkApp({
   const [favoriteCallIds, setFavoriteCallIds] = useState<readonly string[]>(
     runtime.coachSets.favoriteCallIds,
   );
+  /** The offensive sets the Coach saved; his fronts are calls, below. */
+  const coachSets = useMemo(
+    () => coachFormations.filter(({ unit }) => unit !== "defense"),
+    [coachFormations],
+  );
   /** Both books at once: what Chalk ships, then what the Coach kept. */
   const allFormations = useMemo(
-    (): readonly Formation[] => [...stockFormations, ...coachFormations],
-    [coachFormations],
+    (): readonly Formation[] => [...stockFormations, ...coachSets],
+    [coachSets],
+  );
+  /**
+   * The defensive calls as this Playbook stands them: corners and deep
+   * safeties at the depths the Coach set in Settings (ADR 0061), then the
+   * fronts he saved from the field himself, under Mine (issue #166).
+   */
+  const defensiveCalls = useMemo(
+    () => [
+      ...defensiveCallsAt(stockDefensiveCalls, coverageDepths),
+      ...coachFormations
+        .filter(({ unit }) => unit === "defense")
+        .map(coachDefensiveCall),
+    ],
+    [coachFormations, coverageDepths],
   );
   /** What a hover can preview: every set, and every call at the Coach's depths. */
   const previewFormations = useMemo(
@@ -3110,13 +3162,7 @@ export function ChalkApp({
       slotId: () => createStableId("slot"),
     });
     if (!formation) return;
-    // A second set under a name he already used replaces the first, so the
-    // name a Coach reaches for means one thing.
-    setCoachFormations((current) => [
-      ...current.filter((kept) => kept.name !== name),
-      formation,
-    ]);
-    void runtime.saveCoachFormation(formation);
+    keepCoachFormation(formation);
     const next = [
       ...favoriteFormationIds.filter((id) => id !== formation.id),
       formation.id,
@@ -3124,6 +3170,48 @@ export function ChalkApp({
     setFavoriteFormationIds(next);
     void runtime.setFavoriteFormations(next);
     setToast({ name: formation.name, text: "— saved as a formation" });
+  };
+
+  /**
+   * A set or front the Coach named. A second one of the same side under a
+   * name he already used replaces the first, so the name a Coach reaches
+   * for means one thing.
+   */
+  const keepCoachFormation = (formation: Formation): void => {
+    const replaced = coachFormations.filter(
+      (kept) => kept.unit === formation.unit && kept.name === formation.name,
+    );
+    setCoachFormations((current) => [
+      ...current.filter(
+        (kept) => kept.unit !== formation.unit || kept.name !== formation.name,
+      ),
+      formation,
+    ]);
+    for (const { id } of replaced) void runtime.removeCoachFormation(id);
+    void runtime.saveCoachFormation(formation);
+  };
+
+  /**
+   * The defense on the field, kept as a front of the Coach's own under Mine
+   * in the Defenses book (issue #166) — a Goal Line 6-2 he built by hand is
+   * one pick away on the next Play. Starred as it is saved, like a set.
+   */
+  const saveCoachDefense = (name: string): void => {
+    const formation = formationFromDefense(editor.document, {
+      id: createStableId("formation"),
+      playbookId: editor.document.playbookId,
+      name,
+      slotId: () => createStableId("slot"),
+    });
+    if (!formation) return;
+    keepCoachFormation(formation);
+    const next = [
+      ...favoriteCallIds.filter((id) => id !== formation.id),
+      formation.id,
+    ];
+    setFavoriteCallIds(next);
+    void runtime.setFavoriteCalls(next);
+    setToast({ name: formation.name, text: "— saved as a defense" });
   };
 
   const removeCoachFormation = (formationId: string): void => {
@@ -5405,7 +5493,7 @@ export function ChalkApp({
       ]),
     ),
     ...Object.fromEntries(
-      coachFormations.map((formation) => [
+      coachSets.map((formation) => [
         `formation:${formation.id}`,
         () => applyFormationPick(formation.id),
       ]),
@@ -6202,14 +6290,22 @@ export function ChalkApp({
           .then(() => runtime.repository.loadPlaybook(open.playbookId))
           .catch(() => undefined);
         if (!envelope) return { plays: [open], concepts: [] };
-        const plays = envelope.plays.map((play) =>
-          play.id === open.id ? open : play,
-        );
+        // The book reads in the install order once the Coach sets one
+        // (issue #166); until then, in library order as before.
+        const order = envelope.playbook.playOrder;
+        const plays = inInstallOrder(
+          envelope.plays.map((play) => ({
+            playId: play.id,
+            play: play.id === open.id ? open : play,
+          })),
+          order,
+        ).map(({ play }) => play);
         return {
           plays: plays.some(({ id }) => id === open.id)
             ? plays
             : [open, ...plays],
           concepts: envelope.concepts,
+          ...(order && order.length > 0 ? { installOrder: true } : {}),
         };
       },
     }),
@@ -6905,24 +7001,140 @@ export function ChalkApp({
           return false;
         }
         setCoachFormations(await runtime.openPlaybook(playbookId));
-        const snapshot = await runtime.library.loadSnapshot();
-        const recent = [...(snapshot?.members ?? [])].sort(
-          (left, right) => right.updatedAtMs - left.updatedAtMs,
-        )[0];
-        if (recent) {
-          await playbook.loadPlay(recent.playId);
-        } else {
-          await createUntitledPlay(
-            runtime.library,
-            editorStore,
-            "offense",
-            await openBookFieldProfile(),
-          );
-          await playbook.refresh();
-        }
+        await takeUpBookPlay();
       }
       setBookOpen(true);
       return true;
+    };
+
+    /**
+     * The editor takes up the Play the Coach last changed in the open book,
+     * or — in an empty book — a blank one that is written only once he puts
+     * something on it, so opening a book never leaves an untitled Play in it
+     * (issue #166).
+     */
+    const takeUpBookPlay = async (): Promise<void> => {
+      const snapshot = await runtime.library.loadSnapshot();
+      const recent = [...(snapshot?.members ?? [])].sort(
+        (left, right) => right.updatedAtMs - left.updatedAtMs,
+      )[0];
+      if (recent) {
+        await playbook.loadPlay(recent.playId);
+        return;
+      }
+      await editorStore.showUnsavedPlay(
+        emptyPlayDocument({
+          playbookId: runtime.library.playbookId,
+          fieldProfile: await openBookFieldProfile(),
+        }),
+      );
+      await playbook.refresh();
+    };
+
+    /** The books and every Play read again, after the shelf changed. */
+    const refreshShelf = async (): Promise<void> => {
+      const [books, plays] = await Promise.all([
+        runtime.library.listPlaybooks(),
+        runtime.library.listEveryPlaySummary(),
+      ]);
+      setPlaybookSummaries(books);
+      setEveryPlay(plays);
+    };
+
+    /**
+     * Putting away or deleting the open book first opens the one edited
+     * most recently after it, and the Coach stays on the shelf.
+     */
+    const stepOutOf = async (playbookId: string): Promise<boolean> => {
+      if (playbookId !== runtime.library.playbookId) return true;
+      const next = sortShelf(
+        playbookSummaries.filter(
+          ({ archivedAtMs, id }) =>
+            id !== playbookId && archivedAtMs === undefined,
+        ),
+        "recent",
+      )[0];
+      if (!next || !(await openBook(next.id))) return false;
+      setBookOpen(false);
+      return true;
+    };
+
+    const bookName = (playbookId: string) =>
+      playbookSummaries.find(({ id }) => id === playbookId)?.name ??
+      "the playbook";
+
+    const shelfActions = {
+      onRename: async (playbookId: string, name: string) => {
+        await runtime.renamePlaybook(playbookId, name);
+        if (playbookId === runtime.library.playbookId) {
+          await playbook.refresh();
+        }
+        await refreshShelf();
+      },
+      onDuplicate: async (playbookId: string) => {
+        const from = bookName(playbookId);
+        const name = copyNameFor(
+          from,
+          playbookSummaries.map(({ name: taken }) => taken),
+        );
+        await runtime.duplicatePlaybook(playbookId, name);
+        await refreshShelf();
+        setLibraryNotice(`${name} — a copy of ${from}, on the shelf.`);
+      },
+      onArchive: async (playbookId: string, archived: boolean) => {
+        if (archived && !(await stepOutOf(playbookId))) return;
+        await runtime.setPlaybookArchived(playbookId, archived);
+        await refreshShelf();
+        setLibraryNotice(
+          archived
+            ? `${bookName(playbookId)} is archived. Restore it from Archived.`
+            : `${bookName(playbookId)} is back on the shelf.`,
+        );
+      },
+      onDelete: async (playbookId: string) => {
+        const name = bookName(playbookId);
+        if (!(await stepOutOf(playbookId))) return;
+        await runtime.deletePlaybook(playbookId);
+        await refreshShelf();
+        setLibraryNotice(`${name} is deleted.`);
+      },
+    };
+
+    /**
+     * Copies or moves a Play into another book (issue #166). A Play moved out
+     * of the editor leaves it for the book's next Play, or a blank one.
+     */
+    const transferPlay = async (
+      playId: string,
+      playbookId: string,
+      mode: "copy" | "move",
+    ): Promise<void> => {
+      if (!canSwitchPlay(editorStore.getSnapshot().localSave.phase)) return;
+      const name =
+        everyPlay.find((member) => member.playId === playId)?.name ??
+        playbook.snapshot.members.find((member) => member.playId === playId)
+          ?.name ??
+        "The play";
+      if (mode === "copy") {
+        await runtime.copyPlayTo(playId, playbookId);
+      } else {
+        const inEditor = editorStore.getSnapshot().document.id === playId;
+        await runtime.movePlayTo(playId, playbookId);
+        if (inEditor) await takeUpBookPlay();
+      }
+      await playbook.refresh();
+      await refreshShelf();
+      setLibraryNotice(
+        `${name} ${mode === "copy" ? "copied" : "moved"} to ${bookName(playbookId)}.`,
+      );
+    };
+
+    /** Saves the open book's install order, which its exports read in. */
+    const reorderBook = async (order: readonly string[]): Promise<void> => {
+      const book = await runtime.library.getPlaybook();
+      if (!book) return;
+      await runtime.library.savePlaybook({ ...book, playOrder: [...order] });
+      await playbook.refresh();
     };
 
     /**
@@ -6936,11 +7148,7 @@ export function ChalkApp({
 
     /** Renames the open book; the shelf and every Playbook filter follow. */
     const renameBook = async (name: string): Promise<void> => {
-      await runtime.library.savePlaybook({
-        ...playbook.snapshot.playbook,
-        name,
-        updatedAtMs: Date.now(),
-      });
+      await runtime.renamePlaybook(runtime.library.playbookId, name);
       await playbook.refresh();
       setRenamingBook(false);
     };
@@ -7148,8 +7356,14 @@ export function ChalkApp({
                     onDelete={(playId) => playbook.removePlay(playId, true)}
                     onOpen={openPlay}
                     onRemember={playbook.rememberBrowser}
+                    onReorder={(order) => void reorderBook(order)}
+                    onStartPlay={startPlay}
+                    onTransfer={(playId, target, mode) =>
+                      void transferPlay(playId, target, mode)
+                    }
                     pageScroll={phoneWorkspace}
                     playbooks={playbookSummaries}
+                    playOrder={playbook.snapshot.playbook.playOrder}
                     playTypes={playbook.snapshot.playbook.playTypes}
                   />
                 ) : (
@@ -7166,12 +7380,24 @@ export function ChalkApp({
               </>
             ) : (
               <PlaybooksShelf
+                actions={shelfActions}
                 currentPlaybookId={runtime.library.playbookId}
-                members={playbook.snapshot.members}
                 onCreate={createBook}
                 onOpen={(id) => void openBook(id)}
+                onSort={(next) => {
+                  setShelfSort(next);
+                  void runtime.repository
+                    .setPreference({
+                      key: SHELF_SORT_KEY,
+                      value: next,
+                      updatedAtMs: Date.now(),
+                    })
+                    .catch(() => undefined);
+                }}
                 playbooks={playbookSummaries}
-                savedSets={coachFormations.length}
+                savedFronts={coachFormations.length - coachSets.length}
+                savedSets={coachSets.length}
+                sort={shelfSort}
               />
             )
           ) : playbooksPage === "formations" ? (
@@ -7217,11 +7443,26 @@ export function ChalkApp({
               onDelete={(playId) => playbook.removePlay(playId, true)}
               onOpen={openPlay}
               onRemember={playbook.rememberBrowser}
+              onTransfer={(playId, target, mode) =>
+                void transferPlay(playId, target, mode)
+              }
               pageScroll={phoneWorkspace}
               playbooks={playbookSummaries}
               playTypes={playbook.snapshot.playbook.playTypes}
             />
           )}
+          {libraryNotice ? (
+            <div className="destination-notice">
+              <span role="status">{libraryNotice}</span>
+              <button
+                aria-label="Dismiss"
+                onClick={() => setLibraryNotice(undefined)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
         </main>
         {overlay === "palette" ? paletteOverlay : null}
       </div>
@@ -7931,9 +8172,15 @@ export function ChalkApp({
       {overlay === "defenses" ? (
         <DefenseBrowser
           calls={defensiveCalls}
+          defensivePlayerCount={
+            editor.document.players.filter(({ unit }) => unit === "defense")
+              .length
+          }
           focusSearch={precisePointer}
           favoriteIds={favoriteCallIds}
           currentCallId={onFieldCall?.formation.id}
+          onRemove={removeCoachFormation}
+          onSave={saveCoachDefense}
           onClose={() => {
             setOverlay(null);
             setPreviewFormationId(undefined);

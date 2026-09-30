@@ -1,7 +1,9 @@
 import {
   blankPlaybook,
   canonicalSha256,
+  copyPlayInto,
   createStableId,
+  duplicatePlaybook,
   decryptBackup,
   DEFAULT_PLAYBOOK_ID,
   emptyPlayDocument,
@@ -67,6 +69,8 @@ export const LIBRARY_OPEN_KEY = "libraryOpen.v1";
 export const LIBRARY_BROWSER_KEY = "library.browser.v1";
 /** The book the Coach opened from the shelf, so a reload opens it again (ADR 0060). */
 export const OPEN_PLAYBOOK_KEY = "library.openPlaybook.v1";
+/** How the shelf lists its books, remembered on this device (issue #166). */
+export const SHELF_SORT_KEY = "library.shelfSort.v1";
 
 /**
  * Which sets and calls the Coach starred. The original kept these beside the
@@ -90,8 +94,12 @@ export interface LibrarySnapshot {
   readonly members: readonly PlaySearchProjection[];
 }
 
-/** How the Playbook lists its Plays when nothing is being searched for. */
-export type PlaybookSort = "name" | "recent";
+/**
+ * How the Playbook lists its Plays when nothing is being searched for. The
+ * install order is the one the Coach set by hand, offered on a book's own
+ * page (issue #166).
+ */
+export type PlaybookSort = "name" | "recent" | "order";
 /** Plays as a page of cards or as a list; unset lets the screen decide. */
 export type PlaybookLayout = "grid" | "list";
 
@@ -309,6 +317,24 @@ export interface ChalkRuntime {
    * books already on this device, and returns its id. It is not opened here.
    */
   createPlaybook(name: string): Promise<string>;
+  /** Names a book on this device, whether or not it is the open one. */
+  renamePlaybook(playbookId: string, name: string): Promise<void>;
+  /**
+   * Copies a whole book under a new name — its Plays, Concepts, saved sets
+   * and fronts, install order and Game plans — and returns the copy's id.
+   */
+  duplicatePlaybook(playbookId: string, name: string): Promise<string>;
+  /** Puts a book away on the shelf, or brings it back; nothing is removed. */
+  setPlaybookArchived(playbookId: string, archived: boolean): Promise<void>;
+  /** Removes a book that is not open; its Plays go to the Trash. */
+  deletePlaybook(playbookId: string): Promise<void>;
+  /**
+   * Copies a Play into another book, keeping its Type, Concept and saved
+   * set, and returns the copy.
+   */
+  copyPlayTo(playId: string, playbookId: string): Promise<StoredPlay>;
+  /** Copies a Play into another book and puts the original in the Trash. */
+  movePlayTo(playId: string, playbookId: string): Promise<StoredPlay>;
   /** Fires after a local commit so background sync can drain. */
   subscribeLocalEdit(listener: () => void): () => void;
   /** Keeps a set the Coach named, so it is there the next time he opens Chalk. */
@@ -523,6 +549,10 @@ export function createMemoryLibrary(
           id: current.playbook.id,
           name: current.playbook.name,
           playCount: current.members.length,
+          offenseCount: current.members.filter(({ unit }) => unit !== "defense")
+            .length,
+          defenseCount: current.members.filter(({ unit }) => unit === "defense")
+            .length,
           updatedAtMs: current.playbook.updatedAtMs,
           defaultFieldProfileId: current.playbook.defaultFieldProfileId,
         },
@@ -762,6 +792,72 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     });
   };
 
+  const enqueuePut = async (
+    entityKind: "play" | "formation",
+    payload: PlayDocument | Formation,
+  ) => {
+    const now = Date.now();
+    await repository.enqueueSyncMutation({
+      id: createStableId("mutation"),
+      entityKind,
+      entityId: payload.id,
+      operation: "put",
+      payloadHash: await canonicalSha256(payload),
+      payload,
+      status: "pending",
+      attempts: 0,
+      createdAtMs: now,
+      nextAttemptAtMs: now,
+    });
+  };
+
+  const bookOrThrow = async (id: string) => {
+    const envelope = await repository.loadPlaybook(id);
+    if (!envelope)
+      throw new Error(`There is no Playbook ${id} on this device.`);
+    return envelope;
+  };
+
+  const copyPlay = async (
+    playId: string,
+    target: string,
+  ): Promise<StoredPlay> => {
+    const stored = await repository.getPlay(playId);
+    if (!stored || stored.deletedAtMs !== undefined) {
+      throw new Error(`There is no Play ${playId} on this device.`);
+    }
+    const [from, to] = await Promise.all([
+      bookOrThrow(stored.playbookId),
+      bookOrThrow(target),
+    ]);
+    const transfer = copyPlayInto({
+      play: stored.document,
+      from,
+      to,
+      id: createStableId("play"),
+      createId: createStableId,
+    });
+    await repository.savePlaybookRecord({
+      ...(transfer.playbook ?? to.playbook),
+      updatedAtMs: Date.now(),
+    });
+    for (const concept of transfer.concepts) {
+      await repository.saveConcept(concept);
+    }
+    for (const formation of transfer.formations) {
+      await repository.saveFormation(formation);
+      await enqueuePut("formation", formation);
+    }
+    await repository.commitPlay({
+      play: transfer.play,
+      mutation: { id: createStableId("mutation") },
+    });
+    for (const listener of localEditListeners) listener();
+    const copy = await repository.getPlay(transfer.play.id);
+    if (!copy) throw new Error("Chalk could not copy the Play.");
+    return copy;
+  };
+
   const library: ChalkLibrary = {
     get playbookId() {
       return playbookId;
@@ -817,7 +913,9 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
         ...(typeof record.focusedPlayId === "string"
           ? { focusedPlayId: record.focusedPlayId }
           : {}),
-        ...(record.sort === "name" || record.sort === "recent"
+        ...(record.sort === "name" ||
+        record.sort === "recent" ||
+        record.sort === "order"
           ? { sort: record.sort }
           : {}),
         ...(record.layout === "grid" || record.layout === "list"
@@ -921,6 +1019,55 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
       };
       await repository.savePlaybookRecord(book);
       return book.id;
+    },
+    async renamePlaybook(id, name) {
+      const { playbook } = await bookOrThrow(id);
+      await repository.savePlaybookRecord({
+        ...playbook,
+        name: name.trim(),
+        updatedAtMs: Date.now(),
+      });
+    },
+    async duplicatePlaybook(id, name) {
+      const [envelope, gamePlans] = await Promise.all([
+        bookOrThrow(id),
+        repository.listGamePlans(id),
+      ]);
+      const copy = duplicatePlaybook({
+        envelope,
+        gamePlans,
+        name,
+        createId: createStableId,
+        nowMs: Date.now(),
+      });
+      await repository.savePlaybook(copy.envelope);
+      for (const plan of copy.gamePlans) await repository.saveGamePlan(plan);
+      for (const formation of copy.envelope.formations) {
+        await enqueuePut("formation", formation);
+      }
+      for (const play of copy.envelope.plays) await enqueuePut("play", play);
+      for (const listener of localEditListeners) listener();
+      return copy.envelope.playbook.id;
+    },
+    async setPlaybookArchived(id, archived) {
+      const { playbook } = await bookOrThrow(id);
+      const { archivedAtMs: _was, ...rest } = playbook;
+      void _was;
+      await repository.savePlaybookRecord(
+        archived ? { ...rest, archivedAtMs: Date.now() } : rest,
+      );
+    },
+    async deletePlaybook(id) {
+      if (id === playbookId) {
+        throw new Error("Open another playbook before deleting this one.");
+      }
+      await repository.deletePlaybook(id);
+    },
+    copyPlayTo: copyPlay,
+    async movePlayTo(playId, target) {
+      const copy = await copyPlay(playId, target);
+      await repository.movePlayToTrash(playId);
+      return copy;
     },
     async saveCoachFormation(formation) {
       await repository.saveFormation(formation);

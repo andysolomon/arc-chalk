@@ -273,14 +273,24 @@ class DexieLocalRepository implements ChalkLocalRepository {
           .where("playbookId")
           .equals(playbook.id)
           .toArray();
+        const live = stored.filter(
+          ({ deletedAtMs }) => deletedAtMs === undefined,
+        );
         return {
           id: playbook.id,
           name: playbook.name,
-          playCount: stored.filter(
-            ({ deletedAtMs }) => deletedAtMs === undefined,
+          playCount: live.length,
+          offenseCount: live.filter(
+            ({ document }) => document.unit !== "defense",
+          ).length,
+          defenseCount: live.filter(
+            ({ document }) => document.unit === "defense",
           ).length,
           updatedAtMs: playbook.updatedAtMs,
           defaultFieldProfileId: playbook.defaultFieldProfileId,
+          ...(playbook.archivedAtMs === undefined
+            ? {}
+            : { archivedAtMs: playbook.archivedAtMs }),
         };
       }),
     );
@@ -293,6 +303,58 @@ class DexieLocalRepository implements ChalkLocalRepository {
 
   async savePlaybookRecord(playbook: Playbook): Promise<void> {
     await this.#database.playbooks.put(playbookSchema.parse(playbook));
+  }
+
+  async deletePlaybook(playbookId: string): Promise<void> {
+    const deletedAtMs = this.#now();
+    await this.#database.transaction(
+      "rw",
+      [
+        this.#database.playbooks,
+        this.#database.concepts,
+        this.#database.formations,
+        this.#database.plays,
+        this.#database.searchProjections,
+        this.#database.thumbnails,
+        this.#database.gamePlans,
+        this.#database.gamePlanRevisions,
+      ],
+      async () => {
+        const plays = await this.#database.plays
+          .where("playbookId")
+          .equals(playbookId)
+          .toArray();
+        for (const play of plays) {
+          if (play.deletedAtMs !== undefined) continue;
+          await this.#database.plays.put({ ...play, deletedAtMs });
+          await this.#database.searchProjections.delete(play.id);
+          await this.#database.thumbnails
+            .where("playId")
+            .equals(play.id)
+            .delete();
+        }
+        const plans = await this.#database.gamePlans
+          .where("playbookId")
+          .equals(playbookId)
+          .primaryKeys();
+        for (const planId of plans) {
+          await this.#database.gamePlanRevisions
+            .where("planId")
+            .equals(planId)
+            .delete();
+        }
+        await this.#database.gamePlans.bulkDelete(plans);
+        await this.#database.concepts
+          .where("playbookId")
+          .equals(playbookId)
+          .delete();
+        await this.#database.formations
+          .where("playbookId")
+          .equals(playbookId)
+          .delete();
+        await this.#database.playbooks.delete(playbookId);
+      },
+    );
   }
 
   async getPlay(playId: string): Promise<StoredPlay | undefined> {

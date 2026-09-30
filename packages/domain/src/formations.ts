@@ -922,3 +922,54 @@ export function formationFromOffense(
     rolePairs: [],
   };
 }
+
+/**
+ * The defense on the field, kept as a front of the Coach's own — a Goal Line
+ * 6-2 he built by hand, say (issue #166). Like a saved set it keeps where
+ * each man stands and how he is drawn, not his lines. A defender is read by
+ * his letter and his side of the ball, the way the shipped calls name theirs.
+ */
+export function formationFromDefense(
+  play: PlayDocument,
+  named: {
+    readonly id: string;
+    readonly playbookId: string;
+    readonly name: string;
+    readonly slotId: (index: number) => string;
+  },
+): Formation | undefined {
+  const defense = defensivePlayers(play);
+  if (defense.length === 0) return undefined;
+  return {
+    schemaVersion: 1,
+    id: named.id,
+    playbookId: named.playbookId,
+    revision: 1,
+    name: named.name,
+    unit: "defense",
+    description: "Saved from the field",
+    family: "custom",
+    strength: "balanced",
+    ball: { position: { lateralYards: 0, depthYards: 0 }, hash: "middle" },
+    slots: defense.map((player, index) => {
+      const side =
+        player.position.lateralYards < 0
+          ? "-L"
+          : player.position.lateralYards > 0
+            ? "-R"
+            : "";
+      return {
+        id: named.slotId(index),
+        unit: "defense" as const,
+        role: `${player.label.trim() || "D"}${side}`,
+        position: player.position,
+        symbol: player.symbol,
+        label: player.label,
+        sublabel: player.sublabel,
+        fill: player.fill,
+        color: player.color,
+      };
+    }),
+    rolePairs: [],
+  };
+}

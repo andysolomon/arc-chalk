@@ -170,8 +170,13 @@ export interface PlaybookSummary {
   readonly id: string;
   readonly name: string;
   readonly playCount: number;
+  /** Its Plays by unit, so every card on the shelf says which side it is for. */
+  readonly offenseCount: number;
+  readonly defenseCount: number;
   readonly updatedAtMs: number;
   readonly defaultFieldProfileId: string;
+  /** Set when the Coach put the book away on the shelf (issue #166). */
+  readonly archivedAtMs?: number;
 }
 
 export interface PlayListPage {
@@ -278,6 +283,11 @@ export interface ChalkLocalRepository {
   loadPlaybook(playbookId: string): Promise<PlaybookEnvelope | undefined>;
   listPlaybooks(): Promise<readonly PlaybookSummary[]>;
   savePlaybookRecord(playbook: Playbook): Promise<void>;
+  /**
+   * Removes a book from the device: its Plays go to the Trash, and its
+   * Concepts, saved sets, Game plans and their packets go with the record.
+   */
+  deletePlaybook(playbookId: string): Promise<void>;
   getPlay(playId: string): Promise<StoredPlay | undefined>;
   listPlaySummaries(
     playbookId: string,

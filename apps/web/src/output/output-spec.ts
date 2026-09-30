@@ -33,6 +33,8 @@ export interface OutputPorts {
   readonly loadLibrary: () => Promise<{
     readonly plays: readonly PlayDocument[];
     readonly concepts: readonly Concept[];
+    /** The plays are in the install order the Coach set (issue #166). */
+    readonly installOrder?: boolean;
   }>;
   readonly print?: (html: string) => Promise<PrintOutcome>;
   readonly openWindow?: (html: string) => PrintOutcome;

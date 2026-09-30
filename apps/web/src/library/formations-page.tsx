@@ -1,5 +1,6 @@
 import {
   defensivePersonnelOf,
+  COACH_FRONT,
   defensiveFronts,
   formationFamilies,
   formationGroupOf,
@@ -148,18 +149,20 @@ export function FormationsPage({
       };
     });
     const defenses = calls.map((call): FormationCard => {
+      // A front the Coach saved has no coverage of its own; it is his.
+      const coverage = call.coverage || COACH_FRONT;
       return {
         id: call.formation.id,
         unit: "defense",
         name: call.formation.name,
         playbookId: call.formation.playbookId,
         group: call.front,
-        set: call.coverage,
-        setName: call.coverage,
+        set: coverage,
+        setName: coverage,
         personnel: defensivePersonnelOf(call.front),
         description: call.formation.description,
         favorite: starredCalls.has(call.formation.id),
-        custom: false,
+        custom: call.front === COACH_FRONT,
         plays: 0,
         call,
       };
@@ -268,7 +271,10 @@ export function FormationsPage({
   ].map((lead) => ({
     key: `${lead.unit}:${lead.group}`,
     unit: lead.unit,
-    name: lead.unit === "defense" ? `${lead.group} front` : lead.group,
+    name:
+      lead.unit === "defense" && lead.group !== COACH_FRONT
+        ? `${lead.group} front`
+        : lead.group,
     cards: [...shown]
       .filter((card) => card.unit === lead.unit && card.group === lead.group)
       .sort(
@@ -423,6 +429,7 @@ export function FormationsPage({
                     call={card.call}
                     card={card}
                     key={card.id}
+                    onRemove={onRemove}
                     onStart={onStartCallPlay}
                     onToggleFavorite={onToggleFavoriteCall}
                   />
@@ -541,11 +548,13 @@ function SetCard({
 function CallCard({
   call,
   card,
+  onRemove,
   onStart,
   onToggleFavorite,
 }: {
   call: DefensiveCall;
   card: FormationCard;
+  onRemove: (callId: string) => void;
   onStart: (callId: string) => void;
   onToggleFavorite: (callId: string) => void;
 }) {
@@ -599,9 +608,20 @@ function CallCard({
           favorite={card.favorite}
           onToggle={() => onToggleFavorite(call.formation.id)}
         />
+        {card.custom ? (
+          <button
+            aria-label={`Remove ${call.formation.name}`}
+            className="browser-remove"
+            onClick={() => onRemove(call.formation.id)}
+            title="Remove this defense"
+            type="button"
+          >
+            ×
+          </button>
+        ) : null}
       </div>
       <span className="browser-chip">
-        {card.personnel} · {call.coverage} · {call.formation.slots.length} men
+        {card.personnel} · {card.setName} · {call.formation.slots.length} men
       </span>
     </div>
   );

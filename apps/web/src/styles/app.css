@@ -4252,6 +4252,224 @@ button.library-dot.target.small {
 .shelf-open:hover {
   background: var(--ink-hover);
 }
+/* Issue #166: the shelf is sorted, and each book carries its own actions. */
+.shelf-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 16px;
+  margin-bottom: 14px;
+}
+.shelf-head .shelf-new {
+  flex: 1 1 320px;
+  margin-bottom: 0;
+}
+.shelf-sort {
+  flex: none;
+  min-height: 32px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.shelf-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.shelf-buttons .shelf-open {
+  margin-top: 0;
+}
+.shelf-more {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.shelf-more svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+.shelf-more:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.shelf-card.archived {
+  background: var(--wash);
+}
+.shelf-card.archived .shelf-text strong {
+  color: var(--muted);
+}
+.shelf-archived {
+  margin-top: 22px;
+}
+.shelf-archived-toggle {
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.shelf-archived-toggle:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.play-sheet .shelf-rename input {
+  height: 40px;
+  font-size: 16px;
+}
+.play-sheet .menu-hint {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.play-sheet-actions button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.play-sheet-actions .play-sheet-book {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+.play-sheet-book > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.play-sheet-count {
+  flex: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.play-sheet-steps {
+  display: flex;
+  gap: 6px;
+}
+.play-sheet-steps > button {
+  flex: 1;
+}
+/* An empty book asks which side of the ball its first Play is for. */
+.playbook-start {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.playbook-start > button {
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.playbook-start > button:hover {
+  background: var(--ink-hover);
+}
+/* Install order: a card drags into place, and a bar shows where it lands. */
+.reorderable {
+  cursor: grab;
+}
+.reorderable.dragging {
+  opacity: 0.4;
+}
+.drop-before,
+.drop-after {
+  position: relative;
+}
+.drop-before::before,
+.drop-after::after {
+  position: absolute;
+  z-index: 2;
+  border-radius: 2px;
+  background: var(--blue);
+  content: "";
+  pointer-events: none;
+}
+[data-layout="grid"] .drop-before::before,
+[data-layout="grid"] .drop-after::after {
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+}
+[data-layout="grid"] .drop-before::before {
+  left: -7px;
+}
+[data-layout="grid"] .drop-after::after {
+  right: -7px;
+}
+[data-layout="list"] .drop-before::before,
+[data-layout="list"] .drop-after::after {
+  right: 0;
+  left: 0;
+  height: 3px;
+}
+[data-layout="list"] .drop-before::before {
+  top: -2px;
+}
+[data-layout="list"] .drop-after::after {
+  bottom: -2px;
+}
+/* What the last thing done on the Playbooks pages did, said once. */
+.destination-notice {
+  position: fixed;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 30;
+  display: flex;
+  max-width: calc(100vw - 32px);
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 8px 8px 14px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 13px;
+  transform: translateX(-50%);
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.4);
+}
+.destination-notice button {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+}
+.destination-notice button:hover {
+  background: rgb(255 255 255 / 0.14);
+}
 /* The Formations page is the book of sets as a page: the same cards as the
    dialog over the editor, with the filters above them. */
 .browser.formations-page {
@@ -4387,6 +4605,24 @@ button.library-dot.target.small {
   }
   .shelf-grid {
     grid-template-columns: 1fr;
+  }
+  /* A finger's reach: the shelf's buttons and an empty book's two starts. */
+  .shelf-open,
+  .shelf-more,
+  .playbook-start > button {
+    height: 44px;
+  }
+  .shelf-more {
+    width: 44px;
+  }
+  .shelf-sort select {
+    height: 44px;
+    font-size: 16px;
+  }
+  .shelf-head .shelf-new input,
+  .shelf-head .shelf-new .playbook-name-save {
+    height: 44px;
+    font-size: 16px;
   }
   .browser-grid.formations-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

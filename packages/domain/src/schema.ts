@@ -664,6 +664,14 @@ const playbookStructureSchema = z.object({
     ),
     z.array(playTypeDefinitionSchema),
   ),
+  /**
+   * The install order: the order a staff teaches the book's Plays in, which
+   * its page and its full-playbook export read in once the Coach sets it.
+   * A Play left out comes after the ones listed (issue #166).
+   */
+  playOrder: z.optional(z.array(entityIdSchema)),
+  /** Put away on the shelf; nothing is removed from the book (issue #166). */
+  archivedAtMs: z.optional(z.number().check(z.int(), z.nonnegative())),
   createdAtMs: z.number().check(z.int(), z.nonnegative()),
   updatedAtMs: z.number().check(z.int(), z.nonnegative()),
 });
