@@ -431,6 +431,11 @@ interface LegacyLinePreset {
   readonly ending: "arrow" | "bar" | "dot" | "bubble" | "chevron";
   /** Left is left: the shape is not mirrored to the side the man is on. */
   readonly absolute?: boolean;
+  /**
+   * He pulls: the shape runs to the play side rather than out from his own
+   * side of the ball, wherever the Play says the run is going (issue #164).
+   */
+  readonly pull?: boolean;
 }
 
 const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
@@ -476,6 +481,7 @@ const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
     controls: { 0: [8, 0, 20] },
     line: "dashed",
     ending: "bar",
+    pull: true,
   },
   wrap: {
     name: "Pull — wrap",
@@ -487,6 +493,20 @@ const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
     controls: { 0: [6, 0, 22] },
     line: "dashed",
     ending: "bar",
+    pull: true,
+  },
+  // A short pull along the line that kicks out the first man past the
+  // centre on the play side, inside out.
+  trap: {
+    name: "Trap",
+    points: [
+      [16, 0, 14],
+      [72, 0, -24],
+    ],
+    controls: { 0: [4, 0, 16] },
+    line: "dashed",
+    ending: "bar",
+    pull: true,
   },
   cut: { name: "Cut", points: [[26, 0, -14]], line: "solid", ending: "dot" },
   passset: {
@@ -770,6 +790,8 @@ export interface LinePreset {
     readonly line: "solid" | "dashed" | "dotted";
     readonly ending: "arrow" | "bar" | "dot" | "bubble" | "chevron";
   };
+  /** He pulls, so the shape goes to the play side when there is one. */
+  readonly pull: boolean;
   /** The ground it owns, where it owns any. */
   readonly area?: {
     readonly type: "deep" | "curl" | "hook" | "flat" | "spy";
@@ -786,8 +808,14 @@ export interface LinePreset {
    * The line from his stance. A call aimed at the field reads it off the
    * field given — where the ball, the gaps and the quarterback are — and
    * without one is aimed at the original's line with the ball in the middle.
+   * `toward` sends a pull to the play side; without it, and for every other
+   * call, the shape is his own side's.
    */
-  pointsFrom(stance: Coordinate, field?: DefensiveField): readonly PathPoint[];
+  pointsFrom(
+    stance: Coordinate,
+    field?: DefensiveField,
+    toward?: 1 | -1,
+  ): readonly PathPoint[];
 }
 
 function buildLinePreset(
@@ -805,6 +833,7 @@ function buildLinePreset(
     name: preset.name,
     kind,
     style: { line: preset.line, ending: preset.ending },
+    pull: preset.pull === true,
     ...(area
       ? {
           area: {
@@ -817,15 +846,22 @@ function buildLinePreset(
     ...(defensive ? { group: defensive.group } : {}),
     ...(defensive?.pair ? { pair: true } : {}),
     ...(defensive?.retired ? { retired: true } : {}),
-    pointsFrom(stance: Coordinate, field = DEFAULT_DEFENSIVE_FIELD) {
+    pointsFrom(
+      stance: Coordinate,
+      field = DEFAULT_DEFENSIVE_FIELD,
+      toward?: 1 | -1,
+    ) {
       if (defensive?.aim) {
         return [stance, ...defensive.aim(stance, field, radiusLateralYards)];
       }
-      // A call that carries a real field direction is drawn as written; the
-      // rest mirror about the ball to the side the man lines up on.
+      // A call that carries a real field direction is drawn as written, and a
+      // pull runs to the play side; the rest mirror about the ball to the
+      // side the man lines up on.
       const hand: Handedness = preset.absolute
         ? { outward: 1 }
-        : handednessOf(stance);
+        : preset.pull && toward !== undefined
+          ? { outward: toward }
+          : handednessOf(stance);
       return [
         stance,
         ...(preset.points ?? []).map((offset, index) => {

@@ -31,6 +31,7 @@ export * from "./play-propagation";
 export * from "./play-search";
 export * from "./product";
 export * from "./route-catalogue";
+export * from "./run-game";
 export * from "./publication";
 export * from "./schema";
 export * from "./seed-stick-family";
