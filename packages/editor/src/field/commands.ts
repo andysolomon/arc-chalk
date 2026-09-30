@@ -2,9 +2,9 @@ import {
   applyDefensiveCall,
   applyFormation,
   applyPlayCommand,
-  assignRoles,
   backfieldBlockPoints,
   assignmentForPath,
+  ballLateralYards,
   ballSpotNames,
   canRunLine,
   depthLimitForUnit,
@@ -43,6 +43,7 @@ import {
   type AlignmentReset,
   type AlignmentResetTarget,
   type ConceptDefinition,
+  type ConceptJob,
   type BallSpot,
   type Coordinate,
   type DefensiveCall,
@@ -1417,12 +1418,7 @@ function isCallName(path: MovementPath, text: string): boolean {
   const preset = routePresetNames.find(({ key }) => key === path.preset);
   if (preset && preset.name.toUpperCase() === said) return true;
   const concept = stockConcepts.find(({ key }) => key === path.concept);
-  const stance = path.points[0];
-  if (!concept || !stance) return false;
-  return concept.roles.some(
-    (role) =>
-      concept.jobFor(role, stance)?.assignment.trim().toUpperCase() === said,
-  );
+  return concept?.assignments.includes(said) ?? false;
 }
 
 /**
@@ -1540,27 +1536,26 @@ export function applyPlayerRoutePresetCommand(
 }
 
 /**
- * Who a concept is about: the men who could be given a job in one. A defender
- * is on the other side of it and a lineman blocks, so neither is a target —
- * and being a lineman is read off where a man stands rather than off the
- * position he was given, which is what keeps an extra tackle out of the
- * distribution even though a sixth man on the line reads as a slot.
- *
- * Whether the quarterback has a job is left to the concept: none of the ten
- * gives him one, and a screen that did would be naming him deliberately.
+ * Who a concept is about, and what each of them is given. A defender is on
+ * the other side of it and a lineman blocks, so neither is a target — and
+ * being a lineman is read off where a man stands rather than off the position
+ * he was given, which is what keeps an extra tackle out of the distribution
+ * even though a sixth man on the line reads as a slot. The concept reads the
+ * rest by alignment — #1, #2 and #3 from the sideline, strong side and weak,
+ * backs — and gives the quarterback nothing (issue #162).
  */
 export function conceptTargets(
   document: PlayDocument,
   concept: ConceptDefinition,
-): readonly { readonly player: Player; readonly role: string }[] {
-  const eligible = document.players.filter(
-    (player) => player.unit !== "defense" && !isLineman(player),
+): readonly { readonly player: Player; readonly job: ConceptJob }[] {
+  const offense = document.players.filter(
+    (player) => player.unit !== "defense",
   );
-  const roles = assignRoles(eligible);
-  return eligible.flatMap((player, index) => {
-    const role = roles[index];
-    if (!role || !concept.roles.includes(role)) return [];
-    return [{ player, role }];
+  const eligible = offense.filter((player) => !isLineman(player));
+  const byId = new Map(eligible.map((player) => [player.id, player]));
+  return concept.jobsFor(eligible, ballLateralYards(offense)).flatMap((job) => {
+    const player = byId.get(job.playerId);
+    return player ? [{ player, job }] : [];
   });
 }
 
@@ -1590,8 +1585,8 @@ export interface ConceptResult {
 
 /**
  * Drawing a concept. It is a distribution rather than a route: every man it
- * is about is given his job by the position he plays, mirrored to the side he
- * lines up on. Asking for the one already on takes it off again, which is how
+ * is about is given his job by where he lines up — which receiver he is,
+ * counted from the sideline, on the strong side or the weak. Asking for the one already on takes it off again, which is how
  * the original lets the same button put it up and pull it down.
  */
 export function applyConceptCommand(
@@ -1645,9 +1640,7 @@ export function applyConceptCommand(
 
   const paths: MovementPath[] = [];
   const assignments: PlayDocument["assignments"][number][] = [];
-  for (const { player, role } of targets) {
-    const job = concept.jobFor(role, player.position);
-    if (!job) continue;
+  for (const { player, job } of targets) {
     const pathId = createId("path");
     paths.push({
       id: pathId,
