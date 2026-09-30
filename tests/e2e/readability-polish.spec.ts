@@ -178,7 +178,11 @@ test("the sidebar counts a plan made on the Playbooks page", async ({
   await workspace.getByRole("button", { name: "New plan" }).click();
   await workspace.getByLabel("Plan name").fill("Week 6");
   await workspace.getByRole("button", { name: "Create plan" }).click();
-  await expect(workspace.getByText("Week 6").first()).toBeVisible();
+  // The new plan opens; its name is the Plan name field's value.
+  await expect(
+    workspace.getByRole("button", { name: "Back to game plans" }),
+  ).toBeVisible();
+  await expect(workspace.getByLabel("Plan name")).toHaveValue("Week 6");
 
   await page
     .getByRole("navigation", { name: "Workspace views" })
