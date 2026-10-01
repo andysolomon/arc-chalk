@@ -28,6 +28,7 @@ import {
   outputFormat,
   playFileBase,
   playbookHtml,
+  playbookOrderWords,
   positionViewHtml,
   practiceCardsHtml,
   progressionStripFrames,
@@ -41,6 +42,7 @@ import {
   type CallSheetConfig,
   type DetailPreset,
   type PageMap,
+  type PlaybookOrder,
   type WristbandConfig,
   type DiagramRenderer,
   type OutputFormatId,
@@ -73,6 +75,11 @@ export interface ResolvedSource {
   /** The same Unit as an id, for badges on paper. */
   readonly unitId?: PlayUnit;
   readonly order: string;
+  /**
+   * The order a whole book's pages turn in (issue #156); the plays are
+   * already in it. Only a book has one.
+   */
+  readonly bookOrder?: PlaybookOrder;
 }
 
 export interface OutputOptions {
@@ -278,6 +285,12 @@ export function buildOutputDocument(
     case "practice":
       return html(source.label, practiceCardsHtml(plays, library));
     case "binder": {
+      // A whole book prints under its own name, in the order the Coach
+      // chose for it (issue #156); a selection has neither to say.
+      const book =
+        source.kind === "book" && source.bookOrder
+          ? { title: source.label, order: source.bookOrder }
+          : {};
       if (!options.books) {
         return html(
           source.label,
@@ -286,11 +299,11 @@ export function buildOutputDocument(
                 ...library,
                 year: context.year,
               })
-            : playbookHtml(plays, { ...library, year: context.year }),
+            : playbookHtml(plays, { ...library, year: context.year, ...book }),
           "The playbook has no saved plays yet.",
         );
       }
-      const entries = bookEntriesOf(source);
+      const entries = bookEntriesOf(source, context.concepts);
       if (entries.length === 0) {
         return {
           kind: "empty",
@@ -311,6 +324,7 @@ export function buildOutputDocument(
             ...(source.unit ? { subtitle: source.unit } : {}),
             ...(source.unitId ? { unit: source.unitId } : {}),
             ...(revisionLine ? { revisionLine } : {}),
+            ...(book.order ? { order: playbookOrderWords[book.order] } : {}),
           },
           options.pageMap,
         ),
@@ -319,7 +333,7 @@ export function buildOutputDocument(
     case "handout": {
       if (!options.books)
         return html(source.label, handoutHtml(plays, library));
-      const entries = bookEntriesOf(source);
+      const entries = bookEntriesOf(source, context.concepts);
       if (entries.length === 0) {
         return { kind: "empty", reason: "Pick at least one play." };
       }

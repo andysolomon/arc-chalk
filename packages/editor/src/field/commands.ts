@@ -16,7 +16,6 @@ import {
   defensiveLineKinds,
   deletePathsCommand,
   diffPlayDocuments,
-  handednessOf,
   isLineman,
   isOnTheLine,
   linePresetByKey,
@@ -29,8 +28,10 @@ import {
   resetAlignment,
   labelRolePresets,
   resolvePathTiming,
-  routePresetNames,
-  routePresetPoints,
+  mirroredCallKey,
+  routeCallName,
+  turnedOverCallAssignments,
+  routeCallPoints,
   settleZoneShell,
   snapperOf,
   snapSpotOf,
@@ -1193,8 +1194,13 @@ function reflectPath(
         reflectPoint(point, axisLateralYards),
       ),
     })),
+    ...sidedCall(path),
   };
 }
+
+/** A call that names its side is the other side's call once turned over. */
+const sidedCall = (path: MovementPath): Pick<MovementPath, "preset"> =>
+  path.preset === undefined ? {} : { preset: mirroredCallKey(path.preset) };
 
 /**
  * Turns one line the other way without redrawing it. The axis is where the
@@ -1212,9 +1218,22 @@ export function flipRouteCommand(
   return {
     kind: "batch",
     label: "Flip route",
-    commands: [{ kind: "update-path", path: next }],
+    commands: [
+      { kind: "update-path", path: next },
+      ...renamedForTurn(document, [path]),
+    ],
   };
 }
+
+/** A turned-over call's own name goes over with it (ADR 0073). */
+const renamedForTurn = (
+  document: PlayDocument,
+  paths: readonly MovementPath[],
+): PrimitivePlayCommand[] =>
+  turnedOverCallAssignments(document, paths).map((assignment) => ({
+    kind: "update-assignment",
+    assignment,
+  }));
 
 /** Turns every line a man has about his own stance, in one entry. */
 export function flipPlayerLinesCommand(
@@ -1223,7 +1242,7 @@ export function flipPlayerLinesCommand(
 ): PlayCommand | undefined {
   const player = document.players.find(({ id }) => id === playerId);
   if (!player) return undefined;
-  const commands = document.paths
+  const turned = document.paths
     .filter(({ playerId: on }) => on === playerId)
     .map((path) => ({
       path,
@@ -1231,13 +1250,22 @@ export function flipPlayerLinesCommand(
     }))
     .filter(
       ({ next, path }) => canonicalStringify(next) !== canonicalStringify(path),
-    )
-    .map(({ next }): PrimitivePlayCommand => ({
-      kind: "update-path",
-      path: next,
-    }));
-  if (commands.length === 0) return undefined;
-  return { kind: "batch", label: "Flip his lines", commands };
+    );
+  if (turned.length === 0) return undefined;
+  return {
+    kind: "batch",
+    label: "Flip his lines",
+    commands: [
+      ...turned.map(({ next }): PrimitivePlayCommand => ({
+        kind: "update-path",
+        path: next,
+      })),
+      ...renamedForTurn(
+        document,
+        turned.map(({ path }) => path),
+      ),
+    ],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1433,7 +1461,7 @@ export function applyRoutePresetCommand(
   // he has one, and his stance if not (issue #164).
   const snapSpot = snapSpotOf(document, player.id);
   const anchor = continuing ? path.points.at(-1)! : snapSpot;
-  const shape = routePresetPoints(presetKey, anchor, handednessOf(snapSpot));
+  const shape = routeCallPoints(document, player.id, presetKey, anchor);
   if (!shape) return undefined;
   // The anchor is left exactly as it is: a man already stands inside the
   // paint, and a break he already has was held there when it was made, so
@@ -1474,8 +1502,8 @@ export function applyRoutePresetCommand(
 function isCallName(path: MovementPath, text: string): boolean {
   const said = text.trim().toUpperCase();
   if (said === "") return false;
-  const preset = routePresetNames.find(({ key }) => key === path.preset);
-  if (preset && preset.name.toUpperCase() === said) return true;
+  const preset = routeCallName(path.preset);
+  if (preset && preset.toUpperCase() === said) return true;
   const concept = stockConcepts.find(({ key }) => key === path.concept);
   return concept?.assignments.includes(said) ?? false;
 }
@@ -1508,7 +1536,7 @@ function renameForCall(
 ): PrimitivePlayCommand | undefined {
   const existing = assignmentForPath(document, path.id);
   if (!existing || !isCallName(path, existing.text)) return undefined;
-  const name = routePresetNames.find(({ key }) => key === presetKey)?.name;
+  const name = routeCallName(presetKey);
   if (name !== undefined) {
     const text = name.toUpperCase();
     return existing.text === text
@@ -1557,10 +1585,9 @@ export function applyPlayerRoutePresetCommand(
   if (base) return applyRoutePresetCommand(document, base.id, presetKey);
 
   const snapSpot = snapSpotOf(document, playerId);
-  const shape = routePresetPoints(presetKey, snapSpot, handednessOf(snapSpot));
+  const shape = routeCallPoints(document, playerId, presetKey, snapSpot);
   if (!shape) return undefined;
-  const name =
-    routePresetNames.find(({ key }) => key === presetKey)?.name ?? presetKey;
+  const name = routeCallName(presetKey) ?? presetKey;
 
   return {
     kind: "batch",

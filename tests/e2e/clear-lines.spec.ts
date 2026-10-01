@@ -88,9 +88,10 @@ test("takes a concept's names off with its routes, and says so", async ({
   await expect(count(page)).toHaveText("5 of 11");
   const blocked = await rowNames(page);
   expect(blocked.filter((row) => /: Drive — /.test(row!))).toHaveLength(5);
-  expect(blocked.filter((row) => /: No route yet — /.test(row!))).toHaveLength(
-    6,
-  );
+  // The quarterback has no route to run, so his row says no assignment.
+  expect(
+    blocked.filter((row) => /: No (route|assignment) yet — /.test(row!)),
+  ).toHaveLength(6);
 
   // Undo the call, then the clear: each one step, names back with the lines.
   await page.getByTitle("Undo Applied Drive").click();
