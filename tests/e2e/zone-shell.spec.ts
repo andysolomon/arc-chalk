@@ -2,10 +2,12 @@ import { type Locator, type Page, type TestInfo } from "@playwright/test";
 import { expect, openSeededEditor, test } from "./fixtures";
 
 /**
- * The zone shell (ADR 0059), built the way a Coach builds one: a defense put
- * on the field, then a zone called on one defender at a time from the Quick
- * assignments grid. Every bubble is read off the field as drawn, and the field
- * is saved at each stage as the run's artifact.
+ * The zone shell (ADR 0059, ADR 0075), built the way a Coach builds one: a
+ * defense put on the field, then a zone called on one defender at a time from
+ * the Quick assignments grid. A deep call is the ground its name says, and two
+ * men called to one zone share it. Every bubble is read off the field as
+ * drawn, against the sidelines it is drawn between, and the field is saved at
+ * each stage as the run's artifact.
  */
 
 /** Puts a call's defenders on the field, with or without its own lines. */
@@ -67,7 +69,9 @@ async function call(
 
 /**
  * The centre of every bubble in `lines`, left to right across the field, in
- * frame units. Each bubble is drawn as a fill and an outline at one centre.
+ * frame units. Each bubble is drawn as a fill and an outline at one centre,
+ * and men sharing a zone draw theirs at one centre too, so each centre is
+ * listed once.
  */
 async function centersOf(page: Page, lines: string): Promise<number[]> {
   const centers = await page
@@ -81,7 +85,43 @@ async function centersOf(page: Page, lines: string): Promise<number[]> {
 }
 const deepCenters = (page: Page) =>
   centersOf(page, '[aria-label$="deep zone"]');
-const allCenters = (page: Page) => centersOf(page, "");
+
+/**
+ * Where the nth of `count` equal shares of the field is centred, in frame
+ * units, read off the two sidelines the field is drawn between.
+ */
+async function shareCentre(
+  page: Page,
+  index: number,
+  count: number,
+): Promise<number> {
+  const xs = await page
+    .locator("svg.field-diagram")
+    .first()
+    .locator("[data-field-sideline]")
+    .evaluateAll((lines) =>
+      lines.map((line) => Number(line.getAttribute("x1"))),
+    );
+  expect(xs).toHaveLength(2);
+  const left = Math.min(...xs);
+  const width = Math.max(...xs) - left;
+  return left + ((index + 0.5) * width) / count;
+}
+
+/** Expects the deep bubbles' centres to be these shares of the field. */
+async function expectDeepShares(
+  page: Page,
+  shares: readonly (readonly [index: number, count: number])[],
+): Promise<void> {
+  const expected = await Promise.all(
+    shares.map(([index, count]) => shareCentre(page, index, count)),
+  );
+  await expect
+    .poll(async () => (await deepCenters(page)).length)
+    .toBe(expected.length);
+  const centers = await deepCenters(page);
+  expected.forEach((x, index) => expect(centers[index]).toBeCloseTo(x, 0));
+}
 
 /** The field as drawn, saved beside the run's results. */
 async function saveField(page: Page, info: TestInfo, name: string) {
@@ -91,7 +131,7 @@ async function saveField(page: Page, info: TestInfo, name: string) {
     .screenshot({ path: info.outputPath(`${name}.png`) });
 }
 
-test("divides the deep field between the defenders called into it, and closes over one who leaves", async ({
+test("lays each deep call on the ground its name says, and lets two men share a zone", async ({
   page,
 }, testInfo) => {
   await openSeededEditor(page);
@@ -101,60 +141,125 @@ test("divides the deep field between the defenders called into it, and closes ov
 
   const [leftCorner, rightCorner] = await defendersLettered(page, "C");
   const [freeSafety] = await defendersLettered(page, "F");
+  const [safety] = await defendersLettered(page, "S");
   const [mike] = await defendersLettered(page, "M");
 
-  // Alone, the first deep defender owns the middle of the field.
+  // Alone, a Deep 1/3 is still his own outside third, not the middle.
   await call(page, leftCorner!, "Deep 1/3");
-  await expect.poll(async () => (await deepCenters(page)).length).toBe(1);
-  const [middle] = await deepCenters(page);
-  await saveField(page, testInfo, "1-cover-1");
+  await expectDeepShares(page, [[0, 3]]);
+  await saveField(page, testInfo, "1-lone-deep-third");
 
-  // A second takes half of it, and the two split the field about its middle.
+  // The other corner takes the other outside third; the middle stays open.
   await call(page, rightCorner!, "Deep 1/3");
-  await expect.poll(async () => (await deepCenters(page)).length).toBe(2);
-  const halves = await deepCenters(page);
-  expect((halves[0]! + halves[1]!) / 2).toBeCloseTo(middle!, 1);
-  const half = halves[1]! - halves[0]!;
-  await saveField(page, testInfo, "2-cover-2");
+  await expectDeepShares(page, [
+    [0, 3],
+    [2, 3],
+  ]);
+  const outsideThirds = await deepCenters(page);
+  await saveField(page, testInfo, "2-two-outside-thirds");
 
-  // The safety takes the middle third, and both corners give ground to it.
+  // The free safety fills the middle third, and nobody else moves.
   await call(page, freeSafety!, "Middle 1/3");
-  await expect.poll(async () => (await deepCenters(page)).length).toBe(3);
+  await expectDeepShares(page, [
+    [0, 3],
+    [1, 3],
+    [2, 3],
+  ]);
   const thirds = await deepCenters(page);
-  expect(thirds[1]).toBeCloseTo(middle!, 1);
-  expect(thirds[1]! - thirds[0]!).toBeCloseTo((half * 2) / 3, 1);
-  expect(thirds[2]! - thirds[1]!).toBeCloseTo((half * 2) / 3, 1);
   await saveField(page, testInfo, "3-cover-3");
 
-  // One undo takes the call and the room made for it back together.
+  // One undo takes the call back.
   await page.keyboard.press("Control+z");
-  await expect.poll(() => deepCenters(page)).toEqual(halves);
+  await expect.poll(() => deepCenters(page)).toEqual(outsideThirds);
   await call(page, freeSafety!, "Middle 1/3");
   await expect.poll(() => deepCenters(page)).toEqual(thirds);
 
+  // The other safety called into the middle third shares it: both men keep
+  // their line, to one bubble, and the corners keep their thirds.
+  await call(page, safety!, "Middle 1/3");
+  await expect.poll(() => deepCenters(page)).toEqual(thirds);
+  expect(await centersOf(page, '[aria-label="F deep zone"]')).toEqual([
+    thirds[1],
+  ]);
+  expect(await centersOf(page, '[aria-label="S deep zone"]')).toEqual([
+    thirds[1],
+  ]);
+  await saveField(page, testInfo, "4-two-in-the-middle-third");
+
   // A hook underneath adds its own bubble and leaves the deep shell alone.
   await call(page, mike!, "Hook");
-  await expect.poll(async () => (await allCenters(page)).length).toBe(4);
+  await expect
+    .poll(async () => (await centersOf(page, "")).length)
+    .toBe(thirds.length + 1);
   expect(await deepCenters(page)).toEqual(thirds);
-  await saveField(page, testInfo, "4-cover-3-with-a-hook");
 
-  // A corner sent on a blitz leaves the deep field to the two still in it.
+  // A corner sent on a blitz leaves his third open; nobody re-splits the field.
   await call(page, rightCorner!, "D gap");
-  await expect.poll(() => deepCenters(page)).toEqual(halves);
+  await expect.poll(() => deepCenters(page)).toEqual(thirds.slice(0, 2));
 
-  // Clearing the safety's lines hands the whole middle back to the corner.
+  // Clearing the free safety's lines leaves the middle to the man sharing it.
   await freeSafety!.click({ force: true });
   await expect(page.locator(".player-heading")).toBeVisible();
   await page.keyboard.press("Delete");
-  await expect.poll(() => deepCenters(page)).toEqual([middle]);
+  await expect.poll(() => deepCenters(page)).toEqual(thirds.slice(0, 2));
+  expect(await centersOf(page, '[aria-label="F deep zone"]')).toEqual([]);
 
-  // And taking the corner's own call off leaves no deep shell at all.
+  // And taking the corner's own call off leaves the safety in the middle.
   await call(page, leftCorner!, "Deep 1/3", false);
-  await expect.poll(() => deepCenters(page)).toEqual([]);
-  await saveField(page, testInfo, "5-no-deep-shell");
+  await expect.poll(() => deepCenters(page)).toEqual([thirds[1]]);
+  await saveField(page, testInfo, "5-safety-alone-in-the-middle");
 });
 
-test("lays a defensive call's own deep drops out with a zone called on top of it", async ({
+test("draws Cover 4 and Cover 6 from quick assignments, and lets two men share a landmark underneath", async ({
+  page,
+}, testInfo) => {
+  await openSeededEditor(page);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await putOnDefense(page, "Nickel Cover 2", false);
+
+  const [leftCorner, rightCorner] = await defendersLettered(page, "C");
+  const [freeSafety] = await defendersLettered(page, "F");
+  const [safety] = await defendersLettered(page, "S");
+  const [will] = await defendersLettered(page, "W");
+  const [mike] = await defendersLettered(page, "M");
+
+  // Deep 1/4 is the quarter nearest each man: the corners on the numbers take
+  // the outside quarters, the safeties on the hashes the inside ones.
+  for (const man of [leftCorner, freeSafety, safety, rightCorner]) {
+    await call(page, man!, "Deep 1/4");
+  }
+  await expectDeepShares(page, [
+    [0, 4],
+    [1, 4],
+    [2, 4],
+    [3, 4],
+  ]);
+  expect(await centersOf(page, '[aria-label="F deep zone"]')).toEqual([
+    (await deepCenters(page))[1],
+  ]);
+  await saveField(page, testInfo, "1-cover-4");
+
+  // Quarters to one side and a half to the other: the safety plays his half,
+  // and the corner on that side sinks to the flat.
+  await call(page, safety!, "Deep 1/2");
+  await call(page, rightCorner!, "Curl / flat");
+  await expectDeepShares(page, [
+    [0, 4],
+    [1, 4],
+    [1, 2],
+  ]);
+  await saveField(page, testInfo, "2-cover-6");
+
+  // Two backers called Robber share its one bubble over the ball.
+  await call(page, will!, "Robber");
+  await call(page, mike!, "Robber");
+  const robber = await centersOf(page, '[aria-label="W curl zone"]');
+  expect(robber).toHaveLength(1);
+  expect(await centersOf(page, '[aria-label="M curl zone"]')).toEqual(robber);
+  await saveField(page, testInfo, "3-two-robbers");
+});
+
+test("keeps a defensive call's halves and lays a Middle 1/3 over the middle, as Tampa 2 does", async ({
   page,
 }, testInfo) => {
   await openSeededEditor(page);
@@ -164,15 +269,17 @@ test("lays a defensive call's own deep drops out with a zone called on top of it
   await expect.poll(async () => (await deepCenters(page)).length).toBe(2);
   await saveField(page, testInfo, "1-nickel-cover-2");
 
-  // The mike leaves the hole underneath for the deep middle: two-deep
-  // rotates to three, and the call's safeties make room for him.
+  // The mike runs the deep middle. The safeties keep their halves, laid on
+  // the halves their call names, and the mike's bubble sits over the middle.
   const [mike] = await defendersLettered(page, "M");
   await call(page, mike!, "Middle 1/3");
-  await expect.poll(async () => (await deepCenters(page)).length).toBe(3);
-  const thirds = await deepCenters(page);
-  expect(thirds[1]! - thirds[0]!).toBeCloseTo(thirds[2]! - thirds[1]!, 1);
-  expect(await centersOf(page, '[aria-label="M deep zone"]')).toEqual([
-    thirds[1],
+  await expectDeepShares(page, [
+    [0, 2],
+    [1, 3],
+    [1, 2],
   ]);
-  await saveField(page, testInfo, "2-rotated-to-three-deep");
+  expect(await centersOf(page, '[aria-label="M deep zone"]')).toEqual([
+    (await deepCenters(page))[1],
+  ]);
+  await saveField(page, testInfo, "2-tampa-2");
 });

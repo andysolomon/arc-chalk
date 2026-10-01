@@ -1,3 +1,4 @@
+import { defensiveFieldOf } from "./defensive-field";
 import {
   classifyZoneCoverage,
   DEEP_ZONE_DEPTH_YARDS,
@@ -12,12 +13,13 @@ import type {
 } from "./schema";
 
 /**
- * A defense's zones are one shell rather than a drop per man: where a bubble
- * sits depends on who else is dropping at its level. The deep defenders share
- * the width of the field, so one deep man owns the middle of it, two split it
- * in halves, three in thirds and four in quarters, all at one depth.
- * Underneath, each bubble stays where it was called to unless it would sit on
- * a neighbour's, and then the two are slid apart until they meet at a seam.
+ * A defense's zones are one shell rather than a drop per man. A deep call is
+ * the ground its name says (ADR 0075): Middle 1/3 the middle third of the
+ * field, Deep 1/3 the outside third on the man's side, Deep 1/2 his half and
+ * Deep 1/4 the quarter nearest him, all at one depth. Men called to the same
+ * ground share it. Underneath, each bubble stays where it was called to unless
+ * it would sit on a neighbour's, and then the two are slid apart until they
+ * meet at a seam; two men called to the same landmark share its bubble.
  *
  * The shell is laid out when the Coach changes who is in it — a zone called on
  * a defender, or taken off — so the defenders already dropping make room for
@@ -30,13 +32,15 @@ import type {
 export type ZoneShellLevel = "deep" | "underneath";
 
 /**
- * What the shell reads of a Play: the men, their lines and the width of the
- * field. A call in the catalogue is laid out on the same rule before it is
+ * What the shell reads of a Play: the men, their lines and the field, whose
+ * width it shares out and whose hashes say where a defense drawn alone has
+ * its ball. A call in the catalogue is laid out on the same rule before it is
  * ever put on a Play, so it asks for no more than that.
  */
-export type ZoneShellPlay = Pick<PlayDocument, "players" | "paths"> & {
-  readonly fieldProfile: Pick<PlayDocument["fieldProfile"], "widthYards">;
-};
+export type ZoneShellPlay = Pick<
+  PlayDocument,
+  "players" | "paths" | "fieldProfile"
+>;
 
 export const zoneShellLevels: readonly ZoneShellLevel[] = Object.freeze([
   "deep",
@@ -54,6 +58,96 @@ const DEEP_CUSHION_YARDS = 4;
 
 /** Closer than this, a bubble is where it was and is not moved. */
 const SAME_SPOT_YARDS = 1e-9;
+
+/**
+ * Closer to the ball than this, a man is straight over it — the tolerance a
+ * man head up on a lineman is given (ADR 0064).
+ */
+const OVER_THE_BALL_YARDS = 0.25;
+
+/** The deep calls, and how many equal shares of the field each one's ground is. */
+const deepShares: Readonly<Record<string, 2 | 3 | 4>> = Object.freeze({
+  mid3: 3,
+  deep3: 3,
+  deep2: 2,
+  quarter: 4,
+});
+
+/**
+ * Which side of the ball a man plays: the one he stands on. A man straight
+ * over the ball takes the field side, where there is more of it to cover,
+ * and over the ball in the middle of the field the left as the diagram is
+ * drawn.
+ */
+function sideOf(stance: Coordinate, ballLateralYards: number): -1 | 1 {
+  const off = stance.lateralYards - ballLateralYards;
+  if (Math.abs(off) > OVER_THE_BALL_YARDS) return off < 0 ? -1 : 1;
+  if (Math.abs(ballLateralYards) > OVER_THE_BALL_YARDS) {
+    return ballLateralYards < 0 ? 1 : -1;
+  }
+  return -1;
+}
+
+/**
+ * The ground a deep call names, as the centre of its share of the field and
+ * the share's width; nothing for a call that is not a deep one.
+ */
+export function deepGroundOf(
+  preset: string | undefined,
+  stance: Coordinate,
+  ballLateralYards: number,
+  widthYards: number,
+): { readonly lateralYards: number; readonly shareYards: number } | undefined {
+  const count = preset === undefined ? undefined : deepShares[preset];
+  if (count === undefined) return undefined;
+  const shareYards = widthYards / count;
+  const centre = (index: number) =>
+    -widthYards / 2 + (index + 0.5) * shareYards;
+  const side = sideOf(stance, ballLateralYards);
+  let index: number;
+  if (preset === "mid3") {
+    index = 1;
+  } else if (preset === "deep3") {
+    index = side < 0 ? 0 : 2;
+  } else if (preset === "deep2") {
+    index = side < 0 ? 0 : 1;
+  } else {
+    // The quarter he stands in is the nearest; on the line between two, the
+    // one on his side.
+    const at = (stance.lateralYards + widthYards / 2) / shareYards;
+    const boundary = Math.round(at);
+    index =
+      Math.abs(at - boundary) <= SAME_SPOT_YARDS / shareYards
+        ? side < 0
+          ? boundary - 1
+          : boundary
+        : Math.floor(at);
+    index = Math.max(0, Math.min(count - 1, index));
+  }
+  return { lateralYards: centre(index), shareYards };
+}
+
+/**
+ * Where a deep call sends a man on his own: the middle of the ground it
+ * names, four yards behind him and never shallower than a drop that reads as
+ * deep. The shell then settles every deep man at one depth.
+ */
+export function deepCallLandmark(
+  preset: string,
+  stance: Coordinate,
+  ballLateralYards: number,
+  widthYards: number,
+): Coordinate | undefined {
+  const ground = deepGroundOf(preset, stance, ballLateralYards, widthYards);
+  if (!ground) return undefined;
+  return {
+    lateralYards: ground.lateralYards,
+    depthYards: Math.max(
+      DEEP_ZONE_DEPTH_YARDS,
+      stance.depthYards + DEEP_CUSHION_YARDS,
+    ),
+  };
+}
 
 interface Drop {
   readonly path: MovementPath;
@@ -140,41 +234,41 @@ function landed(
 }
 
 /**
- * The deep shell. The deep defenders take the field's width in equal shares,
- * left to right in the order they line up, each bubble as wide as its share
- * less the seam — though never wider than a zone can be sized, so a lone deep
- * man owns the middle of the field rather than all of it. They settle at one
- * depth, so the shell reads as one line of coverage.
+ * The deep shell. Each deep call is laid on the ground it names, its bubble as
+ * wide as its share of the field less the seam — though never wider than a
+ * zone can be sized — so men called to the same ground share one bubble.
+ * They settle at one depth, behind the deepest of them, so the shell reads as
+ * one line of coverage. A deep drop that is no call stays where it was drawn.
  */
 function layDeep(
   play: ZoneShellPlay,
   drops: readonly Drop[],
+  ballLateralYards: number,
 ): Map<string, MovementPath> {
   const moved = new Map<string, MovementPath>();
-  if (drops.length === 0) return moved;
   const width = play.fieldProfile.widthYards;
-  const ordered = [...drops].sort(
-    (left, right) =>
-      left.stance.lateralYards - right.stance.lateralYards ||
-      left.end.lateralYards - right.end.lateralYards ||
-      byId(left, right),
-  );
-  const share = width / ordered.length;
+  const called = drops.flatMap((drop) => {
+    const ground = deepGroundOf(
+      drop.path.preset,
+      drop.stance,
+      ballLateralYards,
+      width,
+    );
+    return ground ? [{ drop, ground }] : [];
+  });
+  if (called.length === 0) return moved;
   const bounds = ZONE_COVERAGE_RADIUS_BOUNDS.lateralYards;
-  const radiusLateralYards = Math.max(
-    bounds.min,
-    Math.min(bounds.max, share / 2 - ZONE_SEAM_YARDS / 2),
-  );
-  const deepest = Math.max(...ordered.map(({ stance }) => stance.depthYards));
+  const deepest = Math.max(...called.map(({ drop }) => drop.stance.depthYards));
   const depthYards = Math.max(
     DEEP_ZONE_DEPTH_YARDS,
     deepest + DEEP_CUSHION_YARDS,
   );
-  ordered.forEach((drop, index) => {
-    const center = {
-      lateralYards: -width / 2 + (index + 0.5) * share,
-      depthYards,
-    };
+  for (const { drop, ground } of called) {
+    const radiusLateralYards = Math.max(
+      bounds.min,
+      Math.min(bounds.max, ground.shareYards / 2 - ZONE_SEAM_YARDS / 2),
+    );
+    const center = { lateralYards: ground.lateralYards, depthYards };
     const unchanged =
       drop.path.coverageArea !== undefined &&
       Math.abs(drop.end.lateralYards - center.lateralYards) <=
@@ -182,12 +276,12 @@ function layDeep(
       Math.abs(drop.end.depthYards - center.depthYards) <= SAME_SPOT_YARDS &&
       Math.abs(drop.area.radiusLateralYards - radiusLateralYards) <=
         SAME_SPOT_YARDS;
-    if (unchanged) return;
+    if (unchanged) continue;
     moved.set(
       drop.path.id,
       landed(drop, center, { ...drop.area, radiusLateralYards }),
     );
-  });
+  }
   return moved;
 }
 
@@ -283,21 +377,51 @@ function spreadAcross(
   });
 }
 
+/**
+ * Drops that share a bubble: men called to the same landmark with the same
+ * call. Each group is laid out as the one bubble its first drop draws, and
+ * every man in it goes where that bubble goes. A drop that is no call is a
+ * group of its own.
+ */
+function sharedGroupsOf(drops: readonly Drop[]): Map<Drop, readonly Drop[]> {
+  const groups = new Map<Drop, Drop[]>();
+  const sorted = [...drops].sort(byId);
+  for (const drop of sorted) {
+    const lead =
+      drop.path.preset === undefined
+        ? undefined
+        : [...groups.keys()].find(
+            (other) =>
+              other.path.preset === drop.path.preset &&
+              Math.abs(other.end.lateralYards - drop.end.lateralYards) <=
+                SAME_SPOT_YARDS &&
+              Math.abs(other.end.depthYards - drop.end.depthYards) <=
+                SAME_SPOT_YARDS,
+          );
+    if (lead) groups.get(lead)!.push(drop);
+    else groups.set(drop, [drop]);
+  }
+  return groups;
+}
+
 function layUnderneath(
   play: ZoneShellPlay,
   drops: readonly Drop[],
 ): Map<string, MovementPath> {
   const moved = new Map<string, MovementPath>();
   const halfWidth = play.fieldProfile.widthYards / 2;
-  for (const row of rowsOf(drops)) {
-    for (const [drop, lateralYards] of spreadAcross(row, halfWidth)) {
-      if (Math.abs(lateralYards - drop.end.lateralYards) <= SAME_SPOT_YARDS) {
-        continue;
+  const groups = sharedGroupsOf(drops);
+  for (const row of rowsOf([...groups.keys()])) {
+    for (const [lead, lateralYards] of spreadAcross(row, halfWidth)) {
+      for (const drop of groups.get(lead)!) {
+        if (Math.abs(lateralYards - drop.end.lateralYards) <= SAME_SPOT_YARDS) {
+          continue;
+        }
+        moved.set(
+          drop.path.id,
+          landed(drop, { lateralYards, depthYards: drop.end.depthYards }),
+        );
       }
-      moved.set(
-        drop.path.id,
-        landed(drop, { lateralYards, depthYards: drop.end.depthYards }),
-      );
     }
   }
   return moved;
@@ -316,7 +440,9 @@ export function layoutZoneShell<Play extends ZoneShellPlay>(
   const at = (level: ZoneShellLevel) =>
     drops.filter((drop) => drop.level === level);
   const moved = new Map([
-    ...(levels.includes("deep") ? layDeep(play, at("deep")) : []),
+    ...(levels.includes("deep")
+      ? layDeep(play, at("deep"), defensiveFieldOf(play).ballLateralYards)
+      : []),
     ...(levels.includes("underneath")
       ? layUnderneath(play, at("underneath"))
       : []),
