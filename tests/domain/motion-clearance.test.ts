@@ -27,6 +27,8 @@ import { describe, expect, it } from "vitest";
  *    side of a man to the other mid-motion.
  * 6. A defender walking across with the motion goes round a man deeper than
  *    him on the side toward the ball, and crosses the line of scrimmage.
+ * 7. A motion that passes the same man twice — out and back — goes round
+ *    him the first time and straight through him the second.
  */
 
 const base: Player = {
@@ -206,6 +208,33 @@ describe("pre-snap motion going round the men in its way", () => {
     expect(frames.at(-1)!.c!.lateralYards).toBeCloseTo(-10, 1);
     for (const frame of frames) {
       expect(frame.c!.depthYards).toBeGreaterThan(0);
+    }
+  });
+
+  it("goes round a man he passes twice both times, out and back (7)", () => {
+    const back = at("h", 0, -2);
+    const play = playOf(
+      [{ ...base, position: { lateralYards: 15, depthYards: -2 } }, back],
+      [
+        motion([
+          { lateralYards: 15, depthYards: -2 },
+          { lateralYards: -15, depthYards: -2 },
+          { lateralYards: 15, depthYards: -2 },
+        ]),
+      ],
+    );
+    // Two symbols touch at 26 frame px: 976/53⅓ px a yard across, 12 down.
+    const apart = (one: Coordinate, other: Coordinate) =>
+      Math.hypot(
+        ((one.lateralYards - other.lateralYards) * 976 * 3) / 160,
+        (one.depthYards - other.depthYards) * 12,
+      );
+    const frames = presnap(play);
+    expect(
+      Math.min(...frames.map((frame) => frame.z!.lateralYards)),
+    ).toBeLessThan(-14);
+    for (const frame of frames) {
+      expect(apart(frame.z!, back.position)).toBeGreaterThanOrEqual(26);
     }
   });
 });

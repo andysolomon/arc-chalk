@@ -397,41 +397,58 @@ function clearPresnapLine(
   });
   const away = unit === "defense" ? 1 : -1;
 
-  const owed = new Map<
-    number,
-    { readonly closest: number; readonly push: number }
-  >();
+  // One entry per time he comes to a man: a motion out and back passes him
+  // twice, and each pass is gone round on its own.
+  const owed: {
+    readonly man: number;
+    readonly closest: number;
+    readonly push: number;
+  }[] = [];
   let cleared = points;
   for (let pass = 0; pass < men.length; pass += 1) {
     let more = false;
     for (const [index, man] of men.entries()) {
-      if (owed.has(index) || !inTheWay(man, cleared)) continue;
-      let closest = 0;
-      for (let at = 1; at < points.length; at += 1) {
-        if (
-          Math.hypot(points[at]!.x - man.x, points[at]!.y - man.y) <
-          Math.hypot(points[closest]!.x - man.x, points[closest]!.y - man.y)
+      const gap = (point: FramePoint) =>
+        Math.hypot(point.x - man.x, point.y - man.y);
+      for (let first = 0; first < cleared.length; first += 1) {
+        if (gap(cleared[first]!) >= CLEARANCE_PX - 0.5) continue;
+        let last = first;
+        while (
+          last + 1 < cleared.length &&
+          gap(cleared[last + 1]!) < CLEARANCE_PX - 0.5
         ) {
-          closest = at;
+          last += 1;
         }
+        const handled = owed.some(
+          ({ man: on, closest }) =>
+            on === index && closest >= first && closest <= last,
+        );
+        if (!handled) {
+          let closest = first;
+          for (let at = first + 1; at <= last; at += 1) {
+            if (gap(points[at]!) < gap(points[closest]!)) closest = at;
+          }
+          const normal = normals[closest]!;
+          const behind = normal.y * away >= 0 ? 1 : -1;
+          const apart =
+            behind *
+            ((points[closest]!.x - man.x) * normal.x +
+              (points[closest]!.y - man.y) * normal.y);
+          owed.push({
+            man: index,
+            closest,
+            push: behind * Math.max(0, CLEARANCE_PX - apart),
+          });
+          more = true;
+        }
+        first = last;
       }
-      const normal = normals[closest]!;
-      const behind = normal.y * away >= 0 ? 1 : -1;
-      const apart =
-        behind *
-        ((points[closest]!.x - man.x) * normal.x +
-          (points[closest]!.y - man.y) * normal.y);
-      owed.set(index, {
-        closest,
-        push: behind * Math.max(0, CLEARANCE_PX - apart),
-      });
-      more = true;
     }
     if (!more) break;
     cleared = points.map((point, index) => {
       let outward = 0;
       let inward = 0;
-      for (const { closest, push } of owed.values()) {
+      for (const { closest, push } of owed) {
         const share = bend(along[index]! - along[closest]!, push);
         if (share > 0) outward = Math.max(outward, share);
         else inward = Math.min(inward, share);
