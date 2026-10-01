@@ -915,11 +915,17 @@ export const playbookEnvelopeSchema = playbookEnvelopeStructureSchema.check(
             `Play references missing Formation: ${play.formationSource.formationId}`,
           );
         } else {
-          if (formation.unit !== play.unit) {
+          // A Play's set is the one its offense stands in — its own on an
+          // offensive Play, its shadow's on a defensive one (ADR 0053), the
+          // way defensiveCallSource is the call its defenders stand in on
+          // either — or the defensive set a Playbook of its own puts a
+          // defensive Play in. The one mistake is a defensive set on an
+          // offensive Play: its defense is a call, never a set (ADR 0072).
+          if (play.unit === "offense" && formation.unit !== "offense") {
             addCustomIssue(
               payload,
               ["plays", playIndex, "formationSource"],
-              `Formation ${formation.name} belongs to ${formation.unit}, not ${play.unit}.`,
+              `Formation ${formation.name} is a ${formation.unit} set; an offensive Play's set is its offense's.`,
             );
           }
           if (play.formationSource.revision > formation.revision) {
