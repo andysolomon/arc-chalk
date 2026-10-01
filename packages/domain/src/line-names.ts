@@ -1,5 +1,5 @@
-import { ballSpotAt, currentBallSpot, type BallSpot } from "./ball-spot";
 import { stockDefensiveCalls, type DefensiveCall } from "./defense-catalogue";
+import { lineKindNames } from "./classifications";
 import { currentDefensiveCall } from "./defenses";
 import {
   defensiveFieldOf,
@@ -7,11 +7,11 @@ import {
   gapLetters,
   sideOfBall,
 } from "./defensive-field";
-import { offensivePlayers } from "./formations";
 import { classifyZoneCoverage } from "./geometry";
 import { isManLine } from "./man-coverage";
-import { linePresetByKey, routePresetNames } from "./route-catalogue";
-import type { MovementPath, PlayDocument, Player } from "./schema";
+import { routeCallName } from "./quarterback";
+import { blockPresets, linePresetByKey } from "./route-catalogue";
+import type { MovementPath, PathPoint, PlayDocument, Player } from "./schema";
 
 /**
  * What a line is called when the Coach has not written anything for it — the
@@ -21,13 +21,69 @@ import type { MovementPath, PlayDocument, Player } from "./schema";
  * he has, the gap he rushes.
  */
 
-/** The quick call a line was drawn as, while it is still that call. */
+/** How far a point may sit from the catalogue's before a block is not that call. */
+const CALL_SHAPE_YARDS = 0.1;
+
+/**
+ * The block call a line still has the exact shape of. A block put on the
+ * line before the catalogue kept its key on the line (issue #108) is that
+ * call all the same — a Drive is a Drive — so it is read off the shape: the
+ * catalogue's own points from the man's stance, to either side for a pull.
+ * A block that matches none was drawn by hand, and is only a block.
+ */
+function blockShapeCall(path: MovementPath): string | undefined {
+  const stance = path.points[0];
+  if (stance === undefined) return undefined;
+  const drawnAs = (drawn: readonly PathPoint[]): boolean =>
+    drawn.length === path.points.length &&
+    drawn.every((point, index) => {
+      const own = path.points[index]!;
+      return (
+        Math.abs(point.lateralYards - own.lateralYards) <= CALL_SHAPE_YARDS &&
+        Math.abs(point.depthYards - own.depthYards) <= CALL_SHAPE_YARDS
+      );
+    });
+  return blockPresets.find((preset) =>
+    (preset.pull ? ([undefined, 1, -1] as const) : [undefined]).some((toward) =>
+      drawnAs(preset.pointsFrom(stance, undefined, toward)),
+    ),
+  )?.name;
+}
+
+/**
+ * The quick call a line was drawn as, while it is still that call. A block
+ * keeps its call's name by its key, or by its shape when it was drawn before
+ * the key was kept (issue #156): Drive, Reach and Pass set never print as a
+ * bare "Block".
+ */
 export function quickCallName(path: MovementPath): string | undefined {
-  if (path.preset === undefined) return undefined;
-  if (path.kind === "route") {
-    return routePresetNames.find(({ key }) => key === path.preset)?.name;
+  if (path.preset === undefined) {
+    return path.kind === "block" ? blockShapeCall(path) : undefined;
   }
+  if (path.kind === "route") return routeCallName(path.preset);
   return linePresetByKey(path.preset)?.name;
+}
+
+/**
+ * A man call, named for the man it is on: "Man on Z", or "Man" while it
+ * follows nobody. Nothing for a line that is not a man call.
+ */
+export function manCallName(
+  play: Pick<PlayDocument, "players">,
+  path: MovementPath,
+): string | undefined {
+  if (!isManLine(path)) return undefined;
+  const man = play.players.find(({ id }) => id === path.covers?.playerId);
+  return man?.label.trim() ? `Man on ${man.label.trim()}` : "Man";
+}
+
+/**
+ * What kind of line this is, said the way a Coach says it. A man call is a
+ * zone line to the model — it owns no ground and ends in an arrow at a man —
+ * but to him it is Man, never Zone (issue #154).
+ */
+export function lineKindWord(path: MovementPath): string {
+  return isManLine(path) ? "Man" : lineKindNames[path.kind];
 }
 
 /** The original's rush, which names no gap: the line itself has to say which. */
@@ -158,10 +214,8 @@ export function lineCallName(
   } = {},
 ): string | undefined {
   const calls = options.calls ?? stockDefensiveCalls;
-  if (isManLine(path)) {
-    const man = play.players.find(({ id }) => id === path.covers?.playerId);
-    return man?.label.trim() ? `Man on ${man.label.trim()}` : "Man";
-  }
+  const man = manCallName(play, path);
+  if (man) return man;
   if (
     path.kind === "blitz" &&
     (path.preset === undefined || path.preset === UNAIMED_RUSH)
@@ -201,18 +255,24 @@ export function defensiveCallOf(
   return currentDefensiveCall(play, calls);
 }
 
+/**
+ * What the defense is called, for a picker or a printed footer: the call it
+ * is standing in, on whichever hash — or, once a man has been moved by hand,
+ * a custom front that still says which call it came from, so the Coach knows
+ * which front and coverage his variant is a variant of.
+ */
+export function defensiveCallName(
+  play: PlayDocument,
+  calls: readonly DefensiveCall[] = stockDefensiveCalls,
+): string {
+  const standing = currentDefensiveCall(play, calls);
+  if (standing) return standing.formation.name;
+  const source = defensiveCallOf(play, calls);
+  return source ? `Custom · from ${source.formation.name}` : "Custom front";
+}
+
 /** A defense's personnel is its front's: base, or extra backs for nickel and dime. */
 export function defensivePersonnel(call: DefensiveCall): string {
   if (call.front === "Nickel" || call.front === "Dime") return call.front;
   return "Base";
-}
-
-/**
- * Which hash the ball is on, for a Play of either side of the ball. A
- * defense drawn alone lines up on the ball, so its front says where it is.
- */
-export function playBallSpot(play: PlayDocument): BallSpot | undefined {
-  if (offensivePlayers(play).length > 0) return currentBallSpot(play);
-  if (!play.players.some(({ unit }) => unit === "defense")) return undefined;
-  return ballSpotAt(play, defensiveFieldOf(play).ballLateralYards);
 }

@@ -148,11 +148,12 @@ test("lines each man in man up on his receiver in Cover 0, and meets a new set",
   await openSeededEditor(page);
   await putOnDefense(page, "Bear Front Cover 0", true);
 
-  // Nobody is deep behind them, so the corners, the nickel and the safety
-  // each take the receiver that suits him and line up on him.
+  // Nobody is deep behind them, so the corners and the two safeties walked
+  // down (issue #154: the Bear's fourth back is the F, not a second N) each
+  // take the receiver that suits him and line up on him.
   await expect
     .poll(() => manCalls(page))
-    .toEqual(["$ man on Y", "C man on F", "C man on Z", "N man on X"]);
+    .toEqual(["$ man on X", "C man on F", "C man on Z", "F man on Y"]);
   await select(page, man(page, "$", "defense"));
   await expect(schemeNote(page)).toHaveAttribute(
     "data-coverage-scheme",
@@ -170,9 +171,9 @@ test("lines each man in man up on his receiver in Cover 0, and meets a new set",
   await expect(formations).toBeHidden();
   await expect
     .poll(() => manCalls(page))
-    .toEqual(["$ man on Y", "C man on X", "C man on Z", "N man on H"]);
+    .toEqual(["$ man on H", "C man on X", "C man on Z", "F man on Y"]);
   expectLinedUp(await leverageOn(page, ["H", "X", "Y", "Z"]));
-  // The nickel — not the nose, who wears an N too — follows the slot to the
+  // The F keeps the tight end he had; the $ follows the slot across to the
   // trips side.
   const centre = await spotOf(man(page, "Q", "offense"));
   expect((await spotOf(await defenderOn(page, "H"))).x).toBeGreaterThan(
@@ -182,7 +183,7 @@ test("lines each man in man up on his receiver in Cover 0, and meets a new set",
 
   // The set and the defense's answer to it are one step back.
   await page.keyboard.press("Control+z");
-  await expect.poll(() => manCalls(page)).toContain("N man on X");
+  await expect.poll(() => manCalls(page)).toContain("$ man on X");
 });
 
 test("gives each man his receiver in Cover 1 without moving him, until the call becomes Cover 0", async ({

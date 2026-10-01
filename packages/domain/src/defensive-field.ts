@@ -1,8 +1,8 @@
-import { isLineman } from "./classifications";
-import { ballLateralYards, roleFromLabel } from "./formations";
+import { playBallLateralYards } from "./ball-spot";
+import { isLineman, isOnDefensiveFrontAt } from "./classifications";
+import { roleFromLabel } from "./formations";
 import {
   legacyCanvasToYards,
-  legacyDepthSpanToYards,
   legacyLateralSpanToYards,
   LEGACY_FIELD_GEOMETRY,
 } from "./geometry";
@@ -20,7 +20,8 @@ import type { Coordinate, PathPoint, PlayDocument, Player } from "./schema";
  *
  * The offense on the field decides where the gaps are, so a line spotted on
  * the hash has its gaps on the hash. A defense drawn on its own is given the
- * original's line — five men two yards apart — centred on its own front.
+ * original's line — five men two yards apart — centred on the ball its front
+ * straddles, which is the hash it was spotted on.
  */
 
 export type GapLetter = "A" | "B" | "C" | "D";
@@ -54,14 +55,6 @@ const GUN_DEPTH_YARDS = legacyCanvasToYards({
   x: LEGACY_FIELD_GEOMETRY.midfieldX,
   y: 504,
 }).depthYards;
-
-/**
- * Who is on the defensive front: a man within the roster's 50 canvas pixels
- * of the ball, and inside the width a front can be. A corner pressed at the
- * line is on the numbers, not on the front.
- */
-const FRONT_DEPTH_YARDS = legacyDepthSpanToYards(50);
-const FRONT_REACH_YARDS = 10;
 
 /** A man head up on a lineman is given the gap inside him. */
 const HEAD_UP_YARDS = 0.25;
@@ -99,14 +92,6 @@ function gapsFrom(guard: number, tackle: number, end?: number): Gaps {
 }
 
 const DEFAULT_GAPS = gapsFrom(SPLIT_YARDS, SPLIT_YARDS * 2);
-
-function isOnFrontAt(position: Coordinate, ball: number): boolean {
-  return (
-    position.depthYards >= 0 &&
-    position.depthYards <= FRONT_DEPTH_YARDS &&
-    Math.abs(position.lateralYards - ball) <= FRONT_REACH_YARDS
-  );
-}
 
 /**
  * One side's gaps, off the offensive line where it stands: the guard and the
@@ -172,21 +157,9 @@ export function defensiveFieldOf(
 ): DefensiveField {
   const offense = play.players.filter(({ unit }) => unit !== "defense");
   const defense = play.players.filter(({ unit }) => unit === "defense");
-  // Without an offense the front says where the ball is: it lines up on it.
-  const provisional = offense.length > 0 ? ballLateralYards(offense) : 0;
-  const provisionalFront = defense.filter(({ position }) =>
-    isOnFrontAt(position, provisional),
-  );
-  const ball =
-    offense.length > 0 || provisionalFront.length === 0
-      ? provisional
-      : (Math.min(
-          ...provisionalFront.map(({ position }) => position.lateralYards),
-        ) +
-          Math.max(
-            ...provisionalFront.map(({ position }) => position.lateralYards),
-          )) /
-        2;
+  // Under the line, or — with no offense — on the front, which lines up on
+  // it: the one reading the Ball on control and every export share.
+  const ball = playBallLateralYards(play);
   const linemen = offense.filter(isLineman);
   return {
     ballLateralYards: ball,
@@ -200,7 +173,7 @@ export function defensiveFieldOf(
     },
     halfWidthYards: play.fieldProfile.widthYards / 2,
     front: defense
-      .filter(({ position }) => isOnFrontAt(position, ball))
+      .filter(({ position }) => isOnDefensiveFrontAt(position, ball))
       .map(({ position }) => position)
       .sort((left, right) => left.lateralYards - right.lateralYards),
   };
@@ -220,7 +193,7 @@ export function isOnDefensiveFront(
   position: Coordinate,
   field: DefensiveField,
 ): boolean {
-  return isOnFrontAt(position, field.ballLateralYards);
+  return isOnDefensiveFrontAt(position, field.ballLateralYards);
 }
 
 export function sideOfBall(

@@ -1,4 +1,4 @@
-import type { OutputFormatId } from "@chalk/exports";
+import type { OutputFormatId, PlaybookOrder } from "@chalk/exports";
 import type { Presentation } from "@chalk/render";
 
 import type { ChalkLibrary } from "../app/editor-runtime";
@@ -19,7 +19,14 @@ export type SourceChoice =
       /** The prepared revision, or the plays as they are now. */
       readonly copy: "revision" | "current";
     }
-  | { readonly kind: "book" };
+  | {
+      readonly kind: "book";
+      /**
+       * The order the pages turn in, when the Coach chose one here; unset
+       * reads as the book page's own sort (issue #156).
+       */
+      readonly order?: PlaybookOrder;
+    };
 
 export interface OutputSpec {
   readonly source: SourceChoice;

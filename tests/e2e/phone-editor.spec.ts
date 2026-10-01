@@ -662,7 +662,8 @@ for (const viewport of WORKSPACES) {
       const at = (await symbol.boundingBox())!;
       await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
       await expect(tray).toBeVisible();
-      await expect(tray.getByText("Q · Routes")).toBeVisible();
+      // He is offered a quarterback's calls, not the route tree (ADR 0073).
+      await expect(tray.getByText("Q · Assignments")).toBeVisible();
 
       // The tray is a row on the glass, above the tools, with thumb-sized
       // pills — the first ones without a scroll.
@@ -673,28 +674,27 @@ for (const viewport of WORKSPACES) {
         viewport,
       );
       expect(trayBox.y + trayBox.height).toBeLessThanOrEqual(toolsBox.y + 1);
-      const slant = tray.getByRole("button", { name: "Slant" });
-      const slantBox = await insideViewport(page, slant, viewport);
-      expect(slantBox.height).toBeGreaterThanOrEqual(44);
-      expect(slantBox.width).toBeGreaterThanOrEqual(44);
+      const drop = tray.getByRole("button", { name: "3-step drop" });
+      const dropBox = await insideViewport(page, drop, viewport);
+      expect(dropBox.height).toBeGreaterThanOrEqual(44);
+      expect(dropBox.width).toBeGreaterThanOrEqual(44);
 
-      // One tap draws the route and marks the pill as his.
-      await slant.tap();
+      // One tap draws his line and marks the pill as his.
+      await drop.tap();
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
-      await expect(slant).toHaveAttribute("aria-pressed", "true");
+      await expect(drop).toHaveAttribute("aria-pressed", "true");
       await expectSavedOnThisDevice(page);
 
-      // A quick route chosen in the sheet puts the sheet away (ADR 0058):
+      // A quick call chosen in the sheet puts the sheet away (ADR 0058):
       // the field behind says what he runs, and the tray agrees.
       await page.getByRole("button", { name: "Show all assignments" }).tap();
       const sheet = page.getByRole("complementary", { name: "Play inspector" });
       await expect(sheet).toHaveAttribute("data-sheet", "full");
-      await sheet.getByRole("button", { name: "Curl" }).tap();
+      await sheet.getByRole("button", { name: "Play action" }).tap();
       await expect(sheet).toHaveAttribute("data-sheet", "peek");
-      await expect(tray.getByRole("button", { name: "Curl" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      );
+      await expect(
+        tray.getByRole("button", { name: "Play action" }),
+      ).toHaveAttribute("aria-pressed", "true");
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
     });
 
