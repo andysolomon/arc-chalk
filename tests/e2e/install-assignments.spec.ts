@@ -1,5 +1,5 @@
 import { type Page, type TestInfo } from "@playwright/test";
-import { expect, openBlankEditor, test } from "./fixtures";
+import { expect, openBlankEditor, startNewPlay, test } from "./fixtures";
 
 /**
  * Issue #161: the install page is what a position group studies, so every
@@ -126,11 +126,7 @@ test("a defensive install page lists every defender's job under the call it is",
   browserName,
 }, testInfo) => {
   await openBlankEditor(page);
-  await page.getByRole("button", { name: "More actions" }).click();
-  await page
-    .locator(".more-panel")
-    .getByRole("button", { name: /^New defensive play/ })
-    .click();
+  await startNewPlay(page, "defensive");
   const name = page.getByRole("textbox", { name: "Play name" });
   await name.fill("Cover 3 Mike");
   await name.press("Enter");

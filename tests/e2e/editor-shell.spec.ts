@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, openSettings, openViewAndLibrary, test } from "./fixtures";
 
 const LOCAL_SAVE_BUDGET_MS = 50;
 
@@ -49,8 +49,9 @@ const storedIds = (page: import("@playwright/test").Page, key: string) =>
     key,
   );
 
-/** Opens the sidebar's Library row (issue #64, ADR 0058). */
+/** Opens the sidebar's Library row (issue #64, ADR 0058, ADR 0074). */
 const unfoldLibrary = async (page: import("@playwright/test").Page) => {
+  await openViewAndLibrary(page);
   const toggle = page
     .getByRole("navigation", { name: "Sidebar" })
     .getByRole("button", { name: /^Library/ });
@@ -292,13 +293,9 @@ test("changes the markings and the words from the inspector without moving the P
 
   // Page and type moved into the Settings overlay (along with Field,
   // Playbook settings and History), under its Print & export tab. The
-  // layers are the sidebar's Show on field row (ADR 0058).
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "More actions" })
-    .click();
-  await page.getByRole("button", { name: "Settings…" }).click();
-  const settings = page.getByRole("dialog", { name: "Settings" });
+  // layers are the sidebar's Show on field row (ADR 0058), under View &
+  // library (ADR 0074).
+  const settings = await openSettings(page);
   await settings.getByRole("tab", { name: "Print & export" }).click();
   await expect(settings.getByText("Page", { exact: true })).toBeVisible();
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
@@ -319,6 +316,7 @@ test("changes the markings and the words from the inspector without moving the P
   await settings.getByRole("button", { name: "Close" }).click();
   await expect(settings).toHaveCount(0);
 
+  await openViewAndLibrary(page);
   await sidebar.getByRole("button", { name: /^Show on field/ }).click();
   await sidebar.getByRole("button", { name: "Text" }).click();
   await expect(page.locator("[data-scene-label]")).toHaveCount(0);
@@ -605,12 +603,7 @@ test("names a version and restores it after a reload", async ({ page }) => {
   await expect(page.getByText("Install week")).toBeVisible();
 
   // History lives in the Settings overlay now, with the same words.
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "More actions" })
-    .click();
-  await page.getByRole("button", { name: "Settings…" }).click();
-  const settings = page.getByRole("dialog", { name: "Settings" });
+  const settings = await openSettings(page);
   await settings.getByRole("tab", { name: "History" }).click();
   await expect(settings.getByText("Install week")).toBeVisible();
   await expect(settings.getByText("just now")).toBeVisible();

@@ -5,7 +5,7 @@ import {
 } from "@chalk/domain";
 import { type Page } from "@playwright/test";
 
-import { expect, openBlankEditor, test } from "./fixtures";
+import { expect, openBlankEditor, startNewPlay, test } from "./fixtures";
 
 /**
  * Clearing every line takes the names the lines gave (issue #153). A concept
@@ -110,11 +110,7 @@ test("takes a defense's drops and blitzes the same way", async ({
   page,
 }, testInfo) => {
   await openBlankEditor(page);
-  await page.getByRole("button", { name: "More actions" }).click();
-  await page
-    .locator(".more-panel")
-    .getByRole("button", { name: /^New defensive play/ })
-    .click();
+  await startNewPlay(page, "defensive");
   await page.keyboard.press("Control+Shift+d");
   const browser = page.getByRole("dialog", { name: "Defenses" });
   await expect(browser).toBeVisible();

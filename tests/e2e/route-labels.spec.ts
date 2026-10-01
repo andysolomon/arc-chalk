@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 
 import { type FrameLocator, type Locator, type Page } from "@playwright/test";
 
-import { expect, openSeededEditor, test } from "./fixtures";
+import { expect, openSeededEditor, openViewAndLibrary, test } from "./fixtures";
 
 /**
  * A route's words on the field (issue #158). X runs a Go named COMET
@@ -288,8 +288,9 @@ test("a route's words stack beside it, stay on the paper, print the same, and le
   await page.keyboard.press("Escape");
 
   // Notes off takes the conversion and the note off the field; the
-  // Assignment and the read stay.
-  const sidebar = page.getByRole("navigation", { name: "Sidebar" });
+  // Assignment and the read stay. Show on field folds under View & library
+  // (ADR 0074).
+  const sidebar = await openViewAndLibrary(page);
   await sidebar.getByRole("button", { name: /^Show on field/ }).click();
   await sidebar.getByRole("button", { name: "Notes", exact: true }).click();
   await expect(
