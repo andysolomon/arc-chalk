@@ -69,11 +69,11 @@ What was seen on one snap of film: where each man lined up and how each moved, m
 _Avoid_: Recognized play, detected formation, film import
 
 **Game Plan**:
-A named, durable view of one Playbook for one game and one coordinator unit: which Plays will be called, the Sections they are called from, and the code each answers to. It references Plays and never copies their editable source.
+A named, durable view kept in one Playbook — its home, where it is listed, printed and prepared from — for one game and one coordinator unit: which Plays will be called, from that book or any other of the Coach's, the Sections they are called from, and the code each answers to. It references Plays and never copies their editable source.
 _Avoid_: Game playbook, weekly playbook copy, folder
 
 **Call**:
-One Play's place in a Game Plan, with one stable call code. A Call may be listed in several Sections and remains one Call.
+One Play's place in a Game Plan, with one stable call code. The Play may live in any of the Coach's Playbooks; a Call from another book says which. A Call may be listed in several Sections and remains one Call.
 _Avoid_: Play copy, numbered play, slot
 
 **Section**:

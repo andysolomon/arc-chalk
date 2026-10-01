@@ -7502,10 +7502,12 @@ export function ChalkApp({
                 ) : (
                   <GamePlansWorkspace
                     embedded
+                    everyPlay={everyPlay}
                     formations={allFormations}
                     library={runtime.library}
                     onClose={() => goToView("Editor")}
                     onOpenPlay={openPlay}
+                    playbooks={playbookSummaries}
                     render={renderDiagram}
                     snapshot={playbook.snapshot}
                   />
@@ -7607,6 +7609,7 @@ export function ChalkApp({
       <div className="chalk-shell view-game-day">
         {header}
         <GameDayView
+          everyPlay={everyPlay}
           hasImage={hasImage}
           library={runtime.library}
           onOpenPlaybooks={() => {
@@ -8382,6 +8385,7 @@ export function ChalkApp({
       ) : null}
       {overlay === "game-plans" ? (
         <GamePlansWorkspace
+          everyPlay={everyPlay}
           formations={allFormations}
           library={runtime.library}
           onClose={() => setOverlay(null)}
@@ -8391,6 +8395,7 @@ export function ChalkApp({
             }
             void playbook.loadPlay(playId);
           }}
+          playbooks={playbookSummaries}
           render={renderDiagram}
           snapshot={playbook.snapshot}
         />
