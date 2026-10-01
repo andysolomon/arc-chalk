@@ -21,6 +21,7 @@ import {
   type GamePlanRevision,
   type GamePlanRevisionSummary,
   type PlayDocument,
+  type PlayPickScope,
   type PlaySearchQuery,
   type Playbook,
 } from "@chalk/domain";
@@ -95,6 +96,25 @@ export interface LibrarySnapshot {
 }
 
 /**
+ * Every live Play a Game Plan can name: the open book as its snapshot has
+ * it — that list is read again after each edit, so it is the fresher of the
+ * two — and every other book on the shelf from the device-wide listing. A
+ * plan's Calls may name Plays from any of the Coach's books (ADR 0067), so
+ * names, hashes and the picker all read this rather than the open book alone.
+ */
+export function everyLibraryMember(
+  snapshot: LibrarySnapshot,
+  everyPlay: readonly PlaySearchProjection[] = [],
+): readonly PlaySearchProjection[] {
+  const others = everyPlay.filter(
+    (member) => member.playbookId !== snapshot.playbook.id,
+  );
+  return others.length === 0
+    ? snapshot.members
+    : [...snapshot.members, ...others];
+}
+
+/**
  * How the Playbook lists its Plays when nothing is being searched for. The
  * install order is the one the Coach set by hand, offered on a book's own
  * page (issue #166).
@@ -147,6 +167,8 @@ export interface ChromeState {
 }
 
 export const CHROME_KEY = "chrome.v1";
+/** Where a Game Plan's picker looks — this book or all of them (ADR 0067). */
+export const PLAN_PICK_SCOPE_KEY = "gamePlans.pickScope.v1";
 export const OUTPUT_PRESETS_KEY = "output.presets.v1";
 export const CALL_SHEET_KEY = "callSheet.v1";
 export const WRISTBAND_KEY = "wristband.v1";
@@ -197,6 +219,11 @@ export function readChromeState(value: unknown): ChromeState {
 const readIds = (value: unknown): readonly string[] =>
   Array.isArray(value) ? value.filter((id) => typeof id === "string") : [];
 
+/** Anything but the whole shelf reads as the plan's own book. */
+export function readPlanPickScope(value: unknown): PlayPickScope {
+  return value === "all" ? "all" : "book";
+}
+
 export interface ChalkLibrary {
   /** The open book. Everything below reads from it; `openPlaybook` on the runtime changes it. */
   readonly playbookId: string;
@@ -224,6 +251,13 @@ export interface ChalkLibrary {
   /** Where the Game Day reader was and what the coordinator wrote there (issue #67). */
   loadGameDay(): Promise<GameDayState>;
   saveGameDay(state: GameDayState): Promise<void>;
+  /**
+   * Where a plan's Add plays picker looks: its own book, or every book on
+   * the shelf. How this Coach gathers a plan on this device — kept beside
+   * favorites and chrome, not on any plan (ADR 0067).
+   */
+  loadPlanPickScope(): Promise<PlayPickScope>;
+  savePlanPickScope(scope: PlayPickScope): Promise<void>;
   /** The outputs the Coach ran lately, so one runs again in a click (issue #69). */
   loadOutputPresets(): Promise<readonly OutputPreset[]>;
   saveOutputPresets(presets: readonly OutputPreset[]): Promise<void>;
@@ -529,6 +563,7 @@ export function createMemoryLibrary(
   let browser: LibraryBrowserState = { scrollTop: 0, query: "" };
   let chrome: ChromeState = defaultChromeState;
   let gameDay: GameDayState = defaultGameDayState;
+  let pickScope: PlayPickScope = "book";
   let outputPresets: readonly OutputPreset[] = [];
   let callSheets: Record<string, CallSheetConfig> = {};
   let wristbands: Record<string, WristbandConfig> = {};
@@ -630,6 +665,13 @@ export function createMemoryLibrary(
     },
     saveGameDay(state) {
       gameDay = state;
+      return Promise.resolve();
+    },
+    loadPlanPickScope() {
+      return Promise.resolve(pickScope);
+    },
+    savePlanPickScope(scope) {
+      pickScope = scope;
       return Promise.resolve();
     },
     loadOutputPresets() {
@@ -941,6 +983,14 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     },
     async saveGameDay(state) {
       await rememberJson(GAME_DAY_KEY, state);
+    },
+    async loadPlanPickScope() {
+      return readPlanPickScope(
+        (await repository.getPreference(PLAN_PICK_SCOPE_KEY))?.value,
+      );
+    },
+    async savePlanPickScope(scope) {
+      await rememberJson(PLAN_PICK_SCOPE_KEY, scope);
     },
     async loadOutputPresets() {
       return readOutputPresets(
