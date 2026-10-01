@@ -82,8 +82,10 @@ function withMan(
 }
 
 describe("reading a Film Observation", () => {
-  it("keeps real film: a centre over the ball, a jet motion before the snap, a route out of bounds", () => {
-    let real = withMan(observation(), "o-c", (player) => ({
+  it("keeps real film: a ball on the hash, a centre over it, a jet motion before the snap, a route out of bounds", () => {
+    // A ball on the left hash read half a yard outside it: noise, not a spot.
+    let real = { ...observation(), ballLateralYards: BALL - 0.5 };
+    real = withMan(real, "o-c", (player) => ({
       ...player,
       // Feet read half a yard into the neutral zone: noise, not a flipped field.
       alignment: { ...player.alignment, depthYards: 0.4 },
@@ -118,6 +120,15 @@ describe("reading a Film Observation", () => {
     }));
 
     expect(readFilmObservation(pixels).status).toBe("invalid");
+  });
+
+  it("refuses a ball no official could spot, which every man in a draft would be placed from", () => {
+    // Pixels either way, and a ball between the left hash and the sideline.
+    for (const ballLateralYards of [640, -640, BALL - 6]) {
+      expect(
+        readFilmObservation({ ...observation(), ballLateralYards }).status,
+      ).toBe("invalid");
+    }
   });
 
   it("refuses a field read the way the camera faced rather than the way the offense attacks", () => {

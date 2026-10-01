@@ -78,11 +78,13 @@ Coach-facing feature starts only if most men land within about a yard.
 ## Evidence
 
 `tests/domain/film-observation.test.ts` lists the ways an engine's output can look like
-data and still be wrong, one test each, written before `readFilmObservation`: pixels
-reported as yards, a field read from the camera's end, an official counted as a twelfth
-man, two men under one id, a track timed in seconds, a track that runs backward, a
-confidence given as a percentage, an engine that names what it saw, and an observation
-from a newer engine. The first test keeps real film: a centre whose feet are read half a
-yard into the neutral zone, a jet motion before the snap, and a route that finishes past
-the sideline. The Coach-facing feature will add a Playwright spec that feeds a fixed still
-through a recorded engine response and saves the drafted Play as a screenshot.
+data and still be wrong, one test each, written before the code that refuses it: pixels
+reported as yards, a ball no official could spot (off the field, or outside the hashes),
+a field read from the camera's end, an official counted as a twelfth man, two men under
+one id, a track timed in seconds, a track that runs backward, a confidence given as a
+percentage, an engine that names what it saw, and an observation from a newer engine.
+The first test keeps real film: a ball on the hash read half a yard outside it, a centre
+whose feet are read half a yard into the neutral zone, a jet motion before the snap, and
+a route that finishes past the sideline. The Coach-facing feature will add a Playwright
+spec that feeds a fixed still through a recorded engine response and saves the drafted
+Play as a screenshot.

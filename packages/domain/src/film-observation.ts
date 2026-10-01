@@ -1,5 +1,6 @@
 import * as z from "zod/mini";
 
+import { hashSpots } from "./ball-spot";
 import {
   collegeFieldProfile,
   highSchoolFieldProfile,
@@ -38,6 +39,13 @@ const FILM_OUT_OF_BOUNDS_YARDS = 5;
  * camera's end.
  */
 const FILM_NEUTRAL_ZONE_TOLERANCE_YARDS = 1;
+
+/**
+ * How far outside a hash a ball may be read. An official spots the ball on a
+ * hash or between them; a ball on a hash read a half yard over is noise, and
+ * one anywhere else would place every man from a spot no official could use.
+ */
+const FILM_SPOT_TOLERANCE_YARDS = 1;
 
 const yardsSchema = z.strictObject({
   lateralYards: z.number(),
@@ -86,6 +94,16 @@ export const filmObservationSchema = z
   .check(
     z.superRefine((observation, payload) => {
       const profile = FILM_FIELD_PROFILES[observation.field];
+      const spotLimit =
+        hashSpots({ fieldProfile: profile }).right + FILM_SPOT_TOLERANCE_YARDS;
+      if (Math.abs(observation.ballLateralYards) > spotLimit) {
+        payload.addIssue({
+          code: "custom",
+          path: ["ballLateralYards"],
+          message:
+            "The ball is outside the hashes: an official spots it on a hash or between them.",
+        });
+      }
       const lateralLimit = profile.widthYards / 2 + FILM_OUT_OF_BOUNDS_YARDS;
       const depthLimit = profile.lengthYards + 2 * profile.endZoneDepthYards;
       const onFilm = (point: { lateralYards: number; depthYards: number }) =>
