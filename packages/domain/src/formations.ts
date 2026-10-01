@@ -829,7 +829,7 @@ export const RECOGNITION_THRESHOLD = 0.85;
  * Below this there is no split to be proportional about, so a side is taken
  * as unchanged rather than scaled by the ratio of two rounding errors.
  */
-const MIN_REACH_YARDS = legacyCanvasToYards({
+export const MIN_REACH_YARDS = legacyCanvasToYards({
   x: LEGACY_FIELD_GEOMETRY.midfieldX + 4,
   y: 0,
 }).lateralYards;
@@ -840,7 +840,7 @@ const MIN_REACH_YARDS = legacyCanvasToYards({
  * and two deep here, against fourteen for the reading, because a set he named
  * stops being that set the moment a man is somewhere else.
  */
-const APPLIED_TOLERANCE = Object.freeze({
+export const APPLIED_TOLERANCE = Object.freeze({
   lateralYards: legacyCanvasToYards({
     x: LEGACY_FIELD_GEOMETRY.midfieldX + 3,
     y: 0,

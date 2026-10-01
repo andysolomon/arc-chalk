@@ -1,7 +1,9 @@
 import {
   assignRoles,
   assignmentForPath,
+  currentBallSpot,
   currentFormation,
+  defensiveCallName,
   defensiveCallOf,
   defensivePersonnel,
   defensivePlayers,
@@ -9,7 +11,6 @@ import {
   formationMeta,
   lineCallName,
   offensivePlayers,
-  playBallSpot,
   type Concept,
   type Formation,
   type MovementPath,
@@ -235,9 +236,9 @@ export function playMeta(
     const call = defensiveCallOf(play);
     return {
       personnel: call ? defensivePersonnel(call) : "",
-      formation: call?.formation.name ?? "Custom front",
+      formation: defensiveCallName(play),
       strength: "",
-      hash: playBallSpot(play) ?? "middle",
+      hash: currentBallSpot(play) ?? "middle",
     };
   }
   const offense = offensivePlayers(play);
@@ -255,7 +256,7 @@ export function playMeta(
     personnel: offense.length > 0 ? `${meta.personnelLabel}P` : "",
     formation: formation?.name ?? "Custom alignment",
     strength: meta.strength,
-    hash: playBallSpot(play) ?? "middle",
+    hash: currentBallSpot(play) ?? "middle",
   };
 }
 

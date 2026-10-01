@@ -1,5 +1,7 @@
+import { playBallLateralYards } from "./ball-spot";
 import { defensiveLineKinds, routeKindStyle } from "./classifications";
 import type { DefensiveAssignment, DefensiveCall } from "./defense-catalogue";
+import { APPLIED_TOLERANCE, MIN_REACH_YARDS } from "./formations";
 import {
   classifyZoneCoverage,
   LEGACY_FIELD_GEOMETRY,
@@ -197,35 +199,85 @@ export function applyDefensiveCall(
 }
 
 /**
- * Who is on the field, as one string: each man's letter and where he stands,
- * sorted so the order they were added in does not matter. Comparing two of
- * these settles the whole question at once — no pairing to do, and no man who
- * could be counted twice. A man in man stands wherever his receiver has put
- * him (ADR 0060), so for him only his letter and his call are compared.
+ * How far a hash can squeeze one side of the ball, or give it back: the room
+ * a set is allowed to still be the set the Coach applied, so a defense and
+ * the offense in front of it keep or lose their names by one rule.
  */
-function alignmentSignature(
-  men: readonly {
-    readonly label: string;
-    readonly position: Coordinate;
-    readonly inMan?: boolean;
-  }[],
-): string {
-  return men
-    .map(({ label, position, inMan }) =>
-      inMan
-        ? `${label}@man`
-        : `${label}@${position.lateralYards},${position.depthYards}`,
-    )
-    .sort()
-    .join("|");
+const withinHashSqueeze = (scale: number) => scale >= 0.42 && scale <= 1.2;
+
+/**
+ * Whether these men are standing in this call. Where the call puts a man is
+ * measured from the ball, and a hash squeezes each side of the ball by one
+ * factor, read off the widest man on that side as it is for a set. A man on
+ * one of `manSlots` is in man, standing wherever his receiver put him (ADR
+ * 0060), so for him only his letter and his call are compared.
+ */
+function standsIn(
+  defense: readonly Player[],
+  inMan: ReadonlySet<string>,
+  call: DefensiveCall,
+  ball: number,
+  manSlots: ReadonlySet<string>,
+): boolean {
+  const slots = call.formation.slots;
+  if (slots.length !== defense.length) return false;
+  const slotBall = call.formation.ball.position.lateralYards;
+  const placedSlots = slots.filter(({ id }) => !manSlots.has(id));
+  const placedMen = defense.filter(({ id }) => !inMan.has(id));
+  const reach = (
+    list: readonly { readonly position: Coordinate }[],
+    from: number,
+    sign: 1 | -1,
+  ) =>
+    Math.max(
+      0,
+      ...list.map(({ position }) => sign * (position.lateralYards - from)),
+    );
+  const ratio = (now: number, was: number) =>
+    was > MIN_REACH_YARDS && now > MIN_REACH_YARDS ? now / was : 1;
+  const scaleLeft = ratio(
+    reach(placedMen, ball, -1),
+    reach(placedSlots, slotBall, -1),
+  );
+  const scaleRight = ratio(
+    reach(placedMen, ball, 1),
+    reach(placedSlots, slotBall, 1),
+  );
+  if (!withinHashSqueeze(scaleLeft) || !withinHashSqueeze(scaleRight)) {
+    return false;
+  }
+
+  const remaining = [...defense];
+  return slots.every((slot) => {
+    const offset = slot.position.lateralYards - slotBall;
+    const expected = ball + offset * (offset < 0 ? scaleLeft : scaleRight);
+    const index = remaining.findIndex(
+      (man) =>
+        man.label === slot.label &&
+        (manSlots.has(slot.id)
+          ? inMan.has(man.id)
+          : !inMan.has(man.id) &&
+            Math.abs(man.position.lateralYards - expected) <=
+              APPLIED_TOLERANCE.lateralYards &&
+            Math.abs(man.position.depthYards - slot.position.depthYards) <=
+              APPLIED_TOLERANCE.depthYards),
+    );
+    if (index < 0) return false;
+    remaining.splice(index, 1);
+    return true;
+  });
 }
 
 /**
  * Which call is on the field. A defense is placed rather than realigned onto
- * the men already there, so unlike a set there is nothing to match up and no
- * proportional reading to make: the men are either standing exactly where the
- * call puts them, letters and all, or this is not that call any more. The
- * men a call puts in man are the exception — they line up on their
+ * the men already there, so unlike a set there are no roles to match up: the
+ * men are standing where the call puts them, letters and all, or this is not
+ * that call any more. Where the call puts them is measured from the ball, so
+ * a call spotted on a hash — or brought back to the middle with the hash's
+ * squeeze still in it — is still that call, and a man moved by hand is what
+ * loses the name. A call is put on where the catalogue draws it, whatever
+ * hash the offense in front of it is on, so it is read from there as well.
+ * The men a call puts in man are the exception — they line up on their
  * receivers — so a call read with its man calls on is compared by their
  * letters, and one put on without its lines by where it drew them.
  */
@@ -233,32 +285,24 @@ export function currentDefensiveCall(
   play: PlayDocument,
   catalogue: readonly DefensiveCall[],
 ): DefensiveCall | undefined {
-  // No guard for an empty field: nobody on it reads as no letters at all,
-  // which is not any call's reading, so the answer falls out of the same
-  // comparison rather than needing a second one.
+  // No guard for an empty field: nobody on it is no call's eleven, so the
+  // answer falls out of the same comparison rather than needing a second one.
   const inMan = new Set(
     play.paths.filter(isManLine).map(({ playerId }) => playerId),
   );
-  const onField = alignmentSignature(
-    play.players
-      .filter(({ unit }) => unit === "defense")
-      .map((player) => ({ ...player, inMan: inMan.has(player.id) })),
-  );
+  const defense = play.players.filter(({ unit }) => unit === "defense");
+  const ball = playBallLateralYards(play);
   return catalogue.find((call) => {
     const manSlots = new Set(
       call.assignments
         .filter(({ kind }) => kind === "man")
         .map(({ slotId }) => slotId),
     );
-    return (
-      alignmentSignature(call.formation.slots) === onField ||
-      (manSlots.size > 0 &&
-        alignmentSignature(
-          call.formation.slots.map((slot) => ({
-            ...slot,
-            inMan: manSlots.has(slot.id),
-          })),
-        ) === onField)
+    const drawnAt = call.formation.ball.position.lateralYards;
+    return [ball, ...(drawnAt === ball ? [] : [drawnAt])].some(
+      (from) =>
+        standsIn(defense, inMan, call, from, new Set()) ||
+        (manSlots.size > 0 && standsIn(defense, inMan, call, from, manSlots)),
     );
   });
 }

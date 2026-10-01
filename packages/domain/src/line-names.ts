@@ -1,4 +1,3 @@
-import { ballSpotAt, currentBallSpot, type BallSpot } from "./ball-spot";
 import { stockDefensiveCalls, type DefensiveCall } from "./defense-catalogue";
 import { lineKindNames } from "./classifications";
 import { currentDefensiveCall } from "./defenses";
@@ -8,7 +7,6 @@ import {
   gapLetters,
   sideOfBall,
 } from "./defensive-field";
-import { offensivePlayers } from "./formations";
 import { classifyZoneCoverage } from "./geometry";
 import { isManLine } from "./man-coverage";
 import { linePresetByKey, routePresetNames } from "./route-catalogue";
@@ -222,18 +220,24 @@ export function defensiveCallOf(
   return currentDefensiveCall(play, calls);
 }
 
+/**
+ * What the defense is called, for a picker or a printed footer: the call it
+ * is standing in, on whichever hash — or, once a man has been moved by hand,
+ * a custom front that still says which call it came from, so the Coach knows
+ * which front and coverage his variant is a variant of.
+ */
+export function defensiveCallName(
+  play: PlayDocument,
+  calls: readonly DefensiveCall[] = stockDefensiveCalls,
+): string {
+  const standing = currentDefensiveCall(play, calls);
+  if (standing) return standing.formation.name;
+  const source = defensiveCallOf(play, calls);
+  return source ? `Custom · from ${source.formation.name}` : "Custom front";
+}
+
 /** A defense's personnel is its front's: base, or extra backs for nickel and dime. */
 export function defensivePersonnel(call: DefensiveCall): string {
   if (call.front === "Nickel" || call.front === "Dime") return call.front;
   return "Base";
-}
-
-/**
- * Which hash the ball is on, for a Play of either side of the ball. A
- * defense drawn alone lines up on the ball, so its front says where it is.
- */
-export function playBallSpot(play: PlayDocument): BallSpot | undefined {
-  if (offensivePlayers(play).length > 0) return currentBallSpot(play);
-  if (!play.players.some(({ unit }) => unit === "defense")) return undefined;
-  return ballSpotAt(play, defensiveFieldOf(play).ballLateralYards);
 }
