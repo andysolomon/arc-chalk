@@ -5,6 +5,7 @@ import {
   currentBallSpot,
   createStableId,
   currentDefensiveCall,
+  defensiveCallName,
   coverableReceivers,
   manCoverageFor,
   manCoverageScheme,
@@ -6653,10 +6654,11 @@ export function ChalkApp({
   const defenderCount = editor.document.players.filter(
     ({ unit }) => unit === "defense",
   ).length;
-  const callName = onFieldCall
-    ? onFieldCall.formation.name
-    : defenderCount > 0
-      ? "Custom front"
+  // A call moved by hand names the one it came from, so the variant keeps
+  // its front and coverage in view.
+  const callName =
+    defenderCount > 0
+      ? defensiveCallName(editor.document, defensiveCalls)
       : "No defense yet";
   const formationName = onFieldFormation?.name ?? "Custom alignment";
   const openFormations = () => {

@@ -1,6 +1,7 @@
+import { isOnDefensiveFrontAt } from "./classifications";
 import { ballLateralYards } from "./formations";
 import { legacyLateralSpanToYards } from "./geometry";
-import type { Coordinate, PathPoint, PlayDocument } from "./schema";
+import type { Coordinate, PathPoint, PlayDocument, Player } from "./schema";
 
 /**
  * Where the official spots the ball, and what moving it does to a Play.
@@ -24,18 +25,19 @@ export function hashSpots(
 /** Close enough to a spot to be called spotted there. */
 const SPOT_TOLERANCE_YARDS = legacyLateralSpanToYards(6);
 
-/** Which spot the ball is on now, if it is on one. */
+/**
+ * Which spot the ball is on now, if it is on one — for a Play of either side
+ * of the ball, since a defense drawn alone lines up on it too.
+ */
 export function currentBallSpot(play: PlayDocument): BallSpot | undefined {
-  return ballSpotAt(
-    play,
-    ballLateralYards(play.players.filter(({ unit }) => unit !== "defense")),
-  );
+  return ballSpotAt(play, playBallLateralYards(play));
 }
 
 /** Which spot a ball this far across the field is on, if it is on one. */
 export function ballSpotAt(
   play: Pick<PlayDocument, "fieldProfile">,
   ball: number,
+  toleranceYards = SPOT_TOLERANCE_YARDS,
 ): BallSpot | undefined {
   const spots = hashSpots(play);
   let best: { spot: BallSpot; gap: number } | undefined;
@@ -43,7 +45,7 @@ export function ballSpotAt(
     const gap = Math.abs(spots[spot] - ball);
     if (!best || gap < best.gap) best = { spot, gap };
   }
-  return best && best.gap <= SPOT_TOLERANCE_YARDS ? best.spot : undefined;
+  return best && best.gap <= toleranceYards ? best.spot : undefined;
 }
 
 /**
@@ -58,6 +60,62 @@ const MIN_SPLIT_YARDS = legacyLateralSpanToYards(4);
 const MIN_SQUEEZE = 0.45;
 const MAX_GIVE = 1.15;
 
+/**
+ * The defensive front, found without being told where the ball is, left to
+ * right across the field. A defense stands around the ball, so the man in
+ * the middle of it across the field is near it; the front is the men at the
+ * line within reach of him, and then — since he may stand a step to one
+ * side — within reach of that front's own middle. A corner pressed at the
+ * line stands on the numbers, out of reach, and stays off it.
+ */
+function defensiveFrontLaterals(players: readonly Player[]): number[] {
+  const defense = players.filter(({ unit }) => unit === "defense");
+  if (defense.length === 0) return [];
+  const across = defense
+    .map(({ position }) => position.lateralYards)
+    .sort((left, right) => left - right);
+  const median =
+    (across[Math.floor((across.length - 1) / 2)]! +
+      across[Math.ceil((across.length - 1) / 2)]!) /
+    2;
+  const around = (ball: number) =>
+    defense
+      .filter(({ position }) => isOnDefensiveFrontAt(position, ball))
+      .map(({ position }) => position.lateralYards)
+      .sort((left, right) => left - right);
+  const first = around(median);
+  if (first.length === 0) return [];
+  return around((first[0]! + first.at(-1)!) / 2);
+}
+
+/**
+ * Where the ball is on a Play, across the field: the one reading every
+ * control, every export and every defender's call is measured from.
+ *
+ * The offense says: it is under the centre, or failing him among the line.
+ * A defense drawn alone lines up on the ball, so its front says: the ball is
+ * what the front straddles. A hash squeezes the boundary side of that front
+ * and gives the field side some of it back, which pulls the front's middle
+ * off the spot — by at most the front's half-width times the spread between
+ * the tightest squeeze and the most given back — so a front that close to a
+ * spot is on it, where the men over the ball stand exactly, and one further
+ * off has the ball at its middle. Nobody at the line, and the ball is in the
+ * middle of the field, where it would be spotted on an empty one.
+ */
+export function playBallLateralYards(
+  play: Pick<PlayDocument, "players" | "fieldProfile">,
+): number {
+  const offense = play.players.filter(({ unit }) => unit !== "defense");
+  if (offense.length > 0) return ballLateralYards(offense);
+  const front = defensiveFrontLaterals(play.players);
+  if (front.length === 0) return 0;
+  const middle = (front[0]! + front.at(-1)!) / 2;
+  const reach = (front.at(-1)! - front[0]!) / 2;
+  const pulled = (reach * (MAX_GIVE - MIN_SQUEEZE)) / (MAX_GIVE + MIN_SQUEEZE);
+  const spot = ballSpotAt(play, middle, SPOT_TOLERANCE_YARDS + pulled);
+  return spot === undefined ? middle : hashSpots(play)[spot];
+}
+
 export interface BallSpotMapping {
   readonly ballLateralYards: number;
   readonly leftScale: number;
@@ -70,9 +128,7 @@ export function ballSpotMapping(
   play: PlayDocument,
   spotLateralYards: number,
 ): BallSpotMapping {
-  const ball = ballLateralYards(
-    play.players.filter(({ unit }) => unit !== "defense"),
-  );
+  const ball = playBallLateralYards(play);
   const offsets = play.players.map(
     ({ position }) => position.lateralYards - ball,
   );
@@ -223,12 +279,18 @@ export const ballSpotNames: Readonly<Record<BallSpot, string>> = Object.freeze({
 
 /**
  * Where the ball is, for a camera asked to look at it: under the centre if
- * one is drawn, and otherwise the middle of the line of scrimmage, which is
- * where it would be spotted on an empty field.
+ * one is drawn, and otherwise on the line of scrimmage where the Play puts
+ * it — under the line, on the front of a defense drawn alone, or in the
+ * middle of an empty field.
  */
 export function ballPosition(play: PlayDocument): Coordinate {
   const centre = play.players.find(
     ({ symbol, unit }) => symbol === "square" && unit !== "defense",
   );
-  return centre?.position ?? { lateralYards: 0, depthYards: 0 };
+  return (
+    centre?.position ?? {
+      lateralYards: playBallLateralYards(play),
+      depthYards: 0,
+    }
+  );
 }
