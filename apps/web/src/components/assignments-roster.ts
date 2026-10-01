@@ -37,6 +37,13 @@ export interface RosterRow {
    * else the call his line was drawn as, else the kind of line it is.
    */
   readonly summary?: string;
+  /**
+   * His words have no line under them: the Coach's own instruction for the
+   * man himself (ADR 0011), or what a Play stored before ADR 0064 kept when
+   * its route was cleared. The row says so, so nobody reads them as a route
+   * that is drawn (issue #153).
+   */
+  readonly textOnly?: true;
   /** What the row says while he has nothing yet. */
   readonly nothingYet: string;
   readonly group: RosterGroupId;
@@ -52,8 +59,15 @@ export interface Roster {
   readonly groups: readonly RosterGroup[];
   /** Every man in roster order, for stepping through the unit. */
   readonly rows: readonly RosterRow[];
-  /** Men with at least one line or assignment. */
+  /**
+   * Men with something to do: a line drawn, or words of their own. A call's
+   * name never counts without its line — it goes with the line (ADR 0064) —
+   * so what a cleared concept left behind cannot inflate the count; the men
+   * on words alone are told apart in `textOnly` (issue #153).
+   */
   readonly assigned: number;
+  /** Of the assigned, the men whose words have no line under them. */
+  readonly textOnly: number;
   readonly total: number;
 }
 
@@ -252,6 +266,7 @@ function row(
   code: string,
 ): RosterRow {
   const summary = assignmentSummary(play, player);
+  const drawn = play.paths.some(({ playerId }) => playerId === player.id);
   const letter = player.label.trim();
   return {
     player,
@@ -259,6 +274,7 @@ function row(
     mark: letter || code || "·",
     role: role || (group === "line" ? "Line" : "Skill"),
     ...(summary === undefined ? {} : { summary }),
+    ...(summary !== undefined && !drawn ? { textOnly: true as const } : {}),
     nothingYet: KIND_NOTHING[group],
     group,
   };
@@ -285,6 +301,7 @@ export function rosterFor(play: PlayDocument): Roster {
     groups,
     rows,
     assigned: rows.filter(({ summary }) => summary !== undefined).length,
+    textOnly: rows.filter(({ textOnly }) => textOnly).length,
     total: rows.length,
   };
 }

@@ -119,8 +119,10 @@ function SceneShape({ shape }: { shape: SvgShapePrimitive }) {
 }
 
 function SceneText({ text }: { text: SvgTextPrimitive }) {
+  // Centred unless the primitive says otherwise: a route's words hang off
+  // their anchor beside a vertical line and inward from the paper's edge.
   return (
-    <text {...text} textAnchor="middle">
+    <text textAnchor="middle" {...text}>
       {text.text}
     </text>
   );
@@ -504,6 +506,9 @@ export function FieldDiagram({
                   ) : null}
                   {path.coaching.notes.map((note) => (
                     <g data-scene-coaching={note.id} key={note.id}>
+                      {note.backing ? (
+                        <SceneShape shape={note.backing} />
+                      ) : null}
                       <SceneText text={note.text} />
                     </g>
                   ))}
