@@ -2,7 +2,7 @@ import { type Locator, type Page, type TestInfo } from "@playwright/test";
 import { expect, openSeededEditor, test } from "./fixtures";
 
 /**
- * The zone shell (ADR 0059, ADR 0073), built the way a Coach builds one: a
+ * The zone shell (ADR 0059, ADR 0075), built the way a Coach builds one: a
  * defense put on the field, then a zone called on one defender at a time from
  * the Quick assignments grid. A deep call is the ground its name says, and two
  * men called to one zone share it. Every bubble is read off the field as

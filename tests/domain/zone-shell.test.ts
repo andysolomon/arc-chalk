@@ -13,7 +13,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 /**
- * The zone shell's geometry in isolation (ADR 0059, ADR 0073). The
+ * The zone shell's geometry in isolation (ADR 0059, ADR 0075). The
  * Coach-visible behaviour — calling, undoing, blitzing, clearing and taking
  * off a zone, two men sharing one, and a catalogue call joined by one more —
  * is `tests/e2e/zone-shell.spec.ts`. These cases are the ways the layout could

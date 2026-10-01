@@ -14,7 +14,7 @@ import type {
 
 /**
  * A defense's zones are one shell rather than a drop per man. A deep call is
- * the ground its name says (ADR 0073): Middle 1/3 the middle third of the
+ * the ground its name says (ADR 0075): Middle 1/3 the middle third of the
  * field, Deep 1/3 the outside third on the man's side, Deep 1/2 his half and
  * Deep 1/4 the quarter nearest him, all at one depth. Men called to the same
  * ground share it. Underneath, each bubble stays where it was called to unless

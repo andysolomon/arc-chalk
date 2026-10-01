@@ -316,7 +316,7 @@ const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
  * A man call still is — it lines up on its receiver — but the rest are aimed
  * at the field (ADR 0064, issue #165): an underneath zone at its landmark, a
  * spy over the quarterback, pressure through a gap in the offensive line, and
- * a deep call on the ground its name says (ADR 0073), so a safety rolled down
+ * a deep call on the ground its name says (ADR 0075), so a safety rolled down
  * to curl/flat lands at ten yards rather than at his own eighteen, and a
  * corner's Deep 1/3 is his own outside third.
  */
