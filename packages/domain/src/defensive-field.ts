@@ -151,9 +151,7 @@ function quarterbackOf(
 
 /** The field a defender's calls are aimed at, read off the Play. */
 export function defensiveFieldOf(
-  play: Pick<PlayDocument, "players"> & {
-    readonly fieldProfile: Pick<PlayDocument["fieldProfile"], "widthYards">;
-  },
+  play: Pick<PlayDocument, "players" | "fieldProfile">,
 ): DefensiveField {
   const offense = play.players.filter(({ unit }) => unit !== "defense");
   const defense = play.players.filter(({ unit }) => unit === "defense");

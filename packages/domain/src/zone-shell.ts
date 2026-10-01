@@ -32,13 +32,15 @@ import type {
 export type ZoneShellLevel = "deep" | "underneath";
 
 /**
- * What the shell reads of a Play: the men, their lines and the width of the
- * field. A call in the catalogue is laid out on the same rule before it is
+ * What the shell reads of a Play: the men, their lines and the field, whose
+ * width it shares out and whose hashes say where a defense drawn alone has
+ * its ball. A call in the catalogue is laid out on the same rule before it is
  * ever put on a Play, so it asks for no more than that.
  */
-export type ZoneShellPlay = Pick<PlayDocument, "players" | "paths"> & {
-  readonly fieldProfile: Pick<PlayDocument["fieldProfile"], "widthYards">;
-};
+export type ZoneShellPlay = Pick<
+  PlayDocument,
+  "players" | "paths" | "fieldProfile"
+>;
 
 export const zoneShellLevels: readonly ZoneShellLevel[] = Object.freeze([
   "deep",

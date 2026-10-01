@@ -5,6 +5,7 @@ import {
   isOnDefensiveFront,
   type DefensiveField,
 } from "./defensive-field";
+import { highSchoolFieldProfile } from "./field-profile";
 import { STOCK_PLAYBOOK_ID } from "./formation-catalogue";
 import { legacyCanvasToYards } from "./geometry";
 import { linePresetByKey } from "./route-catalogue";
@@ -1035,7 +1036,8 @@ function laidUnderneath(
   const pathId = (index: number) => `drop_${index}`;
   const shell = layoutZoneShell(
     {
-      fieldProfile: { widthYards: DEFAULT_DEFENSIVE_FIELD.halfWidthYards * 2 },
+      // The original's field: a high-school one, 53⅓ yards wide.
+      fieldProfile: highSchoolFieldProfile,
       players: formation.slots.map((slot) => ({ ...slot })),
       paths: assignments.flatMap((assignment, index) =>
         assignment.kind === "drop"
