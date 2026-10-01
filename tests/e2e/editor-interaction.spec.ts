@@ -915,13 +915,13 @@ test("clears the concept and leaves the formation standing", async ({
   // The eleven men stay where they are; only their lines come off.
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
   await expect(routes).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Undo" })).toHaveAttribute(
-    "title",
-    "Undo Clear offensive routes",
-  );
+  // The Clear's toast offers its own Undo (issue #153); the header's is the
+  // one that names the step.
+  const undo = page.getByRole("banner").getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Clear offensive routes");
 
   // One erasure is one step back.
-  await page.getByRole("button", { name: "Undo" }).click();
+  await undo.click();
   await expect(routes).toHaveCount(routesBefore);
 });
 
