@@ -1,21 +1,19 @@
 import type { ReactNode } from "react";
 
 /**
- * The left sidebar (ADR 0058): per-play admin and navigation, so the right
- * inspector can be about assignments alone. Playbook rows go where the
- * header's tabs go; "This play" rows hold what the inspector used to —
- * formation, ball spot, the shadow, play type, layers, the library — each
- * behind a popover anchored to its row on a desktop, or a page inside the
- * drawer on a phone. The footer reaches Print & export, Settings and Help.
+ * The left sidebar (ADR 0058, ADR 0074): how this play is set up, so the
+ * right inspector can be about assignments alone. "This play" holds the
+ * formation, the ball spot and the shadow; Show on field and the Library fold
+ * away under "View & library". Each row's control is a popover anchored to
+ * the row on a desktop, or a page inside the drawer on a phone. The header's
+ * tabs are the navigation, so the sidebar repeats none of them. Its foot is a
+ * row of icons — Settings and Help, and Print & export in a phone's drawer,
+ * whose header has no room for it.
  */
 export type SidebarGlyph =
-  | "plays"
-  | "plans"
-  | "gameday"
   | "formation"
   | "ball"
   | "shadow"
-  | "type"
   | "layers"
   | "library"
   | "print"
@@ -31,24 +29,6 @@ const stroke = {
 } as const;
 
 const glyphs: Record<SidebarGlyph, ReactNode> = {
-  plays: (
-    <>
-      <rect height="10" rx="1.5" width="11" x="2.5" y="3" {...stroke} />
-      <path d="M5 6.5h6M5 9.5h6" {...stroke} />
-    </>
-  ),
-  plans: (
-    <>
-      <rect height="10" rx="1.5" width="11" x="2.5" y="3" {...stroke} />
-      <path d="M8 3v10M2.5 8h11" {...stroke} />
-    </>
-  ),
-  gameday: (
-    <>
-      <circle cx="8" cy="8" r="5.5" {...stroke} />
-      <path d="M8 5v3.2l2 1.3" {...stroke} />
-    </>
-  ),
   formation: (
     <>
       <rect height="10" rx="1.5" width="10" x="3" y="3" {...stroke} />
@@ -57,11 +37,6 @@ const glyphs: Record<SidebarGlyph, ReactNode> = {
   ),
   ball: <circle cx="8" cy="8" fill="currentColor" r="2.6" />,
   shadow: <path d="M8 3.2l5 9.6H3z" {...stroke} />,
-  type: (
-    <>
-      <path d="M6 2.5v11M10 2.5v11M3 6h10M3 10h10" {...stroke} />
-    </>
-  ),
   layers: (
     <>
       <circle cx="8" cy="8" r="5.5" {...stroke} />
@@ -105,7 +80,7 @@ const glyphs: Record<SidebarGlyph, ReactNode> = {
   ),
 };
 
-function Glyph({ glyph }: { glyph: SidebarGlyph }) {
+export function SidebarIcon({ glyph }: { glyph: SidebarGlyph }) {
   return (
     <svg aria-hidden="true" height="16" viewBox="0 0 16 16" width="16">
       {glyphs[glyph]}
@@ -126,10 +101,6 @@ export interface SidebarRowSpec {
   readonly onOpen?: () => void;
   /** Sits under the row whether or not it is open. */
   readonly below?: ReactNode;
-  /** A destination row that is where the Coach already is. */
-  readonly current?: boolean;
-  /** A key hint at the right, the way a menu shows one. */
-  readonly hint?: string;
   /** What assistive tech calls the row, when its label alone would clash. */
   readonly name?: string;
   readonly data?: Readonly<Record<string, string | undefined>>;
@@ -154,13 +125,12 @@ function Row({
   return (
     <div className="sidebar-row-wrap" data-row={spec.id}>
       <button
-        aria-current={spec.current ? "page" : undefined}
         aria-expanded={detailed ? open : undefined}
         aria-label={
           spec.name ?? (spec.value ? `${spec.label}, ${spec.value}` : undefined)
         }
         aria-haspopup={detailed ? "dialog" : undefined}
-        className={`sidebar-row${open || spec.current ? " active" : ""}`}
+        className={`sidebar-row${open ? " active" : ""}`}
         onClick={() => {
           if (detailed) onOpen(open ? null : spec.id);
           else spec.onOpen?.();
@@ -170,18 +140,13 @@ function Row({
         {...dataProps}
       >
         <span className="sidebar-icon">
-          <Glyph glyph={spec.icon} />
+          <SidebarIcon glyph={spec.icon} />
         </span>
         <span className="sidebar-label">{spec.label}</span>
         {spec.value ? (
           <span className="sidebar-value" title={spec.value}>
             {spec.value}
           </span>
-        ) : null}
-        {spec.hint ? (
-          <kbd aria-hidden="true" className="sidebar-hint">
-            {spec.hint}
-          </kbd>
         ) : null}
         {detailed || spec.onOpen ? (
           <span aria-hidden="true" className="sidebar-chevron">
@@ -199,19 +164,62 @@ function Row({
   );
 }
 
+/**
+ * One icon at the sidebar's foot, the way T3 Code and an editor's activity
+ * bar draw theirs: the word is its accessible name and its tooltip.
+ */
+function FooterIcon({
+  onOpen,
+  open,
+  spec,
+}: {
+  onOpen: (id: string | null) => void;
+  open: boolean;
+  spec: SidebarRowSpec;
+}) {
+  const detailed = spec.detail !== undefined;
+  return (
+    <button
+      aria-expanded={detailed ? open : undefined}
+      aria-haspopup={detailed ? "dialog" : undefined}
+      aria-label={spec.name ?? spec.label}
+      className={`sidebar-foot-icon${open ? " active" : ""}`}
+      data-row={spec.id}
+      onClick={() => {
+        if (detailed) onOpen(open ? null : spec.id);
+        else spec.onOpen?.();
+      }}
+      title={spec.title ?? spec.label}
+      type="button"
+    >
+      <SidebarIcon glyph={spec.icon} />
+    </button>
+  );
+}
+
+export interface SidebarFold {
+  readonly label: string;
+  readonly open: boolean;
+  readonly onToggle: () => void;
+  readonly rows: readonly SidebarRowSpec[];
+}
+
 export function PlaySidebar({
   drawer = false,
+  fold,
   footer,
   onClose,
   onCollapse,
   onOpen,
   open,
-  playbook,
   status,
   thisPlay,
 }: {
   /** A phone's left drawer rather than a docked column. */
   drawer?: boolean;
+  /** Rows tucked under a heading that opens and closes, remembered per device. */
+  fold?: SidebarFold;
+  /** The icons at the foot. */
   footer: readonly SidebarRowSpec[];
   /** Puts the drawer away. */
   onClose?: () => void;
@@ -220,27 +228,24 @@ export function PlaySidebar({
   onOpen: (id: string | null) => void;
   /** Which row's control is open, if one is. */
   open: string | null;
-  playbook: readonly SidebarRowSpec[];
   /** The phone drawer's last word: the save state. */
   status?: ReactNode;
   thisPlay: readonly SidebarRowSpec[];
 }) {
-  const rows = [...playbook, ...thisPlay, ...footer];
+  const rows = [...thisPlay, ...(fold?.open ? fold.rows : []), ...footer];
   const page = drawer
     ? rows.find((row) => row.id === open && row.detail !== undefined)
     : undefined;
-  const group = (name: string, items: readonly SidebarRowSpec[]) => (
-    <div className="sidebar-group">
-      <div className="sidebar-heading">{name}</div>
-      {items.map((spec) => (
-        <Row
-          key={spec.id}
-          onOpen={onOpen}
-          open={!drawer && open === spec.id}
-          spec={spec}
-        />
-      ))}
-    </div>
+  const footOpen = drawer
+    ? undefined
+    : footer.find((spec) => spec.id === open && spec.detail !== undefined);
+  const row = (spec: SidebarRowSpec) => (
+    <Row
+      key={spec.id}
+      onOpen={onOpen}
+      open={!drawer && open === spec.id}
+      spec={spec}
+    />
   );
   return (
     <nav
@@ -279,19 +284,37 @@ export function PlaySidebar({
         </div>
       ) : (
         <>
-          {group("Playbook", playbook)}
-          {group("This play", thisPlay)}
+          <div className="sidebar-group">
+            <div className="sidebar-heading">This play</div>
+            {thisPlay.map(row)}
+          </div>
+          {fold ? (
+            <div className="sidebar-group sidebar-fold">
+              <button
+                aria-expanded={fold.open}
+                className="sidebar-heading sidebar-fold-toggle"
+                onClick={fold.onToggle}
+                type="button"
+              >
+                <span aria-hidden="true" className="sidebar-fold-chevron">
+                  ›
+                </span>
+                {fold.label}
+              </button>
+              {fold.open ? fold.rows.map(row) : null}
+            </div>
+          ) : null}
           <span className="sidebar-spacer" />
-          <div className="sidebar-group sidebar-footer">
+          {status ? <div className="sidebar-status">{status}</div> : null}
+          <div className="sidebar-foot">
             {footer.map((spec) => (
-              <Row
+              <FooterIcon
                 key={spec.id}
                 onOpen={onOpen}
                 open={!drawer && open === spec.id}
                 spec={spec}
               />
             ))}
-            {status ? <div className="sidebar-status">{status}</div> : null}
             {onCollapse ? (
               <button
                 aria-label="Hide the sidebar"
@@ -302,6 +325,15 @@ export function PlaySidebar({
               >
                 ‹
               </button>
+            ) : null}
+            {footOpen ? (
+              <div
+                aria-label={footOpen.label}
+                className="sidebar-popover sidebar-foot-popover"
+                role="group"
+              >
+                {footOpen.detail}
+              </div>
             ) : null}
           </div>
         </>

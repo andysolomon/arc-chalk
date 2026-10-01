@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 
 import type { Locator, Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { expect, openGamePlans, openViewAndLibrary, test } from "./fixtures";
 
 /**
  * Issue #155: a matchup note typed into a call, and the number typed beside
@@ -16,10 +16,10 @@ const NOTE_THREE = "Wheel the back on a blitz look";
 const HEADER_NOTE = "Central Catholic";
 
 async function openWorkspace(page: Page): Promise<Locator> {
-  await expect(page.getByText(/^Library/)).toBeVisible();
-  await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("button", { name: "Game plans…" }).click();
-  const workspace = page.getByRole("region", { name: "Game plans" });
+  await expect(
+    page.getByRole("button", { name: "View & library" }),
+  ).toBeVisible();
+  const workspace = await openGamePlans(page);
   await expect(workspace).toBeVisible();
   return workspace;
 }
@@ -135,6 +135,7 @@ test("keeps a note typed a moment before the call moves, prepares or the plan cl
     .getByRole("navigation", { name: "Workspace views" })
     .getByRole("button", { name: "Editor", exact: true })
     .click();
+  await openViewAndLibrary(page);
   const library = page
     .getByRole("navigation", { name: "Sidebar" })
     .getByRole("button", { name: /^Library/ });

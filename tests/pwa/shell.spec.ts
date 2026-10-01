@@ -157,8 +157,15 @@ test("reopens a prepared game plan in Game Day after an offline restart", async 
   page,
 }) => {
   await shellReady(page);
-  await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("button", { name: "Game plans…" }).click();
+  // Game plans are a page of the Playbooks destination (ADR 0074).
+  await page
+    .getByRole("navigation", { name: "Workspace views" })
+    .getByRole("button", { name: "Playbooks", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Book pages" })
+    .getByRole("button", { name: "Game plans", exact: true })
+    .click();
   const workspace = page.getByRole("region", { name: "Game plans" });
   await workspace.getByRole("button", { name: "New plan" }).click();
   await workspace.getByLabel("Plan name").fill("Week 3");

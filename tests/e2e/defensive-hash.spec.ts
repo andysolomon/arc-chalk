@@ -1,5 +1,5 @@
 import { type Locator, type Page, type TestInfo } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, startNewPlay, test } from "./fixtures";
 
 /**
  * Issue #159: the ball spotted on a hash for a defensive Play. A defense
@@ -97,11 +97,7 @@ test("spots the ball on a hash and takes the defense with it, call and all", asy
   await expect(
     page.getByRole("img", { name: "Stick — Thunder football play" }),
   ).toBeVisible({ timeout: 30_000 });
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "More actions" })
-    .click();
-  await page.getByRole("button", { name: /^New defensive play/ }).click();
+  await startNewPlay(page, "defensive");
   await expect(page.locator("[data-scene-player]")).toHaveCount(0);
   const playName = page.getByRole("textbox", { name: "Play name" });
   await playName.fill("Cover 3 on the hash");
