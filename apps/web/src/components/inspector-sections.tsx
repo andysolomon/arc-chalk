@@ -97,10 +97,11 @@ export function Hint({
 }
 
 /**
- * The searchable catalogue of concepts and line calls. It replaces the two
- * button grids that stood in the idle panel: the same calls, one intentional
- * action away, with the ones the Coach starred and reached for lately at the
- * top. Enter takes the first match; Escape goes back to the play.
+ * The searchable catalogue of concepts and line calls — or, on a defensive
+ * play, of the defense's unit calls (ADR 0075). It replaces the two button
+ * grids that stood in the idle panel: the same calls, one intentional action
+ * away, with the ones the Coach starred and reached for lately at the top.
+ * Enter takes the first match; Escape goes back to the play.
  */
 export function PresetPicker({
   choices,
@@ -110,6 +111,7 @@ export function PresetPicker({
   onPick,
   onToggleFavorite,
   recents,
+  unit = "offense",
 }: {
   choices: readonly PresetChoice[];
   favorites: readonly string[];
@@ -118,7 +120,17 @@ export function PresetPicker({
   onPick: (choice: PresetChoice) => void;
   onToggleFavorite: (key: string) => void;
   recents: readonly string[];
+  unit?: "offense" | "defense";
 }) {
+  const defense = unit === "defense";
+  const kinds: readonly PresetChoice["group"][] = defense
+    ? ["coverage"]
+    : ["concept", "line"];
+  const title = defense ? "Unit calls" : "Concepts and line calls";
+  const chips: readonly (readonly [PresetChoice["group"] | "all", string])[] = [
+    ["all", "All"],
+    ...kinds.map((kind) => [kind, PRESET_GROUP_NAMES[kind]] as const),
+  ];
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState<PresetChoice["group"] | "all">(
     initialGroup ?? "all",
@@ -145,7 +157,7 @@ export function PresetPicker({
     [];
   if (starred.length) sections.push({ name: "Favorites", items: starred });
   if (recent.length) sections.push({ name: "Recent", items: recent });
-  for (const kind of ["concept", "line"] as const) {
+  for (const kind of kinds) {
     const items = choices.filter(
       (choice) => choice.group === kind && matches(choice),
     );
@@ -166,15 +178,17 @@ export function PresetPicker({
       role="presentation"
     >
       <div
-        aria-label="Concepts and line calls"
+        aria-label={title}
         className="browser preset-picker"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >
         <div className="browser-head">
-          <div className="browser-title">Concepts &amp; line calls</div>
+          <div className="browser-title">
+            {defense ? "Unit calls" : <>Concepts &amp; line calls</>}
+          </div>
           <input
-            aria-label="Search concepts and line calls"
+            aria-label={`Search ${title.toLowerCase()}`}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
@@ -185,7 +199,11 @@ export function PresetPicker({
                 pick(first);
               }
             }}
-            placeholder="Search — stick, slide, reach…"
+            placeholder={
+              defense
+                ? "Search — cover 3, quarters, man…"
+                : "Search — stick, slide, reach…"
+            }
             spellCheck={false}
             value={query}
           />
@@ -201,13 +219,7 @@ export function PresetPicker({
         <div className="browser-filter">
           <span>Show</span>
           <div className="chip-row">
-            {(
-              [
-                ["all", "All"],
-                ["concept", "Concepts"],
-                ["line", "Line calls"],
-              ] as const
-            ).map(([id, name]) => (
+            {chips.map(([id, name]) => (
               <button
                 aria-pressed={group === id}
                 className={`chip${group === id ? " active" : ""}`}

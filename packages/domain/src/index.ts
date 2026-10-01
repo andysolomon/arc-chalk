@@ -7,6 +7,7 @@ export * from "./canonical";
 export * from "./classifications";
 export * from "./commands";
 export * from "./concepts";
+export * from "./coverage-calls";
 export * from "./coverage-depths";
 export * from "./defense-catalogue";
 export * from "./defenses";

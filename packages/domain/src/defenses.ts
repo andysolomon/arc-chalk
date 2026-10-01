@@ -1,5 +1,6 @@
 import { playBallLateralYards } from "./ball-spot";
 import { defensiveLineKinds, routeKindStyle } from "./classifications";
+import { coverageMenOf, coverageNamed } from "./coverage-calls";
 import type { DefensiveAssignment, DefensiveCall } from "./defense-catalogue";
 import { APPLIED_TOLERANCE, MIN_REACH_YARDS } from "./formations";
 import {
@@ -176,14 +177,36 @@ export function applyDefensiveCall(
             : [];
         });
 
+  // The call's lines are its units' rather than any man's own (ADR 0075):
+  // the front's for the men on it, the coverage's for everyone who drops, so
+  // the next coverage called is free to redraw them. The call names its
+  // coverage; a defense put on without its lines has none.
+  const coverage =
+    options.withAssignments === false
+      ? undefined
+      : coverageNamed(call.coverage);
+  const dropping = new Set(
+    coverageMenOf({
+      players: [...players, ...added],
+      fieldProfile: play.fieldProfile,
+    }).map(({ id }) => id),
+  );
+  const unitDrawn = drawn.map((path): MovementPath => ({
+    ...path,
+    unitCall: dropping.has(path.playerId) ? "coverage" : "front",
+  }));
+  const rest: Partial<PlayDocument> = { ...play };
+  delete rest.unitCalls;
+
   return {
     addedPlayerIds: added.map(({ id }) => id),
     addedPathCount: drawn.length,
     replacedPlayerCount: replaced.size,
     play: {
-      ...play,
+      ...(rest as PlayDocument),
+      ...(coverage ? { unitCalls: { coverage } } : {}),
       players: [...players, ...added],
-      paths: [...paths, ...drawn],
+      paths: [...paths, ...unitDrawn],
       labels,
       // Remembered so the Coach can put the men back once he has moved them:
       // the field stops saying which call it was the moment one of them moves.

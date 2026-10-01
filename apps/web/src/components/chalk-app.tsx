@@ -62,6 +62,10 @@ import {
   formationFromDefense,
   coachDefensiveCall,
   copyNameFor,
+  coverageCallOf,
+  coverageCalls,
+  coverageMenOf,
+  openZonesOf,
   emptyPlayDocument,
   inInstallOrder,
   stockDefensiveCalls,
@@ -116,6 +120,7 @@ import {
   canDrawFrom,
   spotBallCommand,
   conceptIsOn,
+  applyCoverageCallCommand,
   applyLinePresetCommand,
   coverReceiverCommand,
   flipStrengthCommand,
@@ -2438,10 +2443,13 @@ function clearedWords(command: PlayCommand): { name: string; text: string } {
 /** The play's own men as rows the Coach can pick from, grouped by position. */
 function RosterList({
   onSelectPlayer,
+  openZones = [],
   roster,
   selectedId,
 }: {
   onSelectPlayer: (playerId: string) => void;
+  /** Zones the coverage plays that nobody is in, named under the secondary. */
+  openZones?: readonly string[];
   roster: Roster;
   selectedId?: string;
 }) {
@@ -2481,6 +2489,21 @@ function RosterList({
               </span>
             </button>
           ))}
+          {group.id === "secondary"
+            ? openZones.map((zone) => (
+                <p
+                  aria-label={`Open: ${zone}`}
+                  className="roster-row roster-open"
+                  key={zone}
+                >
+                  <span aria-hidden="true" className="roster-symbol">
+                    !
+                  </span>
+                  <span className="roster-summary">{zone}</span>
+                  <span className="roster-role">Open</span>
+                </p>
+              ))
+            : null}
         </section>
       ))}
       {roster.total === 0 ? (
@@ -2502,6 +2525,7 @@ function RosterList({
  */
 function Inspector({
   currentConcept,
+  currentCoverage,
   currentLineCall,
   labelEditor,
   linemanCount,
@@ -2510,6 +2534,7 @@ function Inspector({
   onOpenPresets,
   onSelectPlayer,
   onSheetSnap,
+  openZones,
   roster,
   scopeBadge,
   selected,
@@ -2519,15 +2544,18 @@ function Inspector({
 }: {
   /** The concept drawn on the field now, if one is. */
   currentConcept?: string;
+  /** The defense's coverage, if it has one (ADR 0075). */
+  currentCoverage?: string;
   currentLineCall?: string;
   /** The panel for what is picked out, when something is. */
   labelEditor?: React.ReactNode;
   linemanCount: number;
   onCollapse: () => void;
   onDeselect: () => void;
-  onOpenPresets: (group: "concept" | "line") => void;
+  onOpenPresets: (group: PresetChoice["group"]) => void;
   onSelectPlayer: (playerId: string) => void;
   onSheetSnap?: (snap: "peek" | "full") => void;
+  openZones?: readonly string[];
   roster: Roster;
   scopeBadge?: string;
   /** What is picked out, for the sheet's head and the pager. */
@@ -2548,7 +2576,23 @@ function Inspector({
   }`;
   const selectedId =
     selected?.kind === "player" ? selected.row?.player.id : undefined;
-  const playCall = defense ? null : (
+  const playCall = defense ? (
+    <section className="inspector-section play-call">
+      <div className="section-heading">
+        Play call
+        {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
+      </div>
+      <button
+        className="wide-picker preset-summary"
+        onClick={() => onOpenPresets("coverage")}
+        title="Coverages — give the secondary and the linebackers one call"
+        type="button"
+      >
+        <span>{currentCoverage ?? "No coverage yet"}</span>
+        <span>Coverage &nbsp;›</span>
+      </button>
+    </section>
+  ) : (
     <section className="inspector-section play-call">
       <div className="section-heading">
         Play call
@@ -2577,6 +2621,7 @@ function Inspector({
   const rosterList = (
     <RosterList
       onSelectPlayer={onSelectPlayer}
+      openZones={defense ? openZones : undefined}
       roster={roster}
       selectedId={selectedId}
     />
@@ -2615,7 +2660,11 @@ function Inspector({
   // The sheet. Peeked: its head bar alone, so the field keeps the glass.
   // Full: the roster, or the picked thing with a pager through the unit.
   const snap = (next: "peek" | "full") => onSheetSnap?.(next);
-  const calls = [currentConcept, currentLineCall].filter(Boolean).join(" · ");
+  const calls = (
+    defense ? [currentCoverage] : [currentConcept, currentLineCall]
+  )
+    .filter(Boolean)
+    .join(" · ");
   if (sheetSnap === "peek") {
     return (
       <aside
@@ -2879,7 +2928,7 @@ export function ChalkApp({
   const [chrome, setChrome] = useState<ChromeState>(defaultChromeState);
   const chromeRef = useRef<ChromeState>(defaultChromeState);
   const chromeLoadedRef = useRef(false);
-  const [presetGroup, setPresetGroup] = useState<"concept" | "line">();
+  const [presetGroup, setPresetGroup] = useState<PresetChoice["group"]>();
   const [zonesHidden, setZonesHidden] = useState(false);
   const [recoveryDismissed, setRecoveryDismissed] = useState(false);
   const [freedStorage, setFreedStorage] = useState<ChalkRuntime["storage"]>();
@@ -4972,6 +5021,19 @@ export function ChalkApp({
   };
 
   /**
+   * A coverage put on the defense, changed, or taken off (ADR 0075). As with
+   * a line call, the selection is left where it was.
+   */
+  const runCoverageCall = (key: string): void => {
+    const command = applyCoverageCallCommand(
+      editorStore.getSnapshot().document,
+      key,
+      createStableId,
+    );
+    if (command) runPanelCommand(command, {});
+  };
+
+  /**
    * The three places the official can spot the ball. The whole Play travels
    * with it, defense included, so each is one transaction — and the one it is
    * already on is no command at all, which greys it.
@@ -6211,7 +6273,7 @@ export function ChalkApp({
    * buttons the original spread across the idle panel are the same calls;
    * they now sit one intentional action away, starred and recent ones first.
    */
-  const presetChoices: readonly PresetChoice[] = [
+  const offensePresetChoices: readonly PresetChoice[] = [
     ...conceptCommands.map(({ concept, on, command }) => ({
       key: `concept:${concept.key}`,
       name: concept.name,
@@ -6228,16 +6290,42 @@ export function ChalkApp({
       available: command !== undefined,
     })),
   ];
+  // A defensive play is offered its unit calls instead (ADR 0075): a
+  // coverage can be put on whenever someone is there to drop into it.
+  const dropping = useMemo(
+    () =>
+      editor.document.unit === "defense" &&
+      coverageMenOf(editor.document).length > 0,
+    [editor.document],
+  );
+  const coverageOn = editor.document.unitCalls?.coverage;
+  const presetChoices: readonly PresetChoice[] =
+    editor.document.unit === "defense"
+      ? coverageCalls.map(({ key, name, hint }) => ({
+          key: `coverage:${key}`,
+          name,
+          group: "coverage" as const,
+          hint,
+          on: coverageOn === key,
+          available: dropping,
+        }))
+      : offensePresetChoices;
+  const currentCoverage = coverageCallOf(editor.document)?.name;
+  const openZones = useMemo(
+    () => openZonesOf(editor.document),
+    [editor.document],
+  );
   const currentConcept = conceptCommands.find(({ on }) => on)?.concept.name;
   const currentLineCall = lineCallCommands.find(({ on }) => on)?.name;
-  const openPresets = (group: "concept" | "line") => {
+  const openPresets = (group: PresetChoice["group"]) => {
     setPresetGroup(group);
     setOverlay("presets");
   };
   const pickPreset = (choice: PresetChoice) => {
-    const key = choice.key.replace(/^(concept|line):/, "");
+    const key = choice.key.replace(/^(concept|line|coverage):/, "");
     putInspectorAway();
     if (choice.group === "concept") runConcept(key);
+    else if (choice.group === "coverage") runCoverageCall(key);
     else runLineCall(key);
     rememberChrome({
       recentPresets: [
@@ -8273,6 +8361,7 @@ export function ChalkApp({
               ) : undefined
             }
             currentConcept={currentConcept}
+            currentCoverage={currentCoverage}
             currentLineCall={currentLineCall}
             linemanCount={linemen.length}
             onCollapse={() => setInspectorOpen(false)}
@@ -8280,6 +8369,7 @@ export function ChalkApp({
             onOpenPresets={openPresets}
             onSelectPlayer={selectRosterPlayer}
             onSheetSnap={setSheetSnap}
+            openZones={openZones}
             roster={roster}
             scopeBadge={playbook.scopeBadge}
             selected={selectedThing}
@@ -8430,6 +8520,7 @@ export function ChalkApp({
           onPick={pickPreset}
           onToggleFavorite={togglePresetFavorite}
           recents={chrome.recentPresets}
+          unit={editor.document.unit}
         />
       ) : null}
       {overlay === "playbook" ? (
