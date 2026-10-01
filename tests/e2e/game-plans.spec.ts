@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, openGamePlans, test } from "./fixtures";
 
 /**
  * Issue #66: a Game Plan is a curated, numbered view of the library. It is
@@ -9,11 +9,11 @@ test("builds a game plan from the library, prepares it, and keeps it across relo
   page,
 }, testInfo) => {
   await page.goto("/");
-  await expect(page.getByText(/^Library/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "View & library" }),
+  ).toBeVisible();
 
-  await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("button", { name: "Game plans…" }).click();
-  const workspace = page.getByRole("region", { name: "Game plans" });
+  const workspace = await openGamePlans(page);
   await expect(workspace).toBeVisible();
 
   await workspace.getByRole("button", { name: "New plan" }).click();
@@ -63,10 +63,10 @@ test("builds a game plan from the library, prepares it, and keeps it across relo
   await sheet.close();
 
   await page.reload();
-  await expect(page.getByText(/^Library/)).toBeVisible();
-  await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("button", { name: "Game plans…" }).click();
-  const again = page.getByRole("region", { name: "Game plans" });
+  await expect(
+    page.getByRole("button", { name: "View & library" }),
+  ).toBeVisible();
+  const again = await openGamePlans(page);
   await again.getByRole("button", { name: /^Week 3 /, exact: false }).click();
   await expect(again.getByLabel(/^Call number for/).first()).toHaveValue("12");
   await expect(again.getByText(/^Prepared/)).toBeVisible();

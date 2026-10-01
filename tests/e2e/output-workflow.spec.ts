@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, openGamePlans, test } from "./fixtures";
 
 /**
  * Issue #69: choose the source, choose the format, see the sheet, then
@@ -14,9 +14,7 @@ test("prints a game plan's call sheet from the workflow and keeps it under Recen
     (window as unknown as { __prints: number }).__prints = 0;
   });
   // A prepared plan to print from.
-  await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("button", { name: "Game plans…" }).click();
-  const workspace = page.getByRole("region", { name: "Game plans" });
+  const workspace = await openGamePlans(page);
   await workspace.getByRole("button", { name: "New plan" }).click();
   await workspace.getByLabel("Plan name").fill("Week 3");
   await workspace.getByRole("button", { name: "Create plan" }).click();

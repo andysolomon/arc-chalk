@@ -500,11 +500,60 @@ button.play-type.open {
 .help-panel {
   width: 224px;
 }
+/* A header menu never runs off the glass: below its button it takes the
+   height that is left and scrolls inside itself. A phone held sideways has
+   about 330 px under the header, less than Help or a phone's More needs
+   (ADR 0074). */
+.help-panel,
+.topbar.phone-topbar .more-panel {
+  max-height: calc(100vh - 64px);
+  max-height: calc(100dvh - 64px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* So inside a phone's More, Share & assets unfolds in place: a panel
+   beside the menu would be clipped by its scrolling, and on a phone held
+   upright it ran off the glass's left edge anyway. */
+.topbar.phone-topbar .more-panel .backup-panel {
+  position: static;
+  width: auto;
+  max-height: none;
+  margin-top: 4px;
+  padding: 6px 8px;
+  box-shadow: none;
+}
 .topbar > .new-play,
-.topbar > .menu-new > button,
-.topbar > .reset-positions,
-.topbar > .present {
+.topbar > .menu-new > button {
   padding: 0 10px;
+}
+/* Undo, Redo, Reset positions and Present, and the Help and Settings icons
+   of the Playbooks and Game Day pages: a glyph in a 32 px square, named for
+   a screen reader and titled for a pointer (ADR 0074). */
+.topbar > .icon-button,
+.topbar .menu > .icon-button,
+.header-icons > .icon-button {
+  width: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.header-icons {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+.header-icons > .icon-button {
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.header-icons > .icon-button:hover {
+  background: var(--hover);
+  color: var(--ink);
 }
 .new-play-panel {
   width: 200px;
@@ -5648,6 +5697,7 @@ button.library-dot.target.small {
   }
   .topbar > button,
   .menu > button,
+  .header-icons > .icon-button,
   .view-tabs button,
   .destination-tabs > button {
     height: 44px;
@@ -6778,8 +6828,14 @@ button.library-dot.target.small {
   padding: 0 6px;
   font-size: 13px;
 }
-.topbar.phone-topbar > .menu-more {
+.topbar.phone-topbar > .menu-more,
+.topbar.phone-topbar > .header-icons {
   order: 1;
+}
+.topbar.phone-topbar .header-icons > .icon-button,
+.topbar.phone-topbar .header-icons .menu > .icon-button {
+  width: 44px;
+  height: 44px;
 }
 .topbar.phone-topbar .menu > .more {
   width: 44px;
@@ -8072,11 +8128,6 @@ button.shell-quiet:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sidebar-hint {
-  color: var(--muted);
-  font-family: "Geist Mono", monospace;
-  font-size: 11px;
-}
 .sidebar-chevron {
   display: none;
   color: var(--disabled);
@@ -8085,10 +8136,9 @@ button.shell-quiet:hover {
   flex: 1;
 }
 .sidebar-collapse {
-  align-self: flex-end;
   width: 24px;
   height: 24px;
-  margin-top: 4px;
+  margin-left: auto;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -8100,6 +8150,71 @@ button.shell-quiet:hover {
 .sidebar-collapse:hover {
   background: var(--wash);
   color: var(--ink);
+}
+/* View & library: a heading that opens and closes the rows under it. */
+.sidebar-fold-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sidebar-fold-toggle:hover {
+  color: var(--ink);
+}
+.sidebar-fold-chevron {
+  width: 8px;
+  font-size: 13px;
+  letter-spacing: 0;
+  line-height: 1;
+  transition: transform 120ms ease;
+}
+.sidebar-fold-toggle[aria-expanded="true"] .sidebar-fold-chevron {
+  transform: rotate(90deg);
+}
+/* The foot: icons in a row, as T3 Code and an editor's activity bar draw
+   them, with the fold control at its end (ADR 0074). */
+.sidebar-foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-top: 6px;
+}
+.sidebar-foot-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.sidebar-foot-icon:hover,
+.sidebar-foot-icon.active {
+  background: var(--wash);
+  color: var(--ink);
+}
+/* Its popover rises from the foot rather than hanging from it, and scrolls
+   rather than rising past the top of a short window. */
+.sidebar-popover.sidebar-foot-popover {
+  top: auto;
+  bottom: 0;
+  width: 236px;
+  max-height: calc(100vh - 72px);
+  max-height: calc(100dvh - 72px);
+  overflow-y: auto;
+}
+.sidebar-help {
+  gap: 1px;
 }
 /* The Reset row sits under the Formation row once a set is chosen. */
 .sidebar-below {
@@ -8295,6 +8410,17 @@ button.shell-quiet:hover {
 .sidebar-drawer .sidebar-heading {
   font-size: 11px;
 }
+.sidebar-drawer .sidebar-fold-toggle {
+  min-height: 44px;
+}
+.sidebar-drawer .sidebar-foot-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+}
+.sidebar-page .menu-item {
+  min-height: 44px;
+}
 .sidebar-status {
   padding: 12px 8px 4px;
 }
@@ -8320,8 +8446,14 @@ button.shell-quiet:hover {
   }
 }
 @media (pointer: coarse) {
-  .sidebar-row {
+  .sidebar-row,
+  .sidebar-fold-toggle {
     min-height: 44px;
+  }
+  .sidebar-foot-icon,
+  .sidebar-collapse {
+    width: 44px;
+    height: 44px;
   }
   .sidebar-stub {
     width: 44px;
@@ -8910,9 +9042,42 @@ button.shell-quiet:hover {
   font-weight: 600;
 }
 .settings-account .backup-panel {
+  position: static;
+  width: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+.settings-account .backup-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 14px;
+}
+/* Back up: the Settings dialog's own button, as Close is drawn. */
+.settings-account .backup-panel > button {
+  align-self: flex-start;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.settings-account .backup-panel > button:not(:disabled):hover {
+  background: var(--raised);
+}
+.settings-account .backup-panel > button:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
 }
 /* On a phone Settings is a page: the head, pill tabs across, the body. */
 .phone-workspace .settings-overlay {

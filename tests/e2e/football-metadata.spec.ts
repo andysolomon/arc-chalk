@@ -1,5 +1,5 @@
 import { type Page, type TestInfo } from "@playwright/test";
-import { expect, openBlankEditor, test } from "./fixtures";
+import { expect, openBlankEditor, startNewPlay, test } from "./fixtures";
 
 /**
  * Football metadata read off the field (issue #154, ADR 0066), the way a
@@ -43,11 +43,7 @@ async function putOnFormation(page: Page, name: string): Promise<void> {
 
 /** A new defensive play, its roster in the inspector. */
 async function newDefensivePlay(page: Page): Promise<void> {
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "More actions" })
-    .click();
-  await page.getByRole("button", { name: /^New defensive play/ }).click();
+  await startNewPlay(page, "defensive");
   await expect(page.locator("[data-scene-player]")).toHaveCount(0);
 }
 

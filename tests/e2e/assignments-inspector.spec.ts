@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, openViewAndLibrary, test } from "./fixtures";
 
 /**
  * ADR 0058: the right inspector is assignments only. What is not about what
@@ -97,17 +97,25 @@ for (const [label, viewport, phone] of VIEWPORTS) {
       for (const name of [
         /^Ball on/,
         /^Shadow defense/,
-        /^Type of play/,
-        /^Show on field/,
-        /^Library/,
         /^Settings/,
         /^Help/,
       ]) {
         await expect(sidebar.getByRole("button", { name })).toBeVisible();
       }
+      // Show on field and the Library fold under View & library; the Play
+      // type is the header pill's alone (ADR 0074).
+      await openViewAndLibrary(page);
+      for (const name of [/^Show on field/, /^Library/]) {
+        await expect(sidebar.getByRole("button", { name })).toBeVisible();
+      }
+      await expect(
+        sidebar.getByRole("button", { name: /^Type of play/ }),
+      ).toHaveCount(0);
+      // Print & export is the header's, except in a phone's drawer, whose
+      // header has no room for it.
       await expect(
         sidebar.getByRole("button", { name: "Print & export" }),
-      ).toBeVisible();
+      ).toHaveCount(phone ? 1 : 0);
     });
   });
 }
