@@ -2389,6 +2389,37 @@ function ResetRow({
   );
 }
 
+/**
+ * What a Clear took, said back to the Coach (issue #153): how many men, lines
+ * and labels went, and the names that went with the lines. A concept's job
+ * or a route's own name is the line's (ADR 0064), so it leaves with the line
+ * rather than reading DIG over a man with nothing drawn — and the toast is
+ * where he learns that without reading the roster.
+ */
+function clearedWords(command: PlayCommand): { name: string; text: string } {
+  const steps = command.kind === "batch" ? command.commands : [command];
+  const took = { men: 0, lines: 0, labels: 0, names: 0 };
+  for (const step of steps) {
+    if (step.kind === "remove-players") took.men += step.playerIds.length;
+    else if (step.kind === "remove-paths") took.lines += step.pathIds.length;
+    else if (step.kind === "remove-labels") took.labels += step.labelIds.length;
+    else if (step.kind === "remove-assignments")
+      took.names += step.assignmentIds.length;
+  }
+  const said = (count: number, one: string, many: string) =>
+    count > 0 ? [`${count} ${count === 1 ? one : many}`] : [];
+  const off = [
+    ...said(took.men, "man", "men"),
+    ...said(took.lines, "line", "lines"),
+    ...said(took.labels, "label", "labels"),
+    ...said(took.names, "name", "names"),
+  ];
+  return {
+    name: command.kind === "batch" && command.label ? command.label : "Cleared",
+    text: `— ${off.length > 0 ? off.join(", ") : "nothing"} off`,
+  };
+}
+
 /** The play's own men as rows the Coach can pick from, grouped by position. */
 function RosterList({
   onSelectPlayer,
@@ -2406,7 +2437,7 @@ function RosterList({
           <div className="section-heading roster-heading">{group.name}</div>
           {group.rows.map((row) => (
             <button
-              aria-label={`${row.mark}: ${row.summary ?? row.nothingYet} — ${row.role}`}
+              aria-label={`${row.mark}: ${row.summary ?? row.nothingYet}${row.textOnly ? " · text only" : ""} — ${row.role}`}
               aria-pressed={row.player.id === selectedId}
               className="roster-row"
               data-roster-player={row.player.id}
@@ -2423,6 +2454,12 @@ function RosterList({
               >
                 {row.summary ?? row.nothingYet}
               </span>
+              {row.textOnly ? (
+                // Words with nothing drawn under them (issue #153): his to
+                // keep, but not a route by name, so the row says so — beside
+                // the words, where a long instruction cannot crowd it out.
+                <span className="roster-text-only">· text only</span>
+              ) : null}
               <span className="roster-role">{row.role}</span>
               <span aria-hidden="true" className="roster-chevron">
                 ›
@@ -2489,7 +2526,11 @@ function Inspector({
   unit: PlayDocument["unit"];
 }) {
   const defense = unit === "defense";
-  const count = `${roster.assigned} of ${roster.total}`;
+  // A man on words alone is counted — the words are his instruction (ADR
+  // 0011) — and said apart, because nothing is drawn for him (issue #153).
+  const count = `${roster.assigned} of ${roster.total}${
+    roster.textOnly > 0 ? ` · ${roster.textOnly} text only` : ""
+  }`;
   const selectedId =
     selected?.kind === "player" ? selected.row?.player.id : undefined;
   const playCall = defense ? null : (
@@ -4554,6 +4595,10 @@ export function ChalkApp({
     if (!command) return undefined;
     return () => {
       setOpenMenu(null);
+      // Said where he is looking, as a concept or a call is: what went, and
+      // that the names the lines gave went with them (issue #153). Its Undo
+      // takes all of it back in one step.
+      setToast(clearedWords(command));
       void editorStore.applyCommand(command).catch(() => undefined);
     };
   };
@@ -7459,10 +7504,12 @@ export function ChalkApp({
                 ) : (
                   <GamePlansWorkspace
                     embedded
+                    everyPlay={everyPlay}
                     formations={allFormations}
                     library={runtime.library}
                     onClose={() => goToView("Editor")}
                     onOpenPlay={openPlay}
+                    playbooks={playbookSummaries}
                     render={renderDiagram}
                     snapshot={playbook.snapshot}
                   />
@@ -7564,6 +7611,7 @@ export function ChalkApp({
       <div className="chalk-shell view-game-day">
         {header}
         <GameDayView
+          everyPlay={everyPlay}
           hasImage={hasImage}
           library={runtime.library}
           onOpenPlaybooks={() => {
@@ -8339,6 +8387,7 @@ export function ChalkApp({
       ) : null}
       {overlay === "game-plans" ? (
         <GamePlansWorkspace
+          everyPlay={everyPlay}
           formations={allFormations}
           library={runtime.library}
           onClose={() => setOverlay(null)}
@@ -8348,6 +8397,7 @@ export function ChalkApp({
             }
             void playbook.loadPlay(playId);
           }}
+          playbooks={playbookSummaries}
           render={renderDiagram}
           snapshot={playbook.snapshot}
         />

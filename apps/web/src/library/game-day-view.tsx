@@ -26,9 +26,14 @@ import {
   buildSvgRenderScene,
   defaultPresentation,
 } from "@chalk/render";
+import type { PlaySearchProjection } from "@chalk/local-db";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { ChalkLibrary, LibrarySnapshot } from "../app/editor-runtime";
+import {
+  everyLibraryMember,
+  type ChalkLibrary,
+  type LibrarySnapshot,
+} from "../app/editor-runtime";
 import { UnitBadge } from "../components/unit-badge";
 import { FieldDiagram } from "../components/field-diagram";
 import { PlaybackBar } from "../components/playback-bar";
@@ -62,11 +67,18 @@ import {
  * authored Play.
  */
 export function GameDayView({
+  everyPlay = [],
   hasImage,
   library,
   onOpenPlaybooks,
   snapshot,
 }: {
+  /**
+   * Every live Play on the device, across its books. A plan's Calls may
+   * name Plays from other books (ADR 0067); the notice that the library has
+   * moved on reads their hashes here rather than taking them for missing.
+   */
+  everyPlay?: readonly PlaySearchProjection[];
   /** Whether an image the plan's Plays reference is on this device. */
   hasImage: (hash: string) => Promise<boolean>;
   library: ChalkLibrary;
@@ -74,6 +86,10 @@ export function GameDayView({
   onOpenPlaybooks: () => void;
   snapshot: LibrarySnapshot;
 }) {
+  const members = useMemo(
+    () => everyLibraryMember(snapshot, everyPlay),
+    [everyPlay, snapshot],
+  );
   const [plans, setPlans] = useState<readonly GamePlan[]>([]);
   const [state, setState] = useState<GameDayState>(defaultGameDayState);
   const stateRef = useRef(state);
@@ -236,11 +252,11 @@ export function GameDayView({
       onSwitchRevision={() => {
         void switchToNewest();
       }}
+      members={members}
       place={place}
       plan={plan}
       readiness={readiness}
       revision={revision}
-      snapshot={snapshot}
     />
   );
 }
@@ -253,6 +269,7 @@ const resultLabels: Record<CallResult, string> = {
 };
 
 function Reader({
+  members,
   notes,
   onLeave,
   onNotes,
@@ -262,8 +279,9 @@ function Reader({
   plan,
   readiness,
   revision,
-  snapshot,
 }: {
+  /** Every live Play on the device, whichever book holds it. */
+  members: readonly PlaySearchProjection[];
   notes: ReturnType<typeof notesFor>;
   onLeave: () => void;
   onNotes: (
@@ -275,7 +293,6 @@ function Reader({
   plan: GamePlan;
   readiness: Readiness | undefined;
   revision: GamePlanRevision;
-  snapshot: LibrarySnapshot;
 }) {
   const sections = useMemo(() => revisionRows(revision), [revision]);
   const shown = useMemo(
@@ -328,14 +345,9 @@ function Reader({
       revisionStatus(
         plan,
         revision,
-        new Map(
-          snapshot.members.map((member) => [
-            member.playId,
-            member.documentHash,
-          ]),
-        ),
+        new Map(members.map((member) => [member.playId, member.documentHash])),
       ),
-    [plan, revision, snapshot.members],
+    [members, plan, revision],
   );
   const newerPrepared =
     plan.preparedRevisionId !== undefined &&
