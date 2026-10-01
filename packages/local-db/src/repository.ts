@@ -82,10 +82,13 @@ export class CorruptLocalDataError extends Error {
  * carries none.
  */
 function projectedFormationId(play: PlayDocument): string | undefined {
+  // A defensive Play's offense is a shadow, not its set: the set it remembers
+  // is the look it is drawn against (ADR 0072), and the book does not file
+  // the Play under that look.
+  if (play.unit === "defense") return undefined;
+  // A set the Coach saved himself is not in the shipped book to be checked
+  // against.
   const declared = play.formationSource?.formationId;
-  // A defensive Play's offense is a shadow, not its set; and a set the Coach
-  // saved himself is not in the shipped book to be checked against.
-  if (play.unit === "defense") return declared;
   if (declared && !stockFormations.some(({ id }) => id === declared)) {
     return declared;
   }
