@@ -32,6 +32,7 @@ import {
   type GamePlan,
   type GamePlanFilter,
   type GamePlanRevision,
+  type PlayPickScope,
   type PlayUnit,
 } from "@chalk/domain";
 import {
@@ -40,10 +41,14 @@ import {
   gamePlanWristbandHtml,
   type DiagramRenderer,
 } from "@chalk/exports";
-import type { PlaySearchProjection } from "@chalk/local-db";
+import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import type { ChalkLibrary, LibrarySnapshot } from "../app/editor-runtime";
+import {
+  everyLibraryMember,
+  type ChalkLibrary,
+  type LibrarySnapshot,
+} from "../app/editor-runtime";
 import { UnitBadge } from "../components/unit-badge";
 import { agoStamp } from "../components/ago-stamp";
 import { openPrintWindow } from "../components/print-window";
@@ -55,29 +60,41 @@ import { useGamePlans, type GamePlansState } from "./use-game-plans";
  * view of the library for one game. Plays are referenced, never copied;
  * Prepare for game freezes a revision that the call sheet, wristband and
  * handout all read, so a packet already handed out is never rewritten from
- * under a coach.
+ * under a coach. A plan lives in the open book, but its Calls may name a
+ * Play from any book on the shelf (ADR 0067), so names and hashes are read
+ * across every book the device holds.
  */
 export function GamePlansWorkspace({
   embedded = false,
+  everyPlay = [],
   formations,
   library,
   now = () => Date.now(),
   onClose,
   onOpenPlay,
+  playbooks = [],
   render,
   snapshot,
 }: {
   /** A page of the Playbooks destination rather than a dialog (issue #65). */
   embedded?: boolean;
+  /** Every live Play on the device, across its books, as the Plays page lists them. */
+  everyPlay?: readonly PlaySearchProjection[];
   formations: readonly Formation[];
   library: ChalkLibrary;
   now?: () => number;
   onClose: () => void;
   onOpenPlay: (playId: string) => void;
+  /** The books on the shelf, so a Play from another book can say which. */
+  playbooks?: readonly PlaybookSummary[];
   render: DiagramRenderer;
   snapshot: LibrarySnapshot;
 }) {
   const state = useGamePlans(library);
+  const members = useMemo(
+    () => everyLibraryMember(snapshot, everyPlay),
+    [everyPlay, snapshot],
+  );
   return (
     <div
       className={`overlay browser-overlay${embedded ? " embedded" : ""}`}
@@ -93,16 +110,19 @@ export function GamePlansWorkspace({
         {state.openPlan ? (
           <PlanEditor
             formations={formations}
+            members={members}
             now={now}
             onClose={onClose}
             onOpenPlay={onOpenPlay}
             plan={state.openPlan}
+            playbooks={playbooks}
             render={render}
             snapshot={snapshot}
             state={state}
           />
         ) : (
           <PlanList
+            members={members}
             now={now}
             onClose={onClose}
             snapshot={snapshot}
@@ -115,20 +135,43 @@ export function GamePlansWorkspace({
 }
 
 function hashesOf(
-  snapshot: LibrarySnapshot,
+  members: readonly PlaySearchProjection[],
 ): ReadonlyMap<string, string | undefined> {
-  return new Map(
-    snapshot.members.map((member) => [member.playId, member.documentHash]),
-  );
+  return new Map(members.map((member) => [member.playId, member.documentHash]));
+}
+
+/**
+ * What a Play is called in the plan. A Play from another book carries that
+ * book's name, so two Plays called Stick from two books read apart in the
+ * plan, in a code collision's notice and in the row's controls. A Play the
+ * library no longer holds keeps the name its last packet froze.
+ */
+function callNameOf(
+  playId: string,
+  plan: GamePlan,
+  members: ReadonlyMap<string, PlaySearchProjection>,
+  revision: GamePlanRevision | undefined,
+  bookNames: ReadonlyMap<string, string>,
+): string {
+  const member = members.get(playId);
+  const frozen = revision?.plays.find((entry) => entry.playId === playId);
+  const name = member?.name ?? frozen?.document.name;
+  if (name === undefined) return "Missing play";
+  const playbookId = member?.playbookId ?? frozen?.document.playbookId;
+  const book =
+    playbookId !== undefined && playbookId !== plan.playbookId
+      ? bookNames.get(playbookId)
+      : undefined;
+  return book ? `${name} (${book})` : name;
 }
 
 function planStatusLine(
   plan: GamePlan,
   revision: GamePlanRevision | undefined,
-  snapshot: LibrarySnapshot,
+  members: readonly PlaySearchProjection[],
   nowMs: number,
 ): { readonly text: string; readonly stale: boolean } {
-  const status = revisionStatus(plan, revision, hashesOf(snapshot));
+  const status = revisionStatus(plan, revision, hashesOf(members));
   if (!status.prepared || !revision) {
     return { text: "Not prepared yet", stale: false };
   }
@@ -137,8 +180,7 @@ function planStatusLine(
   const names = status.changedPlayIds
     .map(
       (playId) =>
-        snapshot.members.find((member) => member.playId === playId)?.name ??
-        playId,
+        members.find((member) => member.playId === playId)?.name ?? playId,
     )
     .slice(0, 3);
   const detail = [
@@ -157,11 +199,13 @@ function planStatusLine(
 }
 
 function PlanList({
+  members,
   now,
   onClose,
   snapshot,
   state,
 }: {
+  members: readonly PlaySearchProjection[];
   now: () => number;
   onClose: () => void;
   snapshot: LibrarySnapshot;
@@ -295,7 +339,7 @@ function PlanList({
           </p>
         ) : null}
         {state.plans.map((plan) => {
-          const status = planStatusLine(plan, undefined, snapshot, now());
+          const status = planStatusLine(plan, undefined, members, now());
           const subtitle = gamePlanSubtitle(plan);
           return (
             <div className="game-plan-row" data-plan-id={plan.id} key={plan.id}>
@@ -432,19 +476,24 @@ interface DragPayload {
 
 function PlanEditor({
   formations,
+  members: everyMember,
   now,
   onClose,
   onOpenPlay,
   plan,
+  playbooks,
   render,
   snapshot,
   state,
 }: {
   formations: readonly Formation[];
+  /** Every live Play on the device: the open book's and the other books'. */
+  members: readonly PlaySearchProjection[];
   now: () => number;
   onClose: () => void;
   onOpenPlay: (playId: string) => void;
   plan: GamePlan;
+  playbooks: readonly PlaybookSummary[];
   render: DiagramRenderer;
   snapshot: LibrarySnapshot;
   state: GamePlansState;
@@ -459,16 +508,17 @@ function PlanEditor({
   const [newSection, setNewSection] = useState("");
   const [dragging, setDragging] = useState<DragPayload>();
   const members = useMemo(
-    () => new Map(snapshot.members.map((member) => [member.playId, member])),
-    [snapshot.members],
+    () => new Map(everyMember.map((member) => [member.playId, member])),
+    [everyMember],
+  );
+  const bookNames = useMemo(
+    () => new Map(playbooks.map((book) => [book.id, book.name])),
+    [playbooks],
   );
   const nameOf = (playId: string) =>
-    members.get(playId)?.name ??
-    state.revision?.plays.find((entry) => entry.playId === playId)?.document
-      .name ??
-    "Missing play";
+    callNameOf(playId, plan, members, state.revision, bookNames);
   const callById = new Map(plan.calls.map((call) => [call.id, call]));
-  const status = planStatusLine(plan, state.revision, snapshot, now());
+  const status = planStatusLine(plan, state.revision, everyMember, now());
   const canPrint = state.revision !== undefined;
 
   const apply = (next: GamePlan) => {
@@ -1035,9 +1085,13 @@ function PlanEditor({
           </form>
         </div>
         <AddPlaysPanel
+          bookNames={bookNames}
+          members={everyMember}
           now={now}
           onApply={apply}
+          onScope={state.choosePickScope}
           plan={plan}
+          scope={state.pickScope}
           snapshot={snapshot}
         />
       </div>
@@ -1194,15 +1248,60 @@ function matchesFilter(
   return scoped.filter((member) => hits.has(member.playId));
 }
 
+/** The two places Add plays can look, in the order they are offered. */
+const pickScopes: readonly {
+  readonly id: PlayPickScope;
+  readonly name: string;
+}[] = [
+  { id: "book", name: "This book" },
+  { id: "all", name: "All my playbooks" },
+];
+
+/**
+ * The Plays the picker can offer under a scope: the plan's own book, or every
+ * book on the shelf. Across books the list reads by name and then by book, so
+ * two Plays called Stick from two books sit together and the book label is
+ * what tells them apart.
+ */
+function membersInScope(
+  members: readonly PlaySearchProjection[],
+  plan: GamePlan,
+  scope: PlayPickScope,
+  bookNames: ReadonlyMap<string, string>,
+): readonly PlaySearchProjection[] {
+  if (scope === "book") {
+    return members.filter((member) => member.playbookId === plan.playbookId);
+  }
+  const bookOf = (member: PlaySearchProjection) =>
+    member.playbookId === plan.playbookId
+      ? ""
+      : (bookNames.get(member.playbookId) ?? member.playbookId);
+  return [...members].sort(
+    (left, right) =>
+      left.name.localeCompare(right.name) ||
+      bookOf(left).localeCompare(bookOf(right)) ||
+      left.playId.localeCompare(right.playId),
+  );
+}
+
 function AddPlaysPanel({
+  bookNames,
+  members: everyMember,
   now,
   onApply,
+  onScope,
   plan,
+  scope,
   snapshot,
 }: {
+  bookNames: ReadonlyMap<string, string>;
+  /** Every live Play on the device; the scope narrows it to the plan's book. */
+  members: readonly PlaySearchProjection[];
   now: () => number;
   onApply: (plan: GamePlan) => void;
+  onScope: (scope: PlayPickScope) => void;
   plan: GamePlan;
+  scope: PlayPickScope;
   snapshot: LibrarySnapshot;
 }) {
   const [query, setQuery] = useState("");
@@ -1213,9 +1312,22 @@ function AddPlaysPanel({
     plan.sections[0]?.id ?? "",
   );
   const [report, setReport] = useState<string>();
+  const members = useMemo(
+    () => membersInScope(everyMember, plan, scope, bookNames),
+    [bookNames, everyMember, plan, scope],
+  );
+  const otherBooks = useMemo(
+    () =>
+      new Set(
+        everyMember
+          .filter((member) => member.playbookId !== plan.playbookId)
+          .map((member) => member.playbookId),
+      ).size,
+    [everyMember, plan.playbookId],
+  );
   const typeChips = useMemo(
-    () => typeChipsFor(snapshot.playbook.playTypes, snapshot.members, unit),
-    [snapshot.members, snapshot.playbook.playTypes, unit],
+    () => typeChipsFor(snapshot.playbook.playTypes, members, unit),
+    [members, snapshot.playbook.playTypes, unit],
   );
   const filter = {
     text: query,
@@ -1223,10 +1335,15 @@ function AddPlaysPanel({
     ...(playType === "all" ? {} : { playTypeId: playType }),
   };
   const matching = useMemo(
-    () => matchesFilter(snapshot.members, filter),
+    () => matchesFilter(members, filter),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- filter is rebuilt from these
-    [snapshot.members, query, unit, playType],
+    [members, query, unit, playType],
   );
+  /** The book a row is from, when it is not the plan's own. */
+  const bookLabel = (member: PlaySearchProjection) =>
+    member.playbookId === plan.playbookId
+      ? undefined
+      : (bookNames.get(member.playbookId) ?? "Another playbook");
   const target = plan.sections.some(({ id }) => id === targetSectionId)
     ? targetSectionId
     : undefined;
@@ -1235,16 +1352,26 @@ function AddPlaysPanel({
   const previewText = describeAddition(preview, sectionName(plan, target));
   const held = new Set(plan.calls.map(({ playId }) => playId));
 
+  // A saved search is run again where it was saved: across every book or
+  // in the plan's own, whatever the picker is looking at now.
   const savedMatches = plan.savedFilter
-    ? matchesFilter(snapshot.members, {
-        text: plan.savedFilter.text,
-        ...(plan.savedFilter.unit === undefined
-          ? {}
-          : { unit: plan.savedFilter.unit }),
-        ...(plan.savedFilter.playTypeId === undefined
-          ? {}
-          : { playTypeId: plan.savedFilter.playTypeId }),
-      })
+    ? matchesFilter(
+        membersInScope(
+          everyMember,
+          plan,
+          plan.savedFilter.scope ?? "book",
+          bookNames,
+        ),
+        {
+          text: plan.savedFilter.text,
+          ...(plan.savedFilter.unit === undefined
+            ? {}
+            : { unit: plan.savedFilter.unit }),
+          ...(plan.savedFilter.playTypeId === undefined
+            ? {}
+            : { playTypeId: plan.savedFilter.playTypeId }),
+        },
+      )
     : [];
   const savedPreview = previewAddition(
     plan,
@@ -1278,10 +1405,39 @@ function AddPlaysPanel({
   return (
     <aside aria-label="Add plays" className="game-plan-add">
       <div className="section-heading">Add plays</div>
+      <div
+        aria-label="Pick from"
+        className="segments game-plan-scope"
+        role="group"
+        title={
+          otherBooks > 0
+            ? "The plan stays in this book; a call may name a play from any of your playbooks"
+            : "Only this book is on the shelf — a call may name a play from any playbook you add"
+        }
+      >
+        {pickScopes.map((choice) => (
+          <button
+            aria-pressed={scope === choice.id}
+            className={scope === choice.id ? "active" : undefined}
+            key={choice.id}
+            onClick={() => {
+              onScope(choice.id);
+              setPlayType("all");
+            }}
+            type="button"
+          >
+            {choice.name}
+          </button>
+        ))}
+      </div>
       <input
         aria-label="Search plays to add"
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search — stick, red zone…"
+        placeholder={
+          scope === "all"
+            ? "Search every playbook — stick, red zone…"
+            : "Search — stick, red zone…"
+        }
         spellCheck={false}
         value={query}
       />
@@ -1338,7 +1494,7 @@ function AddPlaysPanel({
               if (!conceptId) return;
               setSelected(
                 new Set(
-                  snapshot.members
+                  members
                     .filter((member) => member.conceptId === conceptId)
                     .map(({ playId }) => playId),
                 ),
@@ -1362,33 +1518,52 @@ function AddPlaysPanel({
         aria-label="Matching plays"
       >
         {matching.length === 0 ? (
-          <p className="game-plan-empty">No plays match.</p>
+          <p className="game-plan-empty">
+            {scope === "book" && otherBooks > 0
+              ? "No plays match in this book. Try All my playbooks."
+              : "No plays match."}
+          </p>
         ) : (
-          matching.map((member) => (
-            <label className="game-plan-pick" key={member.playId}>
-              <input
-                aria-label={member.name}
-                checked={selected.has(member.playId)}
-                onChange={() => toggle(member.playId)}
-                type="checkbox"
-              />
-              <span className="game-plan-pick-name">{member.name}</span>
-              <span className="game-plan-pick-meta">
-                {formatClassification({
-                  unit: member.unit,
-                  ...(member.playTypeId === undefined
-                    ? {}
-                    : {
-                        playType: {
-                          id: member.playTypeId,
-                          name: member.playTypeName ?? member.playTypeId,
-                        },
-                      }),
-                })}
-                {held.has(member.playId) ? " · in plan" : ""}
-              </span>
-            </label>
-          ))
+          matching.map((member) => {
+            const book = bookLabel(member);
+            return (
+              <label
+                className="game-plan-pick"
+                data-playbook-id={member.playbookId}
+                key={member.playId}
+              >
+                <input
+                  aria-label={book ? `${member.name} (${book})` : member.name}
+                  checked={selected.has(member.playId)}
+                  onChange={() => toggle(member.playId)}
+                  type="checkbox"
+                />
+                <span className="game-plan-pick-name">{member.name}</span>
+                {book ? (
+                  <span
+                    className="game-plan-pick-book"
+                    title={`From the ${book} playbook`}
+                  >
+                    {book}
+                  </span>
+                ) : null}
+                <span className="game-plan-pick-meta">
+                  {formatClassification({
+                    unit: member.unit,
+                    ...(member.playTypeId === undefined
+                      ? {}
+                      : {
+                          playType: {
+                            id: member.playTypeId,
+                            name: member.playTypeName ?? member.playTypeId,
+                          },
+                        }),
+                  })}
+                  {held.has(member.playId) ? " · in plan" : ""}
+                </span>
+              </label>
+            );
+          })
         )}
       </div>
       <div className="game-plan-pick-target">
@@ -1420,12 +1595,18 @@ function AddPlaysPanel({
       {report ? <p className="game-plan-report">{report}</p> : null}
       <div className="game-plan-saved">
         <button
-          disabled={!query.trim() && unit === "all" && playType === "all"}
+          disabled={
+            !query.trim() &&
+            unit === "all" &&
+            playType === "all" &&
+            scope === "book"
+          }
           onClick={() => {
             const saved: GamePlanFilter = {
               text: query,
               ...(unit === "all" ? {} : { unit }),
               ...(playType === "all" ? {} : { playTypeId: playType }),
+              ...(scope === "all" ? { scope } : {}),
             };
             onApply({ ...plan, savedFilter: saved, updatedAtMs: now() });
           }}
@@ -1438,7 +1619,7 @@ function AddPlaysPanel({
           <button
             disabled={savedPreview.added === 0}
             onClick={() => add(savedMatches.map(({ playId }) => playId))}
-            title={`Saved search: "${plan.savedFilter.text || "everything"}"${plan.savedFilter.unit ? ` · ${unitName(plan.savedFilter.unit)}` : ""}`}
+            title={`Saved search: "${plan.savedFilter.text || "everything"}"${plan.savedFilter.unit ? ` · ${unitName(plan.savedFilter.unit)}` : ""}${plan.savedFilter.scope === "all" ? " · all my playbooks" : ""}`}
             type="button"
           >
             Expand from saved search ({savedPreview.added} new)

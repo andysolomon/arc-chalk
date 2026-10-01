@@ -68,11 +68,10 @@ while it set to the right. The line is named and lit as the side it now goes to.
 `mirroredCallKey` holds the pairs. Mirroring stays geometry first (ADR 0034): no role or
 letter is inferred, and mirroring twice gives back the same Play.
 
-**A long name clears an upright line.** The renderer centres a route's words beside its
-last leg. Beside a leg that runs straight up or down the field, a long name such as
-5-STEP DROP lay across the line. Within 25° of upright, the words are now moved out
-until their nearer end clears the line by 8 pixels. Words that already cleared, and
-every leg at any other angle, are drawn exactly where they were.
+**A drop's name hangs beside it.** A drop runs straight back, so a long name such as
+5-STEP DROP would lie across it if it were centred beside the line. ADR 0069 already hangs
+words off their anchor away from any line steeper than 30°, so nothing here is special
+to the quarterback.
 
 ## Consequences
 

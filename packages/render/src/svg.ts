@@ -128,6 +128,13 @@ export interface SvgTextPrimitive {
   readonly fontSize: number;
   readonly fontWeight: number;
   readonly letterSpacing: number;
+  /**
+   * Which end of the line sits at `x`. Absent, the line is centred there,
+   * which is how everything but a route's words is set. A route's words
+   * hang off their anchor away from a vertical line, and inward from the
+   * paper's edge when the line ends beside it.
+   */
+  readonly textAnchor?: "start" | "middle" | "end";
 }
 
 /**
@@ -315,6 +322,11 @@ export interface SvgRouteCoaching {
   readonly notes: readonly {
     readonly id: string;
     readonly text: SvgTextPrimitive;
+    /**
+     * A white card under words that landed on somebody else's and could
+     * not slide clear — the original's backing, so the line on top reads.
+     */
+    readonly backing?: SvgShapePrimitive;
   }[];
 }
 
@@ -839,44 +851,99 @@ const MARK_SCALE =
   LEGACY_FIELD_GEOMETRY.depthPixelsPerYard;
 const READ_OFFSET = 20 * MARK_SCALE;
 const NOTE_OFFSET = 22 * MARK_SCALE;
+
 /**
- * Words are centred where they hang, so beside a line that runs straight up
- * or down the field a long name lies across it — a quarterback's
- * 5-STEP DROP over his own drop. Within this much of straight, the words are
- * set out until the nearer end of them clears the line by the gap.
+ * How far a line of words may run on the field before it is cut short: a
+ * quarter of the paper, about the split from a wide receiver to the numbers.
+ * A line on the field is a call, not a paragraph; the whole note is on the
+ * install page and in the inspector (issue #158).
  */
-const NEAR_VERTICAL = Math.cos((25 * Math.PI) / 180);
-const NOTE_CLEARANCE = 8 * MARK_SCALE;
-/** How wide mono text is, near enough to keep it off a line. */
-const monoWidth = (text: string, size: number, track: number): number =>
-  text.length * (size * 0.6 + track);
+const FIELD_WORDS_MAX_WIDTH = 260 * MARK_SCALE;
+/** How near the paper's edge a line of words may come. */
+const PAPER_MARGIN = 6 * MARK_SCALE;
+/** How far words slide, either way, to get clear of a neighbour. */
+const SLIDE_STEPS = [4, 9, 14].map((step) => step * MARK_SCALE);
+/** A route is beside its words, not over or under them, past this slope. */
+const BESIDE = 0.5;
+
+/**
+ * Type on the field is estimated, not measured: the renderer has no font
+ * metrics, so a line is taken at the original's 0.62 em a character plus
+ * its tracking. That overshoots Geist a little, which is the safe side —
+ * words are pushed clear of a line, and turned in from an edge, a few
+ * pixels sooner than they had to be.
+ */
+export function estimateTextWidth(
+  text: string,
+  fontSize: number,
+  letterSpacing = 0,
+): number {
+  return text.length * (fontSize * 0.62 + letterSpacing);
+}
+
+/** The words cut to what fits one line on the field, between words when it can. */
+function fitWordsOnField(
+  text: string,
+  fontSize: number,
+  letterSpacing: number,
+): string {
+  const perCharacter = fontSize * 0.62 + letterSpacing;
+  const limit = Math.floor(FIELD_WORDS_MAX_WIDTH / perCharacter);
+  if (text.length <= limit) return text;
+  let kept = text.slice(0, limit - 1);
+  const space = kept.lastIndexOf(" ");
+  if (space >= limit * 0.6) kept = kept.slice(0, space);
+  return `${kept.replace(/[\s,;:]+$/u, "")}…`;
+}
+
+/**
+ * The normal to the last leg of a line at its tip: the side the read number
+ * goes on. The words go the other way.
+ */
+function endNormal(
+  path: ScenePath,
+  viewport: SvgProjection,
+):
+  | { readonly tip: SvgPoint; readonly nx: number; readonly ny: number }
+  | undefined {
+  const end = path.points.at(-1);
+  const before = path.points.at(-2);
+  if (!end || !before) return undefined;
+  const tip = projectCoordinate(end, viewport);
+  const tail = projectCoordinate(before, viewport);
+  const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
+  return { tip, nx: -Math.sin(angle), ny: Math.cos(angle) };
+}
 
 /**
  * Every mark hangs off the last leg of the line, so it reads as belonging to
  * where the route finishes: the read number to one side of it and the words
- * to the other, exactly as the original arranges them.
+ * to the other, as the original arranges them.
+ *
+ * The original stepped each further line of words out along the normal.
+ * Across the field that stacks them up the page; beside a vertical route it
+ * laid the Assignment, the conversion and the note on one baseline, each 17
+ * px further from the line, and the long ones ran off the paper (issue #158).
+ * Lines of type run across the page whatever the route does, so here they
+ * stack up or down it — away from the line when the words sit over or under
+ * it, down the page when they sit beside it — hang off their anchor away
+ * from a vertical line so a long name never straddles a Go, and turn in from
+ * the paper's edge rather than run past it.
  */
 function buildRouteCoaching(
   path: ScenePath,
   viewport: SvgProjection,
   type: TypeDensity,
 ): SvgRouteCoaching | undefined {
-  const end = path.points.at(-1);
-  const before = path.points.at(-2);
-  if (!end || !before) return undefined;
+  const geometry = endNormal(path, viewport);
+  if (!geometry) return undefined;
 
-  const notes: { readonly kind: string; readonly text: SvgTextPrimitive }[] =
-    [];
   const hasRead = path.readOrder !== undefined;
   if (!hasRead && !path.assignment && !path.conversion && !path.coachingNote) {
     return undefined;
   }
 
-  const tip = projectCoordinate(end, viewport);
-  const tail = projectCoordinate(before, viewport);
-  const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
-  const nx = -Math.sin(angle);
-  const ny = Math.cos(angle);
+  const { tip, nx, ny } = geometry;
   const noteSize = Math.max(10, type.label - 1);
   const noteStep = (type.label + 5) * MARK_SCALE;
 
@@ -940,34 +1007,267 @@ function buildRouteCoaching(
       track: 0,
     });
   }
-  const upright = Math.abs(nx) >= NEAR_VERTICAL;
-  for (const [index, entry] of stack.entries()) {
-    const offset = Math.max(
-      NOTE_OFFSET + index * noteStep,
-      upright
-        ? monoWidth(entry.value, entry.size, entry.track) / 2 + NOTE_CLEARANCE
-        : 0,
-    );
-    notes.push({
-      kind: entry.kind,
+
+  // The words' side of the line, and the anchor the block hangs off.
+  const wx = -nx;
+  const wy = -ny;
+  const anchorX = tip.x + wx * NOTE_OFFSET;
+  const anchorY = tip.y + wy * NOTE_OFFSET;
+  // Up the page when the words sit over the line, down it otherwise — which
+  // takes in beside it, where either way is clear of the line and down reads
+  // in order: Assignment, conversion, note.
+  const stackDown = wy > -0.01 ? 1 : -1;
+  const anchor: NonNullable<SvgTextPrimitive["textAnchor"]> =
+    wx <= -BESIDE ? "end" : wx >= BESIDE ? "start" : "middle";
+
+  const lines = stack.map((entry, index) => {
+    const value = fitWordsOnField(entry.value, entry.size, entry.track);
+    const width = estimateTextWidth(value, entry.size, entry.track);
+    let textAnchor = anchor;
+    let x = anchorX;
+    const left =
+      textAnchor === "start"
+        ? x
+        : textAnchor === "end"
+          ? x - width
+          : x - width / 2;
+    // At the paper's edge the line turns to hang inward from the margin.
+    if (left < PAPER_MARGIN) {
+      textAnchor = "start";
+      x = PAPER_MARGIN;
+    } else if (left + width > viewport.width - PAPER_MARGIN) {
+      textAnchor = "end";
+      x = viewport.width - PAPER_MARGIN;
+    }
+    return {
+      ...entry,
+      value,
+      x,
+      textAnchor,
+      y: anchorY + stackDown * index * noteStep,
+    };
+  });
+  // The whole block stays on the paper, top and bottom.
+  const top = Math.min(...lines.map((line) => line.y - line.size * 0.8));
+  const bottom = Math.max(...lines.map((line) => line.y + line.size * 0.25));
+  const lift =
+    lines.length === 0
+      ? 0
+      : top < PAPER_MARGIN
+        ? PAPER_MARGIN - top
+        : bottom > viewport.height - PAPER_MARGIN
+          ? viewport.height - PAPER_MARGIN - bottom
+          : 0;
+
+  return {
+    ...(read === undefined ? {} : { read }),
+    notes: lines.map((line) => ({
+      id: `${path.id}-${line.kind}`,
       text: {
-        text: entry.value,
-        x: tip.x - nx * offset,
-        y: tip.y - ny * offset,
-        fill: entry.fill,
-        fontFamily: entry.mono
+        text: line.value,
+        x: line.x,
+        y: line.y + lift,
+        fill: line.fill,
+        fontFamily: line.mono
           ? ("Geist Mono, monospace" as const)
           : ("Geist, sans-serif" as const),
-        fontSize: entry.size,
+        fontSize: line.size,
         fontWeight: 500,
-        letterSpacing: entry.track,
+        letterSpacing: line.track,
+        ...(line.textAnchor === "middle"
+          ? {}
+          : { textAnchor: line.textAnchor }),
+      },
+    })),
+  };
+}
+
+interface WordsBox {
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
+}
+
+const boxesOverlap = (a: WordsBox, b: WordsBox): boolean =>
+  a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+const shiftedBox = (box: WordsBox, dx: number, dy: number): WordsBox => ({
+  x0: box.x0 + dx,
+  y0: box.y0 + dy,
+  x1: box.x1 + dx,
+  y1: box.y1 + dy,
+});
+
+/** The paper a line of words covers, from its anchor and estimated width. */
+function textBox(text: SvgTextPrimitive): WordsBox {
+  const width = estimateTextWidth(text.text, text.fontSize, text.letterSpacing);
+  const x0 =
+    text.textAnchor === "start"
+      ? text.x
+      : text.textAnchor === "end"
+        ? text.x - width
+        : text.x - width / 2;
+  return {
+    x0,
+    x1: x0 + width,
+    y0: text.y - text.fontSize * 0.8,
+    y1: text.y + text.fontSize * 0.25,
+  };
+}
+
+const whiteCard = (box: WordsBox, pad: number): SvgShapePrimitive => ({
+  kind: "rect",
+  x: box.x0 - pad,
+  y: box.y0 - 1,
+  width: box.x1 - box.x0 + pad * 2,
+  height: box.y1 - box.y0 + 2,
+  rx: 2,
+  fill: "#FFFFFF",
+});
+
+/**
+ * Every word on the field placed in one pass, the original's way. The read
+ * number holds its spot over the Assignment, the Assignment over the
+ * conversion, that over the note, and all of them over a free label. Words
+ * that land on some already placed slide along their line's normal up to 14
+ * px either way; if they still cannot get clear they go on a white card, so
+ * the line on top reads. A label the Coach placed by hand is never moved —
+ * a boxless one is given the card instead, and one he boxed keeps his box.
+ */
+function settleFieldWords(
+  scene: RenderScene,
+  paths: readonly SvgScenePath[],
+  labels: SvgRenderScene["labels"],
+  viewport: SvgProjection,
+): {
+  readonly paths: readonly SvgScenePath[];
+  readonly labels: SvgRenderScene["labels"];
+} {
+  interface Slot {
+    readonly priority: number;
+    readonly box: WordsBox;
+    readonly slide?: SvgPoint;
+    readonly settle: (dx: number, dy: number, backed: boolean) => void;
+  }
+  const slots: Slot[] = [];
+
+  const drafts = paths.map((path, index) => {
+    const coaching = path.coaching;
+    if (!coaching) return { path };
+    const geometry = endNormal(scene.paths[index]!, viewport);
+    const normal = geometry
+      ? { x: geometry.nx, y: geometry.ny }
+      : { x: 0, y: 1 };
+    const draft = {
+      read: coaching.read ? { ...coaching.read } : undefined,
+      notes: coaching.notes.map((note) => ({ ...note })),
+    };
+    const read = draft.read;
+    if (read) {
+      const reach = read.radius + 1;
+      slots.push({
+        priority: 5,
+        box: {
+          x0: read.center.x - reach,
+          y0: read.center.y - reach,
+          x1: read.center.x + reach,
+          y1: read.center.y + reach,
+        },
+        slide: normal,
+        settle: (dx, dy) => {
+          read.center = { x: read.center.x + dx, y: read.center.y + dy };
+          read.text = {
+            ...read.text,
+            x: read.text.x + dx,
+            y: read.text.y + dy,
+          };
+        },
+      });
+    }
+    for (const note of draft.notes) {
+      slots.push({
+        priority: note.id.endsWith("-assignment")
+          ? 4
+          : note.id.endsWith("-conversion")
+            ? 3
+            : 2,
+        box: textBox(note.text),
+        slide: { x: -normal.x, y: -normal.y },
+        settle: (dx, dy, backed) => {
+          note.text = {
+            ...note.text,
+            x: note.text.x + dx,
+            y: note.text.y + dy,
+          };
+          if (backed) note.backing = whiteCard(textBox(note.text), 4);
+        },
+      });
+    }
+    return { path, draft };
+  });
+
+  const labelDrafts = labels.map((label) => ({ ...label }));
+  for (const label of labelDrafts) {
+    const size = label.text.fontSize;
+    const width = Math.max(20, label.text.text.length * size * 0.6) + 14;
+    const box: WordsBox = {
+      x0: label.position.x - width / 2,
+      y0: label.position.y - size - 4,
+      x1: label.position.x + width / 2,
+      y1: label.position.y + 6,
+    };
+    slots.push({
+      priority: 1,
+      box,
+      settle: (_dx, _dy, backed) => {
+        if (backed && label.box === undefined) label.box = whiteCard(box, 0);
       },
     });
   }
 
+  const placed: WordsBox[] = [];
+  const clear = (box: WordsBox): boolean =>
+    !placed.some((other) => boxesOverlap(box, other));
+  // Ties keep document order: the man drawn first holds his spot.
+  for (const slot of [...slots].sort((a, b) => b.priority - a.priority)) {
+    let box = slot.box;
+    let dx = 0;
+    let dy = 0;
+    if (slot.slide && !clear(box)) {
+      search: for (const step of SLIDE_STEPS) {
+        for (const sign of [1, -1]) {
+          const moved = shiftedBox(
+            slot.box,
+            slot.slide.x * step * sign,
+            slot.slide.y * step * sign,
+          );
+          if (clear(moved)) {
+            box = moved;
+            dx = slot.slide.x * step * sign;
+            dy = slot.slide.y * step * sign;
+            break search;
+          }
+        }
+      }
+    }
+    slot.settle(dx, dy, !clear(box));
+    placed.push(box);
+  }
+
   return {
-    ...(read === undefined ? {} : { read }),
-    notes: notes.map(({ kind, text }) => ({ id: `${path.id}-${kind}`, text })),
+    paths: drafts.map(({ path, draft }) =>
+      draft
+        ? {
+            ...path,
+            coaching: {
+              ...(draft.read === undefined ? {} : { read: draft.read }),
+              notes: draft.notes,
+            },
+          }
+        : path,
+    ),
+    labels: labelDrafts,
   };
 }
 
@@ -986,6 +1286,95 @@ export function buildSvgRenderScene(
     strokeColor
       ? { ...stroke, style: { ...stroke.style, color: strokeColor } }
       : stroke;
+  const paths: readonly SvgScenePath[] = scene.paths.map((path) => {
+    const endpoint = path.points.at(-1);
+    // A zone drop that was never sized still owns its default bubble, the
+    // way the original draws one until the Coach drags it out.
+    const coverage =
+      path.coverageArea ??
+      (endpoint
+        ? {
+            type: classifyZoneCoverage(endpoint),
+            ...DEFAULT_ZONE_COVERAGE_RADII,
+          }
+        : undefined);
+    const coverageArea =
+      path.kind === "zone" &&
+      path.style.ending === "bubble" &&
+      coverage &&
+      endpoint
+        ? {
+            id: `${path.id}-coverage`,
+            type: coverage.type,
+            center: projectCoordinate(endpoint, viewport),
+            radiusX:
+              coverage.radiusLateralYards * viewport.lateralPixelsPerYard,
+            radiusY: coverage.radiusDepthYards * viewport.depthPixelsPerYard,
+            fill: paint(coverageFills[coverage.type], type.flat),
+          }
+        : undefined;
+    const strokes = buildPathStrokes(
+      path.id,
+      path.points,
+      path.style,
+      viewport,
+    ).map((stroke, index, all) => {
+      const ended =
+        coverageArea &&
+        index === all.length - 1 &&
+        stroke.style.ending === "bubble"
+          ? { ...stroke, style: { ...stroke.style, ending: "none" as const } }
+          : stroke;
+      return withFlatColor(ended);
+    });
+
+    const coaching = buildRouteCoaching(path, viewport, type);
+    const ink = strokeColor ?? path.style.color;
+
+    return {
+      id: path.id,
+      kind: path.kind,
+      ariaLabel: pathAriaLabel(path, scene),
+      ...(path.variant === undefined ? {} : { variant: path.variant }),
+      ...(path.trail ? {} : coaching === undefined ? {} : { coaching }),
+      ...(path.opacity === undefined ? {} : { opacity: path.opacity }),
+      ...(path.trail === undefined ? {} : { trail: path.trail }),
+      strokes,
+      ticks: buildTicks(path.points, viewport).map((tick) => ({
+        ...tick,
+        color: ink,
+      })),
+      ...(coverageArea === undefined ? {} : { coverageArea }),
+      branches: path.branches.map((branch, index) => {
+        const branchStart = path.points[branch.fromIndex];
+        if (!branchStart) {
+          throw new RangeError(
+            `Movement path ${path.id} branch ${index} has no start point.`,
+          );
+        }
+
+        const id = `${path.id}-branch-${index}`;
+        const points = [branchStart, ...branch.points];
+        return {
+          id,
+          strokes: buildPathStrokes(id, points, branch.style, viewport).map(
+            withFlatColor,
+          ),
+          ticks: buildTicks(points, viewport).map((tick) => ({
+            ...tick,
+            color: strokeColor ?? branch.style.color,
+          })),
+        };
+      }),
+    };
+  });
+  // Words are placed once everything that can be in their way is drawn.
+  const words = settleFieldWords(
+    scene,
+    paths,
+    scene.labels.map((label) => buildSvgLabel(label, viewport, type)),
+    viewport,
+  );
   return {
     schemaVersion: 2,
     playId: scene.playId,
@@ -997,88 +1386,7 @@ export function buildSvgRenderScene(
     players: scene.players.map((player) =>
       buildSvgPlayer(player, viewport, type.flat),
     ),
-    paths: scene.paths.map((path) => {
-      const endpoint = path.points.at(-1);
-      // A zone drop that was never sized still owns its default bubble, the
-      // way the original draws one until the Coach drags it out.
-      const coverage =
-        path.coverageArea ??
-        (endpoint
-          ? {
-              type: classifyZoneCoverage(endpoint),
-              ...DEFAULT_ZONE_COVERAGE_RADII,
-            }
-          : undefined);
-      const coverageArea =
-        path.kind === "zone" &&
-        path.style.ending === "bubble" &&
-        coverage &&
-        endpoint
-          ? {
-              id: `${path.id}-coverage`,
-              type: coverage.type,
-              center: projectCoordinate(endpoint, viewport),
-              radiusX:
-                coverage.radiusLateralYards * viewport.lateralPixelsPerYard,
-              radiusY: coverage.radiusDepthYards * viewport.depthPixelsPerYard,
-              fill: paint(coverageFills[coverage.type], type.flat),
-            }
-          : undefined;
-      const strokes = buildPathStrokes(
-        path.id,
-        path.points,
-        path.style,
-        viewport,
-      ).map((stroke, index, all) => {
-        const ended =
-          coverageArea &&
-          index === all.length - 1 &&
-          stroke.style.ending === "bubble"
-            ? { ...stroke, style: { ...stroke.style, ending: "none" as const } }
-            : stroke;
-        return withFlatColor(ended);
-      });
-
-      const coaching = buildRouteCoaching(path, viewport, type);
-      const ink = strokeColor ?? path.style.color;
-
-      return {
-        id: path.id,
-        kind: path.kind,
-        ariaLabel: pathAriaLabel(path, scene),
-        ...(path.variant === undefined ? {} : { variant: path.variant }),
-        ...(path.trail ? {} : coaching === undefined ? {} : { coaching }),
-        ...(path.opacity === undefined ? {} : { opacity: path.opacity }),
-        ...(path.trail === undefined ? {} : { trail: path.trail }),
-        strokes,
-        ticks: buildTicks(path.points, viewport).map((tick) => ({
-          ...tick,
-          color: ink,
-        })),
-        ...(coverageArea === undefined ? {} : { coverageArea }),
-        branches: path.branches.map((branch, index) => {
-          const branchStart = path.points[branch.fromIndex];
-          if (!branchStart) {
-            throw new RangeError(
-              `Movement path ${path.id} branch ${index} has no start point.`,
-            );
-          }
-
-          const id = `${path.id}-branch-${index}`;
-          const points = [branchStart, ...branch.points];
-          return {
-            id,
-            strokes: buildPathStrokes(id, points, branch.style, viewport).map(
-              withFlatColor,
-            ),
-            ticks: buildTicks(points, viewport).map((tick) => ({
-              ...tick,
-              color: strokeColor ?? branch.style.color,
-            })),
-          };
-        }),
-      };
-    }),
-    labels: scene.labels.map((label) => buildSvgLabel(label, viewport, type)),
+    paths: words.paths,
+    labels: words.labels,
   };
 }

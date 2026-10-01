@@ -2,8 +2,10 @@ import * as z from "zod/mini";
 
 import { canonicalStringify } from "./canonical";
 import { defensiveLineKinds } from "./classifications";
+import { stockConcepts } from "./concepts";
 import { filmReferenceSchema, playAttachmentSchema } from "./assets";
 import { holdPathsInsideSidelines, mirrorPlayGeometry } from "./geometry";
+import { routePresetNames } from "./route-catalogue";
 import {
   assignmentSchema,
   conceptSourceSchema,
@@ -911,6 +913,8 @@ function dependentCleanup(
   removedPathIds: ReadonlySet<string>,
   /** Labels going in their own right, merged so none is removed twice. */
   removedLabelIds: ReadonlySet<string> = new Set(),
+  /** Assignments going in their own right, with no line left to name. */
+  removedAssignmentIds: ReadonlySet<string> = new Set(),
 ): PrimitivePlayCommand[] {
   const labelIds = play.labels
     .filter(
@@ -923,7 +927,10 @@ function dependentCleanup(
   const assignmentIds: string[] = [];
   const updates: Assignment[] = [];
   for (const assignment of play.assignments) {
-    if (removedPlayerIds.has(assignment.playerId)) {
+    if (
+      removedPlayerIds.has(assignment.playerId) ||
+      removedAssignmentIds.has(assignment.id)
+    ) {
       assignmentIds.push(assignment.id);
       continue;
     }
@@ -1408,10 +1415,12 @@ export function playErasureCommand(
   erasure: PlayErasure,
 ): BatchPlayCommand | undefined {
   const targets = erasureTargets(play, erasure);
+  const stale = staleCallNames(play, erasure);
   if (
     targets.playerIds.size === 0 &&
     targets.pathIds.size === 0 &&
-    targets.labelIds.size === 0
+    targets.labelIds.size === 0 &&
+    stale.size === 0
   ) {
     return undefined;
   }
@@ -1429,6 +1438,56 @@ export function playErasureCommand(
       targets.playerIds,
       pathIds,
       targets.labelIds,
+      stale,
     ),
   };
+}
+
+/**
+ * The words a call writes, as against the Coach's own: any job a stock
+ * concept hands out, or a route's name off the tree. Read once, when first
+ * asked, so the concepts are drawn before they are read.
+ */
+let stockCallWords: ReadonlySet<string> | undefined;
+function isStockCallName(text: string): boolean {
+  stockCallWords ??= new Set([
+    ...stockConcepts.flatMap(({ assignments }) => assignments),
+    ...routePresetNames.map(({ name }) => name.toUpperCase()),
+  ]);
+  return stockCallWords.has(text.trim().toUpperCase());
+}
+
+/**
+ * A call's name with nothing drawn under it, on the side whose lines this
+ * erasure takes. Before ADR 0064 a Clear took the lines and left each name
+ * standing on the roster, and a Play stored then still reads `X: DIG` over
+ * a man with no route (issue #153). The name was the line's, so it goes now
+ * as it would have with the line. Words that are the Coach's own are never
+ * touched: the roster says they have no line, and he decides.
+ */
+function staleCallNames(
+  play: PlayDocument,
+  erasure: PlayErasure,
+): ReadonlySet<string> {
+  const sides: readonly ("offense" | "defense")[] =
+    erasure === "offensive-lines"
+      ? ["offense"]
+      : erasure === "defensive-lines"
+        ? ["defense"]
+        : erasure === "lines"
+          ? ["offense", "defense"]
+          : [];
+  if (sides.length === 0) return NOTHING;
+  const unitOf = new Map(play.players.map(({ id, unit }) => [id, unit]));
+  return idsOf(
+    play.assignments.filter((assignment) => {
+      const unit = unitOf.get(assignment.playerId);
+      return (
+        unit !== undefined &&
+        sides.includes(unit) &&
+        assignment.actions.length === 0 &&
+        isStockCallName(assignment.text)
+      );
+    }),
+  );
 }
