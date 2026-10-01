@@ -257,8 +257,25 @@ function withManCoverageSettled(
   };
 }
 
+/**
+ * What the device said, in the words meant for a person. A Play the
+ * repository refuses carries its reasons as a list of issues, each written
+ * for the Coach; the JSON the error prints them in, paths and all, is
+ * bookkeeping he should never have to read.
+ */
 function describeSaveFailure(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error instanceof Error) {
+    const { issues } = error as { readonly issues?: unknown };
+    if (Array.isArray(issues)) {
+      const said = issues.flatMap((issue: unknown) => {
+        const message = (issue as { readonly message?: unknown } | null)
+          ?.message;
+        return typeof message === "string" && message.trim() ? [message] : [];
+      });
+      if (said.length > 0) return said.join(" ");
+    }
+    if (error.message.trim()) return error.message;
+  }
   return String(error);
 }
 
@@ -287,6 +304,20 @@ export function localSaveMessage(localSave: LocalSaveState): string {
     case "error":
       return "Local save failed — retry";
   }
+}
+
+/**
+ * The whole of a failed write, for the Coach who asks: what it means for
+ * the play in front of him, what to do about it, and what the device said.
+ * Nothing while the save is fine — the status already says so.
+ */
+export function localSaveDetail(localSave: LocalSaveState): string | undefined {
+  if (localSave.phase !== "error") return undefined;
+  return (
+    "Chalk could not save this play on this device, so your latest edits " +
+    "are only on this screen. Retry, and stay on the page until it says " +
+    `Saved — a reload or a closed tab would lose them. ${localSave.reason}`
+  );
 }
 
 export function createEditorStore({
