@@ -128,6 +128,8 @@ test("prints the book under its name, in its page's order, with every line call 
   page,
   browserName,
 }, testInfo) => {
+  // Four plays made and two books printed: past the default budget on an iPad.
+  test.setTimeout(90_000);
   await openBlankEditor(page);
 
   // Three plays, each with a call on the whole line. Reach first, so the
