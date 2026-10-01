@@ -223,6 +223,10 @@ export interface PlayMeta {
  * The bottom strip: personnel, formation, strength, hash. A defensive Play
  * reads its call instead — base, nickel or dime, and the call's name — and a
  * defense has no strength of its own to print, so it has none.
+ *
+ * Personnel is the Play's own label, else the set the Play is in — the same
+ * words the editor's status bar and the Formations browser use for it —
+ * else the count read off the men (issue #154).
  */
 export function playMeta(
   play: PlayDocument,
@@ -238,15 +242,14 @@ export function playMeta(
     };
   }
   const offense = offensivePlayers(play);
+  const formation = currentFormation(play, formations);
+  const declared = play.personnelLabel ?? formation?.personnelLabel;
   const meta =
     offense.length > 0
       ? formationMeta(offense, {
-          ...(play.personnelLabel === undefined
-            ? {}
-            : { personnelLabel: play.personnelLabel }),
+          ...(declared === undefined ? {} : { personnelLabel: declared }),
         })
       : { personnelLabel: "—", strength: "—" };
-  const formation = currentFormation(play, formations);
   return {
     // An offense with nobody on the field has no count to give; it says
     // nothing rather than "—P" (issue #167).
@@ -342,6 +345,30 @@ export function libraryOrder(
     });
   }
   return out;
+}
+
+/**
+ * The Plays in the order given, each with its Concept beside it and none
+ * leading a group: a book read in the Coach's own sort (issue #156), where a
+ * Concept's Plays may be pages apart and the contents names the Concept on
+ * each row instead of heading them.
+ */
+export function conceptEntries(
+  plays: readonly PlayDocument[],
+  concepts: readonly Concept[] = [],
+): readonly LibraryEntry[] {
+  const conceptById = new Map(concepts.map((concept) => [concept.id, concept]));
+  return plays.map((play) => {
+    const concept =
+      play.conceptSource === undefined
+        ? undefined
+        : conceptById.get(play.conceptSource.conceptId);
+    return {
+      play,
+      ...(concept === undefined ? {} : { concept }),
+      leadsConcept: false,
+    };
+  });
 }
 
 /** The note at the top of an install page: the Concept's, else the Play's. */

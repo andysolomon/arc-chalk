@@ -289,7 +289,9 @@ test("organizes a library: empty books, saved fronts, copy and move, install ord
   await output.getByRole("radio", { name: "Full playbook" }).click();
   await expect(
     output.getByRole("status", { name: "What prints" }),
-  ).toContainText("Full playbook: Full playbook · 4 plays · in install order");
+  ).toContainText(
+    "Full playbook: 4-3 Base Defense · 4 plays · in install order",
+  );
   await page.keyboard.press("Escape");
 
   // The shelf: rename, duplicate, archive and restore, delete, and sort.
