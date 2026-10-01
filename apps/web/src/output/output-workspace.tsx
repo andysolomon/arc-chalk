@@ -16,6 +16,7 @@ import {
   outputFormats,
   outputGroups,
   paperLabel,
+  playbookOrderWords,
   positionGroupCatalog,
   preparedStamp,
   previewCss,
@@ -29,6 +30,7 @@ import {
   type CallSheetConfig,
   type OutputPaper,
   type PageMap,
+  type PlaybookOrder,
   type WristbandConfig,
   type OutputPreset,
   type OutputSourceKind,
@@ -42,13 +44,17 @@ import {
 } from "@chalk/render";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { LibrarySnapshot } from "../app/editor-runtime";
+import type {
+  LibraryBrowserState,
+  LibrarySnapshot,
+} from "../app/editor-runtime";
 import {
   downloadBlob,
   downloadText,
   pngFromSvg,
 } from "../components/export-files";
 import { FieldDiagram } from "../components/field-diagram";
+import { bookDefaultOrder, bookPlaysInOrder } from "./book-order";
 import { CallSheetOptions } from "./call-sheet-options";
 import { BookOptions } from "./book-options";
 import { measureBookPages, samePageMap } from "./paginate";
@@ -121,6 +127,8 @@ export function OutputWorkspace({
     Readonly<Record<string, WristbandConfig>>
   >({});
   const [books, setBooks] = useState<BookConfigs>(defaultBookConfigs);
+  /** How the book's own page is sorted, where a Full playbook starts. */
+  const [pageSort, setPageSort] = useState<LibraryBrowserState["sort"]>();
   /** The binder's page numbers, as the preview measured them. */
   const [pageMap, setPageMap] = useState<{
     readonly key: string;
@@ -159,6 +167,9 @@ export function OutputWorkspace({
     });
     void ports.library.loadBookConfigs().then((configs) => {
       if (!cancelled) setBooks(configs);
+    });
+    void ports.library.loadBrowserState().then((state) => {
+      if (!cancelled) setPageSort(state.sort);
     });
     return () => {
       cancelled = true;
@@ -208,6 +219,12 @@ export function OutputWorkspace({
     source.kind === "plan" && plan !== undefined && !loadedHere;
 
   const concepts = libraryPlays?.concepts ?? snapshot.concepts;
+  /** Where a Full playbook starts: its install order once set, else its page's sort. */
+  const startingOrder = bookDefaultOrder(
+    pageSort === undefined ? {} : { sort: pageSort },
+    snapshot.playbook,
+  );
+  const hasInstallOrder = (snapshot.playbook.playOrder?.length ?? 0) > 0;
   const resolved = useMemo<ResolvedSource>(() => {
     switch (source.kind) {
       case "current":
@@ -310,24 +327,39 @@ export function OutputWorkspace({
           order: "in section order",
         };
       }
-      case "book":
+      case "book": {
+        // The whole book prints under its own name: in its install order
+        // once the Coach sets one (issue #166), else in the order its page
+        // reads, unless he picks another here (issue #156).
+        const order = source.order ?? startingOrder;
         return {
           kind: "book",
-          label: "Full playbook",
-          plays: libraryPlays?.plays ?? [],
-          order: libraryPlays?.installOrder
-            ? "in install order"
-            : "in library order",
+          label: snapshot.playbook.name,
+          plays: bookPlaysInOrder(
+            libraryPlays?.plays ?? [],
+            order,
+            snapshot.members,
+            concepts,
+            snapshot.playbook.playOrder,
+          ),
+          order: playbookOrderWords[order],
+          bookOrder: order,
         };
+      }
     }
   }, [
+    concepts,
     currentPlay,
     libraryPlays,
     plan,
     planLoading,
     planPlays,
     revision,
+    snapshot.members,
+    snapshot.playbook.name,
+    snapshot.playbook.playOrder,
     source,
+    startingOrder,
   ]);
 
   const format = outputFormat(spec.format);
@@ -405,7 +437,7 @@ export function OutputWorkspace({
   };
   // The binder's page numbers depend on the layout they are measured in;
   // a map measured for another source, config or paper is not reused.
-  const bookKey = `${spec.format}:${resolved.label}:${resolved.plays.length}:${JSON.stringify(books.binder)}:${spec.options.detail}:${spec.options.mono}`;
+  const bookKey = `${spec.format}:${resolved.label}:${resolved.plays.length}:${resolved.order}:${JSON.stringify(books.binder)}:${spec.options.detail}:${spec.options.mono}`;
   const optionsInUse: OutputOptions = useMemo(
     () =>
       spec.format === "callSheet" && sheetConfig
@@ -611,12 +643,39 @@ export function OutputWorkspace({
             />
           ) : null}
           {source.kind === "book" ? (
-            <p className="output-note">
-              Every saved play in the library, in{" "}
-              {libraryPlays?.installOrder ? "install" : "library"} order —{" "}
-              {libraryPlays ? libraryPlays.plays.length : "…"} plays. Nothing
-              here prints the whole book unless you choose it.
-            </p>
+            <>
+              <div className="output-plan">
+                <label>
+                  Order
+                  <select
+                    aria-label="Print order"
+                    onChange={(event) =>
+                      setSource({
+                        kind: "book",
+                        order: event.target.value as PlaybookOrder,
+                      })
+                    }
+                    value={source.order ?? startingOrder}
+                  >
+                    {hasInstallOrder ? (
+                      <option value="install">Install order</option>
+                    ) : null}
+                    <option value="name">Name</option>
+                    <option value="recent">Recently edited</option>
+                    <option value="library">Library order — by concept</option>
+                  </select>
+                </label>
+              </div>
+              <p className="output-note">
+                Every saved play in {snapshot.playbook.name},{" "}
+                {playbookOrderWords[source.order ?? startingOrder]}
+                {source.order === undefined && startingOrder !== "install"
+                  ? ", as the book's page reads"
+                  : ""}{" "}
+                — {libraryPlays ? libraryPlays.plays.length : "…"} plays.
+                Nothing here prints the whole book unless you choose it.
+              </p>
+            </>
           ) : null}
         </section>
         <section className="output-step">
