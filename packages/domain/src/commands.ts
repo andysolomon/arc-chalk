@@ -1,11 +1,13 @@
 import * as z from "zod/mini";
 
 import { canonicalStringify } from "./canonical";
-import { defensiveLineKinds } from "./classifications";
+import { defensiveLineKinds, flipStrengthWords } from "./classifications";
 import { stockConcepts } from "./concepts";
 import { filmReferenceSchema, playAttachmentSchema } from "./assets";
 import { holdPathsInsideSidelines, mirrorPlayGeometry } from "./geometry";
-import { routePresetNames } from "./route-catalogue";
+import { routeCallName } from "./quarterback";
+import { linePresetByKey, routePresetNames } from "./route-catalogue";
+import { mirroredCallKey } from "./sided-calls";
 import {
   assignmentSchema,
   conceptSourceSchema,
@@ -669,7 +671,7 @@ function applyPrimitive(
     }
     case "mirror-play":
       return {
-        document: mirrorPlayGeometry(play),
+        document: mirrorPlay(play),
         inverse: { kind: "mirror-play" },
       };
   }
@@ -899,6 +901,85 @@ export function assignmentForPath(
       (action) => action.kind === "movement" && action.pathId === pathId,
     ),
   );
+}
+
+/** The name of the call a line was drawn as, off whichever catalogue it is. */
+const callNameOf = (key: string): string | undefined =>
+  routeCallName(key) ?? linePresetByKey(key)?.name;
+
+/**
+ * A line's words that are its call's own name — BOOT RIGHT on a boot right —
+ * turned over with it, as the other side's call's name in the case they were
+ * written in. Without this the field would read right over a boot going
+ * left, and the next quick call would keep the stale name as the Coach's.
+ * Undefined when the line's call is the same either way, or its words are
+ * the Coach's own, which are never touched. `path` is the line as it stood
+ * before it was turned over.
+ */
+export function turnedOverCallWords(
+  play: PlayDocument,
+  path: { readonly id: string; readonly preset?: string | undefined },
+): Assignment | undefined {
+  if (path.preset === undefined) return undefined;
+  const turned = mirroredCallKey(path.preset);
+  if (turned === path.preset) return undefined;
+  const was = callNameOf(path.preset);
+  const now = callNameOf(turned);
+  const assignment = assignmentForPath(play, path.id);
+  if (!was || !now || !assignment) return undefined;
+  if (assignment.text.trim().toUpperCase() !== was.toUpperCase()) {
+    return undefined;
+  }
+  // The two names differ only in the side, so turning the words keeps the
+  // case they were written in.
+  const words = flipStrengthWords(assignment.text);
+  const text =
+    words.trim().toUpperCase() === now.toUpperCase()
+      ? words
+      : now.toUpperCase();
+  return { ...assignment, text };
+}
+
+/**
+ * Every call's words on the given lines, turned over with them, once each
+ * however many of the lines they name.
+ */
+export function turnedOverCallAssignments(
+  play: PlayDocument,
+  paths: readonly {
+    readonly id: string;
+    readonly preset?: string | undefined;
+  }[],
+): readonly Assignment[] {
+  const turned = new Map<string, Assignment>();
+  for (const path of paths) {
+    const assignment = turnedOverCallWords(play, path);
+    if (assignment && !turned.has(assignment.id)) {
+      turned.set(assignment.id, assignment);
+    }
+  }
+  return [...turned.values()];
+}
+
+/**
+ * The whole Play mirrored: its geometry, each call that names its side, and
+ * the words those calls wrote. Mirroring twice gives back the same Play.
+ */
+function mirrorPlay(play: PlayDocument): PlayDocument {
+  const mirrored = mirrorPlayGeometry(play);
+  const turned = new Map(
+    turnedOverCallAssignments(play, play.paths).map((assignment) => [
+      assignment.id,
+      assignment,
+    ]),
+  );
+  if (turned.size === 0) return mirrored;
+  return {
+    ...mirrored,
+    assignments: mirrored.assignments.map(
+      (assignment) => turned.get(assignment.id) ?? assignment,
+    ),
+  };
 }
 
 /**

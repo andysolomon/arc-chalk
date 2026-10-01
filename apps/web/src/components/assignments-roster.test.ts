@@ -26,8 +26,10 @@ describe("assignments roster (ADR 0058)", () => {
         group.rows.map(({ letter }) => letter),
       ]),
     );
-    expect(letters.skill).toEqual(["X", "H", "Y", "Z"]);
-    expect(letters.backs).toEqual(["Q", "F"]);
+    // Where each man stands decides his group (ADR 0066): the F is split
+    // out past the X, and the H is the back behind the quarterback.
+    expect(letters.skill).toEqual(["F", "X", "Y", "Z"]);
+    expect(letters.backs).toEqual(["Q", "H"]);
     expect(letters.line).toHaveLength(5);
     expect(roster.total).toBe(11);
     expect(roster.assigned).toBe(
@@ -42,6 +44,10 @@ describe("assignments roster (ADR 0058)", () => {
     );
     expect(roster.rows.find(({ letter }) => letter === "Q")?.role).toBe(
       "Quarterback",
+    );
+    expect(roster.rows.find(({ letter }) => letter === "H")?.role).toBe("Back");
+    expect(roster.rows.find(({ letter }) => letter === "F")?.role).toBe(
+      "Receiver",
     );
   });
 

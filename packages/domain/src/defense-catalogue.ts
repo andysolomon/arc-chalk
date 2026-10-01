@@ -869,7 +869,11 @@ const legacyDefenses: readonly LegacyDefense[] = [
       at(570, 346, "M"),
       at(140, 384, "C"),
       at(860, 384, "C"),
-      at(740, 356, "N"),
+      // The original letters this man N, like the nose. Bear Cover 0 fields
+      // four defensive backs, so he is not a nickel but the free safety
+      // walked down — the one letter every other call has and this one
+      // lacked (issue #154).
+      at(740, 356, "F"),
       at(300, 356, "$"),
     ],
     mans: [

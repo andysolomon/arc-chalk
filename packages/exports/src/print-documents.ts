@@ -7,6 +7,7 @@ import {
 
 import {
   callSheetGroups,
+  conceptEntries,
   conceptNote,
   groupMembers,
   groupRows,
@@ -597,10 +598,35 @@ export function handoutHtml(
   });
 }
 
+/**
+ * The order a book's pages turn in. Library order keeps a Concept's Plays
+ * together, the way every library output reads. The rest are the book
+ * page's own sorts — by name, most recently edited, or the install order
+ * the Coach set by hand (issue #166): the Plays arrive already in them, and
+ * the contents says which one it is.
+ */
+export type PlaybookOrder = "library" | "name" | "recent" | "install";
+
+/** How a contents page and a source line say the order. */
+export const playbookOrderWords: Readonly<Record<PlaybookOrder, string>> =
+  Object.freeze({
+    library: "in library order",
+    name: "in name order",
+    recent: "most recently edited first",
+    install: "in install order",
+  });
+
 export interface PlaybookOptions extends LibraryOptions {
   /** The cover's season line; the caller supplies the year. */
   readonly year: number;
+  /** The book's own name, for the cover and every sheet's foot (issue #156). */
+  readonly title?: string;
+  /** Which way the pages turn; library order when nothing is said. */
+  readonly order?: PlaybookOrder;
 }
+
+const playCount = (count: number): string =>
+  `${count} ${count === 1 ? "play" : "plays"}`;
 
 /** A bound book's cover and contents pages, on top of the install page rules. */
 export const BOOK_CSS =
@@ -611,36 +637,47 @@ export const BOOK_CSS =
   ".tc{font-size:9px;letter-spacing:0.8px;text-transform:uppercase;color:#8F8F8F;font-family:ui-monospace,Menlo,monospace;margin:14px 0 2px}" +
   ".tr{display:flex;align-items:baseline;gap:8px;font-size:12px;padding:4px 0}" +
   ".tr i{flex:1;border-bottom:1px dotted #C9C9C9;transform:translateY(-3px);font-style:normal}" +
-  ".tr .tp{font-family:ui-monospace,Menlo,monospace;color:#8F8F8F;font-size:11px}";
+  ".tr .tp{font-family:ui-monospace,Menlo,monospace;color:#8F8F8F;font-size:11px}" +
+  ".tr .tcn{font-family:ui-monospace,Menlo,monospace;color:#8F8F8F;font-size:10px;margin-left:6px}";
 
 /**
- * Full playbook — cover, contents grouped by Concept with page numbers, then
- * one install page per Play in library order. One string, however many
- * Plays. Returns undefined when the library is empty.
+ * Full playbook — the book's own name on the cover, contents with page
+ * numbers, then one install page per Play. In library order the contents
+ * groups each Concept's Plays under its name; in the book page's own sort
+ * (issue #156) it lists them as the page does, the Concept beside each. One
+ * string, however many Plays. Returns undefined when the library is empty.
  */
 export function playbookHtml(
   plays: readonly PlayDocument[],
   options: PlaybookOptions,
 ): string | undefined {
-  const ordered: readonly LibraryEntry[] = libraryOrder(
-    plays,
-    options.concepts,
-  );
+  const order = options.order ?? "library";
+  const ordered: readonly LibraryEntry[] =
+    order === "library"
+      ? libraryOrder(plays, options.concepts)
+      : conceptEntries(plays, options.concepts);
   if (ordered.length === 0) return undefined;
   const product = options.productName ?? PRODUCT_NAME;
+  const named = options.title?.trim() || "";
+  const title = named || "Playbook";
   const cover =
-    `<div class="pg cov"><div class="cm">${escapeHtml(product)}</div><h1>Playbook</h1>` +
-    `<div class="cs">${options.year} season · ${ordered.length} plays</div></div>`;
-  let contents = `<div class="pg"><div class="hd"><h1>Contents</h1><span>${ordered.length} plays</span></div>`;
+    `<div class="pg cov"><div class="cm">${escapeHtml(product)}</div><h1>${escapeHtml(title)}</h1>` +
+    `<div class="cs">${options.year} season · ${playCount(ordered.length)}</div></div>`;
+  let contents = `<div class="pg"><div class="hd"><h1>Contents</h1><span>${playCount(ordered.length)} · ${playbookOrderWords[order]}</span></div>`;
   const bodies: string[] = [];
   let pageNo = 3;
   for (const entry of ordered) {
-    if (entry.leadsConcept && entry.concept) {
+    if (order === "library" && entry.leadsConcept && entry.concept) {
       contents += `<div class="tc">${escapeHtml(entry.concept.name)}</div>`;
     }
-    const indented = entry.concept !== undefined && !entry.leadsConcept;
+    const indented =
+      order === "library" && entry.concept !== undefined && !entry.leadsConcept;
+    const beside =
+      order !== "library" && entry.concept
+        ? ` <span class="tcn">${escapeHtml(entry.concept.name)}</span>`
+        : "";
     contents +=
-      `<div class="tr"${indented ? ' style="padding-left:14px"' : ""}><span>${escapeHtml(entry.play.name)}</span><i></i>` +
+      `<div class="tr"${indented ? ' style="padding-left:14px"' : ""}><span>${escapeHtml(entry.play.name)}${beside}</span><i></i>` +
       `<span class="tp">${pageNo}</span></div>`;
     bodies.push(
       installBody(entry.play, options.render, {
@@ -655,9 +692,16 @@ export function playbookHtml(
   }
   contents += "</div>";
   return printDocumentHtml({
-    title: `${product} — playbook`,
+    title: `${named || product} — playbook`,
     css: "@page{size:letter portrait;margin:0.5in}" + installCss() + BOOK_CSS,
-    body: cover + contents + bodies.join(""),
+    // The book's name in the foot of every sheet, where a teaching page
+    // carries the Play's, so a loose page still says which book it fell
+    // out of. It leads the body for the reason the product footer does.
+    body:
+      `<div class="__pn">${escapeHtml(title)} · ${options.year} season</div>` +
+      cover +
+      contents +
+      bodies.join(""),
     productName: product,
   });
 }

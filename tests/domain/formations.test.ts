@@ -92,11 +92,11 @@ describe("the sets the original ships with", () => {
       );
     expect(read("Gun Trips Right").personnelLabel).toBe("11");
     expect(read("Gun Ace Right").personnelLabel).toBe("12");
-    // The I-Form's second back is lettered H, which reads as a slot rather
-    // than a back, so the count comes out 11 where the set is named 21. This
-    // is why every shipped set declares its own personnel: the reading is a
-    // fallback for a set the Coach saved without naming, not an authority.
-    expect(read("I-Form Right").personnelLabel).toBe("11");
+    // The I-Form's second back is lettered H, the letter of the slot in a
+    // gun set; standing in the backfield he is a back, and the set reads 21
+    // as it is named (issue #154, ADR 0066). The shipped sets still declare
+    // their own personnel: a Coach who named his set means the name he gave.
+    expect(read("I-Form Right").personnelLabel).toBe("21");
     expect(setNamed("I-Form Right").personnelLabel).toBe("21");
 
     expect(read("Gun Trips Right").strength).toBe("right");
