@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { expect, openViewAndLibrary, test } from "./fixtures";
 
 /**
  * Overlay formation, defense, and play cards on a phone. The desktop books
@@ -55,7 +55,7 @@ test.describe("phone overlay cards", () => {
     page,
   }) => {
     await enterEditorOnPhone(page);
-    const sidebar = page.getByRole("navigation", { name: "Sidebar" });
+    const sidebar = await openViewAndLibrary(page);
     await sidebar.getByRole("button", { name: /^Library/ }).click();
     await sidebar.getByRole("button", { name: "Browse Playbook" }).click();
     const book = page.getByRole("dialog", { name: "Playbook" });

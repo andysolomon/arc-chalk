@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, openGamePlans, test } from "./fixtures";
 
 /**
  * Issue #167: a wristband cell is read through a wrist window, so its
@@ -25,9 +25,7 @@ test("prints a prepared plan's wristband that reads on a wrist", async ({
   });
   await page.goto("/");
 
-  await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("button", { name: "Game plans…" }).click();
-  const workspace = page.getByRole("region", { name: "Game plans" });
+  const workspace = await openGamePlans(page);
   await workspace.getByRole("button", { name: "New plan" }).click();
   await workspace.getByLabel("Plan name").fill("Week 6");
   await workspace.getByRole("button", { name: "Create plan" }).click();

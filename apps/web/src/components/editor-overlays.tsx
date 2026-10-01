@@ -77,6 +77,13 @@ function MenuItem({
   );
 }
 
+/**
+ * More (⋯): what the Coach does to the field and the play in front of him,
+ * and nothing that has a home elsewhere (ADR 0074). Settings and Help stand
+ * at the sidebar's foot; the destinations are the header's tabs; New play and
+ * Present are header buttons — except on a phone, whose header sheds them, so
+ * there this menu carries them.
+ */
 export function MoreMenu({
   actions,
   children,
@@ -84,15 +91,18 @@ export function MoreMenu({
   onDismiss,
   onToggle,
   open,
+  phone = false,
   zonesHidden,
 }: {
   actions: ActionMap;
-  /** Backup is an approved production extension and lives inside this menu. */
+  /** Share & assets, a production extension, lives inside this menu. */
   children?: React.ReactNode;
   focused: boolean;
   onDismiss: () => void;
   onToggle: () => void;
   open: boolean;
+  /** The phone header, which has no New play or Present of its own. */
+  phone?: boolean;
   zonesHidden: boolean;
 }) {
   // Clear… walks into its own page of the menu, the way Export's submenus
@@ -126,35 +136,18 @@ export function MoreMenu({
       title:
         "Flip the play and its terminology — swaps X/Z, LEFT/RIGHT, STRONG/WEAK",
     },
-    // Field profile, Playbook settings, History and Print & export used to sit
-    // on the right rail as folded disclosures; moved into a Settings overlay
-    // the Coach opens from here.
-    {
-      id: "settings",
-      label: "Settings…",
-      title: "Field profile, Playbook settings, History and Print & export",
-    },
-    // Account is a tab of Settings (ADR 0058); this is the shortcut to it.
-    {
-      id: "account",
-      label: "Account…",
-      title:
-        "Sign in, sync and this device's data — the Account tab of Settings",
-    },
-    ...newPlayEntries,
-    // The header's Present button is off a phone's header (issue #92); the
-    // menu carries it the way it carries the two new plays.
-    {
-      id: "present",
-      label: "Present",
-      title: "Present the play full-window — esc returns",
-    },
-    // An additive production extension (ADR 0042): the Coach's Game Plans.
-    {
-      id: "gamePlans",
-      label: "Game plans…",
-      title: "Pick, arrange and number the calls for one game",
-    },
+    // A phone's header sheds New play and Present (issue #92, ADR 0057); the
+    // menu carries them there and nowhere else.
+    ...(phone
+      ? [
+          ...newPlayEntries,
+          {
+            id: "present",
+            label: "Present",
+            title: "Present the play full-window — esc returns",
+          } satisfies MenuEntry,
+        ]
+      : []),
   ];
 
   return (
@@ -253,11 +246,6 @@ function ClearPage({
 }
 
 /**
- * Help (issue #65): the guided tours the original kept in a Demo tab beside
- * the play, and the two references the inspector already carried. The first
- * entry is the first-day route — the tools walked on a real play.
- */
-/**
  * New play, as a choice rather than a button: an offensive play or a
  * defensive one. The header carries it beside Reset positions; the
  * Playbooks page carries the same menu at the end of its tabs.
@@ -310,16 +298,19 @@ export function NewPlayMenu({
   );
 }
 
-export function HelpMenu({
+/**
+ * Help's contents (issue #65): the guided tours the original kept in a Demo
+ * tab beside the play, and the two references. The first entry is the
+ * first-day route — the tools walked on a real play. The sidebar's Help icon
+ * opens them in the editor; the header's opens them on the Playbooks and Game
+ * Day pages, which have no sidebar (ADR 0074).
+ */
+export function HelpEntries({
   actions,
   onDismiss,
-  onToggle,
-  open,
 }: {
   actions: ActionMap;
   onDismiss: () => void;
-  onToggle: () => void;
-  open: boolean;
 }) {
   const [lead, ...rest] = helpEntries;
   const tutorials = rest.slice(
@@ -328,42 +319,64 @@ export function HelpMenu({
   );
   const references = rest.slice(helpTutorialRange.end - 1);
   return (
+    <>
+      {lead ? (
+        <MenuItem actions={actions} entry={lead} onDismiss={onDismiss} />
+      ) : null}
+      <div className="menu-group">
+        <div className="menu-head">TUTORIALS</div>
+        {tutorials.map((entry) => (
+          <MenuItem
+            actions={actions}
+            entry={entry}
+            key={entry.id}
+            onDismiss={onDismiss}
+          />
+        ))}
+      </div>
+      <div className="menu-group">
+        <div className="menu-head">REFERENCE</div>
+        {references.map((entry) => (
+          <MenuItem
+            actions={actions}
+            entry={entry}
+            key={entry.id}
+            onDismiss={onDismiss}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+export function HelpMenu({
+  actions,
+  icon,
+  onDismiss,
+  onToggle,
+  open,
+}: {
+  actions: ActionMap;
+  /** What the button draws; its name is Help either way. */
+  icon: React.ReactNode;
+  onDismiss: () => void;
+  onToggle: () => void;
+  open: boolean;
+}) {
+  return (
     <div className="menu menu-help">
       <button
         aria-expanded={open}
-        className={`help${open ? " open" : ""}`}
+        aria-label="Help"
+        className={`help icon-button${open ? " open" : ""}`}
         onClick={onToggle}
-        title="Tutorials and shortcuts"
+        title="Help — tutorials and shortcuts"
         type="button"
       >
-        Help
+        {icon}
       </button>
       <div className="menu-panel help-panel" hidden={!open}>
-        {lead ? (
-          <MenuItem actions={actions} entry={lead} onDismiss={onDismiss} />
-        ) : null}
-        <div className="menu-group">
-          <div className="menu-head">TUTORIALS</div>
-          {tutorials.map((entry) => (
-            <MenuItem
-              actions={actions}
-              entry={entry}
-              key={entry.id}
-              onDismiss={onDismiss}
-            />
-          ))}
-        </div>
-        <div className="menu-group">
-          <div className="menu-head">REFERENCE</div>
-          {references.map((entry) => (
-            <MenuItem
-              actions={actions}
-              entry={entry}
-              key={entry.id}
-              onDismiss={onDismiss}
-            />
-          ))}
-        </div>
+        <HelpEntries actions={actions} onDismiss={onDismiss} />
       </div>
     </div>
   );

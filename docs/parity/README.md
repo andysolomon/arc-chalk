@@ -46,6 +46,10 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 
 | State                          | Gap measured                                                                                                                        | Date                                                |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Editor                         | 30,754 px Linux, from 32,435 on `main` same machine — fewer sidebar rows, Help gone from the header, four words drawn as icons      | 2026-09-30 (ADR 0074 one home)                      |
+| More / Export / Save / Palette | 31,735 / 31,970 / 30,902 / 31,406 px Linux, from 33,726 / 33,651 / 32,583 / 33,012 on `main`; all under ratchet                     | 2026-09-30 (ADR 0074)                               |
+| Shortcuts and both browsers    | Shortcuts / Formations / Defenses 52,154 / 31,621 / 25,554 px Linux, from 53,772 / 33,262 / 27,195 on `main`; all under ratchet                             | 2026-09-30 (ADR 0074)                               |
+| Print / Demo / Present         | 31,193 / 22,070 / 106,713 px Linux, from 31,274 / 22,077 / 106,713; Print over its macOS ratchet on `main` too, passes with the CI delta | 2026-09-30 (ADR 0074)                               |
 | All desktop states             | Pixel-identical before and after at 1440 × 960 and 1180 × 820, pill closed and open: ADR 0057 is phone and coarse-pointer only      | 2026-09-25 (ADR 0057 phone header)                  |
 | Editor                         | 20,095 px Linux, from 20,173 on `main` same machine — the formation row's inert `+` removed                                         | 2026-09-25 (ADR 0043)                               |
 | Shortcuts                      | 44,893 px Linux, from 44,593 on `main` — the original draws the `+` beside the sheet; both above the macOS ratchet, CI delta passes | 2026-09-25 (ADR 0043)                               |

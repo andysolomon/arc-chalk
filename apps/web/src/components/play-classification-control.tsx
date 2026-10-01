@@ -96,8 +96,8 @@ export function PlayClassificationControl({
   );
 }
 
-/** The panel on its own, for the sidebar's Play type row (ADR 0058). */
-export function ClassificationPanel({
+/** The pill's panel: the header pill is its one home (ADR 0074). */
+function ClassificationPanel({
   concepts,
   formations,
   onAddPlayType,

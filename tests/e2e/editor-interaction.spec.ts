@@ -2010,13 +2010,13 @@ test("lets a control the Coach tabbed to have its own Enter and Space", async ({
   await openEditor(page);
   // The field wants both keys — Enter finishes a route, Space pans it — and
   // swallowing them left every button in the app dead to anyone working
-  // without a pointer. Shortcuts is behind the sidebar's Help row (ADR 0058).
+  // without a pointer. Shortcuts is in the Help menu at the sidebar's foot (ADR 0074).
   await page
     .getByRole("navigation", { name: "Sidebar" })
     .getByRole("button", { name: /^Help/ })
     .click();
   const shortcuts = page.getByRole("button", {
-    name: "Shortcuts ?",
+    name: "Keyboard shortcuts ?",
     exact: true,
   });
   await shortcuts.press("Enter");
@@ -2025,7 +2025,7 @@ test("lets a control the Coach tabbed to have its own Enter and Space", async ({
   ).toBeVisible();
   await page.keyboard.press("Escape");
 
-  // Choosing Shortcuts put the Help popover away; open it again for Space.
+  // Choosing Shortcuts put the Help menu away; open it again for Space.
   await page
     .getByRole("navigation", { name: "Sidebar" })
     .getByRole("button", { name: /^Help/ })

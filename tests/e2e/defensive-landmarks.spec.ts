@@ -1,5 +1,5 @@
 import { type Locator, type Page, type TestInfo } from "@playwright/test";
-import { expect, openSeededEditor, test } from "./fixtures";
+import { expect, openSeededEditor, startNewPlay, test } from "./fixtures";
 
 /**
  * Where a defense's calls land (issue #165, ADR 0064), checked the way a
@@ -13,11 +13,7 @@ import { expect, openSeededEditor, test } from "./fixtures";
 
 /** A new defensive play, its roster in the inspector. */
 async function newDefensivePlay(page: Page): Promise<void> {
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "More actions" })
-    .click();
-  await page.getByRole("button", { name: /^New defensive play/ }).click();
+  await startNewPlay(page, "defensive");
   await expect(page.locator("[data-scene-player]")).toHaveCount(0);
 }
 

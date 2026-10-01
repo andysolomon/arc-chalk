@@ -1,11 +1,12 @@
-import { expect, test } from "./fixtures";
+import { expect, openSettings, openViewAndLibrary, test } from "./fixtures";
 
 test("persists a new play with Gun Doubles Right and Mesh after reload", async ({
   page,
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "More actions", exact: true }).click();
-  // The labeled header button (issue #65); the More menu carries one too.
+  // The labeled header button (issue #65), New play's one desktop home
+  // (ADR 0074).
   await page.getByRole("banner").locator("button.new-play").click();
   const name = page.getByRole("textbox", { name: "Play name" });
   await name.fill("QA formation and Mesh");
@@ -28,6 +29,7 @@ test("persists a new play with Gun Doubles Right and Mesh after reload", async (
     page.getByRole("button", { name: "Saved on this device" }),
   ).toBeVisible();
   await page.reload();
+  await openViewAndLibrary(page);
   await page.getByRole("button", { name: /^Library/ }).click();
   await page.getByRole("button", { name: "Browse Playbook" }).click();
   const book = page.getByRole("dialog", { name: "Playbook" });
@@ -60,8 +62,8 @@ test("keeps local save and Account available without Clerk or Convex", async ({
     page.getByRole("img", { name: "Local-only save football play" }),
   ).toBeVisible();
 
-  await page.getByTitle("More actions").click();
-  await page.getByRole("button", { name: "Account" }).click();
+  const settings = await openSettings(page);
+  await settings.getByRole("tab", { name: "Account" }).click();
   await expect(
     page.getByText(
       "Cloud sign-in is not configured. Editing on this device still works.",

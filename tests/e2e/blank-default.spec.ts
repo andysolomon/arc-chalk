@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openBlankEditor } from "./fixtures";
+import { openBlankEditor, openViewAndLibrary } from "./fixtures";
 
 const storedCounts = (page: import("@playwright/test").Page) =>
   page.evaluate(
@@ -107,6 +107,7 @@ test("saves the first formation-based play and keeps it after reload", async ({
     timeout: 30_000,
   });
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await openViewAndLibrary(page);
   await page.getByRole("button", { name: /^Library/ }).click();
   await page.getByRole("button", { name: "Browse Playbook" }).click();
   await expect(

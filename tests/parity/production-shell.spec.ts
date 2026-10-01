@@ -311,13 +311,13 @@ test.describe("production editor overlays against the canonical original", () =>
   });
 
   test("shortcut reference matches the original", async ({ page }) => {
-    // Shortcuts is behind the sidebar's Help row (ADR 0058).
+    // Shortcuts is in the Help menu at the sidebar's foot (ADR 0074).
     await page
       .getByRole("navigation", { name: "Sidebar" })
       .getByRole("button", { name: /^Help/ })
       .click();
     await page
-      .getByRole("button", { name: "Shortcuts ?", exact: true })
+      .getByRole("button", { name: "Keyboard shortcuts ?", exact: true })
       .click();
     await expect(
       page.getByRole("dialog", { name: "Keyboard shortcuts" }),

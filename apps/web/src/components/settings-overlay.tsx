@@ -56,7 +56,10 @@ export function SettingsOverlay({
   version,
   versions,
 }: {
-  /** The Account panel, moved here from the More menu. */
+  /**
+   * The Account panel and Backup, both moved here from the More menu (ADR
+   * 0058, ADR 0074).
+   */
   account?: React.ReactNode;
   /** One line about the account: "Local only", "Signed in". */
   accountSummary: string;

@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { expect, openViewAndLibrary, test } from "./fixtures";
 
 /**
  * Issue #64: the idle inspector leads with the coach's next action and folds
@@ -60,8 +60,10 @@ for (const [label, viewport] of [
       await within(/^No line call yet/);
       // The roster follows: the first man's row is in reach.
       await within(/^X: /);
-      // Formation, the shadow and the library are sidebar rows (ADR 0058).
+      // Formation, the shadow and the library are sidebar rows (ADR 0058);
+      // the library folds under View & library (ADR 0074).
       const sidebar = page.getByRole("navigation", { name: "Sidebar" });
+      await openViewAndLibrary(page);
       await expect(
         sidebar.getByRole("button", {
           name: /Browse formations|Custom alignment|Formation/,

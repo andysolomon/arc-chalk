@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { expect, openViewAndLibrary, test } from "./fixtures";
 
 /**
  * Issue #68: the shell chooses a docked inspector, a drawer or the reading
@@ -201,6 +201,7 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(formations).toHaveCount(0);
 
       sidebar = await openSidebar();
+      await openViewAndLibrary(page);
       const library = sidebar.getByRole("button", { name: /^Library/ });
       if ((await library.getAttribute("aria-expanded")) === "false") {
         await library.click();
