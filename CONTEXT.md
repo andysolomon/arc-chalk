@@ -41,8 +41,28 @@ Standing level with the snapper — within half a yard of his depth on the diagr
 _Avoid_: Lineman (a position, not a place), on the ball
 
 **Zone shell**:
-A defense's zone drops taken together rather than one defender at a time. The deep defenders share the field's width — one owns the middle, two take halves, three thirds, four quarters — and underneath bubbles sit side by side instead of stacking. Calling or clearing a zone re-lays the drops at its level in the same step.
+A defense's zone drops taken together rather than one defender at a time. Each zone is the ground its call names — Middle 1/3, the outside third on a man's side, his half, his quarter — men called into the same zone share it, and bubbles of different zones sit side by side instead of stacking.
 _Avoid_: Coverage template, zone preset
+
+**Defensive call**:
+A front and a coverage the defense lines up in, with the lines its men run, chosen from the Defenses browser — 4-3 Cover 3. It sets where the men stand; Unit calls set what they do.
+_Avoid_: Defense preset, defensive formation
+
+**Unit call**:
+One call given to a whole group of the defense — the Front, the Linebackers or the Secondary — that sets the job of every man in it except those with an Own call.
+_Avoid_: Group assignment, defensive concept, line call (that is the offense's)
+
+**Coverage**:
+The Unit call that is in charge of the defense — Cover 3, Cover 4 — naming the zones it plays and who is in man, giving those jobs to every man who drops, linebackers included, and refilling an Open zone.
+_Avoid_: Coverage template, shell preset
+
+**Own call**:
+A job the Coach gives one man after his group has a Unit call. Unit calls and refills work around it and never change it.
+_Avoid_: Override, hot route
+
+**Open zone**:
+A zone the Coverage plays that nobody is left to drop into.
+_Avoid_: Hole (the Cover 1 hole is a zone someone plays), gap (a gap is in the offensive line)
 
 **Man match**:
 The receiver a defender in man covers. By default the defense matches its men in man to the receivers it makes most sense for each to take — corners the wide receivers, the nickel the slot, the safety the tight end, a linebacker the back — and lines each up on his man; the Coach can pick a different man, which is kept while that man is on the field. The defense matches again whenever the offense changes.
