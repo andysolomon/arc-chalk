@@ -8,6 +8,8 @@ export interface EditorStatusHintInput {
   readonly tool: StatusHintTool;
   readonly atFit: boolean;
   readonly selectionCount: number;
+  /** The one thing picked is a man, who snaps where he is dragged. */
+  readonly playerSelected?: boolean;
   readonly drawing?: {
     readonly depthBuffer: string;
     /** Traced under the held pointer, or clicked break by break. */
@@ -32,6 +34,13 @@ export const SMALL_LABEL_PX = 9;
 
 export const FIRST_USE_HINT =
   "new here? Help → Demo walks the drawing tools on a real play";
+
+/**
+ * A man picked out is a man about to be dragged: the bar says what he snaps
+ * to and how to put him somewhere nothing lines up (ADR 0073).
+ */
+const PLAYER_HINT =
+  "drag him: he snaps level with the line, in line with a teammate, or to an even split · hold ⌘/ctrl to place him freely · s: snapping on/off · drag the blue dot to draw his route";
 
 const toolHint: Record<StatusHintTool, (atFit: boolean) => string> = {
   select: (atFit) =>
@@ -67,7 +76,10 @@ export function editorStatusHint(input: EditorStatusHintInput): string {
     return "drag any selected item to move the group · shift-click: add/remove · ⌫ delete · ⌘D duplicate";
   }
   if (input.firstUse && input.tool === "select") return FIRST_USE_HINT;
-  const hint = toolHint[input.tool](input.atFit);
+  const hint =
+    input.playerSelected && input.tool === "select"
+      ? PLAYER_HINT
+      : toolHint[input.tool](input.atFit);
   return input.labelsTooSmall
     ? `labels are small — zoom in to read them   ·   ${hint}`
     : hint;

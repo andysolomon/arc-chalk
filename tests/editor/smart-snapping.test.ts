@@ -41,7 +41,7 @@ describe("deterministic smart snapping", () => {
     ]);
   });
 
-  it("uses Field Profile hashes, sidelines, and yard marks before other candidates", () => {
+  it("uses hashes and sidelines before teammates, and teammates before yard marks", () => {
     const rightHash =
       nflFieldProfile.widthYards / 2 - nflFieldProfile.hashInsetYards;
     const result = snapPosition({
@@ -62,17 +62,20 @@ describe("deterministic smart snapping", () => {
       settings: { enabled: true, grid: 0.25 },
     });
 
+    // A yard mark is every yard, so it is always within reach; ranked
+    // above the men, it kept anyone from lining up level with a teammate
+    // (ADR 0073).
     expect(result.point).toEqual({
       lateralYards: Number(rightHash.toFixed(9)),
-      depthYards: 5,
+      depthYards: 4.8,
     });
     expect(result.guides.map(({ source }) => source)).toEqual([
       "hash",
-      "yard-mark",
+      "alignment",
     ]);
     expect(result.guides[1]).toMatchObject({
-      label: "5 yards",
-      strong: true,
+      label: "Same depth as H",
+      targetId: "player-nearer",
     });
   });
 
