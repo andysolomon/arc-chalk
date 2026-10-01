@@ -73,3 +73,55 @@ test("a phone reaches each control from one place", async ({
   await banner.getByRole("button", { name: "Settings", exact: true }).tap();
   await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
 });
+
+/**
+ * A phone held sideways has about 330 px under its header — less than Help
+ * or a phone's More needs. Each menu scrolls inside itself, so its last
+ * entry is reachable and never drawn past the bottom of the glass.
+ */
+test.describe("held sideways", () => {
+  test.use({ viewport: { width: 844, height: 390 } });
+
+  test("keeps every header menu's last entry on the glass", async ({
+    page,
+  }, testInfo) => {
+    await openSeededEditor(page);
+    const banner = page.getByRole("banner");
+    const onGlass = async (selector: string) => {
+      const box = (await page.locator(selector).boundingBox())!;
+      expect(box.y + box.height).toBeLessThanOrEqual(390);
+    };
+
+    // More: Share & assets is its last entry, and it unfolds in place.
+    await banner.getByRole("button", { name: "More actions" }).tap();
+    await onGlass(".more-panel");
+    const share = page.getByRole("button", { name: "Share & assets" });
+    await share.scrollIntoViewIfNeeded();
+    await expect(share).toBeInViewport();
+    await share.tap();
+    await expect(page.locator(".share-assets-panel")).toBeVisible();
+    await onGlass(".more-panel");
+    await banner.getByRole("button", { name: "More actions" }).tap();
+
+    // Help on the Playbooks page: the Command palette is its last entry.
+    await page
+      .getByRole("navigation", { name: "Workspace views" })
+      .getByRole("button", { name: "Playbooks", exact: true })
+      .tap();
+    await banner.getByRole("button", { name: "Help", exact: true }).tap();
+    await onGlass(".help-panel");
+    const palette = page.getByRole("button", {
+      name: "Command palette ⌘K",
+      exact: true,
+    });
+    await palette.scrollIntoViewIfNeeded();
+    await expect(palette).toBeInViewport();
+    await page.screenshot({
+      path: testInfo.outputPath("phone-sideways-help.png"),
+    });
+    await palette.tap();
+    await expect(
+      page.getByRole("dialog", { name: "Command palette" }),
+    ).toBeVisible();
+  });
+});

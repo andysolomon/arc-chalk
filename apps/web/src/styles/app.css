@@ -500,6 +500,28 @@ button.play-type.open {
 .help-panel {
   width: 224px;
 }
+/* A header menu never runs off the glass: below its button it takes the
+   height that is left and scrolls inside itself. A phone held sideways has
+   about 330 px under the header, less than Help or a phone's More needs
+   (ADR 0074). */
+.help-panel,
+.topbar.phone-topbar .more-panel {
+  max-height: calc(100vh - 64px);
+  max-height: calc(100dvh - 64px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* So inside a phone's More, Share & assets unfolds in place: a panel
+   beside the menu would be clipped by its scrolling, and on a phone held
+   upright it ran off the glass's left edge anyway. */
+.topbar.phone-topbar .more-panel .backup-panel {
+  position: static;
+  width: auto;
+  max-height: none;
+  margin-top: 4px;
+  padding: 6px 8px;
+  box-shadow: none;
+}
 .topbar > .new-play,
 .topbar > .menu-new > button {
   padding: 0 10px;
@@ -5631,6 +5653,7 @@ button.library-dot.target.small {
   }
   .topbar > button,
   .menu > button,
+  .header-icons > .icon-button,
   .view-tabs button,
   .destination-tabs > button {
     height: 44px;
@@ -8126,11 +8149,15 @@ button.shell-quiet:hover {
   background: var(--wash);
   color: var(--ink);
 }
-/* Its popover rises from the foot rather than hanging from it. */
+/* Its popover rises from the foot rather than hanging from it, and scrolls
+   rather than rising past the top of a short window. */
 .sidebar-popover.sidebar-foot-popover {
   top: auto;
   bottom: 0;
   width: 236px;
+  max-height: calc(100vh - 72px);
+  max-height: calc(100dvh - 72px);
+  overflow-y: auto;
 }
 .sidebar-help {
   gap: 1px;

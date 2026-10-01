@@ -52,7 +52,8 @@ for Present. Each keeps its name and its title. New play, Print & export and
 Save keep their words. The **Playbooks** and **Game Day** pages have no
 sidebar, so the same Help and Settings icons stand at their header's end in
 place of More, whose every action worked on a field those pages do not show.
-On a phone those pages drop the ≡, which opened nothing there. Settings, the
+Under a finger each icon is a 44 px box, as Help's already was. On a phone
+those pages drop the ≡, which opened nothing there. Settings, the
 shortcut reference and the Conflict Inbox now open over those pages; they
 used to wait for the editor.
 
@@ -61,6 +62,14 @@ Clear… and Share & assets. On a phone it also carries New offensive play, New
 defensive play and Present. _Settings…_ and _Account…_ are gone (the gear, and
 its Account tab); **Backup** moves to **Settings → Account**, beside the rest
 of this device's data, and is open there rather than folded.
+
+**No menu runs off the glass.** A phone held sideways has about 330 px under
+its header, less than Help or a phone's More needs, so the header's Help
+panel and a phone's More take the height left below their button and scroll
+inside themselves; the sidebar's Help popover does the same in a short
+window. Inside a phone's More, Share & assets unfolds in place rather than
+beside the menu, where the scrolling would clip it and where, held upright,
+it already ran off the glass's left edge.
 
 ## Preserved
 
@@ -94,4 +103,7 @@ from the foot, Backup under Settings → Account, and Help and Settings on the
 Playbooks and Game Day pages, ending on screenshots.
 `tests/e2e/phone-one-home-per-control.spec.ts` checks the phone: More's New
 play and Present, the drawer's three 44 px icons, Help as a drawer page, and
-the Playbooks header without ≡ or More, ending on a screenshot of the drawer.
+the Playbooks header without ≡ or More, ending on a screenshot of the drawer;
+held sideways at 844 × 390, More's and Help's last entries are reachable on
+the glass. `tests/e2e/tablet-layout.spec.ts` checks the Playbooks page's Help
+and Settings are 44 px boxes at every tablet width.

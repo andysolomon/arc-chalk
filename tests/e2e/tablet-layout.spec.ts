@@ -51,6 +51,25 @@ for (const [label, viewport] of VIEWPORTS) {
       deviceScaleFactor: 2,
     });
 
+    test("puts the Playbooks page's Help and Settings in 44 px boxes", async ({
+      page,
+    }) => {
+      await page.goto("/");
+      await page
+        .getByRole("navigation", { name: "Workspace views" })
+        .getByRole("button", { name: "Playbooks", exact: true })
+        .click();
+      // The sidebar's two icons stand at the header's end where there is no
+      // sidebar (ADR 0074), and a finger gets the same box for each.
+      for (const name of ["Help", "Settings"]) {
+        const icon = await box(
+          page.getByRole("banner").getByRole("button", { name, exact: true }),
+        );
+        expect(icon.width).toBeGreaterThanOrEqual(44);
+        expect(icon.height).toBeGreaterThanOrEqual(44);
+      }
+    });
+
     test("keeps the destinations, the play and the selected call reachable", async ({
       page,
     }) => {
