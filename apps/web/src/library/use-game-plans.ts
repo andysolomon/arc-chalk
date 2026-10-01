@@ -144,6 +144,23 @@ export function useGamePlans(library: ChalkLibrary) {
     [enqueue, publish, write],
   );
 
+  /**
+   * Changes a plan as it stands now — behind every edit and move already
+   * asked for — rather than as the caller last saw it. A note committed as
+   * its row leaves the screen lands on the plan the move just made, so the
+   * move and the note both keep (issue #155). A plan no longer here is left
+   * alone; a change that changes nothing writes nothing.
+   */
+  const revise = useCallback(
+    async (planId: string, change: (current: GamePlan) => GamePlan) => {
+      const current = plansRef.current.find(({ id }) => id === planId);
+      if (!current) return undefined;
+      const next = change(current);
+      return next === current ? current : apply(next);
+    },
+    [apply],
+  );
+
   const open = useCallback(
     async (planId: string | undefined) => {
       setOpenId(planId);
@@ -236,6 +253,7 @@ export function useGamePlans(library: ChalkLibrary) {
     choosePickScope,
     refresh,
     apply,
+    revise,
     open,
     remove,
     prepare,

@@ -42,7 +42,7 @@ import {
   type DiagramRenderer,
 } from "@chalk/exports";
 import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
-import { useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   everyLibraryMember,
@@ -524,19 +524,48 @@ function PlanEditor({
   const apply = (next: GamePlan) => {
     if (next !== plan) void state.apply(next);
   };
+  /**
+   * A call's edits are made against the plan as it stands when they land,
+   * not as this render saw it. A note is committed as its row leaves the
+   * screen — a move to another section remakes the row — and a commit made
+   * from the plan before the move would put the call back (issue #155).
+   */
+  const revise = (change: (current: GamePlan) => GamePlan) =>
+    void state.revise(plan.id, change);
+  /**
+   * A number, note or header still focused commits when it is left. It is
+   * left here, ahead of preparing, closing or opening a play, so what the
+   * Coach typed is on the plan before anything reads or leaves it.
+   */
+  const leaveField = () => {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement) focused.blur();
+  };
 
-  const commitCode = (callId: string, code: string) => {
-    const result = assignCallCode(plan, callId, code, now());
-    if (!result.ok) {
-      const holder = callById.get(result.holderCallId);
-      setCodeNotice({
+  const commitCode = (
+    callId: string,
+    code: string | ((current: GamePlan) => string),
+  ) => {
+    revise((current) => {
+      const result = assignCallCode(
+        current,
         callId,
-        text: `${result.reason} It belongs to ${holder ? nameOf(holder.playId) : "another call"}.`,
-      });
-      return;
-    }
-    setCodeNotice(undefined);
-    apply(result.plan);
+        typeof code === "string" ? code : code(current),
+        now(),
+      );
+      if (!result.ok) {
+        const holder = current.calls.find(
+          ({ id }) => id === result.holderCallId,
+        );
+        setCodeNotice({
+          callId,
+          text: `${result.reason} It belongs to ${holder ? nameOf(holder.playId) : "another call"}.`,
+        });
+        return current;
+      }
+      setCodeNotice(undefined);
+      return result.plan;
+    });
   };
 
   const drop = (
@@ -544,22 +573,23 @@ function PlanEditor({
     sectionId: string,
     index: number | undefined,
   ) => {
-    let next = placeCallInSection(
-      plan,
-      payload.callId,
-      sectionId,
-      index,
-      now(),
-    );
-    if (payload.fromSectionId && payload.fromSectionId !== sectionId) {
-      next = removeCallFromSection(
-        next,
+    revise((current) => {
+      const placed = placeCallInSection(
+        current,
         payload.callId,
-        payload.fromSectionId,
+        sectionId,
+        index,
         now(),
       );
-    }
-    apply(next);
+      return payload.fromSectionId && payload.fromSectionId !== sectionId
+        ? removeCallFromSection(
+            placed,
+            payload.callId,
+            payload.fromSectionId,
+            now(),
+          )
+        : placed;
+    });
   };
 
   const printOptions = { concepts: snapshot.concepts, formations, render };
@@ -622,11 +652,12 @@ function PlanEditor({
           code={call.code}
           name={nameOf(call.playId)}
           onCommit={(code) => commitCode(callId, code)}
-          onNextFree={() => commitCode(callId, nextFreeCallCode(plan))}
+          onNextFree={() => commitCode(callId, nextFreeCallCode)}
         />
         <button
           className="game-plan-call-name"
           onClick={() => {
+            leaveField();
             onClose();
             onOpenPlay(call.playId);
           }}
@@ -638,7 +669,9 @@ function PlanEditor({
         <NoteField
           callId={callId}
           note={call.note ?? ""}
-          onCommit={(note) => apply(setCallNote(plan, callId, note, now()))}
+          onCommit={(note) =>
+            revise((current) => setCallNote(current, callId, note, now()))
+          }
         />
         <span className="game-plan-call-actions">
           {sectionId ? (
@@ -647,7 +680,9 @@ function PlanEditor({
                 aria-label={`Move ${nameOf(call.playId)} up`}
                 disabled={index === 0}
                 onClick={() =>
-                  apply(moveCallInSection(plan, sectionId, callId, "up", now()))
+                  revise((current) =>
+                    moveCallInSection(current, sectionId, callId, "up", now()),
+                  )
                 }
                 title="Move up"
                 type="button"
@@ -658,8 +693,14 @@ function PlanEditor({
                 aria-label={`Move ${nameOf(call.playId)} down`}
                 disabled={index >= count - 1}
                 onClick={() =>
-                  apply(
-                    moveCallInSection(plan, sectionId, callId, "down", now()),
+                  revise((current) =>
+                    moveCallInSection(
+                      current,
+                      sectionId,
+                      callId,
+                      "down",
+                      now(),
+                    ),
                   )
                 }
                 title="Move down"
@@ -675,10 +716,10 @@ function PlanEditor({
               onChange={(event) => {
                 const to = event.target.value;
                 if (!to) return;
-                apply(
+                revise((current) =>
                   sectionId
-                    ? moveCallToSection(plan, callId, sectionId, to, now())
-                    : placeCallInSection(plan, callId, to, undefined, now()),
+                    ? moveCallToSection(current, callId, sectionId, to, now())
+                    : placeCallInSection(current, callId, to, undefined, now()),
                 );
                 event.target.value = "";
               }}
@@ -696,7 +737,9 @@ function PlanEditor({
           {sectionId ? (
             <button
               onClick={() =>
-                apply(removeCallFromSection(plan, callId, sectionId, now()))
+                revise((current) =>
+                  removeCallFromSection(current, callId, sectionId, now()),
+                )
               }
               title="Take this call out of the section — it stays in the plan"
               type="button"
@@ -710,7 +753,7 @@ function PlanEditor({
               <button
                 onClick={() => {
                   setArmed(undefined);
-                  apply(removeCall(plan, callId, now()));
+                  revise((current) => removeCall(current, callId, now()));
                 }}
                 type="button"
               >
@@ -749,27 +792,25 @@ function PlanEditor({
         <button
           aria-label="Back to game plans"
           className="back-button"
-          onClick={() => void state.open(undefined)}
+          onClick={() => {
+            leaveField();
+            void state.open(undefined);
+          }}
           title="Back to game plans"
           type="button"
         >
           ←
         </button>
-        <input
-          aria-label="Plan name"
+        <DraftField
+          ariaLabel="Plan name"
           className="game-plan-title"
-          defaultValue={plan.name}
+          enterLeaves
           key={`${plan.id}:${plan.name}`}
-          onBlur={(event) => {
-            const value = event.target.value.trim();
-            if (value && value !== plan.name) {
-              apply(renameGamePlan(plan, value, now()));
-            }
+          onCommit={(text) => {
+            const name = text.trim();
+            if (name) revise((current) => renameGamePlan(current, name, now()));
           }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") event.currentTarget.blur();
-          }}
-          spellCheck={false}
+          value={plan.name}
         />
         <span className="game-plans-count">
           <UnitBadge unit={plan.unit} />
@@ -777,50 +818,45 @@ function PlanEditor({
         <button
           aria-label="Close game plans"
           className="browser-close"
-          onClick={onClose}
+          onClick={() => {
+            leaveField();
+            onClose();
+          }}
           type="button"
         >
           ×
         </button>
       </div>
       <div className="game-plan-details">
-        <input
-          aria-label="Opponent"
-          defaultValue={plan.opponent ?? ""}
+        <DraftField
+          ariaLabel="Opponent"
           key={`${plan.id}:opp:${plan.opponent ?? ""}`}
-          onBlur={(event) =>
-            apply(
-              setGamePlanDetails(plan, { opponent: event.target.value }, now()),
+          onCommit={(opponent) =>
+            revise((current) =>
+              setGamePlanDetails(current, { opponent }, now()),
             )
           }
           placeholder="Opponent"
-          spellCheck={false}
+          value={plan.opponent ?? ""}
         />
-        <input
-          aria-label="Game"
-          defaultValue={plan.gameLabel ?? ""}
+        <DraftField
+          ariaLabel="Game"
           key={`${plan.id}:game:${plan.gameLabel ?? ""}`}
-          onBlur={(event) =>
-            apply(
-              setGamePlanDetails(
-                plan,
-                { gameLabel: event.target.value },
-                now(),
-              ),
+          onCommit={(gameLabel) =>
+            revise((current) =>
+              setGamePlanDetails(current, { gameLabel }, now()),
             )
           }
           placeholder="Game — Week 3"
-          spellCheck={false}
+          value={plan.gameLabel ?? ""}
         />
         <div className="game-plan-prepare">
           <button
             className="menu-primary"
             disabled={state.busy || plan.calls.length === 0}
             onClick={() => {
-              // A call number or note still focused commits on blur; the
-              // packet must carry it, so the field is left before we ask.
-              const focused = document.activeElement;
-              if (focused instanceof HTMLElement) focused.blur();
+              // The packet must carry a number or note still being typed.
+              leaveField();
               void state.prepare(plan, now()).then((result) => {
                 const parts = [
                   `Prepared ${result.callCount} ${result.callCount === 1 ? "call" : "calls"}`,
@@ -1063,6 +1099,73 @@ function PlanEditor({
   );
 }
 
+/**
+ * A field the Coach types into, committed when he leaves it — and, should
+ * it leave the screen first with his words still in it, committed then. A
+ * call's row is remade when the call moves to another section, and the
+ * plan closes over a half-typed opponent; before issue #155 either threw
+ * the words away. The field is keyed by its committed value, so a value
+ * that changes underneath it — one call listed in two sections — shows.
+ * Enter leaves the field where a field says so; Escape puts the committed
+ * value back where a field says so, and leaves.
+ */
+function DraftField({
+  ariaLabel,
+  className,
+  enterLeaves = false,
+  escapeReverts = false,
+  onCommit,
+  placeholder,
+  value,
+}: {
+  ariaLabel: string;
+  className?: string;
+  enterLeaves?: boolean;
+  escapeReverts?: boolean;
+  onCommit: (text: string) => void;
+  placeholder?: string;
+  value: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  /** What has been typed since the field was last committed, if anything. */
+  const pending = useRef<string | undefined>(undefined);
+  const latest = useRef({ value, onCommit });
+  useLayoutEffect(() => {
+    latest.current = { value, onCommit };
+  });
+  const leave = useCallback(() => {
+    const text = pending.current;
+    pending.current = undefined;
+    const { value: committed, onCommit: commit } = latest.current;
+    if (text !== undefined && text.trim() !== committed) commit(text);
+  }, []);
+  // Leaving the screen is leaving the field: the commit runs in the same
+  // step as the removal, before anything is painted without it.
+  useLayoutEffect(() => leave, [leave]);
+  return (
+    <input
+      aria-label={ariaLabel}
+      className={className}
+      onBlur={leave}
+      onChange={(event) => {
+        pending.current = event.target.value;
+        setDraft(event.target.value);
+      }}
+      onKeyDown={(event) => {
+        if (enterLeaves && event.key === "Enter") event.currentTarget.blur();
+        if (escapeReverts && event.key === "Escape") {
+          pending.current = undefined;
+          setDraft(latest.current.value);
+          event.currentTarget.blur();
+        }
+      }}
+      placeholder={placeholder}
+      spellCheck={false}
+      value={draft}
+    />
+  );
+}
+
 function CodeField({
   callId,
   code,
@@ -1078,24 +1181,14 @@ function CodeField({
 }) {
   return (
     <span className="game-plan-code">
-      <input
-        aria-label={`Call number for ${name}`}
-        defaultValue={code}
+      <DraftField
+        ariaLabel={`Call number for ${name}`}
+        enterLeaves
+        escapeReverts
         key={`${callId}:${code}`}
-        onBlur={(event) => {
-          if (event.target.value.trim() !== code) {
-            onCommit(event.target.value);
-          }
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur();
-          if (event.key === "Escape") {
-            event.currentTarget.value = code;
-            event.currentTarget.blur();
-          }
-        }}
+        onCommit={onCommit}
         placeholder="#"
-        spellCheck={false}
+        value={code}
       />
       {code ? null : (
         <button
@@ -1121,19 +1214,14 @@ function NoteField({
   onCommit: (note: string) => void;
 }) {
   return (
-    <input
-      aria-label="Call note"
+    <DraftField
+      ariaLabel="Call note"
       className="game-plan-note"
-      defaultValue={note}
+      enterLeaves
       key={`${callId}:${note}`}
-      onBlur={(event) => {
-        if (event.target.value.trim() !== note) onCommit(event.target.value);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-      }}
+      onCommit={onCommit}
       placeholder="Note — vs 2-high"
-      spellCheck={false}
+      value={note}
     />
   );
 }
