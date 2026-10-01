@@ -3,6 +3,7 @@ import {
   legacyLateralSpanToYards,
   mirrorCoordinate,
   mirroredCallKey,
+  turnedOverCallAssignments,
   remainingPlayerSlotsBySide,
   clampToSideOfBall,
   sideOfBallForUnit,
@@ -293,10 +294,15 @@ export function buildMirrorCommand(
     }));
   if (moves.length > 0) commands.push({ kind: "move-players", moves });
 
-  for (const path of document.paths) {
-    if (playerIds.has(path.playerId) || pathIds.has(path.id)) {
-      commands.push({ kind: "update-path", path: mirrorPathGeometry(path) });
-    }
+  const mirrored = document.paths.filter(
+    (path) => playerIds.has(path.playerId) || pathIds.has(path.id),
+  );
+  for (const path of mirrored) {
+    commands.push({ kind: "update-path", path: mirrorPathGeometry(path) });
+  }
+  // A call's own name goes over with it (ADR 0073).
+  for (const assignment of turnedOverCallAssignments(document, mirrored)) {
+    commands.push({ kind: "update-assignment", assignment });
   }
   for (const label of document.labels) {
     if (labelIds.has(label.id)) {

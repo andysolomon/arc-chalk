@@ -65,7 +65,15 @@ selection). Each now also changes Boot right to Boot left and Sprint out right t
 Sprint out left, and back. _Pass set left_ and _Pass set right_ name their side the same
 way, so they trade too. Before this, a mirrored Pass set left still read _Pass set left_
 while it set to the right. The line is named and lit as the side it now goes to.
-`mirroredCallKey` holds the pairs. Mirroring stays geometry first (ADR 0034): no role or
+`mirroredCallKey` holds the pairs.
+
+A line's words that are its call's own name (BOOT RIGHT on a boot right, ignoring
+case) go over with it: they become BOOT LEFT, in the case they were written in.
+Flip strength already turns LEFT and RIGHT in every word, so this applies to Flip and
+Mirror (`turnedOverCallWords`). Without it the field read BOOT RIGHT over a boot
+going left. The stale name also no longer matched the line's call, so the next quick
+call kept it as if the Coach had written it. Words that are not the call's own name
+are the Coach's and stay as he wrote them. Mirroring stays geometry first (ADR 0034): no role or
 letter is inferred, and mirroring twice gives back the same Play.
 
 **A drop's name hangs beside it.** A drop runs straight back, so a long name such as
@@ -99,6 +107,13 @@ the other way, outside the left tackle and past the line. The spec saves
 Thunder. It checks that the tray offers his calls and not Slant, Go or Corner, gives him
 Boot right from the tray, and finds it named on the field and in the roster. It saves
 `phone-boot-right.png`. Both specs fail on the previous build.
+
+A third test in `quarterback-calls.spec.ts` names the quarterback's boot BOOT RIGHT and
+flips it. It must read BOOT LEFT, and a 5-step drop given next must rename it
+5-STEP DROP. It then mirrors him alone and then the whole Play. Finally it names the
+boot _Roll and throw_, flips it, and checks that the words stay while Boot left lights.
+It saves `boot-named-and-turned.png`. It fails at the first flip without
+`turnedOverCallWords`.
 
 `tests/e2e/editor-interaction.spec.ts` used to give the Stick quarterback a Slant and a
 Corner to show that a call goes on a man with nothing drawn. It now gives him a 3-step

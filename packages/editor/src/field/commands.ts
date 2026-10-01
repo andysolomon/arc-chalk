@@ -28,6 +28,7 @@ import {
   resolvePathTiming,
   mirroredCallKey,
   routeCallName,
+  turnedOverCallAssignments,
   routeCallPoints,
   settleZoneShell,
   snapSpotOf,
@@ -1158,9 +1159,22 @@ export function flipRouteCommand(
   return {
     kind: "batch",
     label: "Flip route",
-    commands: [{ kind: "update-path", path: next }],
+    commands: [
+      { kind: "update-path", path: next },
+      ...renamedForTurn(document, [path]),
+    ],
   };
 }
+
+/** A turned-over call's own name goes over with it (ADR 0073). */
+const renamedForTurn = (
+  document: PlayDocument,
+  paths: readonly MovementPath[],
+): PrimitivePlayCommand[] =>
+  turnedOverCallAssignments(document, paths).map((assignment) => ({
+    kind: "update-assignment",
+    assignment,
+  }));
 
 /** Turns every line a man has about his own stance, in one entry. */
 export function flipPlayerLinesCommand(
@@ -1169,7 +1183,7 @@ export function flipPlayerLinesCommand(
 ): PlayCommand | undefined {
   const player = document.players.find(({ id }) => id === playerId);
   if (!player) return undefined;
-  const commands = document.paths
+  const turned = document.paths
     .filter(({ playerId: on }) => on === playerId)
     .map((path) => ({
       path,
@@ -1177,13 +1191,22 @@ export function flipPlayerLinesCommand(
     }))
     .filter(
       ({ next, path }) => canonicalStringify(next) !== canonicalStringify(path),
-    )
-    .map(({ next }): PrimitivePlayCommand => ({
-      kind: "update-path",
-      path: next,
-    }));
-  if (commands.length === 0) return undefined;
-  return { kind: "batch", label: "Flip his lines", commands };
+    );
+  if (turned.length === 0) return undefined;
+  return {
+    kind: "batch",
+    label: "Flip his lines",
+    commands: [
+      ...turned.map(({ next }): PrimitivePlayCommand => ({
+        kind: "update-path",
+        path: next,
+      })),
+      ...renamedForTurn(
+        document,
+        turned.map(({ path }) => path),
+      ),
+    ],
+  };
 }
 
 // ---------------------------------------------------------------------------

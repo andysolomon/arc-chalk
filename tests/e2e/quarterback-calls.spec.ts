@@ -101,6 +101,12 @@ async function lineFrom(page: Page, spot: Point): Promise<Point[]> {
   return found[0]!;
 }
 
+/** Mirror off the More menu: the man picked and his lines, or the whole Play. */
+async function mirror(page: Page): Promise<void> {
+  await page.getByTitle("More actions").click();
+  await page.getByRole("button", { name: "Mirror", exact: true }).click();
+}
+
 async function formation(page: Page, name: string): Promise<void> {
   await openBlankEditor(page);
   await page.getByTitle("Browse formations — ⇧⌘F").click();
@@ -189,15 +195,11 @@ test("a quarterback under center is offered drops, fakes and runs, not routes", 
 
   // Mirroring the whole Play turns it into a boot left too, and mirroring
   // it back makes it a boot right again.
-  const mirror = async () => {
-    await page.getByTitle("More actions").click();
-    await page.getByRole("button", { name: "Mirror", exact: true }).click();
-  };
-  await mirror();
+  await mirror(page);
   await expect(
     page.getByRole("img", { name: "Q route: Boot left" }),
   ).toHaveCount(1);
-  await mirror();
+  await mirror(page);
   await expect(
     page.getByRole("img", { name: "Q route: Boot right" }),
   ).toHaveCount(1);
@@ -210,6 +212,67 @@ test("a quarterback under center is offered drops, fakes and runs, not routes", 
   await page.keyboard.press("Escape");
   await field(page).screenshot({
     path: testInfo.outputPath("iform-boot-right.png"),
+  });
+});
+
+test("a call's own name turns over with it, and the Coach's words stay his", async ({
+  page,
+}, testInfo) => {
+  await formation(page, "I-Form Right");
+  await pick(page, SPOT.qUnder);
+  const panel = inspector(page);
+  const named = (words: string) =>
+    page.getByRole("img", { name: `Q route: ${words}` });
+  const nameHisLine = async (words: string) => {
+    await panel.getByRole("button", { name: "Edit" }).first().click();
+    const assignment = panel.getByRole("textbox", { name: "Assignment" });
+    await assignment.fill(words);
+    await assignment.blur();
+    await expect(named(words)).toHaveCount(1);
+    await pick(page, SPOT.qUnder);
+  };
+
+  // His boot, named for its call the way a concept names its routes.
+  await callButton(panel, "Boot right").click();
+  await nameHisLine("BOOT RIGHT");
+
+  // Flipped, the name goes over with it rather than reading right over a
+  // boot going left …
+  await panel.getByRole("button", { name: "Flip his assignments" }).click();
+  await expect(named("BOOT LEFT")).toHaveCount(1);
+  await expect(named("BOOT RIGHT")).toHaveCount(0);
+
+  // … and it is still the call's own, so the next call renames it instead
+  // of keeping it as though the Coach had written it.
+  await callButton(panel, "5-step drop").click();
+  await expect(named("5-STEP DROP")).toHaveCount(1);
+  await expect(page.getByRole("img", { name: /^Q route: BOOT/ })).toHaveCount(
+    0,
+  );
+
+  // Mirrored with him picked, then with the whole Play, the same.
+  await callButton(panel, "Boot right").click();
+  await expect(named("BOOT RIGHT")).toHaveCount(1);
+  await mirror(page);
+  await expect(named("BOOT LEFT")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await mirror(page);
+  await expect(named("BOOT RIGHT")).toHaveCount(1);
+
+  // The Coach's own words stand when the line is turned over; only the
+  // call under them changes sides.
+  await pick(page, SPOT.qUnder);
+  await nameHisLine("Roll and throw");
+  await panel.getByRole("button", { name: "Flip his assignments" }).click();
+  await expect(named("Roll and throw")).toHaveCount(1);
+  await expect(callButton(panel, "Boot left")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  await page.keyboard.press("Escape");
+  await field(page).screenshot({
+    path: testInfo.outputPath("boot-named-and-turned.png"),
   });
 });
 
