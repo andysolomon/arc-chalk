@@ -158,6 +158,7 @@ import {
   type PlaybackRate,
   type RouteTimingField,
   straightenRouteCommand,
+  localSaveDetail,
   localSaveMessage,
   localSaveStatus,
   pruneFieldSelection,
@@ -4498,6 +4499,21 @@ export function ChalkApp({
     if (editor.localSave.phase !== "error") return;
     void editorStore.retryLocalSave().catch(() => undefined);
   };
+  // While a write is failing, the Coach's latest edits exist only on this
+  // screen: a reload or a closed tab would throw them away without a word
+  // (issue #152). The browser's own leave-this-page prompt stands in the
+  // way until a retry lands.
+  const saveFailing = editor.localSave.phase === "error";
+  useEffect(() => {
+    if (!saveFailing) return;
+    const askFirst = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Engines before the standard read a set returnValue as the ask.
+      event.returnValue = true;
+    };
+    globalThis.addEventListener("beforeunload", askFirst);
+    return () => globalThis.removeEventListener("beforeunload", askFirst);
+  }, [saveFailing]);
   const createVersion = (label: string) => {
     void editorStore.createVersion(label).catch(() => undefined);
   };
@@ -6566,9 +6582,7 @@ export function ChalkApp({
       }
       disabled={editor.localSave.phase !== "error"}
       onClick={retrySave}
-      title={
-        editor.localSave.phase === "error" ? editor.localSave.reason : undefined
-      }
+      title={localSaveDetail(editor.localSave)}
     >
       {localSaveStatus(editor.localSave)}
     </button>
