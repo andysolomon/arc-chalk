@@ -1,5 +1,7 @@
 import { expect, type Page, type TestInfo, test } from "@playwright/test";
 
+import { startNewPlay } from "./fixtures";
+
 /**
  * A defensive play drawn against a shadow offense (issue #152). The play
  * remembers the set its shadow stands in the way an offensive play
@@ -24,11 +26,7 @@ async function openUntitledPlay(page: Page): Promise<void> {
 
 /** A new defensive play, empty until a call is put on. */
 async function newDefensivePlay(page: Page): Promise<void> {
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "More actions" })
-    .click();
-  await page.getByRole("button", { name: /^New defensive play/ }).click();
+  await startNewPlay(page, "defensive");
   await expect(page.locator("[data-scene-player]")).toHaveCount(0);
 }
 

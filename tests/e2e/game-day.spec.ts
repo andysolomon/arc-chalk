@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { expect, openGamePlans, test } from "./fixtures";
 
 /**
  * Issue #67: a coordinator with only a thumb opens the prepared plan, finds
@@ -9,10 +9,10 @@ import { expect, test } from "./fixtures";
  */
 async function preparePlan(page: Page): Promise<void> {
   await page.goto("/");
-  await expect(page.getByText(/^Library/)).toBeVisible();
-  await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("button", { name: "Game plans…" }).click();
-  const workspace = page.getByRole("region", { name: "Game plans" });
+  await expect(
+    page.getByRole("button", { name: "View & library" }),
+  ).toBeVisible();
+  const workspace = await openGamePlans(page);
   await workspace.getByRole("button", { name: "New plan" }).click();
   await workspace.getByLabel("Plan name").fill("Week 3");
   await workspace.getByLabel("Opponent").fill("Central");

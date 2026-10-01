@@ -1,5 +1,5 @@
 import { type Locator, type Page } from "@playwright/test";
-import { expect, openSeededEditor, test } from "./fixtures";
+import { expect, openSeededEditor, openSettings, test } from "./fixtures";
 
 /**
  * Coverage defaults (ADR 0061), the way a Coach sets them: how far off the
@@ -30,12 +30,7 @@ async function setDepths(
   corners: string,
   safeties: string,
 ): Promise<void> {
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "More actions" })
-    .click();
-  await page.getByRole("button", { name: "Settings…" }).click();
-  const settings = page.getByRole("dialog", { name: "Settings" });
+  const settings = await openSettings(page);
   await settings.getByRole("tab", { name: "Playbook" }).click();
   const group = settings.getByRole("group", { name: "Coverage defaults" });
   const cornerSelect = group.getByRole("combobox", {

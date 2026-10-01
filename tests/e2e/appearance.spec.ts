@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { expect, openSeededEditor, test } from "./fixtures";
+import { expect, openSeededEditor, openSettings, test } from "./fixtures";
 
 /**
  * Light and dark (ADR 0061): Settings → Appearance picks the theme, the
@@ -25,12 +25,7 @@ const fieldPaper = (page: Page) =>
     .evaluate((node) => getComputedStyle(node).fill);
 
 const openAppearance = async (page: Page) => {
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "More actions" })
-    .click();
-  await page.getByRole("button", { name: "Settings…" }).click();
-  const settings = page.getByRole("dialog", { name: "Settings" });
+  const settings = await openSettings(page);
   await settings.getByRole("tab", { name: "Appearance" }).click();
   return settings;
 };

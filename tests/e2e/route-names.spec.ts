@@ -132,13 +132,13 @@ test("takes a deleted route's name off the roster and the count", async ({
 
   // Deleted from his panel with the × on its row.
   await roster.getByRole("button", { name: "Back to the play" }).click();
-  await roster.getByRole("button", { name: "H: BUBBLE — Slot" }).click();
+  await roster.getByRole("button", { name: "H: BUBBLE — Back" }).click();
   await roster.getByRole("button", { name: /^Delete Base stem/ }).click();
   await expect(roster.getByText(/^No route yet/)).toBeVisible();
   await backToRoster(page);
 
   await expect(
-    roster.getByRole("button", { name: "H: No route yet — Slot" }),
+    roster.getByRole("button", { name: "H: No route yet — Back" }),
   ).toBeVisible();
   await expect(page.getByText("BUBBLE")).toHaveCount(0);
   await expect(count).not.toHaveText(before!);
@@ -155,7 +155,7 @@ test("takes a deleted route's name off the roster and the count", async ({
     1,
   );
   await expect(
-    roster.getByRole("button", { name: "H: BUBBLE — Slot" }),
+    roster.getByRole("button", { name: "H: BUBBLE — Back" }),
   ).toBeVisible();
   await expect(count).toHaveText(before!);
 });

@@ -1,5 +1,6 @@
 ---
 status: accepted
+amended_by: 0066-positions-are-read-off-the-alignment
 ---
 
 # Assignments-only inspector with a play sidebar and tabbed Settings (parity exception to ADR 0039)

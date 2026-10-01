@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { expect, openSeededEditor, test } from "./fixtures";
+import { expect, openGamePlans, openSeededEditor, test } from "./fixtures";
 
 /**
  * A Game Plan calls Plays from any of the Coach's books (ADR 0067, issue
@@ -217,9 +217,7 @@ test("calls plays from another book, prepares them, and reports one deleted late
   await expect(again.getByRole("textbox", { name: "Play name" })).toBeVisible({
     timeout: 30_000,
   });
-  await again.getByRole("button", { name: "More actions" }).click();
-  await again.getByRole("button", { name: "Game plans…" }).click();
-  const dialog = again.getByRole("region", { name: "Game plans" });
+  const dialog = await openGamePlans(again);
   await dialog.getByRole("button", { name: /^Week 3 / }).click();
   await expect(
     dialog.getByLabel(`Call number for Goal Line Power (${OTHER})`),

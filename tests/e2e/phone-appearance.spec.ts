@@ -15,8 +15,12 @@ test("picks Dark from the Settings page and keeps the field on paper", async ({
   await openSeededEditor(page);
   await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
 
-  await page.getByRole("button", { name: "More actions" }).tap();
-  await page.getByRole("button", { name: "Settings…" }).tap();
+  // Settings is the gear at the foot of the sidebar's drawer (ADR 0074).
+  await page.getByRole("button", { name: "Open the sidebar" }).tap();
+  await page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: "Settings", exact: true })
+    .tap();
   const settings = page.getByRole("dialog", { name: "Settings" });
   await settings.getByRole("tab", { name: "Appearance" }).tap();
   await settings

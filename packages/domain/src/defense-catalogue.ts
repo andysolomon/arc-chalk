@@ -5,6 +5,7 @@ import {
   isOnDefensiveFront,
   type DefensiveField,
 } from "./defensive-field";
+import { highSchoolFieldProfile } from "./field-profile";
 import { STOCK_PLAYBOOK_ID } from "./formation-catalogue";
 import { legacyCanvasToYards } from "./geometry";
 import { linePresetByKey } from "./route-catalogue";
@@ -869,7 +870,11 @@ const legacyDefenses: readonly LegacyDefense[] = [
       at(570, 346, "M"),
       at(140, 384, "C"),
       at(860, 384, "C"),
-      at(740, 356, "N"),
+      // The original letters this man N, like the nose. Bear Cover 0 fields
+      // four defensive backs, so he is not a nickel but the free safety
+      // walked down — the one letter every other call has and this one
+      // lacked (issue #154).
+      at(740, 356, "F"),
       at(300, 356, "$"),
     ],
     mans: [
@@ -1031,7 +1036,8 @@ function laidUnderneath(
   const pathId = (index: number) => `drop_${index}`;
   const shell = layoutZoneShell(
     {
-      fieldProfile: { widthYards: DEFAULT_DEFENSIVE_FIELD.halfWidthYards * 2 },
+      // The original's field: a high-school one, 53⅓ yards wide.
+      fieldProfile: highSchoolFieldProfile,
       players: formation.slots.map((slot) => ({ ...slot })),
       paths: assignments.flatMap((assignment, index) =>
         assignment.kind === "drop"

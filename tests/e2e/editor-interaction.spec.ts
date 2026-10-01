@@ -1639,31 +1639,35 @@ test("puts a call off the tree on the man himself, drawn or redrawn", async ({
   const routes = await page.locator("[data-scene-path]").count();
 
   // The quarterback has nothing drawn on him. Picking a man used to leave a
-  // Coach with no way to give him a route but to add an alternate first.
+  // Coach with no way to give him a call but to add an alternate first. He
+  // is offered his own calls rather than the route tree (ADR 0073).
   const q = await playerCenter(page, "q");
   await page.mouse.click(q.x, q.y);
   await expect(page.locator(".player-heading")).toBeVisible();
 
-  const slant = page.getByRole("button", { name: "Slant", exact: true });
-  await expect(slant).toBeVisible();
-  await slant.click();
+  const drop = page.getByRole("button", { name: "3-step drop", exact: true });
+  await expect(drop).toBeVisible();
+  await drop.click();
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
   // The grid stays up, so the next call is one click away rather than a
   // trip back to the man.
-  await expect(slant).toHaveAttribute("aria-pressed", "true");
+  await expect(drop).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".player-heading")).toBeVisible();
 
   // Asking for another reshapes the stem he now has rather than piling a
   // second line on top of it.
-  await page.getByRole("button", { name: "Corner", exact: true }).click();
+  await page.getByRole("button", { name: "Play action", exact: true }).click();
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
-  await expect(slant).toHaveAttribute("aria-pressed", "false");
+  await expect(drop).toHaveAttribute("aria-pressed", "false");
   await expect(
-    page.getByRole("button", { name: "Corner", exact: true }),
+    page.getByRole("button", { name: "Play action", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
 
-  // A block sits alongside his route rather than replacing it, and the same
-  // button takes it off again. A receiver's blocks are folded (ADR 0058).
+  // A block sits alongside a receiver's route rather than replacing it, and
+  // the same button takes it off again. His blocks are folded (ADR 0058).
+  await page.keyboard.press("Escape");
+  const z = await playerCenter(page, "z");
+  await page.mouse.click(z.x, z.y);
   await page.getByRole("button", { name: /^Quick blocks/ }).click();
   const drive = page.getByRole("button", { name: "Drive", exact: true });
   await drive.click();
@@ -1673,9 +1677,6 @@ test("puts a call off the tree on the man himself, drawn or redrawn", async ({
   await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
 
   // A man who already has a stem is redrawn on it, and the count holds.
-  await page.keyboard.press("Escape");
-  const z = await playerCenter(page, "z");
-  await page.mouse.click(z.x, z.y);
   const before = await page.locator('[data-scene-path="rz"]').getAttribute("d");
   await page.getByRole("button", { name: "Wheel", exact: true }).click();
   await expect
@@ -2010,13 +2011,13 @@ test("lets a control the Coach tabbed to have its own Enter and Space", async ({
   await openEditor(page);
   // The field wants both keys — Enter finishes a route, Space pans it — and
   // swallowing them left every button in the app dead to anyone working
-  // without a pointer. Shortcuts is behind the sidebar's Help row (ADR 0058).
+  // without a pointer. Shortcuts is in the Help menu at the sidebar's foot (ADR 0074).
   await page
     .getByRole("navigation", { name: "Sidebar" })
     .getByRole("button", { name: /^Help/ })
     .click();
   const shortcuts = page.getByRole("button", {
-    name: "Shortcuts ?",
+    name: "Keyboard shortcuts ?",
     exact: true,
   });
   await shortcuts.press("Enter");
@@ -2025,7 +2026,7 @@ test("lets a control the Coach tabbed to have its own Enter and Space", async ({
   ).toBeVisible();
   await page.keyboard.press("Escape");
 
-  // Choosing Shortcuts put the Help popover away; open it again for Space.
+  // Choosing Shortcuts put the Help menu away; open it again for Space.
   await page
     .getByRole("navigation", { name: "Sidebar" })
     .getByRole("button", { name: /^Help/ })

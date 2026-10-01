@@ -1,7 +1,9 @@
 import { isLineman } from "./classifications";
 import {
   assignRoles,
+  BACKFIELD_STANCE_DEPTH_YARDS,
   ballLateralYards,
+  isBackfieldStance,
   LINE_OF_SCRIMMAGE_CLEARANCE_YARDS,
 } from "./formations";
 import { classifyZoneCoverage, holdInsideSidelines } from "./geometry";
@@ -122,9 +124,6 @@ export const MAN_MAX_DEPTH_YARDS = 7;
 /** The arrow stops short of the man it points at, so it does not hide him. */
 const ARROW_SHORT_YARDS = 1.2;
 
-/** A back stands at least this far behind the ball, and this near it. */
-const BACKFIELD_DEPTH_YARDS = 2.5;
-const BACKFIELD_LATERAL_YARDS = 6;
 /** How far outside the last lineman a receiver can stand and be attached. */
 const ATTACHED_YARDS = 3.5;
 
@@ -217,7 +216,7 @@ export function defenderKind(
   const letter = player.label.trim().toUpperCase();
   const wide = Math.abs(player.position.lateralYards - ball);
   const depth = player.position.depthYards;
-  const onTheBall = depth <= BACKFIELD_DEPTH_YARDS && wide <= 8;
+  const onTheBall = depth <= BACKFIELD_STANCE_DEPTH_YARDS && wide <= 8;
   if (letter === "N") return onTheBall ? "lineman" : "nickel";
   if (letter === "S") return depth >= DEEP_STANCE_YARDS ? "safety" : "backer";
   const named = LETTERS[letter];
@@ -271,8 +270,7 @@ export function coverableReceivers(
       ? ("left" as const)
       : ("right" as const);
   const inBackfield = (player: Player) =>
-    player.position.depthYards <= -BACKFIELD_DEPTH_YARDS &&
-    Math.abs(player.position.lateralYards - ball) <= BACKFIELD_LATERAL_YARDS;
+    isBackfieldStance(player.position, ball);
 
   const receivers: CoverableReceiver[] = [];
   for (const side of ["left", "right"] as const) {
@@ -289,7 +287,7 @@ export function coverableReceivers(
       const attached =
         sign * (player.position.lateralYards - ball) <=
           lineEdge(sign) + ATTACHED_YARDS &&
-        player.position.depthYards > -BACKFIELD_DEPTH_YARDS;
+        player.position.depthYards > -BACKFIELD_STANCE_DEPTH_YARDS;
       receivers.push({
         player,
         side,

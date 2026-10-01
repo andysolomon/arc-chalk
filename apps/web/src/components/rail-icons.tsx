@@ -119,11 +119,12 @@ export function RailIcon({ glyph }: { glyph: RailGlyph }) {
 }
 
 /**
- * Undo and Redo as the phone header draws them (ADR 0057): a hook-back
- * arrow on the rail's own 18-unit grid and stroke, one the mirror of the
- * other. Wider screens keep the words.
+ * The header's icon buttons (ADR 0057, ADR 0074): Undo and Redo as hook-back
+ * arrows, one the mirror of the other; Reset positions as a turn back round
+ * the man; Present as the board he is shown on. All on the rail's own 18-unit
+ * grid and stroke, so the header and the rail read as one set.
  */
-const history = {
+const header = {
   undo: (
     <>
       <path d="M6.5 4 L3.5 7 L6.5 10" {...stroke} />
@@ -142,12 +143,32 @@ const history = {
       />
     </>
   ),
+  reset: (
+    <>
+      <path d="M3 9a6 6 0 1 0 1.76-4.24L3 6.5" {...stroke} />
+      <path d="M3 3v3.5h3.5" {...stroke} />
+      <circle cx="9" cy="9" fill="currentColor" r="1.4" />
+    </>
+  ),
+  present: (
+    <>
+      <path d="M2 3h14" {...stroke} />
+      <path
+        d="M3 3v7.5A1.5 1.5 0 0 0 4.5 12h9a1.5 1.5 0 0 0 1.5-1.5V3"
+        {...stroke}
+      />
+      <path d="M6 15.5 9 12.5l3 3" {...stroke} />
+      <path d="M7.75 5.25v4.5L11.5 7.5z" {...stroke} />
+    </>
+  ),
 } as const;
 
-export function HistoryIcon({ direction }: { direction: "undo" | "redo" }) {
+export type HeaderGlyph = keyof typeof header;
+
+export function HeaderIcon({ glyph }: { glyph: HeaderGlyph }) {
   return (
     <svg aria-hidden="true" height="18" viewBox="0 0 18 18" width="18">
-      {history[direction]}
+      {header[glyph]}
     </svg>
   );
 }

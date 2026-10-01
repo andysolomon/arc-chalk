@@ -5,6 +5,7 @@ import {
   currentBallSpot,
   createStableId,
   currentDefensiveCall,
+  defensiveCallName,
   coverableReceivers,
   manCoverageFor,
   manCoverageScheme,
@@ -41,6 +42,7 @@ import {
   resolvePathTiming,
   lineKindNames,
   lineKindChoices,
+  lineKindWord,
   labelSizeChoices,
   playErasureCommand,
   playErasures,
@@ -50,6 +52,10 @@ import {
   defensivePresetsFor,
   lineCallKeys,
   linePresetByKey,
+  isQuarterback,
+  quarterbackCalls,
+  quickCallName,
+  routeCallsFor,
   routePresetNames,
   stockConcepts,
   formationFromOffense,
@@ -65,7 +71,6 @@ import {
   addCoachPlayType,
   formatClassification,
   unitName,
-  UNCLASSIFIED_PLAY_TYPE_NAME,
   type Concept,
   type Coordinate,
   type LabelRole,
@@ -246,6 +251,7 @@ import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
 import { GamePlansWorkspace } from "../library/game-plans-workspace";
 import { GameDayView } from "../library/game-day-view";
 import { defaultOutputSpec, type OutputSpec } from "../output/output-spec";
+import { bookDefaultOrder, bookPlaysInOrder } from "../output/book-order";
 import { OutputWorkspace } from "../output/output-workspace";
 import { usePlaybookLibrary } from "../library/use-playbook-library";
 import { AccountPanel } from "./account-panel";
@@ -284,6 +290,7 @@ import {
   DefenseBrowser,
   ExportMenu,
   FormationBrowser,
+  HelpEntries,
   HelpMenu,
   MoreMenu,
   NewPlayMenu,
@@ -313,10 +320,9 @@ import { SELECTION_BLUE, sceneColors, selectionKey } from "./field-marks";
 import { PlaybackBar } from "./playback-bar";
 import { SettingsOverlay, type SettingsTab } from "./settings-overlay";
 import { CoverageDepthsSection } from "./coverage-depths-section";
-import { PlaySidebar, type SidebarRowSpec } from "./play-sidebar";
+import { PlaySidebar, SidebarIcon, type SidebarRowSpec } from "./play-sidebar";
 import { rosterFor, type Roster, type RosterRow } from "./assignments-roster";
 import {
-  ClassificationPanel,
   PlayClassificationControl,
   type AddPlayTypeOutcome,
 } from "./play-classification-control";
@@ -330,7 +336,7 @@ import {
   downloadFrameSequence,
   openProgressionStrip,
 } from "./print-progression";
-import { HistoryIcon, RailIcon } from "./rail-icons";
+import { HeaderIcon, RailIcon } from "./rail-icons";
 import { renderToStaticMarkup } from "react-dom/server";
 
 export { FieldDiagram };
@@ -1355,9 +1361,14 @@ function lineName(
   assignment: string | undefined,
 ): string {
   if (defensiveLineKinds.has(path.kind)) {
-    return `${assignment?.trim() || path.kind} · ${path.style.line}`;
+    // A man call says man, not zone (issue #154).
+    return `${assignment?.trim() || lineKindWord(path).toLowerCase()} · ${path.style.line}`;
   }
-  if (path.kind === "block") return `Block · ${path.style.line}`;
+  // A block drawn as a call is listed as that call (issue #156), so a
+  // lineman's Drive and his neighbour's Reach are told apart in the list.
+  if (path.kind === "block") {
+    return `${quickCallName(path) ?? "Block"} · ${path.style.line}`;
+  }
   if (path.kind === "motion") return `Motion · ${path.style.line}`;
   const stem = index === 0 ? "Base stem" : `Alternate ${index}`;
   const choices =
@@ -1387,6 +1398,16 @@ const quickBackBlockCalls: readonly {
   ...quickBlockCalls.filter(({ key }) => runGameFirst.has(key)),
   ...quickBlockCalls.filter(({ key }) => !runGameFirst.has(key)),
 ];
+/**
+ * A quarterback's calls, offered in place of the route tree: the throws he
+ * sets up for, then the runs he hands off or keeps.
+ */
+const quarterbackPassCalls = quarterbackCalls.filter(
+  ({ game }) => game === "pass",
+);
+const quarterbackRunCalls = quarterbackCalls.filter(
+  ({ game }) => game === "run",
+);
 /**
  * What a defender can be given, in the order he is offered it: the front's
  * own calls first for a man on the line, then the gaps, then the drops
@@ -1616,6 +1637,7 @@ function PlayerInspector({
   open,
   pickingCover,
   player,
+  quarterback,
   role,
   mark,
   text,
@@ -1662,6 +1684,8 @@ function PlayerInspector({
   onToggle: (id: string) => void;
   open: Readonly<Record<string, boolean>>;
   player: Player;
+  /** He takes the snap: he drops, fakes and hands off rather than runs routes. */
+  quarterback: boolean;
   /** What he plays, said the way the roster says it: Tight end, Mike. */
   role: string;
   /** His letter, or the spot he plays when he has none (LT, C). */
@@ -1671,16 +1695,21 @@ function PlayerInspector({
 }) {
   const lineman = isLineman(player);
   const defense = player.unit === "defense";
-  const heading = defense
-    ? "Assignments"
-    : lineman
-      ? "Blocking"
-      : "Routes & alternates";
+  // A receiver or a back runs routes; the quarterback is given calls.
+  const runner = !defense && !lineman && !quarterback;
+  const heading =
+    defense || quarterback
+      ? "Assignments"
+      : lineman
+        ? "Blocking"
+        : "Routes & alternates";
   const nothingYet = defense
     ? "No assignment yet. Pick one below, or draw his zone drop or blitz path from here."
     : lineman
       ? "No block yet. Pick one below, or draw one from here."
-      : "No route yet. Pick one below, or draw one from here.";
+      : quarterback
+        ? "No assignment yet. Pick a drop, a fake or a run below, or draw his path from here."
+        : "No route yet. Pick one below, or draw one from here.";
   const drawChoices = drawChoicesFor(player);
   const symbolName =
     playerSymbolChoices.find(({ symbol }) => symbol === player.symbol)?.name ??
@@ -1820,7 +1849,7 @@ function PlayerInspector({
             title="Mirror every line he has about his stance"
             type="button"
           >
-            {defense
+            {defense || quarterback
               ? "Flip his assignments"
               : lineman
                 ? "Flip his block"
@@ -1828,7 +1857,7 @@ function PlayerInspector({
           </button>
         </div>
       )}
-      {!defense && !lineman && (
+      {runner && (
         <QuickCallGrid
           calls={routePresetNames}
           columns={3}
@@ -1838,7 +1867,26 @@ function PlayerInspector({
           running={activePresets}
         />
       )}
-      {!defense && !lineman && (
+      {quarterback && (
+        <>
+          <QuickCallGrid
+            calls={quarterbackPassCalls}
+            heading="Quick pass calls"
+            kind="route"
+            onApply={onQuickCall}
+            running={activePresets}
+          />
+          <QuickCallGrid
+            calls={quarterbackRunCalls}
+            heading="Quick run calls"
+            hint="Each is drawn from where he takes the snap, and a drop is shorter from the gun, where he is already deep. A fake, handoff or read opens to the side the run is going."
+            kind="route"
+            onApply={onQuickCall}
+            running={activePresets}
+          />
+        </>
+      )}
+      {runner && (
         // A back or a tight end blocks too, but it is the second thing he is
         // asked for, so the calls fold until they are wanted.
         <Disclosure
@@ -1888,7 +1936,9 @@ function PlayerInspector({
       {!defense && !lineman && (
         <div className="help-row alternate-row">
           <button className="alternate" onClick={onAddAlternate} type="button">
-            + Alternate route — new stem from stance
+            {quarterback
+              ? "+ Alternate call — new path from stance"
+              : "+ Alternate route — new stem from stance"}
           </button>
           <Hint about="alternates and choices">
             An <strong>alternate</strong> starts over at his stance: a different
@@ -2073,7 +2123,7 @@ function RouteInspector({
   const showRead = isRoute || coaching.readOrder !== "";
   const showConversion = isRoute || coaching.conversion !== "";
   const bent = line.some(({ control }) => control !== undefined);
-  const kindName = lineKindNames[path.kind];
+  const kindName = lineKindWord(path);
 
   return (
     <div className="label-inspector route-inspector">
@@ -2855,8 +2905,6 @@ export function ChalkApp({
   const [sheetSnap, setSheetSnap] = useState<"peek" | "full">("peek");
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("field");
   const [themePreference, setThemePreference] = useThemePreference();
-  /** How many game plans the Playbook holds, for the sidebar's count. */
-  const [planCount, setPlanCount] = useState<number>();
   /**
    * How the Coach left the chrome on this device — panels, unfolded
    * inspector sections, starred and recent presets (issue #64). Loaded once;
@@ -3587,13 +3635,14 @@ export function ChalkApp({
         assignmentForPath(editor.document, path.id)?.text,
       ),
       // Each kind of line is offered the calls that belong to it: a route
-      // gets the tree, a block gets the blocking calls, and a defender's
+      // gets the tree — the quarterback's, his own calls — a block gets the
+      // blocking calls, and a defender's
       // line gets the drops, the man calls and the rushes. A motion and a
       // ball flight have no catalogue of their own, so they are offered
       // none rather than somebody else's.
       presets:
         path.kind === "route"
-          ? routePresetNames
+          ? routeCallsFor(editor.document, player)
           : path.kind === "block"
             ? blockPresets.map(({ key, name }) => ({ key, name }))
             : defensiveLineKinds.has(path.kind)
@@ -5388,11 +5437,29 @@ export function ChalkApp({
       );
     },
     printPlaybook: () => {
+      // The book prints under its own name, in its install order once the
+      // Coach sets one (issue #166) and until then in the order its page
+      // reads (issue #156).
+      const order = bookDefaultOrder(
+        playbook.browserState,
+        playbook.snapshot.playbook,
+      );
       printOrSay(
-        playbookHtml(libraryPlays, {
-          ...libraryOptions,
-          year: new Date().getFullYear(),
-        }),
+        playbookHtml(
+          bookPlaysInOrder(
+            libraryPlays,
+            order,
+            playbook.snapshot.members,
+            libraryConcepts,
+            playbook.snapshot.playbook.playOrder,
+          ),
+          {
+            ...libraryOptions,
+            year: new Date().getFullYear(),
+            title: playbook.snapshot.playbook.name,
+            order,
+          },
+        ),
         "The library is empty",
         "— save a play first",
       );
@@ -6150,23 +6217,6 @@ export function ChalkApp({
     }
     rememberChrome({ inspectorOpen, railOpen, sidebarOpen });
   }, [inspectorOpen, railOpen, sidebarOpen, rememberChrome]);
-  // Read again whenever the count could have moved: the overlay closing, a
-  // plan made or prepared on the Playbooks page, another book opened. Only
-  // re-reading on the overlay left a book with a plan reading 0 (issue #167).
-  const openBookId = playbook.snapshot.playbook.id;
-  useEffect(() => {
-    let cancelled = false;
-    if (overlay === "game-plans") return;
-    void runtime.library
-      .listGamePlans()
-      .then((plans) => {
-        if (!cancelled) setPlanCount(plans.length);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [activeView, openBookId, overlay, runtime.library]);
   const toggleDisclosure = (id: string) =>
     rememberChrome({
       open: { ...chromeRef.current.open, [id]: !chromeRef.current.open[id] },
@@ -6465,6 +6515,77 @@ export function ChalkApp({
     label: preset.name,
     title: "Run this output again",
   }));
+  /**
+   * Overlays any destination can open: Settings, from the sidebar's foot in
+   * the editor and from the header's end on the Playbooks and Game Day pages
+   * (ADR 0074); the shortcut reference, from Help; the Conflict Inbox, from
+   * Settings' Account tab.
+   */
+  const sharedOverlays = (
+    <>
+      {overlay === "shortcuts" ? (
+        <ShortcutReference onClose={() => setOverlay(null)} />
+      ) : null}
+      {overlay === "conflicts" && sync ? (
+        <ConflictInboxHost onClose={() => setOverlay(null)} sync={sync} />
+      ) : null}
+      {overlay === "settings" ? (
+        <SettingsOverlay
+          account={
+            <>
+              <AccountPanel
+                expanded
+                identity={identity}
+                onKeepLocalData={async () => {
+                  await identity.signOut();
+                }}
+                onOpenConflicts={() => setOverlay("conflicts")}
+                onRemoveLocalData={async () => {
+                  await identity.signOut();
+                  await runtime.destroyLocalData();
+                }}
+                snapshot={syncSnapshot}
+                sync={sync}
+              />
+              <BackupPanel runtime={runtime} />
+            </>
+          }
+          accountSummary={
+            identitySession.status === "signed_in"
+              ? `Signed in · ${syncSnapshot.status}`
+              : "Local only"
+          }
+          fieldProfile={settingsFieldProfile}
+          fieldProfileName={editor.document.fieldProfile.name}
+          onClose={() => setOverlay(null)}
+          onTab={setSettingsTab}
+          onTheme={setThemePreference}
+          tab={settingsTab}
+          theme={themePreference}
+          version={
+            typeof __CHALK_VERSION__ === "string" && __CHALK_VERSION__
+              ? __CHALK_VERSION__
+              : undefined
+          }
+          onPageKind={(pageKind) =>
+            setPresentation((current) => ({ ...current, pageKind }))
+          }
+          onRestoreVersion={restoreVersion}
+          onTypePreset={(typePreset) =>
+            setPresentation((current) => ({ ...current, typePreset }))
+          }
+          pageKind={presentation.pageKind}
+          playbookSettings={settingsPlaybookSettings}
+          typeHint={
+            typePresetCatalog.find(({ id }) => id === presentation.typePreset)
+              ?.hint ?? typePresetCatalog[0]!.hint
+          }
+          typePreset={presentation.typePreset}
+          versions={editor.versions}
+        />
+      ) : null}
+    </>
+  );
   const header = (
     <Header
       actions={actions}
@@ -6531,7 +6652,9 @@ export function ChalkApp({
       );
       const calls =
         selectedPath.kind === "route"
-          ? routePresetNames
+          ? who
+            ? routeCallsFor(editor.document, who)
+            : routePresetNames
           : selectedPath.kind === "block"
             ? quickBlockCalls
             : defensiveLineKinds.has(selectedPath.kind) && who
@@ -6557,7 +6680,9 @@ export function ChalkApp({
     if (selectedPlayer) {
       const defense = selectedPlayer.unit === "defense";
       const lineman = isLineman(selectedPlayer);
-      const what = defense ? "Assignments" : lineman ? "Blocks" : "Routes";
+      const quarterback = isQuarterback(editor.document, selectedPlayer);
+      const what =
+        defense || quarterback ? "Assignments" : lineman ? "Blocks" : "Routes";
       const name = selectedPlayer.label.trim();
       return (
         <QuickTray
@@ -6566,7 +6691,7 @@ export function ChalkApp({
               ? assignmentCallsFor(editor.document, selectedPlayer)
               : lineman
                 ? quickBlockCalls
-                : routePresetNames
+                : routeCallsFor(editor.document, selectedPlayer)
           }
           heading={name ? `${name} · ${what}` : what}
           onApply={(presetKey) =>
@@ -6578,7 +6703,9 @@ export function ChalkApp({
               ? "Give him this call — it replaces what he was doing"
               : lineman
                 ? "Give him this block — the one he has takes it off"
-                : "Run this route — drawn from his own stance"
+                : quarterback
+                  ? "Give him this call — drawn from where he takes the snap"
+                  : "Run this route — drawn from his own stance"
           }
         />
       );
@@ -6632,7 +6759,7 @@ export function ChalkApp({
         ...(selectedRosterRow ? { row: selectedRosterRow } : {}),
       }
     : selectedPath
-      ? { kind: "path", name: lineKindNames[selectedPath.kind] }
+      ? { kind: "path", name: lineKindWord(selectedPath) }
       : selectedLabel
         ? { kind: "label" }
         : undefined;
@@ -6653,10 +6780,11 @@ export function ChalkApp({
   const defenderCount = editor.document.players.filter(
     ({ unit }) => unit === "defense",
   ).length;
-  const callName = onFieldCall
-    ? onFieldCall.formation.name
-    : defenderCount > 0
-      ? "Custom front"
+  // A call moved by hand names the one it came from, so the variant keeps
+  // its front and coverage in view.
+  const callName =
+    defenderCount > 0
+      ? defensiveCallName(editor.document, defensiveCalls)
       : "No defense yet";
   const formationName = onFieldFormation?.name ?? "Custom alignment";
   const openFormations = () => {
@@ -6832,30 +6960,12 @@ export function ChalkApp({
         </>
       ),
     },
-    {
-      id: "type",
-      icon: "type",
-      label: "Play type",
-      // The header pill already answers to "Play type".
-      name: `Type of play, ${editor.document.playType?.name ?? UNCLASSIFIED_PLAY_TYPE_NAME}`,
-      value: editor.document.playType?.name ?? UNCLASSIFIED_PLAY_TYPE_NAME,
-      detail: (
-        <ClassificationPanel
-          concepts={playbook.snapshot.concepts}
-          formations={allFormations}
-          onAddPlayType={addPlayType}
-          onApply={(command) => {
-            void editorStore
-              .applyCommand(command)
-              .then(() => playbook.refresh())
-              .catch(() => undefined);
-          }}
-          onDismiss={() => setSidebarPopover(null)}
-          play={editor.document}
-          playbook={playbook.snapshot.playbook}
-        />
-      ),
-    },
+  ];
+  // Show on field and the Library are reached for less often than the set,
+  // the ball and the shadow, so they fold away under one heading the device
+  // remembers (ADR 0074).
+  const sidebarFoldKey = "sidebar:view-library";
+  const sidebarFoldRows: readonly SidebarRowSpec[] = [
     {
       id: "layers",
       icon: "layers",
@@ -6874,61 +6984,34 @@ export function ChalkApp({
       detail: libraryPanel,
     },
   ];
-  const sidebarPlaybook: readonly SidebarRowSpec[] = [
-    {
-      id: "plays",
-      icon: "plays",
-      label: "Plays",
-      value: String(playbook.snapshot.members.length),
-      current:
-        activeView === "Playbooks" &&
-        playbooksPage === "playbooks" &&
-        bookOpen &&
-        bookTab === "plays",
-      onOpen: () => {
-        openBookPage("plays");
-        goToView("Playbooks");
-      },
-    },
-    {
-      id: "plans",
-      icon: "plans",
-      label: "Game plans",
-      ...(planCount === undefined ? {} : { value: String(planCount) }),
-      current:
-        activeView === "Playbooks" &&
-        playbooksPage === "playbooks" &&
-        bookOpen &&
-        bookTab === "plans",
-      onOpen: () => {
-        openBookPage("plans");
-        goToView("Playbooks");
-      },
-    },
-    {
-      id: "gameday",
-      icon: "gameday",
-      label: "Game Day",
-      current: activeView === "GameDay",
-      onOpen: () => goToView("GameDay"),
-    },
-  ];
+  const closeSidebarPopover = () => {
+    setSidebarPopover(null);
+    if (sidebarFloats) setSidebarOpen(false);
+  };
+  // The sidebar's foot: Settings and Help, one home each (ADR 0074). A
+  // phone's header has no Print & export, so its drawer carries it first.
   const sidebarFooter: readonly SidebarRowSpec[] = [
-    {
-      id: "print",
-      icon: "print",
-      label: "Print & export",
-      title: "Print preview and every output",
-      onOpen: () => actions.output?.(),
-    },
+    ...(phoneWorkspace
+      ? [
+          {
+            id: "print",
+            icon: "print",
+            label: "Print & export",
+            title: "Print preview and every output",
+            onOpen: () => {
+              closeSidebarPopover();
+              actions.output?.();
+            },
+          } satisfies SidebarRowSpec,
+        ]
+      : []),
     {
       id: "settings",
       icon: "settings",
       label: "Settings",
-      title: "Field, Playbook, History, Print & export, Account",
+      title: "Settings — field, playbook, appearance, account",
       onOpen: () => {
-        setSidebarPopover(null);
-        if (sidebarFloats) setSidebarOpen(false);
+        closeSidebarPopover();
         setOverlay("settings");
       },
     },
@@ -6936,29 +7019,10 @@ export function ChalkApp({
       id: "help",
       icon: "help",
       label: "Help",
-      // The header's Help menu already answers to "Help".
-      name: "Help and shortcuts",
-      hint: "⌘K",
+      title: "Help — tutorials and shortcuts",
       detail: (
-        <div className="help-row">
-          <button
-            onClick={() => {
-              setSidebarPopover(null);
-              setOverlay("palette");
-            }}
-            type="button"
-          >
-            Commands ⌘K
-          </button>
-          <button
-            onClick={() => {
-              setSidebarPopover(null);
-              setOverlay("shortcuts");
-            }}
-            type="button"
-          >
-            Shortcuts ?
-          </button>
+        <div className="menu-panel sidebar-help">
+          <HelpEntries actions={actions} onDismiss={closeSidebarPopover} />
         </div>
       ),
     },
@@ -6966,12 +7030,22 @@ export function ChalkApp({
   const sidebar = (
     <PlaySidebar
       drawer={sidebarFloats}
+      fold={{
+        label: "View & library",
+        open: chrome.open[sidebarFoldKey] === true,
+        onToggle: () => {
+          if (sidebarFoldRows.some(({ id }) => id === sidebarPopover)) {
+            setSidebarPopover(null);
+          }
+          toggleDisclosure(sidebarFoldKey);
+        },
+        rows: sidebarFoldRows,
+      }}
       footer={sidebarFooter}
       onClose={() => setSidebarOpen(false)}
       onCollapse={sidebarFloats ? undefined : () => setSidebarOpen(false)}
       onOpen={setSidebarPopover}
       open={sidebarPopover}
-      playbook={sidebarPlaybook}
       status={
         phoneWorkspace ? (
           <span
@@ -7600,6 +7674,7 @@ export function ChalkApp({
           ) : null}
         </main>
         {overlay === "palette" ? paletteOverlay : null}
+        {sharedOverlays}
       </div>
     );
   }
@@ -7619,6 +7694,7 @@ export function ChalkApp({
           snapshot={playbook.snapshot}
         />
         {overlay === "palette" ? paletteOverlay : null}
+        {sharedOverlays}
       </div>
     );
   }
@@ -8063,6 +8139,7 @@ export function ChalkApp({
                   }}
                   onPickCover={() => startCoverPick(selectedPlayer.id)}
                   pickingCover={coverPick === selectedPlayer.id}
+                  quarterback={isQuarterback(editor.document, selectedPlayer)}
                   role={selectedRosterRow?.role ?? ""}
                   mark={selectedRosterRow?.mark}
                   onToggle={toggleDisclosure}
@@ -8306,9 +8383,6 @@ export function ChalkApp({
         </div>
       </div>
       {overlay === "palette" ? paletteOverlay : null}
-      {overlay === "shortcuts" ? (
-        <ShortcutReference onClose={() => setOverlay(null)} />
-      ) : null}
       {overlay === "defenses" ? (
         <DefenseBrowser
           calls={defensiveCalls}
@@ -8400,61 +8474,7 @@ export function ChalkApp({
           snapshot={playbook.snapshot}
         />
       ) : null}
-      {overlay === "conflicts" && sync ? (
-        <ConflictInboxHost onClose={() => setOverlay(null)} sync={sync} />
-      ) : null}
-      {overlay === "settings" ? (
-        <SettingsOverlay
-          account={
-            <AccountPanel
-              expanded
-              identity={identity}
-              onKeepLocalData={async () => {
-                await identity.signOut();
-              }}
-              onOpenConflicts={() => setOverlay("conflicts")}
-              onRemoveLocalData={async () => {
-                await identity.signOut();
-                await runtime.destroyLocalData();
-              }}
-              snapshot={syncSnapshot}
-              sync={sync}
-            />
-          }
-          accountSummary={
-            identitySession.status === "signed_in"
-              ? `Signed in · ${syncSnapshot.status}`
-              : "Local only"
-          }
-          fieldProfile={settingsFieldProfile}
-          fieldProfileName={editor.document.fieldProfile.name}
-          onClose={() => setOverlay(null)}
-          onTab={setSettingsTab}
-          onTheme={setThemePreference}
-          tab={settingsTab}
-          theme={themePreference}
-          version={
-            typeof __CHALK_VERSION__ === "string" && __CHALK_VERSION__
-              ? __CHALK_VERSION__
-              : undefined
-          }
-          onPageKind={(pageKind) =>
-            setPresentation((current) => ({ ...current, pageKind }))
-          }
-          onRestoreVersion={restoreVersion}
-          onTypePreset={(typePreset) =>
-            setPresentation((current) => ({ ...current, typePreset }))
-          }
-          pageKind={presentation.pageKind}
-          playbookSettings={settingsPlaybookSettings}
-          typeHint={
-            typePresetCatalog.find(({ id }) => id === presentation.typePreset)
-              ?.hint ?? typePresetCatalog[0]!.hint
-          }
-          typePreset={presentation.typePreset}
-          versions={editor.versions}
-        />
-      ) : null}
+      {sharedOverlays}
       <ContextMenu
         actions={actions}
         at={contextMenu}
@@ -8475,8 +8495,12 @@ type BackupState =
   | { readonly phase: "done"; readonly message: string }
   | { readonly phase: "error"; readonly message: string };
 
+/**
+ * An encrypted backup of this device's Playbooks, and a restore from one.
+ * It is this device's data rather than the play's, so it sits under
+ * Settings → Account (ADR 0074) rather than in the More menu it began in.
+ */
 function BackupPanel({ runtime }: { runtime: ChalkRuntime }) {
-  const [open, setOpen] = useState(false);
   const [passphrase, setPassphrase] = useState("");
   const [state, setState] = useState<BackupState>({ phase: "idle" });
 
@@ -8532,16 +8556,9 @@ function BackupPanel({ runtime }: { runtime: ChalkRuntime }) {
   };
 
   return (
-    <div className="backup-section">
-      <button
-        aria-expanded={open}
-        className="menu-entry"
-        onClick={() => setOpen((shown) => !shown)}
-        type="button"
-      >
-        Backup
-      </button>
-      <div className="backup-panel" hidden={!open}>
+    <div aria-label="Backup" className="backup-section" role="group">
+      <span className="settings-field-label">Backup</span>
+      <div className="backup-panel">
         <label className="backup-field">
           <span>Passphrase</span>
           <input
@@ -9047,15 +9064,15 @@ function Header({
       onDismiss={onCloseMenu}
       onToggle={() => onMenu("more")}
       open={openMenu === "more"}
+      phone={phone}
       zonesHidden={zonesHidden}
     >
       <PlaySharePanel runtime={runtime} />
-      <BackupPanel runtime={runtime} />
     </MoreMenu>
   );
   return (
     <header className={phone ? "topbar phone-topbar" : "topbar"}>
-      {phone ? (
+      {phone && activeView !== "Playbooks" && activeView !== "GameDay" ? (
         <button
           aria-label="Open the sidebar"
           className="sidebar-open"
@@ -9092,15 +9109,30 @@ function Header({
         // The Playbook is managed here, and a prepared plan is read here
         // (issue #163) — not the open Play: its name, type, undo and save
         // belong to the editor and wait there.
+        // Neither page has the sidebar, so the two icons at its foot stand
+        // at the header's end instead (ADR 0074). More's actions are all
+        // about a field these pages do not show.
         <>
           <span className="topbar-fill" />
-          <HelpMenu
-            actions={actions}
-            onDismiss={onCloseMenu}
-            onToggle={() => onMenu("help")}
-            open={openMenu === "help"}
-          />
-          {moreMenu}
+          <div className="header-icons">
+            <HelpMenu
+              actions={actions}
+              icon={<SidebarIcon glyph="help" />}
+              onDismiss={onCloseMenu}
+              onToggle={() => onMenu("help")}
+              open={openMenu === "help"}
+            />
+            <button
+              aria-label="Settings"
+              className="icon-button settings"
+              disabled={!actions.settings}
+              onClick={actions.settings}
+              title="Settings — field, playbook, appearance, account"
+              type="button"
+            >
+              <SidebarIcon glyph="settings" />
+            </button>
+          </div>
         </>
       ) : (
         <>
@@ -9124,29 +9156,30 @@ function Header({
           {/* Where a narrow header breaks into its second row (issue #68). */}
           <span className="top-break" aria-hidden="true" />
           <span className="top-spacer" />
-          {/* A phone draws Undo and Redo as arrows and names them for a
-              screen reader (ADR 0057); wider screens keep the words. */}
+          {/* Undo, Redo, Reset positions and Present are icons named for a
+              screen reader, their titles saying what each would do (ADR 0057
+              on a phone, ADR 0074 everywhere). */}
           <button
-            aria-label={phone ? "Undo" : undefined}
-            className="quiet undo"
+            aria-label="Undo"
+            className="quiet icon-button undo"
             disabled={!undo.canUndo}
             onClick={onUndo}
             title={
               undo.undoLabel ? `Undo ${undo.undoLabel}` : "Nothing to undo"
             }
           >
-            {phone ? <HistoryIcon direction="undo" /> : "Undo"}
+            <HeaderIcon glyph="undo" />
           </button>
           <button
-            aria-label={phone ? "Redo" : undefined}
-            className="quiet redo"
+            aria-label="Redo"
+            className="quiet icon-button redo"
             disabled={!undo.canRedo}
             onClick={onRedo}
             title={
               undo.redoLabel ? `Redo ${undo.redoLabel}` : "Nothing to redo"
             }
           >
-            {phone ? <HistoryIcon direction="redo" /> : "Redo"}
+            <HeaderIcon glyph="redo" />
           </button>
           <span className="divider" />
           <NewPlayMenu
@@ -9156,29 +9189,25 @@ function Header({
             open={openMenu === "new"}
           />
           <button
-            className="quiet reset-positions"
+            aria-label="Reset positions"
+            className="quiet icon-button reset-positions"
             disabled={!canResetPositions}
             onClick={onResetPositions}
             title="Put every man back at the snap"
             type="button"
           >
-            Reset positions
+            <HeaderIcon glyph="reset" />
           </button>
           <button
-            className="quiet present"
+            aria-label="Present"
+            className="quiet icon-button present"
             disabled={!actions.present || activeView === "Present"}
             onClick={actions.present}
             title="Present the play full-window — esc returns"
             type="button"
           >
-            Present
+            <HeaderIcon glyph="present" />
           </button>
-          <HelpMenu
-            actions={actions}
-            onDismiss={onCloseMenu}
-            onToggle={() => onMenu("help")}
-            open={openMenu === "help"}
-          />
           {moreMenu}
           <ExportMenu
             actions={actions}
