@@ -1,5 +1,6 @@
 ---
 status: accepted
+amended_by: 0073-the-defense-is-called-by-unit
 ---
 
 # A defense's zones lay out as one shell (parity exception to ADR 0039)

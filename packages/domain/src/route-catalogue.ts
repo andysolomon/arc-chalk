@@ -17,6 +17,7 @@ import {
 } from "./defensive-field";
 import { legacyDepthSpanToYards, legacyLateralSpanToYards } from "./geometry";
 import type { Coordinate, PathPoint, PlayDocument, Player } from "./schema";
+import { deepCallLandmark } from "./zone-shell";
 
 /**
  * The route tree, and the block and defensive calls drawn the same way. The
@@ -312,14 +313,28 @@ const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
  * the area with it; a man assignment and a rush do not.
  *
  * The original draws every one of them as a fixed shape off the man's stance.
- * A man call and the deep drops still are — the man call lines up on its
- * receiver and the deep shell shares the field out (ADR 0059) — but the rest
- * are aimed at the field (ADR 0064, issue #165): an underneath zone at its
- * landmark, a spy over the quarterback, and pressure through a gap in the
- * offensive line, so a safety rolled down to curl/flat lands at ten yards
- * rather than at his own eighteen.
+ * A man call still is — it lines up on its receiver — but the rest are aimed
+ * at the field (ADR 0064, issue #165): an underneath zone at its landmark, a
+ * spy over the quarterback, pressure through a gap in the offensive line, and
+ * a deep call on the ground its name says (ADR 0073), so a safety rolled down
+ * to curl/flat lands at ten yards rather than at his own eighteen, and a
+ * corner's Deep 1/3 is his own outside third.
  */
 type DefensivePresetGroup = "front" | "pressure" | "coverage";
+
+/** A deep call's landmark on this field: the middle of the ground it names. */
+function deepAim(
+  key: string,
+  stance: Coordinate,
+  field: DefensiveField,
+): PathPoint {
+  return deepCallLandmark(
+    key,
+    stance,
+    field.ballLateralYards,
+    field.halfWidthYards * 2,
+  )!;
+}
 
 interface LegacyDefensivePreset extends Omit<LegacyLinePreset, "points"> {
   readonly kind: "zone" | "blitz" | "stunt";
@@ -366,7 +381,7 @@ const legacyDefensivePresets: Readonly<Record<string, LegacyDefensivePreset>> =
       name: "Deep 1/3",
       kind: "zone",
       group: "coverage",
-      points: [[0, 0, -124]],
+      aim: (stance, field) => [deepAim("deep3", stance, field)],
       line: "dashed",
       ending: "bubble",
       area: [104, 44, "deep"],
@@ -375,7 +390,7 @@ const legacyDefensivePresets: Readonly<Record<string, LegacyDefensivePreset>> =
       name: "Deep 1/2",
       kind: "zone",
       group: "coverage",
-      points: [[-30, 0, -118]],
+      aim: (stance, field) => [deepAim("deep2", stance, field)],
       line: "dashed",
       ending: "bubble",
       area: [132, 48, "deep"],
@@ -384,7 +399,7 @@ const legacyDefensivePresets: Readonly<Record<string, LegacyDefensivePreset>> =
       name: "Middle 1/3",
       kind: "zone",
       group: "coverage",
-      points: [[0, 0, -136]],
+      aim: (stance, field) => [deepAim("mid3", stance, field)],
       line: "dashed",
       ending: "bubble",
       area: [96, 42, "deep"],
@@ -410,7 +425,7 @@ const legacyDefensivePresets: Readonly<Record<string, LegacyDefensivePreset>> =
       name: "Deep 1/4",
       kind: "zone",
       group: "coverage",
-      points: [[-14, 0, -120]],
+      aim: (stance, field) => [deepAim("quarter", stance, field)],
       line: "dashed",
       ending: "bubble",
       area: [78, 44, "deep"],
