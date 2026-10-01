@@ -50,6 +50,9 @@ import {
   defensivePresetsFor,
   lineCallKeys,
   linePresetByKey,
+  isQuarterback,
+  quarterbackCalls,
+  routeCallsFor,
   routePresetNames,
   stockConcepts,
   formationFromOffense,
@@ -1388,6 +1391,16 @@ const quickBackBlockCalls: readonly {
   ...quickBlockCalls.filter(({ key }) => !runGameFirst.has(key)),
 ];
 /**
+ * A quarterback's calls, offered in place of the route tree: the throws he
+ * sets up for, then the runs he hands off or keeps.
+ */
+const quarterbackPassCalls = quarterbackCalls.filter(
+  ({ game }) => game === "pass",
+);
+const quarterbackRunCalls = quarterbackCalls.filter(
+  ({ game }) => game === "run",
+);
+/**
  * What a defender can be given, in the order he is offered it: the front's
  * own calls first for a man on the line, then the gaps, then the drops
  * (issue #165). It depends on where he stands, so it is asked of the Play.
@@ -1616,6 +1629,7 @@ function PlayerInspector({
   open,
   pickingCover,
   player,
+  quarterback,
   role,
   mark,
   text,
@@ -1662,6 +1676,8 @@ function PlayerInspector({
   onToggle: (id: string) => void;
   open: Readonly<Record<string, boolean>>;
   player: Player;
+  /** He takes the snap: he drops, fakes and hands off rather than runs routes. */
+  quarterback: boolean;
   /** What he plays, said the way the roster says it: Tight end, Mike. */
   role: string;
   /** His letter, or the spot he plays when he has none (LT, C). */
@@ -1671,16 +1687,21 @@ function PlayerInspector({
 }) {
   const lineman = isLineman(player);
   const defense = player.unit === "defense";
-  const heading = defense
-    ? "Assignments"
-    : lineman
-      ? "Blocking"
-      : "Routes & alternates";
+  // A receiver or a back runs routes; the quarterback is given calls.
+  const runner = !defense && !lineman && !quarterback;
+  const heading =
+    defense || quarterback
+      ? "Assignments"
+      : lineman
+        ? "Blocking"
+        : "Routes & alternates";
   const nothingYet = defense
     ? "No assignment yet. Pick one below, or draw his zone drop or blitz path from here."
     : lineman
       ? "No block yet. Pick one below, or draw one from here."
-      : "No route yet. Pick one below, or draw one from here.";
+      : quarterback
+        ? "No assignment yet. Pick a drop, a fake or a run below, or draw his path from here."
+        : "No route yet. Pick one below, or draw one from here.";
   const drawChoices = drawChoicesFor(player);
   const symbolName =
     playerSymbolChoices.find(({ symbol }) => symbol === player.symbol)?.name ??
@@ -1820,7 +1841,7 @@ function PlayerInspector({
             title="Mirror every line he has about his stance"
             type="button"
           >
-            {defense
+            {defense || quarterback
               ? "Flip his assignments"
               : lineman
                 ? "Flip his block"
@@ -1828,7 +1849,7 @@ function PlayerInspector({
           </button>
         </div>
       )}
-      {!defense && !lineman && (
+      {runner && (
         <QuickCallGrid
           calls={routePresetNames}
           columns={3}
@@ -1838,7 +1859,26 @@ function PlayerInspector({
           running={activePresets}
         />
       )}
-      {!defense && !lineman && (
+      {quarterback && (
+        <>
+          <QuickCallGrid
+            calls={quarterbackPassCalls}
+            heading="Quick pass calls"
+            kind="route"
+            onApply={onQuickCall}
+            running={activePresets}
+          />
+          <QuickCallGrid
+            calls={quarterbackRunCalls}
+            heading="Quick run calls"
+            hint="Each is drawn from where he takes the snap, and a drop is shorter from the gun, where he is already deep. A fake, handoff or read opens to the side the run is going."
+            kind="route"
+            onApply={onQuickCall}
+            running={activePresets}
+          />
+        </>
+      )}
+      {runner && (
         // A back or a tight end blocks too, but it is the second thing he is
         // asked for, so the calls fold until they are wanted.
         <Disclosure
@@ -1888,7 +1928,9 @@ function PlayerInspector({
       {!defense && !lineman && (
         <div className="help-row alternate-row">
           <button className="alternate" onClick={onAddAlternate} type="button">
-            + Alternate route — new stem from stance
+            {quarterback
+              ? "+ Alternate call — new path from stance"
+              : "+ Alternate route — new stem from stance"}
           </button>
           <Hint about="alternates and choices">
             An <strong>alternate</strong> starts over at his stance: a different
@@ -3546,13 +3588,14 @@ export function ChalkApp({
         assignmentForPath(editor.document, path.id)?.text,
       ),
       // Each kind of line is offered the calls that belong to it: a route
-      // gets the tree, a block gets the blocking calls, and a defender's
+      // gets the tree — the quarterback's, his own calls — a block gets the
+      // blocking calls, and a defender's
       // line gets the drops, the man calls and the rushes. A motion and a
       // ball flight have no catalogue of their own, so they are offered
       // none rather than somebody else's.
       presets:
         path.kind === "route"
-          ? routePresetNames
+          ? routeCallsFor(editor.document, player)
           : path.kind === "block"
             ? blockPresets.map(({ key, name }) => ({ key, name }))
             : defensiveLineKinds.has(path.kind)
@@ -6486,7 +6529,9 @@ export function ChalkApp({
       );
       const calls =
         selectedPath.kind === "route"
-          ? routePresetNames
+          ? who
+            ? routeCallsFor(editor.document, who)
+            : routePresetNames
           : selectedPath.kind === "block"
             ? quickBlockCalls
             : defensiveLineKinds.has(selectedPath.kind) && who
@@ -6512,7 +6557,9 @@ export function ChalkApp({
     if (selectedPlayer) {
       const defense = selectedPlayer.unit === "defense";
       const lineman = isLineman(selectedPlayer);
-      const what = defense ? "Assignments" : lineman ? "Blocks" : "Routes";
+      const quarterback = isQuarterback(editor.document, selectedPlayer);
+      const what =
+        defense || quarterback ? "Assignments" : lineman ? "Blocks" : "Routes";
       const name = selectedPlayer.label.trim();
       return (
         <QuickTray
@@ -6521,7 +6568,7 @@ export function ChalkApp({
               ? assignmentCallsFor(editor.document, selectedPlayer)
               : lineman
                 ? quickBlockCalls
-                : routePresetNames
+                : routeCallsFor(editor.document, selectedPlayer)
           }
           heading={name ? `${name} · ${what}` : what}
           onApply={(presetKey) =>
@@ -6533,7 +6580,9 @@ export function ChalkApp({
               ? "Give him this call — it replaces what he was doing"
               : lineman
                 ? "Give him this block — the one he has takes it off"
-                : "Run this route — drawn from his own stance"
+                : quarterback
+                  ? "Give him this call — drawn from where he takes the snap"
+                  : "Run this route — drawn from his own stance"
           }
         />
       );
@@ -8015,6 +8064,7 @@ export function ChalkApp({
                   }}
                   onPickCover={() => startCoverPick(selectedPlayer.id)}
                   pickingCover={coverPick === selectedPlayer.id}
+                  quarterback={isQuarterback(editor.document, selectedPlayer)}
                   role={selectedRosterRow?.role ?? ""}
                   mark={selectedRosterRow?.mark}
                   onToggle={toggleDisclosure}

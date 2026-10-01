@@ -5,6 +5,7 @@ import type {
   PathPoint,
   PlayDocument,
 } from "./schema";
+import { mirroredCallKey } from "./sided-calls";
 
 /**
  * The original's canvas is deliberately anisotropic: it draws a full 53 1/3
@@ -145,6 +146,10 @@ export function mirrorPlayGeometry(play: PlayDocument): PlayDocument {
         ...branch,
         points: branch.points.map(mirrorPathPoint),
       })),
+      // A call that names its side is the other side's once mirrored.
+      ...(path.preset === undefined
+        ? {}
+        : { preset: mirroredCallKey(path.preset) }),
     })),
     labels: play.labels.map((label) => ({
       ...label,

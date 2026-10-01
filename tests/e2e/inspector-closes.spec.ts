@@ -51,10 +51,10 @@ test.describe("tablet", () => {
       "q",
     );
 
-    // A quick route closes the drawer.
+    // A quick call closes the drawer.
     await stub.tap();
     await expect(inspector).toBeVisible();
-    await inspector.getByRole("button", { name: "Slant" }).tap();
+    await inspector.getByRole("button", { name: "3-step drop" }).tap();
     await expect(inspector).toHaveCount(0);
     await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
 

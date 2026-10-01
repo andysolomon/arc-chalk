@@ -6,7 +6,7 @@ import {
   lineKindNames,
   linePresetByKey,
   offensivePlayers,
-  routePresetNames,
+  routeCallName,
   yardsToLegacyCanvas,
   type MovementPath,
   type PlayDocument,
@@ -161,9 +161,7 @@ const KIND_NOTHING: Readonly<Record<RosterGroupId, string>> = {
 
 function presetName(path: MovementPath): string | undefined {
   if (path.preset === undefined) return undefined;
-  if (path.kind === "route") {
-    return routePresetNames.find(({ key }) => key === path.preset)?.name;
-  }
+  if (path.kind === "route") return routeCallName(path.preset);
   return linePresetByKey(path.preset)?.name;
 }
 
@@ -238,6 +236,8 @@ function offenseRows(play: PlayDocument): readonly RosterRow[] {
       group,
       (role && OFFENSE_ROLE_NAMES[role]) || "",
       role ?? "",
+      // A quarterback drops, fakes and hands off; he has no route to run.
+      role === "QB" ? "No assignment yet" : undefined,
     );
   });
 }
@@ -258,6 +258,7 @@ function row(
   group: RosterGroupId,
   role: string,
   code: string,
+  nothingYet: string = KIND_NOTHING[group],
 ): RosterRow {
   const summary = assignmentSummary(play, player);
   const letter = player.label.trim();
@@ -267,7 +268,7 @@ function row(
     mark: letter || code || "·",
     role: role || (group === "line" ? "Line" : "Skill"),
     ...(summary === undefined ? {} : { summary }),
-    nothingYet: KIND_NOTHING[group],
+    nothingYet,
     group,
   };
 }

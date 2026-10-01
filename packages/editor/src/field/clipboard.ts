@@ -2,6 +2,7 @@ import {
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
   mirrorCoordinate,
+  mirroredCallKey,
   remainingPlayerSlotsBySide,
   clampToSideOfBall,
   sideOfBallForUnit,
@@ -226,6 +227,10 @@ function mirrorPathGeometry(path: MovementPath): MovementPath {
       ...branch,
       points: branch.points.map(mirrorPoint),
     })),
+    // A call that names its side is the other side's once mirrored.
+    ...(path.preset === undefined
+      ? {}
+      : { preset: mirroredCallKey(path.preset) }),
   };
 }
 

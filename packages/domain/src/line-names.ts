@@ -10,7 +10,8 @@ import {
 import { offensivePlayers } from "./formations";
 import { classifyZoneCoverage } from "./geometry";
 import { isManLine } from "./man-coverage";
-import { linePresetByKey, routePresetNames } from "./route-catalogue";
+import { routeCallName } from "./quarterback";
+import { linePresetByKey } from "./route-catalogue";
 import type { MovementPath, PlayDocument, Player } from "./schema";
 
 /**
@@ -24,9 +25,7 @@ import type { MovementPath, PlayDocument, Player } from "./schema";
 /** The quick call a line was drawn as, while it is still that call. */
 export function quickCallName(path: MovementPath): string | undefined {
   if (path.preset === undefined) return undefined;
-  if (path.kind === "route") {
-    return routePresetNames.find(({ key }) => key === path.preset)?.name;
-  }
+  if (path.kind === "route") return routeCallName(path.preset);
   return linePresetByKey(path.preset)?.name;
 }
 

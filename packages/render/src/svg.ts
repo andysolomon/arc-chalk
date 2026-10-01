@@ -839,6 +839,17 @@ const MARK_SCALE =
   LEGACY_FIELD_GEOMETRY.depthPixelsPerYard;
 const READ_OFFSET = 20 * MARK_SCALE;
 const NOTE_OFFSET = 22 * MARK_SCALE;
+/**
+ * Words are centred where they hang, so beside a line that runs straight up
+ * or down the field a long name lies across it — a quarterback's
+ * 5-STEP DROP over his own drop. Within this much of straight, the words are
+ * set out until the nearer end of them clears the line by the gap.
+ */
+const NEAR_VERTICAL = Math.cos((25 * Math.PI) / 180);
+const NOTE_CLEARANCE = 8 * MARK_SCALE;
+/** How wide mono text is, near enough to keep it off a line. */
+const monoWidth = (text: string, size: number, track: number): number =>
+  text.length * (size * 0.6 + track);
 
 /**
  * Every mark hangs off the last leg of the line, so it reads as belonging to
@@ -929,8 +940,14 @@ function buildRouteCoaching(
       track: 0,
     });
   }
+  const upright = Math.abs(nx) >= NEAR_VERTICAL;
   for (const [index, entry] of stack.entries()) {
-    const offset = NOTE_OFFSET + index * noteStep;
+    const offset = Math.max(
+      NOTE_OFFSET + index * noteStep,
+      upright
+        ? monoWidth(entry.value, entry.size, entry.track) / 2 + NOTE_CLEARANCE
+        : 0,
+    );
     notes.push({
       kind: entry.kind,
       text: {
