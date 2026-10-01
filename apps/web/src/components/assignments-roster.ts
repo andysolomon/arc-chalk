@@ -2,11 +2,12 @@ import {
   assignRoles,
   assignmentForPath,
   defensivePlayers,
-  isLineman,
+  defensivePositions,
   lineKindNames,
+  manCallName,
   offensivePlayers,
+  offensivePositions,
   quickCallName,
-  yardsToLegacyCanvas,
   type PlayDocument,
   type Player,
 } from "@chalk/domain";
@@ -15,8 +16,10 @@ import {
  * The idle inspector's roster: the play's own men, grouped the way a coach
  * reads a call sheet — skill, backs and line on offense; front, linebackers
  * and secondary on defense (ADR 0010's position groups) — each with the one
- * line that says what he is asked to do. Shadow men are the other unit's
- * and never appear here.
+ * line that says what he is asked to do. What each man plays, and which
+ * group he belongs in, is read off where he stands (ADR 0066), the same
+ * reading the printed pages use. Shadow men are the other unit's and never
+ * appear here.
  */
 export type RosterGroupId =
   "skill" | "backs" | "line" | "front" | "linebackers" | "secondary";
@@ -30,7 +33,7 @@ export interface RosterRow {
    * an unlettered man the spot he plays — LT, C, RB — so no row is blank.
    */
   readonly mark: string;
-  /** What he plays, said the way the Coach would: Receiver, Tight end, Mike. */
+  /** What he plays, said the way the Coach would: Receiver, Tailback, Mike. */
   readonly role: string;
   /**
    * What he is asked to do: the Coach's own assignment words if he wrote any,
@@ -80,88 +83,6 @@ const GROUP_NAMES: Readonly<Record<RosterGroupId, string>> = {
   secondary: "Secondary",
 };
 
-const OFFENSE_ROLE_NAMES: Readonly<Record<string, string>> = {
-  QB: "Quarterback",
-  RB: "Back",
-  H: "Slot",
-  TE: "Tight end",
-  X: "Receiver",
-  Z: "Receiver",
-  LT: "Tackle",
-  LG: "Guard",
-  C: "Center",
-  RG: "Guard",
-  RT: "Tackle",
-};
-
-const DEFENSE_ROLE_NAMES: Readonly<Record<string, string>> = {
-  E: "End",
-  DE: "End",
-  T: "Tackle",
-  DT: "Tackle",
-  N: "Nose",
-  NT: "Nose",
-  W: "Will",
-  M: "Mike",
-  S: "Sam",
-  B: "Backer",
-  LB: "Linebacker",
-  C: "Corner",
-  CB: "Corner",
-  F: "Free safety",
-  FS: "Free safety",
-  SS: "Strong safety",
-  $: "Nickel",
-  N$: "Nickel",
-  D: "Dime",
-};
-
-const DEFENSE_GROUP_BY_LABEL: Readonly<Record<string, RosterGroupId>> = {
-  E: "front",
-  DE: "front",
-  T: "front",
-  DT: "front",
-  N: "front",
-  NT: "front",
-  W: "linebackers",
-  M: "linebackers",
-  S: "linebackers",
-  B: "linebackers",
-  LB: "linebackers",
-  C: "secondary",
-  CB: "secondary",
-  F: "secondary",
-  FS: "secondary",
-  SS: "secondary",
-  $: "secondary",
-  N$: "secondary",
-  D: "secondary",
-};
-
-/**
- * Where an unlettered defender stands decides his level: the original draws
- * the front at 404 on its canvas, linebackers around 340, and everyone
- * deeper or out on the numbers is the secondary.
- */
-const FRONT_MAX_DEPTH_PX = 50;
-const LINEBACKER_MAX_DEPTH_PX = 120;
-
-function defenseGroupOf(player: Player): RosterGroupId {
-  const byLabel = DEFENSE_GROUP_BY_LABEL[player.label.trim().toUpperCase()];
-  if (byLabel) return byLabel;
-  const { y } = yardsToLegacyCanvas(player.position);
-  const depthPx = 430 - y;
-  if (depthPx <= FRONT_MAX_DEPTH_PX) return "front";
-  if (depthPx <= LINEBACKER_MAX_DEPTH_PX) return "linebackers";
-  return "secondary";
-}
-
-const DEFENSE_GROUP_ROLE: Readonly<Record<string, string>> = {
-  front: "Lineman",
-  linebackers: "Linebacker",
-  secondary: "Defensive back",
-};
-
 const KIND_NOTHING: Readonly<Record<RosterGroupId, string>> = {
   skill: "No route yet",
   backs: "No route yet",
@@ -175,8 +96,9 @@ const KIND_NOTHING: Readonly<Record<RosterGroupId, string>> = {
  * The one line that says what a man does. His first line that is not a
  * motion leads — a motion is how he gets there, not what he is asked for —
  * and a motion counts only when it is all he has. It says, in order: the
- * Coach's assignment words on that line, the call it was drawn as, the tag
- * under the man, and only then what kind of line it is.
+ * Coach's assignment words on that line, the man he has when it is a man
+ * call, the call it was drawn as, the tag under the man, and only then what
+ * kind of line it is.
  */
 export function assignmentSummary(
   play: PlayDocument,
@@ -196,6 +118,7 @@ export function assignmentSummary(
   // printed table use, so a Drive reads Drive here too (issue #156).
   return (
     words ||
+    manCallName(play, line) ||
     quickCallName(line) ||
     tagWords(player.sublabel) ||
     lineKindNames[line.kind]
@@ -231,31 +154,23 @@ const byRosterOrder = (left: RosterRow, right: RosterRow) => {
 function offenseRows(play: PlayDocument): readonly RosterRow[] {
   const men = offensivePlayers(play);
   const roles = assignRoles(men);
-  return men.map((player, index) => {
-    const role = roles[index];
-    const group: RosterGroupId = isLineman(player)
-      ? "line"
-      : role === "QB" || role === "RB"
-        ? "backs"
-        : "skill";
-    return row(
+  const positions = offensivePositions(men);
+  return men.map((player, index) =>
+    row(
       play,
       player,
-      group,
-      (role && OFFENSE_ROLE_NAMES[role]) || "",
-      role ?? "",
-    );
-  });
+      positions[index]!.group,
+      positions[index]!.name,
+      roles[index] ?? "",
+    ),
+  );
 }
 
 function defenseRows(play: PlayDocument): readonly RosterRow[] {
-  return defensivePlayers(play).map((player) => {
-    const group = defenseGroupOf(player);
-    const role =
-      DEFENSE_ROLE_NAMES[player.label.trim().toUpperCase()] ??
-      DEFENSE_GROUP_ROLE[group]!;
-    return row(play, player, group, role, "");
-  });
+  const positions = defensivePositions(play);
+  return defensivePlayers(play).map((player, index) =>
+    row(play, player, positions[index]!.group, positions[index]!.name, ""),
+  );
 }
 
 function row(
@@ -272,7 +187,7 @@ function row(
     player,
     letter,
     mark: letter || code || "·",
-    role: role || (group === "line" ? "Line" : "Skill"),
+    role,
     ...(summary === undefined ? {} : { summary }),
     ...(summary !== undefined && !drawn ? { textOnly: true as const } : {}),
     nothingYet: KIND_NOTHING[group],

@@ -42,6 +42,7 @@ import {
   resolvePathTiming,
   lineKindNames,
   lineKindChoices,
+  lineKindWord,
   labelSizeChoices,
   playErasureCommand,
   playErasures,
@@ -1358,7 +1359,8 @@ function lineName(
   assignment: string | undefined,
 ): string {
   if (defensiveLineKinds.has(path.kind)) {
-    return `${assignment?.trim() || path.kind} · ${path.style.line}`;
+    // A man call says man, not zone (issue #154).
+    return `${assignment?.trim() || lineKindWord(path).toLowerCase()} · ${path.style.line}`;
   }
   // A block drawn as a call is listed as that call (issue #156), so a
   // lineman's Drive and his neighbour's Reach are told apart in the list.
@@ -2080,7 +2082,7 @@ function RouteInspector({
   const showRead = isRoute || coaching.readOrder !== "";
   const showConversion = isRoute || coaching.conversion !== "";
   const bent = line.some(({ control }) => control !== undefined);
-  const kindName = lineKindNames[path.kind];
+  const kindName = lineKindWord(path);
 
   return (
     <div className="label-inspector route-inspector">
@@ -6657,7 +6659,7 @@ export function ChalkApp({
         ...(selectedRosterRow ? { row: selectedRosterRow } : {}),
       }
     : selectedPath
-      ? { kind: "path", name: lineKindNames[selectedPath.kind] }
+      ? { kind: "path", name: lineKindWord(selectedPath) }
       : selectedLabel
         ? { kind: "label" }
         : undefined;
