@@ -8333,6 +8333,12 @@ button.shell-quiet:hover {
 .roster-summary.empty {
   color: var(--disabled);
 }
+.roster-text-only {
+  flex: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
 .roster-role {
   flex: none;
   color: var(--muted);
