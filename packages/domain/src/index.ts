@@ -25,6 +25,7 @@ export * from "./legacy";
 export * from "./man-coverage";
 export * from "./library";
 export * from "./line-kind-choices";
+export * from "./line-of-scrimmage";
 export * from "./line-names";
 export * from "./migrations";
 export * from "./play-classification";

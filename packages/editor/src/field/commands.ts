@@ -2,6 +2,7 @@ import {
   applyDefensiveCall,
   applyFormation,
   applyPlayCommand,
+  assignRoles,
   backfieldBlockPoints,
   assignmentForPath,
   ballLateralYards,
@@ -17,6 +18,7 @@ import {
   diffPlayDocuments,
   handednessOf,
   isLineman,
+  isOnTheLine,
   linePresetByKey,
   defensiveFieldOf,
   twistPartnerOf,
@@ -30,6 +32,7 @@ import {
   routePresetNames,
   routePresetPoints,
   settleZoneShell,
+  snapperOf,
   snapSpotOf,
   spotBall,
   stockConcepts,
@@ -63,7 +66,11 @@ import {
   type TextLabel,
 } from "@chalk/domain";
 
-import { snapPosition, type AxisSnapGuide } from "../smart-snapping";
+import {
+  snapPosition,
+  type AxisSnapGuide,
+  type SnapReference,
+} from "../smart-snapping";
 import {
   clampTranslationToField,
   coordinate,
@@ -384,15 +391,65 @@ export interface MovePreview {
   readonly readout?: FieldMoveReadout;
 }
 
+/** The names the line goes by, which an unlettered lineman is called by. */
+const LINE_ROLES: ReadonlySet<string> = new Set(["LT", "LG", "C", "RG", "RT"]);
+
+/**
+ * The men a dragged man can line up with, each called what the Coach calls
+ * him: his letter, or for an unlettered lineman the spot he stands in, so a
+ * guide says "Same depth as RG" rather than "Same depth as player".
+ */
+function snapReferences(
+  players: readonly Player[],
+  movingId: string,
+): SnapReference[] {
+  const offense = players.filter(({ unit }) => unit !== "defense");
+  const roles = assignRoles(offense);
+  const spot = new Map(
+    offense.flatMap((player, index) => {
+      const role = roles[index];
+      return role && LINE_ROLES.has(role) ? [[player.id, role] as const] : [];
+    }),
+  );
+  return players
+    .filter(({ id }) => id !== movingId)
+    .map(({ id, position, label }) => {
+      const name = label.trim() || spot.get(id);
+      return {
+        id,
+        kind: "player" as const,
+        position,
+        ...(name ? { label: name } : {}),
+      };
+    });
+}
+
+/**
+ * The line a man of the offense is dragged to and from: level with the
+ * snapper. A dragged snapper is not his own line — the next man over the
+ * ball is — or the line would follow the pointer and never hold him.
+ */
+function offenseLineFor(
+  players: readonly Player[],
+  moving: Player,
+): number | undefined {
+  if (moving.unit === "defense") return undefined;
+  return snapperOf(players.filter(({ id }) => id !== moving.id))?.position
+    .depthYards;
+}
+
 /**
  * A lone Player snaps landmark-first (ADR 0035) and reports his depth the way
- * the original's readout did. A group keeps its shape and moves raw.
+ * the original's readout did — a man of the offense also whether he is on
+ * the line (ADR 0073). A group keeps its shape and moves raw, and so does a
+ * man moved with snapping held off.
  */
 export function movePreview(
   context: FieldInteractionContext,
   items: readonly FieldItemRef[],
   start: Coordinate,
   point: Coordinate,
+  free = false,
 ): MovePreview {
   const raw = coordinate(
     point.lateralYards - start.lateralYards,
@@ -405,22 +462,17 @@ export function movePreview(
   const player = context.document.players.find(({ id }) => id === only.id);
   if (!player) return { translation: held(raw), guides: [] };
 
+  const lineDepth = offenseLineFor(context.document.players, player);
   const result = snapPosition({
     point: coordinate(
       player.position.lateralYards + raw.lateralYards,
       player.position.depthYards + raw.depthYards,
     ),
     fieldProfile: context.document.fieldProfile,
-    references: context.document.players
-      .filter(({ id }) => id !== player.id)
-      .map(({ id, position, label }) => ({
-        id,
-        kind: "player" as const,
-        position,
-        ...(label.trim() === "" ? {} : { label }),
-      })),
+    references: snapReferences(context.document.players, player.id),
+    ...(lineDepth === undefined ? {} : { line: { depthYards: lineDepth } }),
     screenScale: context.screenScale,
-    settings: context.snap,
+    settings: free ? { ...context.snap, enabled: false } : context.snap,
   });
   const snapped = coordinate(
     result.point.lateralYards - player.position.lateralYards,
@@ -444,7 +496,14 @@ export function movePreview(
     guides: stopped ? [] : result.guides,
     readout: {
       position: landed,
-      text: `${formatYards(landed.depthYards)} yds`,
+      text:
+        lineDepth === undefined
+          ? `${formatYards(landed.depthYards)} yds`
+          : `${formatYards(landed.depthYards)} yds · ${
+              isOnTheLine(landed.depthYards, lineDepth)
+                ? "on the line"
+                : "off the line"
+            }`,
     },
   };
 }

@@ -300,6 +300,7 @@ function pointerMove(
       gesture.items,
       gesture.start,
       input.point,
+      input.free === true,
     );
     return {
       model: withGesture(model, {
@@ -318,6 +319,7 @@ function pointerMove(
       gesture.items,
       gesture.start,
       input.point,
+      input.free === true,
     );
     return {
       model: withGesture(model, { ...gesture, ...preview }),

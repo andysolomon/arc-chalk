@@ -2684,6 +2684,45 @@ button.play-type.open {
   bottom: 14px;
   pointer-events: none;
 }
+/* How many of the offense are on the line (ADR 0073): in the field's lower
+   left while one of them is dragged, and while the set is illegal — clear of
+   the bars across the top and the map at the right. It never takes a press,
+   so a drag under it carries on. */
+.line-count {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  z-index: 2;
+  display: grid;
+  gap: 2px;
+  max-width: min(340px, calc(100% - 28px));
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgb(var(--shade) / 0.1),
+    0 4px 14px rgba(0, 0, 0, 0.08);
+  color: var(--ink);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.line-count strong {
+  font-weight: 500;
+}
+.line-count[data-line-count="illegal"] {
+  background: var(--error-tint);
+  box-shadow: 0 0 0 1px var(--error);
+  color: var(--error);
+}
+/* A stage wider than the field letterboxes it with grass either side; the
+   count keeps to the left band rather than reaching over the field. */
+@container (min-aspect-ratio: 1000 / 620) {
+  .line-count {
+    max-width: max(150px, calc((100cqw - 161.3cqh) / 2 - 24px));
+  }
+}
 .minimap svg {
   display: block;
   border-radius: 4px;
@@ -2936,6 +2975,11 @@ button.play-type.open {
 .status-zoom button:hover {
   background: var(--hover);
   color: var(--ink);
+}
+/* The count on the line turns to the error colour while the formation is
+   illegal (ADR 0073); a legal one reads like the other readouts. */
+.status-controls > .status-line.illegal {
+  color: var(--error);
 }
 
 .inspector {
@@ -5801,6 +5845,7 @@ button.library-dot.target.small {
   .status-controls > .status-selection,
   .status-controls > [data-formation-status],
   .status-controls > .status-snap,
+  .status-controls > .status-line,
   .status-controls > .status-count {
     display: none;
   }
@@ -7062,16 +7107,24 @@ button.library-dot.target.small {
 .phone-workspace .minimap {
   bottom: 60px;
 }
+.phone-workspace .line-count {
+  left: 10px;
+}
 /* The assignments sheet peeks over the bottom of the field (ADR 0058): what
-   the field shows along its lower edge — the Undo toast, the map — stands
-   above the bar rather than under it. Held sideways the peek is a corner
-   pill, and they keep their places. */
+   the field shows along its lower edge — the Undo toast, the map, the count
+   on the line — stands above the bar rather than under it. Held sideways the
+   peek is a corner pill, and they keep their places. */
 @media (min-height: 440px) {
   .phone-workspace .field-wrap > .toast {
     bottom: 84px;
   }
   .phone-workspace .minimap {
     bottom: 130px;
+  }
+  /* Upright, the field is letterboxed top and bottom: the count sits in the
+     grass under it, just above the sheet's peek. */
+  .phone-workspace .line-count {
+    bottom: 52px;
   }
 }
 .phone-workspace .statusbar {
@@ -7090,6 +7143,7 @@ button.library-dot.target.small {
 .phone-workspace .status-controls > .status-ball,
 .phone-workspace .status-controls > [data-formation-status],
 .phone-workspace .status-controls > .status-snap,
+.phone-workspace .status-controls > .status-line,
 .phone-workspace .status-controls > .status-count,
 .phone-workspace .status-controls > .save-state:not(.error),
 .phone-workspace .status-controls > .shell-quiet,
