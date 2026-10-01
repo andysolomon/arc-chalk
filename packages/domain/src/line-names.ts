@@ -9,8 +9,12 @@ import {
 } from "./defensive-field";
 import { classifyZoneCoverage } from "./geometry";
 import { isManLine } from "./man-coverage";
-import { linePresetByKey, routePresetNames } from "./route-catalogue";
-import type { MovementPath, PlayDocument, Player } from "./schema";
+import {
+  blockPresets,
+  linePresetByKey,
+  routePresetNames,
+} from "./route-catalogue";
+import type { MovementPath, PathPoint, PlayDocument, Player } from "./schema";
 
 /**
  * What a line is called when the Coach has not written anything for it — the
@@ -20,9 +24,45 @@ import type { MovementPath, PlayDocument, Player } from "./schema";
  * he has, the gap he rushes.
  */
 
-/** The quick call a line was drawn as, while it is still that call. */
+/** How far a point may sit from the catalogue's before a block is not that call. */
+const CALL_SHAPE_YARDS = 0.1;
+
+/**
+ * The block call a line still has the exact shape of. A block put on the
+ * line before the catalogue kept its key on the line (issue #108) is that
+ * call all the same — a Drive is a Drive — so it is read off the shape: the
+ * catalogue's own points from the man's stance, to either side for a pull.
+ * A block that matches none was drawn by hand, and is only a block.
+ */
+function blockShapeCall(path: MovementPath): string | undefined {
+  const stance = path.points[0];
+  if (stance === undefined) return undefined;
+  const drawnAs = (drawn: readonly PathPoint[]): boolean =>
+    drawn.length === path.points.length &&
+    drawn.every((point, index) => {
+      const own = path.points[index]!;
+      return (
+        Math.abs(point.lateralYards - own.lateralYards) <= CALL_SHAPE_YARDS &&
+        Math.abs(point.depthYards - own.depthYards) <= CALL_SHAPE_YARDS
+      );
+    });
+  return blockPresets.find((preset) =>
+    (preset.pull ? ([undefined, 1, -1] as const) : [undefined]).some((toward) =>
+      drawnAs(preset.pointsFrom(stance, undefined, toward)),
+    ),
+  )?.name;
+}
+
+/**
+ * The quick call a line was drawn as, while it is still that call. A block
+ * keeps its call's name by its key, or by its shape when it was drawn before
+ * the key was kept (issue #156): Drive, Reach and Pass set never print as a
+ * bare "Block".
+ */
 export function quickCallName(path: MovementPath): string | undefined {
-  if (path.preset === undefined) return undefined;
+  if (path.preset === undefined) {
+    return path.kind === "block" ? blockShapeCall(path) : undefined;
+  }
   if (path.kind === "route") {
     return routePresetNames.find(({ key }) => key === path.preset)?.name;
   }

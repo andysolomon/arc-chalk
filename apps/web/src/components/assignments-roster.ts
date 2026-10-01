@@ -4,12 +4,10 @@ import {
   defensivePlayers,
   defensivePositions,
   lineKindNames,
-  linePresetByKey,
   manCallName,
   offensivePlayers,
   offensivePositions,
-  routePresetNames,
-  type MovementPath,
+  quickCallName,
   type PlayDocument,
   type Player,
 } from "@chalk/domain";
@@ -94,14 +92,6 @@ const KIND_NOTHING: Readonly<Record<RosterGroupId, string>> = {
   secondary: "No assignment yet",
 };
 
-function presetName(path: MovementPath): string | undefined {
-  if (path.preset === undefined) return undefined;
-  if (path.kind === "route") {
-    return routePresetNames.find(({ key }) => key === path.preset)?.name;
-  }
-  return linePresetByKey(path.preset)?.name;
-}
-
 /**
  * The one line that says what a man does. His first line that is not a
  * motion leads — a motion is how he gets there, not what he is asked for —
@@ -124,10 +114,12 @@ export function assignmentSummary(
     return words?.trim() || undefined;
   }
   const words = assignmentForPath(play, line.id)?.text.trim();
+  // The call is the domain's word for it, the same one the field and every
+  // printed table use, so a Drive reads Drive here too (issue #156).
   return (
     words ||
     manCallName(play, line) ||
-    presetName(line) ||
+    quickCallName(line) ||
     tagWords(player.sublabel) ||
     lineKindNames[line.kind]
   );
