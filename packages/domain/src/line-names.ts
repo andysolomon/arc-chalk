@@ -9,11 +9,8 @@ import {
 } from "./defensive-field";
 import { classifyZoneCoverage } from "./geometry";
 import { isManLine } from "./man-coverage";
-import {
-  blockPresets,
-  linePresetByKey,
-  routePresetNames,
-} from "./route-catalogue";
+import { routeCallName } from "./quarterback";
+import { blockPresets, linePresetByKey } from "./route-catalogue";
 import type { MovementPath, PathPoint, PlayDocument, Player } from "./schema";
 
 /**
@@ -63,9 +60,7 @@ export function quickCallName(path: MovementPath): string | undefined {
   if (path.preset === undefined) {
     return path.kind === "block" ? blockShapeCall(path) : undefined;
   }
-  if (path.kind === "route") {
-    return routePresetNames.find(({ key }) => key === path.preset)?.name;
-  }
+  if (path.kind === "route") return routeCallName(path.preset);
   return linePresetByKey(path.preset)?.name;
 }
 

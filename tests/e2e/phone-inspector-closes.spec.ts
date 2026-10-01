@@ -45,8 +45,8 @@ test.describe("phone", () => {
     await page.touchscreen.tap(q.x, q.y);
     await openSheet();
 
-    // A quick route: drawn, and the sheet is out of the way.
-    await sheet.getByRole("button", { name: "Slant" }).tap();
+    // A quick call: drawn, and the sheet is out of the way.
+    await sheet.getByRole("button", { name: "3-step drop" }).tap();
     await expect(sheet).toHaveAttribute("data-sheet", "peek");
     await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
 

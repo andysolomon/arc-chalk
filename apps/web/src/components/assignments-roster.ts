@@ -162,6 +162,8 @@ function offenseRows(play: PlayDocument): readonly RosterRow[] {
       positions[index]!.group,
       positions[index]!.name,
       roles[index] ?? "",
+      // A quarterback drops, fakes and hands off; he has no route to run.
+      roles[index] === "QB" ? "No assignment yet" : undefined,
     ),
   );
 }
@@ -179,6 +181,7 @@ function row(
   group: RosterGroupId,
   role: string,
   code: string,
+  nothingYet: string = KIND_NOTHING[group],
 ): RosterRow {
   const summary = assignmentSummary(play, player);
   const drawn = play.paths.some(({ playerId }) => playerId === player.id);
@@ -190,7 +193,7 @@ function row(
     role,
     ...(summary === undefined ? {} : { summary }),
     ...(summary !== undefined && !drawn ? { textOnly: true as const } : {}),
-    nothingYet: KIND_NOTHING[group],
+    nothingYet,
     group,
   };
 }

@@ -141,7 +141,7 @@ test("an I-Form play is 21 personnel in the editor and on the printed page, with
   await expect
     .poll(() => groupRows(page, "Backs"))
     .toEqual([
-      "Q: No route yet — Quarterback",
+      "Q: No assignment yet — Quarterback",
       "F: No route yet — Fullback",
       "H: No route yet — Tailback",
     ]);
@@ -181,7 +181,7 @@ test("an I-Form play is 21 personnel in the editor and on the printed page, with
   await expect
     .poll(() => groupRows(page, "Backs"))
     .toEqual([
-      "Q: No route yet — Quarterback",
+      "Q: No assignment yet — Quarterback",
       "F: No route yet — Tailback",
       "H: No route yet — Fullback",
     ]);
