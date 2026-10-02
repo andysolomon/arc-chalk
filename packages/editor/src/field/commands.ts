@@ -12,6 +12,11 @@ import {
   flippedPlayerLabels,
   flipStrengthWords,
   canonicalStringify,
+  coverableReceivers,
+  coverageCallByKey,
+  coverageCallOf,
+  coverageJobsOf,
+  coverageMenOf,
   coverReceiver,
   defensiveLineKinds,
   deletePathsCommand,
@@ -32,6 +37,7 @@ import {
   routeCallName,
   turnedOverCallAssignments,
   routeCallPoints,
+  settleManCoverage,
   settleZoneShell,
   snapperOf,
   snapSpotOf,
@@ -65,6 +71,7 @@ import {
   type PrimitivePlayCommand,
   type RealignmentResult,
   type TextLabel,
+  type UnitCalls,
 } from "@chalk/domain";
 
 import {
@@ -1896,8 +1903,31 @@ export function applyLinePresetCommand(
         )
       : document;
 
+  // Pressing a man's own call again hands him back to the coverage, where
+  // one is on (ADR 0075); a call the coverage gave him comes off as before.
+  const coverage = already ? coverageCallOf(document) : undefined;
+  const jobs = coverage ? coverageJobsOf(document, coverage.key) : undefined;
+  const handedBack = players.filter(
+    ({ id }) =>
+      jobs?.has(id) &&
+      document.paths.some(
+        (path) =>
+          path.playerId === id &&
+          path.preset === presetKey &&
+          path.unitCall !== "coverage",
+      ),
+  );
+
   const called: PlayDocument = already
-    ? cleared
+    ? {
+        ...cleared,
+        paths: [
+          ...cleared.paths,
+          ...handedBack.map((player) =>
+            coverageLine(cleared, player, jobs!.get(player.id)!, createId),
+          ),
+        ],
+      }
     : {
         ...cleared,
         paths: [
@@ -1914,8 +1944,149 @@ export function applyLinePresetCommand(
   const command = diffPlayDocuments(
     document,
     next,
-    already ? `${preset.name} — off` : `Applied ${preset.name}`,
+    !already
+      ? `Applied ${preset.name}`
+      : handedBack.length > 0
+        ? `${preset.name} — back to ${coverage!.name}`
+        : `${preset.name} — off`,
   );
+  return command.commands.length > 0 ? command : undefined;
+}
+
+/** The line a coverage gives a man: his job's quick assignment, marked as its. */
+function coverageLine(
+  document: PlayDocument,
+  player: Player,
+  job: string,
+  createId: (prefix: string) => string,
+): MovementPath {
+  return {
+    ...presetPath(document, player, linePresetByKey(job)!, createId("path")),
+    unitCall: "coverage",
+  };
+}
+
+/** A Play with the unit calls given, and none at all when there are none. */
+function withUnitCalls(
+  document: PlayDocument,
+  unitCalls: UnitCalls | undefined,
+): PlayDocument {
+  const rest: Partial<PlayDocument> = { ...document };
+  delete rest.unitCalls;
+  return {
+    ...(rest as PlayDocument),
+    ...(unitCalls && Object.keys(unitCalls).length > 0 ? { unitCalls } : {}),
+  };
+}
+
+/**
+ * A coverage put on the defense (ADR 0075): every man who drops is given the
+ * job it asks of him, drawn as the quick assignment it is and marked as the
+ * coverage's. On a defense with no coverage yet it is every such man's job,
+ * whatever he had; changing the coverage redraws only the lines it drew, so
+ * a man's own call stays. Pressing the coverage that is on takes it off: its
+ * lines go and the men's own calls stay. In man, the men left once every
+ * receiver is taken play the hole. The zone shell settles in the same step.
+ */
+export function applyCoverageCallCommand(
+  document: PlayDocument,
+  key: string,
+  createId: (prefix: string) => string,
+): PlayCommand | undefined {
+  const call = coverageCallByKey(key);
+  if (!call) return undefined;
+  const men = coverageMenOf(document);
+  if (men.length === 0) return undefined;
+  const current = coverageCallOf(document);
+  const others: UnitCalls = { ...document.unitCalls };
+  delete others.coverage;
+  const removing = (paths: readonly MovementPath[]) =>
+    paths.length > 0
+      ? applyPlayCommand(
+          document,
+          deletePathsCommand(
+            document,
+            paths.map(({ id }) => id),
+          ),
+        )
+      : document;
+
+  if (current?.key === call.key) {
+    const cleared = removing(
+      document.paths.filter(({ unitCall }) => unitCall === "coverage"),
+    );
+    const next = settleZoneShell(document, withUnitCalls(cleared, others));
+    const command = diffPlayDocuments(document, next, `${call.name} — off`);
+    return command.commands.length > 0 ? command : undefined;
+  }
+
+  const ids = new Set(men.map(({ id }) => id));
+  const own = new Set(
+    current === undefined
+      ? []
+      : document.paths
+          .filter(
+            (path) =>
+              ids.has(path.playerId) &&
+              defensiveLineKinds.has(path.kind) &&
+              path.unitCall !== "coverage",
+          )
+          .map(({ playerId }) => playerId),
+  );
+  const cleared = removing(
+    document.paths.filter(
+      (path) =>
+        defensiveLineKinds.has(path.kind) &&
+        (current === undefined
+          ? ids.has(path.playerId)
+          : path.unitCall === "coverage"),
+    ),
+  );
+  const jobs = coverageJobsOf(document, call.key);
+  const given = men.filter(({ id }) => !own.has(id));
+  const lines = given.map((man) =>
+    coverageLine(cleared, man, jobs.get(man.id)!, createId),
+  );
+  let draft = withUnitCalls(
+    { ...cleared, paths: [...cleared.paths, ...lines] },
+    { ...others, coverage: call.key },
+  );
+
+  // Man match answers for who covers whom; a man it leaves with nobody, while
+  // there are receivers to cover, sits in the hole instead.
+  const inMan = lines.filter(({ preset }) => preset === "man");
+  if (inMan.length > 0 && coverableReceivers(draft).length > 0) {
+    const matched = new Map(
+      settleManCoverage(undefined, draft).paths.map((path) => [path.id, path]),
+    );
+    const free = new Set(
+      inMan
+        .filter(({ id }) => matched.get(id)?.covers === undefined)
+        .map(({ id }) => id),
+    );
+    if (free.size > 0) {
+      const byId = new Map(men.map((man) => [man.id, man]));
+      draft = {
+        ...draft,
+        paths: draft.paths.map((path) =>
+          free.has(path.id)
+            ? {
+                ...coverageLine(
+                  cleared,
+                  byId.get(path.playerId)!,
+                  "hook",
+                  createId,
+                ),
+                id: path.id,
+              }
+            : path,
+        ),
+      };
+    }
+  }
+
+  const next = settleZoneShell(document, draft);
+  const command = diffPlayDocuments(document, next, `Applied ${call.name}`);
   return command.commands.length > 0 ? command : undefined;
 }
 
