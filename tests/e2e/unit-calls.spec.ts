@@ -1,5 +1,5 @@
 import { type Page, type TestInfo } from "@playwright/test";
-import { expect, openSeededEditor, test } from "./fixtures";
+import { expect, openSeededEditor, startNewPlay, test } from "./fixtures";
 
 /**
  * The coverage (ADR 0075, issue #188), called the way a defensive coordinator
@@ -11,11 +11,7 @@ import { expect, openSeededEditor, test } from "./fixtures";
  */
 
 async function newDefensivePlay(page: Page): Promise<void> {
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "More actions" })
-    .click();
-  await page.getByRole("button", { name: /^New defensive play/ }).click();
+  await startNewPlay(page, "defensive");
   await expect(page.locator("[data-scene-player]")).toHaveCount(0);
 }
 
