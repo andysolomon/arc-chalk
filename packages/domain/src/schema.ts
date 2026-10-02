@@ -360,12 +360,15 @@ export const defensiveCallSourceSchema = z.object({
 });
 
 /**
- * The calls the defense is given by unit (ADR 0075). A coverage is kept by its
- * key as written, so a Play whose coverage a newer Chalk named still loads
- * here, with no coverage this version knows.
+ * The calls the defense is given by unit (ADR 0075): the coverage, the
+ * front's call and the linebackers' call. Each is kept by its key as written,
+ * so a Play whose call a newer Chalk named still loads here, with no call
+ * this version knows.
  */
 export const unitCallsSchema = z.object({
   coverage: z.optional(z.string()),
+  front: z.optional(z.string()),
+  linebackers: z.optional(z.string()),
 });
 
 const releasedPlayDocumentFields = {

@@ -16,6 +16,7 @@ import {
   coverageCallByKey,
   coverageCallOf,
   coverageJobsOf,
+  unitJobOf,
   coverageMenOf,
   coverReceiver,
   defensiveLineKinds,
@@ -72,6 +73,7 @@ import {
   type RealignmentResult,
   type TextLabel,
   type UnitCalls,
+  type UnitJob,
 } from "@chalk/domain";
 
 import {
@@ -1903,28 +1905,28 @@ export function applyLinePresetCommand(
         )
       : document;
 
-  // Pressing a man's own call again hands him back to the coverage, where
-  // one is on (ADR 0075); a call the coverage gave him comes off as before.
-  const coverage = already ? coverageCallOf(document) : undefined;
-  const jobs = coverage ? coverageJobsOf(document, coverage.key) : undefined;
-  const handedBack = players.filter(
-    ({ id }) =>
-      jobs?.has(id) &&
-      document.paths.some(
-        (path) =>
-          path.playerId === id &&
-          path.preset === presetKey &&
-          path.unitCall !== "coverage",
-      ),
-  );
+  // Pressing a man's own call again hands him back to his unit's call,
+  // where one is on (ADR 0075); a call his unit gave him comes off as before.
+  const handedBack = already
+    ? players.flatMap((player) => {
+        const unitJob = unitJobOf(document, player.id);
+        const own = document.paths.some(
+          (path) =>
+            path.playerId === player.id &&
+            path.preset === presetKey &&
+            path.unitCall === undefined,
+        );
+        return unitJob && own ? [{ player, unitJob }] : [];
+      })
+    : [];
 
   const called: PlayDocument = already
     ? {
         ...cleared,
         paths: [
           ...cleared.paths,
-          ...handedBack.map((player) =>
-            coverageLine(cleared, player, jobs!.get(player.id)!, createId),
+          ...handedBack.map(({ player, unitJob }) =>
+            unitLine(cleared, player, unitJob, createId),
           ),
         ],
       }
@@ -1947,10 +1949,23 @@ export function applyLinePresetCommand(
     !already
       ? `Applied ${preset.name}`
       : handedBack.length > 0
-        ? `${preset.name} — back to ${coverage!.name}`
+        ? `${preset.name} — back to ${handedBack[0]!.unitJob.callName}`
         : `${preset.name} — off`,
   );
   return command.commands.length > 0 ? command : undefined;
+}
+
+/** The line a unit call gives a man: his job's quick assignment, marked as its. */
+function unitLine(
+  document: PlayDocument,
+  player: Player,
+  { job, unitCall }: Pick<UnitJob, "job" | "unitCall">,
+  createId: (prefix: string) => string,
+): MovementPath {
+  return {
+    ...presetPath(document, player, linePresetByKey(job)!, createId("path")),
+    unitCall,
+  };
 }
 
 /** The line a coverage gives a man: his job's quick assignment, marked as its. */
@@ -1960,10 +1975,7 @@ function coverageLine(
   job: string,
   createId: (prefix: string) => string,
 ): MovementPath {
-  return {
-    ...presetPath(document, player, linePresetByKey(job)!, createId("path")),
-    unitCall: "coverage",
-  };
+  return unitLine(document, player, { job, unitCall: "coverage" }, createId);
 }
 
 /** A Play with the unit calls given, and none at all when there are none. */

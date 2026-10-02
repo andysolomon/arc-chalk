@@ -55,7 +55,7 @@ async function openDefense(page: Page): Promise<void> {
 const coverageRow = (page: Page) =>
   page
     .getByRole("complementary", { name: "Play inspector" })
-    .locator(".play-call .preset-summary");
+    .locator('.play-call [data-unit-call="coverage"]');
 
 /** Opens the Coverage row's catalogue and presses one coverage in it. */
 async function callCoverage(page: Page, name: string): Promise<void> {
