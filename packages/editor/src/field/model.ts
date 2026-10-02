@@ -32,6 +32,11 @@ export interface FieldPointerInput {
   readonly point: Coordinate;
   readonly pointerId: number;
   readonly shiftKey?: boolean;
+  /**
+   * ⌘ or Ctrl is held: a man being dragged goes exactly where the pointer
+   * puts him, as a design tool lets a shape go unsnapped (ADR 0073).
+   */
+  readonly free?: boolean;
   readonly button?: number;
   /** "touch" widens hit targets to the 44 CSS px minimum (ADR 0016). */
   readonly pointerType?: string;

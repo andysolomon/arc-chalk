@@ -36,6 +36,10 @@ _Avoid_: Default formation, starting template
 The other unit's men, lines and notes drawn on a Play that is not theirs — the defense under an offensive play, the offense under a defensive one. A Coach shows or hides it; it never changes what the Play is.
 _Avoid_: Opponent, scout team, the other play
 
+**On the line**:
+Standing level with the snapper — within half a yard of his depth on the diagram. Every other man of the offense is a back. No more than four backs are allowed, so with eleven on offense at least seven are on the line; there is no most. A receiver a step off the line is a back.
+_Avoid_: Lineman (a position, not a place), on the ball
+
 **Zone shell**:
 A defense's zone drops taken together rather than one defender at a time. Each zone is the ground its call names — Middle 1/3, the outside third on a man's side, his half, his quarter — men called into the same zone share it, and bubbles of different zones sit side by side instead of stacking.
 _Avoid_: Coverage template, zone preset
@@ -83,6 +87,10 @@ _Avoid_: Collaboration, invitation, public playbook
 **Film Reference**:
 An external link associated with a Play for coaching context. Chalk does not own, upload, transcode, stream, or offline-cache the referenced video.
 _Avoid_: Hosted video, film library
+
+**Film Observation**:
+What was seen on one snap of film: where each man lined up and how each moved, measured from the ball, before anything is named. It records what happened on that snap, not what was called, so it becomes a Play only when the Coach accepts a draft of it.
+_Avoid_: Recognized play, detected formation, film import
 
 **Game Plan**:
 A named, durable view kept in one Playbook — its home, where it is listed, printed and prepared from — for one game and one coordinator unit: which Plays will be called, from that book or any other of the Coach's, the Sections they are called from, and the code each answers to. It references Plays and never copies their editable source.

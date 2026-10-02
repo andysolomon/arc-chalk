@@ -72,6 +72,7 @@ import {
   formatClassification,
   unitName,
   type Concept,
+  scrimmageLine,
   type Coordinate,
   type LabelRole,
   type CoverageDepths,
@@ -314,6 +315,8 @@ import {
   type ToolId,
 } from "./tool-labels";
 import { FieldMinimap } from "./field-minimap";
+import { LineCountChip, SnapGuideMark } from "./alignment-guides";
+import { lineStatusWords } from "./line-count";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { FieldDiagram } from "./field-diagram";
 import { SELECTION_BLUE, sceneColors, selectionKey } from "./field-marks";
@@ -829,6 +832,26 @@ function FormationGhost({
 }
 
 /**
+ * Where a drag's readout sits: beside the man, on the side the field has
+ * room for it, so a man dragged to the far sideline has it read on his
+ * inside rather than cut off at the edge.
+ */
+function placeReadout(
+  readout: { readonly position: Coordinate; readonly text: string },
+  projection: SvgProjection,
+) {
+  const at = projectCoordinate(readout.position, projection);
+  const width = readout.text.length * 6.5 + 16;
+  const roomRight = at.x + 14 + width <= projection.width - 4;
+  return {
+    ...at,
+    text: readout.text,
+    width,
+    left: roomRight ? 14 : -14 - width,
+  };
+}
+
+/**
  * The transient layer of an in-flight gesture: snap guides, the depth
  * readout, and the marquee, drawn the way the original drew them.
  */
@@ -904,74 +927,17 @@ function FieldInteractionOverlay({
   }
   if (gesture.kind === "moving") {
     const readout = gesture.readout
-      ? {
-          ...projectCoordinate(gesture.readout.position, projection),
-          text: gesture.readout.text,
-          width: gesture.readout.text.length * 6.5 + 16,
-        }
+      ? placeReadout(gesture.readout, projection)
       : undefined;
     return (
       <g className="interaction-overlay" pointerEvents="none">
-        {gesture.guides.map((guide) => {
-          if (guide.axis === "lateral") {
-            const x = projectCoordinate(
-              { lateralYards: guide.valueYards, depthYards: 0 },
-              projection,
-            ).x;
-            return (
-              <g key={`lateral-${guide.valueYards}`}>
-                <line
-                  data-snap-guide="lateral"
-                  opacity={0.65}
-                  stroke={SELECTION_BLUE}
-                  strokeDasharray="5 4"
-                  strokeWidth={1}
-                  x1={x}
-                  x2={x}
-                  y1={6}
-                  y2={projection.height - 6}
-                />
-                <text
-                  fill={SELECTION_BLUE}
-                  fontFamily="'Geist Mono', monospace"
-                  fontSize={10.5}
-                  x={x + 6}
-                  y={24}
-                >
-                  {guide.label}
-                </text>
-              </g>
-            );
-          }
-          const y = projectCoordinate(
-            { lateralYards: 0, depthYards: guide.valueYards },
-            projection,
-          ).y;
-          return (
-            <g key={`depth-${guide.valueYards}`}>
-              <line
-                data-snap-guide="depth"
-                opacity={0.65}
-                stroke={SELECTION_BLUE}
-                strokeDasharray="5 4"
-                strokeWidth={guide.strong ? 1.4 : 1}
-                x1={projection.fieldInsetX}
-                x2={projection.width - projection.fieldInsetX}
-                y1={y}
-                y2={y}
-              />
-              <text
-                fill={SELECTION_BLUE}
-                fontFamily="'Geist Mono', monospace"
-                fontSize={10.5}
-                x={20}
-                y={y - 7}
-              >
-                {guide.label}
-              </text>
-            </g>
-          );
-        })}
+        {gesture.guides.map((guide) => (
+          <SnapGuideMark
+            guide={guide}
+            key={`${guide.axis}-${guide.source}-${guide.valueYards}`}
+            projection={projection}
+          />
+        ))}
         {readout ? (
           <g
             data-move-readout
@@ -982,7 +948,7 @@ function FieldInteractionOverlay({
               height={20}
               rx={4}
               width={readout.width}
-              x={14}
+              x={readout.left}
               y={-28}
             />
             <text
@@ -990,7 +956,7 @@ function FieldInteractionOverlay({
               fontFamily="'Geist Mono', monospace"
               fontSize={11}
               textAnchor="middle"
-              x={14 + readout.width / 2}
+              x={readout.left + readout.width / 2}
               y={-14}
             >
               {readout.text}
@@ -4107,12 +4073,17 @@ export function ChalkApp({
     clientY: number;
     pointerId: number;
     shiftKey: boolean;
+    metaKey?: boolean;
+    ctrlKey?: boolean;
     button: number;
     pointerType: string;
   }) => ({
     point: fieldPointFromClient(event.clientX, event.clientY),
     pointerId: event.pointerId,
     shiftKey: event.shiftKey,
+    // ⌘ or Ctrl held through a drag puts a man exactly where the pointer
+    // does, the way a design tool lets a shape go unsnapped (ADR 0073).
+    free: event.metaKey === true || event.ctrlKey === true,
     button: event.button,
     pointerType: event.pointerType,
   });
@@ -6282,6 +6253,13 @@ export function ChalkApp({
         : [...chromeRef.current.favoritePresets, key],
     });
   const shadowOnField = shadowShown(presentation);
+  // The offense's line at rest, for the status bar (ADR 0073). A defensive
+  // play whose shadow is hidden has no offense on the field to count.
+  const lineCount =
+    editor.document.unit !== "defense" || shadowOnField
+      ? scrimmageLine(editor.document.players)
+      : undefined;
+  const lineStatus = lineStatusWords(lineCount);
   /** The shadow by the other unit's name, as the rail and the layers call it. */
   const shadowLayerName =
     editor.document.unit === "defense" ? "Shadow offense" : "Shadow defense";
@@ -7096,6 +7074,9 @@ export function ChalkApp({
         tool: activeTool,
         atFit: isAtFit(camera, EDITOR_FRAME),
         selectionCount: interaction.selection.length,
+        playerSelected:
+          interaction.selection.length === 1 &&
+          interaction.selection[0]!.kind === "player",
         drawing: interaction.drawing
           ? {
               depthBuffer: interaction.drawing.depthBuffer,
@@ -7994,6 +7975,11 @@ export function ChalkApp({
               onCamera={setCamera}
               players={editor.document.players}
             />
+            <LineCountChip
+              document={editor.document}
+              offenseShown={editor.document.unit !== "defense" || shadowOnField}
+              store={liveStore}
+            />
             {toast ? (
               <div className="toast" role="status">
                 <span>
@@ -8362,6 +8348,15 @@ export function ChalkApp({
           </button>
           <span data-formation-status>{formationStatus}</span>
           <span className="status-snap">SNAP {snapEnabled ? "ON" : "OFF"}</span>
+          {lineStatus ? (
+            <span
+              className={`status-line${lineCount?.legal === false ? " illegal" : ""}`}
+              data-line-status={lineCount?.legal ? "legal" : "illegal"}
+              title="Men on the line of scrimmage and in the backfield — no more than four backs"
+            >
+              {lineStatus}
+            </span>
+          ) : null}
           <span className="status-count">
             {editor.document.players.length}P · {editor.document.paths.length}R
           </span>

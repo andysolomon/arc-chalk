@@ -1,4 +1,9 @@
-import type { Coordinate, FieldProfile } from "@chalk/domain";
+import {
+  OFF_THE_LINE_YARDS,
+  ON_THE_LINE_TOLERANCE_YARDS,
+  type Coordinate,
+  type FieldProfile,
+} from "@chalk/domain";
 
 export type SnapGrid = 0.25 | 0.5 | 1 | "off";
 
@@ -26,11 +31,19 @@ export type SnapGuideSource =
   | "hash"
   | "sideline"
   | "yard-mark"
+  | "line"
   | "alignment"
   | "equal-split"
+  | "equal-spacing"
   | "gap"
   | "grid"
   | "direction";
+
+/** One measured space between two men, from the left one to the right. */
+export interface SnapSpan {
+  readonly from: Coordinate;
+  readonly to: Coordinate;
+}
 
 export interface AxisSnapGuide {
   readonly kind: "axis";
@@ -40,6 +53,15 @@ export interface AxisSnapGuide {
   readonly label: string;
   readonly strong: boolean;
   readonly targetId?: string;
+  /**
+   * Where the men it lines the point up with stand, the point among them,
+   * in the order they stand along the guide — so the shell can mark each
+   * one, the way a design tool marks what a dragged shape is aligned with.
+   */
+  readonly members?: readonly Coordinate[];
+  /** The equal spaces an even split is measured by, the point's own among them. */
+  readonly spans?: readonly SnapSpan[];
+  readonly spacingYards?: number;
 }
 
 export interface DirectionSnapGuide {
@@ -53,6 +75,14 @@ export interface DirectionSnapGuide {
 }
 
 export type SnapGuide = AxisSnapGuide | DirectionSnapGuide;
+
+/**
+ * The offense's line, for one of the offense being moved (ADR 0073): level
+ * with the snapper is on the line, and a step under it is off the line.
+ */
+export interface SnapLine {
+  readonly depthYards: number;
+}
 
 /** A gap between men on the line, which a break in the box lands in. */
 export interface SnapGap {
@@ -72,6 +102,7 @@ export interface SnapPositionRequest {
    * where the centre stands (issue #164).
    */
   readonly gaps?: readonly SnapGap[];
+  readonly line?: SnapLine;
   readonly excludeReferenceIds?: readonly string[];
   readonly screenScale: SnapScreenScale;
   readonly settings: SnapSettings;
@@ -108,6 +139,10 @@ interface AxisCandidate {
   readonly label: string;
   readonly strong: boolean;
   readonly targetId?: string;
+  /** Whether the guide marks the men standing on its value. */
+  readonly marksMembers?: boolean;
+  readonly spacingYards?: number;
+  readonly spans?: (point: Coordinate) => readonly SnapSpan[];
 }
 
 const DEFAULT_ACTIVATION_THRESHOLD_PX = 8;
@@ -119,14 +154,26 @@ const DEFAULT_ACTIVATION_THRESHOLD_PX = 8;
 const GAP_ACTIVATION_THRESHOLD_PX = 12;
 const MAX_SNAP_REFERENCES = 2_048;
 const PRECISION_DIGITS = 9;
+/** Men this close in depth to the point stand in its row, for even splits. */
+const ROW_TOLERANCE_YARDS = 0.75;
+/** Two splits this close are the same split. */
+const SPLIT_MATCH_YARDS = 0.01;
+/** Two men this close on an axis stand on the same guide. */
+const MEMBER_TOLERANCE_YARDS = 1e-6;
 const DIRECTION_INCREMENT_DEGREES = 45;
 const DIRECTION_COUNT = 360 / DIRECTION_INCREMENT_DEGREES;
 
+/**
+ * A yard mark is every yard, so one is always within reach of a drag; ranked
+ * with the hashes, above the men, it kept anyone from lining up level with a
+ * teammate. It ranks under them, as a grid does (ADR 0073).
+ */
 const PRIORITY = Object.freeze({
   footballOrigin: 0,
   fieldLandmark: 1,
   diagramAlignment: 2,
-  grid: 3,
+  yardMark: 3,
+  grid: 4,
 });
 
 function rounded(value: number): number {
@@ -352,7 +399,7 @@ function fieldCandidates(
     {
       axis: "depth",
       valueYards: markDepth,
-      priority: PRIORITY.fieldLandmark,
+      priority: PRIORITY.yardMark,
       source: "yard-mark",
       label: depthLabel(markDepth),
       strong: isMultiple(markDepth, fieldProfile.yardLineIntervalYards),
@@ -363,15 +410,68 @@ function fieldCandidates(
   );
 }
 
+/**
+ * Level with the snapper is the offense's line, and it outranks the men:
+ * a lineman dragged along it stays on it. A step under it is off the line,
+ * which competes with the men, so a slot can line up with another slot.
+ * Neither reaches further than the half yard that decides whether a man is
+ * on the line: zoomed out on a phone, eight pixels is nearly two yards, and
+ * a line that reached that far would pull back every receiver dragged off
+ * it. A snap to the line never changes whether he is on it.
+ */
+function lineCandidates(
+  request: SnapPositionRequest,
+  candidates: AxisCandidate[],
+  thresholdPx: number,
+): void {
+  if (!request.line) return;
+  assertFiniteCoordinate(
+    { lateralYards: 0, depthYards: request.line.depthYards },
+    "The line",
+  );
+  const reachPx = Math.min(
+    thresholdPx,
+    ON_THE_LINE_TOLERANCE_YARDS * request.screenScale.depthPixelsPerYard,
+  );
+  const on = rounded(request.line.depthYards);
+  addCandidate(
+    candidates,
+    {
+      axis: "depth",
+      valueYards: on,
+      priority: PRIORITY.footballOrigin,
+      source: "line",
+      label: "On the line",
+      strong: true,
+      marksMembers: true,
+    },
+    request.point,
+    request.screenScale,
+    reachPx,
+  );
+  addCandidate(
+    candidates,
+    {
+      axis: "depth",
+      valueYards: rounded(on - OFF_THE_LINE_YARDS),
+      priority: PRIORITY.diagramAlignment,
+      source: "line",
+      label: "Off the line",
+      strong: false,
+      marksMembers: true,
+    },
+    request.point,
+    request.screenScale,
+    reachPx,
+  );
+}
+
 function alignmentCandidates(
   request: SnapPositionRequest,
   candidates: AxisCandidate[],
   thresholdPx: number,
 ): void {
-  const excluded = new Set(request.excludeReferenceIds ?? []);
-  const references = (request.references ?? []).filter(
-    (reference) => !excluded.has(reference.id),
-  );
+  const references = referencesFor(request);
   if (references.length > MAX_SNAP_REFERENCES) {
     throw new RangeError(
       `Smart snapping supports at most ${MAX_SNAP_REFERENCES} nearby references.`,
@@ -395,6 +495,7 @@ function alignmentCandidates(
         label: `Aligned with ${name}`,
         strong: false,
         targetId: reference.id,
+        marksMembers: true,
       },
       request.point,
       request.screenScale,
@@ -410,6 +511,7 @@ function alignmentCandidates(
         label: `Same depth as ${name}`,
         strong: false,
         targetId: reference.id,
+        marksMembers: true,
       },
       request.point,
       request.screenScale,
@@ -439,12 +541,115 @@ function alignmentCandidates(
         label: `Equal split between ${referenceName(left)} and ${referenceName(right)}`,
         strong: false,
         targetId: `${left.id}:${right.id}`,
+        spacingYards: rounded(
+          (right.position.lateralYards - left.position.lateralYards) / 2,
+        ),
+        spans: (point) => [
+          { from: left.position, to: point },
+          { from: point, to: right.position },
+        ],
       },
       request.point,
       request.screenScale,
       thresholdPx,
     );
   }
+
+  spacingCandidates(request, references, candidates, thresholdPx);
+}
+
+/**
+ * Even splits, the way a design tool offers equal spacing: the man is put a
+ * split from the man beside him that the men of his own row already keep —
+ * a tackle dragged back out lands the split his guards keep. The space he is
+ * standing in is not one of them: measured by it he would land on the man at
+ * its far side. The men in another row keep their own spacing.
+ */
+function spacingCandidates(
+  request: SnapPositionRequest,
+  references: readonly SnapReference[],
+  candidates: AxisCandidate[],
+  thresholdPx: number,
+): void {
+  const at = request.point.lateralYards;
+  const row = references.filter(
+    ({ position }) =>
+      Math.abs(position.depthYards - request.point.depthYards) <=
+      ROW_TOLERANCE_YARDS,
+  );
+  const left = row.filter(({ position }) => position.lateralYards < at).at(-1);
+  const right = row.find(({ position }) => position.lateralYards > at);
+  const lateral = (reference: SnapReference) => reference.position.lateralYards;
+
+  // One offer per spot, named for the pair nearest the man: a tackle put back
+  // at his guards' split is told "C to RG", not the far end of the line.
+  const offers = new Map<
+    number,
+    { from: SnapReference; to: SnapReference; split: number; reach: number }
+  >();
+  for (let index = 1; index < row.length; index += 1) {
+    const from = row[index - 1]!;
+    const to = row[index]!;
+    if (from === left && to === right) continue;
+    const split = lateral(to) - lateral(from);
+    if (split <= SPLIT_MATCH_YARDS) continue;
+    const reach = Math.abs((lateral(from) + lateral(to)) / 2 - at);
+    const options = [
+      ...(left ? [lateral(left) + split] : []),
+      ...(right ? [lateral(right) - split] : []),
+    ];
+    for (const value of options) {
+      if (left && value <= lateral(left) + SPLIT_MATCH_YARDS) continue;
+      if (right && value >= lateral(right) - SPLIT_MATCH_YARDS) continue;
+      const spot = rounded(value);
+      const held = offers.get(spot);
+      if (!held || reach < held.reach) {
+        offers.set(spot, { from, to, split, reach });
+      }
+    }
+  }
+
+  for (const [valueYards, { from, to, split }] of offers) {
+    addCandidate(
+      candidates,
+      {
+        axis: "lateral",
+        valueYards,
+        priority: PRIORITY.diagramAlignment,
+        source: "equal-spacing",
+        label: `Same split as ${referenceName(from)} to ${referenceName(to)}`,
+        strong: false,
+        targetId: `${from.id}:${to.id}`,
+        spacingYards: rounded(split),
+        spans: (point) => matchingSpans(row, point, split),
+      },
+      request.point,
+      request.screenScale,
+      thresholdPx,
+    );
+  }
+}
+
+/** Every space in the row, the point now in it, that is this split. */
+function matchingSpans(
+  row: readonly SnapReference[],
+  point: Coordinate,
+  split: number,
+): SnapSpan[] {
+  const standing = [...row.map(({ position }) => position), point].sort(
+    (left, right) => left.lateralYards - right.lateralYards,
+  );
+  const spans: SnapSpan[] = [];
+  for (let index = 1; index < standing.length; index += 1) {
+    const from = standing[index - 1]!;
+    const to = standing[index]!;
+    if (
+      Math.abs(to.lateralYards - from.lateralYards - split) <= SPLIT_MATCH_YARDS
+    ) {
+      spans.push({ from, to });
+    }
+  }
+  return spans;
 }
 
 function gridCandidates(
@@ -486,7 +691,33 @@ function selectAxisCandidate(
     .sort(compareCandidates)[0];
 }
 
-function asGuide(candidate: AxisCandidate): AxisSnapGuide {
+/** The men standing on a guide's value, and the point, along the guide. */
+function membersOf(
+  candidate: AxisCandidate,
+  point: Coordinate,
+  references: readonly SnapReference[],
+): Coordinate[] {
+  const along = (position: Coordinate) =>
+    candidate.axis === "lateral" ? position.lateralYards : position.depthYards;
+  const across = (position: Coordinate) =>
+    candidate.axis === "lateral" ? position.depthYards : position.lateralYards;
+  return [
+    ...references
+      .map(({ position }) => position)
+      .filter(
+        (position) =>
+          Math.abs(along(position) - candidate.valueYards) <=
+          MEMBER_TOLERANCE_YARDS,
+      ),
+    point,
+  ].sort((left, right) => across(left) - across(right));
+}
+
+function asGuide(
+  candidate: AxisCandidate,
+  point: Coordinate,
+  references: readonly SnapReference[],
+): AxisSnapGuide {
   return {
     kind: "axis",
     axis: candidate.axis,
@@ -495,13 +726,28 @@ function asGuide(candidate: AxisCandidate): AxisSnapGuide {
     label: candidate.label,
     strong: candidate.strong,
     ...(candidate.targetId ? { targetId: candidate.targetId } : {}),
+    ...(candidate.marksMembers
+      ? { members: membersOf(candidate, point, references) }
+      : {}),
+    ...(candidate.spans ? { spans: candidate.spans(point) } : {}),
+    ...(candidate.spacingYards === undefined
+      ? {}
+      : { spacingYards: candidate.spacingYards }),
   };
+}
+
+function referencesFor(request: SnapPositionRequest): SnapReference[] {
+  const excluded = new Set(request.excludeReferenceIds ?? []);
+  return (request.references ?? []).filter(
+    (reference) => !excluded.has(reference.id),
+  );
 }
 
 /**
  * Ranks football-aware snap candidates in yard space. Priority is invariant:
- * ball/LOS — or, in the tackle box, its gaps/LOS — Field Profile landmarks,
- * nearby diagram alignment, then grid.
+ * ball/LOS and the offense's line — or, in the tackle box, its gaps/LOS —
+ * hashes and sidelines, the men (alignment, even splits, a step off the
+ * line), yard marks, then grid (ADR 0073).
  */
 export function snapPosition(request: SnapPositionRequest): SnapPositionResult {
   assertFiniteCoordinate(request.point, "Snap point");
@@ -528,6 +774,7 @@ export function snapPosition(request: SnapPositionRequest): SnapPositionResult {
 
   const candidates: AxisCandidate[] = [];
   fieldCandidates(request, candidates, thresholdPx);
+  lineCandidates(request, candidates, thresholdPx);
   alignmentCandidates(request, candidates, thresholdPx);
   gridCandidates(request, candidates, thresholdPx);
 
@@ -541,9 +788,10 @@ export function snapPosition(request: SnapPositionRequest): SnapPositionResult {
     point.lateralYards - original.lateralYards,
     point.depthYards - original.depthYards,
   );
+  const references = referencesFor(request);
   const guides = [lateral, depth]
     .filter((candidate): candidate is AxisCandidate => candidate !== undefined)
-    .map(asGuide);
+    .map((candidate) => asGuide(candidate, point, references));
 
   return {
     point,
