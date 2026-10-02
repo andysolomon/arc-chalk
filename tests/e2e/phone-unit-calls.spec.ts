@@ -56,7 +56,7 @@ test("names the coverage in the sheet's peek and changes it from the sheet", asy
   // Full, the sheet reaches the Coverage row, a finger's height tall.
   await page.getByRole("button", { name: "Show all assignments" }).tap();
   await expect(sheet).toHaveAttribute("data-sheet", "full");
-  const row = sheet.locator(".play-call .preset-summary");
+  const row = sheet.locator('.play-call [data-unit-call="coverage"]');
   await expect(row).toContainText("Cover 3");
   expect((await row.boundingBox())?.height).toBeGreaterThanOrEqual(44);
   await row.tap();

@@ -114,6 +114,25 @@ every linebacker.
   side. A hook is played by whoever is left, so it is never open. Nor is a receiver,
   because man match answers for him.
 
+**How the front call reads the line** (`frontJobsOf`, issue #189). The front is the men the
+roster puts on it: the ends, the tackles and the nose. A backer standing up on the line,
+like a 3-4's outside backers, is a linebacker, and the front call gives him nothing.
+
+- A man's side is the side of the ball he stands on. A man straight over it counts as
+  on the right, as `sideOfBall` reads him.
+- Contain's ends are the widest front man on each side, read off the front alone, so a
+  backer outside an end does not make the end a tackle.
+- Pinch slants everyone in. Slant left sends a man on the left out a gap and a man on
+  the right in a gap; Slant right is the reverse.
+- Twist pairs the end and the tackle beside him on each side: the tackle crashes out
+  first and the end loops inside him. A nose is no side's tackle. A man left over (the
+  nose, an end with no tackle beside him, a third man on one side) rushes, so a 3-4
+  front under Twist rushes all three.
+- The first front call replaces every front man's lines. A man the coverage has dropped
+  into a zone keeps it, as he would his own call. The Front row is disabled while nobody
+  is on the front. A defensive call from the Defenses browser sets no front call, and its
+  front stays as drawn.
+
 **A man's own call.** Putting a unit call on gives every man in the group his job,
 replacing what he had. After that, a call the Coach gives one man is his **own call**.
 Changing a unit call, and refilling a zone, go around it. Pressing a man's own call

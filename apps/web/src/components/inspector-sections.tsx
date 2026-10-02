@@ -123,9 +123,11 @@ export function PresetPicker({
   unit?: "offense" | "defense";
 }) {
   const defense = unit === "defense";
-  const kinds: readonly PresetChoice["group"][] = defense
-    ? ["coverage"]
-    : ["concept", "line"];
+  const kinds: readonly PresetChoice["group"][] = (
+    defense
+      ? (["coverage", "front", "linebackers"] as const)
+      : (["concept", "line"] as const)
+  ).filter((kind) => choices.some((choice) => choice.group === kind));
   const title = defense ? "Unit calls" : "Concepts and line calls";
   const chips: readonly (readonly [PresetChoice["group"] | "all", string])[] = [
     ["all", "All"],
