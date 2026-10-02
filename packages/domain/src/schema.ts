@@ -189,6 +189,12 @@ const movementPathFields = {
    * which the unit calls work around.
    */
   unitCall: z.optional(z.enum(["coverage", "front", "linebackers"])),
+  /**
+   * The man whose coverage zone this line took over (ADR 0075): a man off
+   * the front dropped into it, or a defensive back rotated up to it. Its
+   * ground is read off that man's stance, not this one's.
+   */
+  fills: z.optional(entityIdSchema),
   /** Things tied together so they move as one, as a Player can be. */
   group: z.optional(z.string()),
   /**

@@ -199,8 +199,11 @@ test("brings a deep safety down to curl/flat depth and hands the deep field to t
   const [bubble] = await bubblesOf(page, '[aria-label="S curl zone"]');
   expect(yards(bubble!.y)).toBeGreaterThanOrEqual(9);
   expect(yards(bubble!.y)).toBeLessThanOrEqual(12);
-  // The free safety alone owns the deep middle, and nothing underneath stacks.
-  await expect(page.locator('[aria-label$="deep zone"]')).toHaveCount(1);
+  // The half he left is refilled (ADR 0075, #190): the nearest defensive
+  // back playing underneath — the nickel — rotates up to it, beside the free
+  // safety in his own half. Nothing underneath stacks.
+  await expect(page.locator('[aria-label$="deep zone"]')).toHaveCount(2);
+  await expect(page.locator('[aria-label="N deep zone"]')).toHaveCount(1);
   expect(stacked(await bubblesOf(page))).toBe(false);
   await saveField(page, testInfo, "1-safety-rolled-to-curl-flat");
 });
