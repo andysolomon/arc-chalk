@@ -22,6 +22,10 @@ import {
   defensiveLineKinds,
   deletePathsCommand,
   diffPlayDocuments,
+  frontCallByKey,
+  frontCallOf,
+  frontJobsOf,
+  frontMenOf,
   isLineman,
   isOnTheLine,
   linePresetByKey,
@@ -1989,6 +1993,85 @@ function withUnitCalls(
     ...(rest as PlayDocument),
     ...(unitCalls && Object.keys(unitCalls).length > 0 ? { unitCalls } : {}),
   };
+}
+
+/**
+ * The front's call put on the line (ADR 0075, issue #189): every man on the
+ * front is given the job it asks of him, drawn as the quick assignment it is
+ * and marked as the front's. On a front with no call yet it is every man's
+ * job, whatever he had; changing the call redraws only the lines it drew, so
+ * an end's own call stays. Pressing the call that is on takes it off: its
+ * lines go and the men's own calls stay. A man the coverage has dropped off
+ * the front into a zone is the coverage's, and the front call leaves him
+ * there. The zone shell settles in the same step, since a call can take an
+ * end out of a drop.
+ */
+export function applyFrontCallCommand(
+  document: PlayDocument,
+  key: string,
+  createId: (prefix: string) => string,
+): PlayCommand | undefined {
+  const call = frontCallByKey(key);
+  if (!call) return undefined;
+  const men = frontMenOf(document);
+  if (men.length === 0) return undefined;
+  const current = frontCallOf(document);
+  const others: UnitCalls = { ...document.unitCalls };
+  delete others.front;
+  const ids = new Set(men.map(({ id }) => id));
+  const removing = (paths: readonly MovementPath[]) =>
+    paths.length > 0
+      ? applyPlayCommand(
+          document,
+          deletePathsCommand(
+            document,
+            paths.map(({ id }) => id),
+          ),
+        )
+      : document;
+
+  if (current?.key === call.key) {
+    const cleared = removing(
+      document.paths.filter(({ unitCall }) => unitCall === "front"),
+    );
+    const next = settleZoneShell(document, withUnitCalls(cleared, others));
+    const command = diffPlayDocuments(document, next, `${call.name} — off`);
+    return command.commands.length > 0 ? command : undefined;
+  }
+
+  const replaced = (path: MovementPath) =>
+    ids.has(path.playerId) &&
+    defensiveLineKinds.has(path.kind) &&
+    path.unitCall !== "coverage" &&
+    (current === undefined || path.unitCall === "front");
+  const cleared = removing(document.paths.filter(replaced));
+  // A man keeps what the call does not take from him: his own call, or a
+  // zone the coverage dropped him into.
+  const kept = new Set(
+    cleared.paths
+      .filter(
+        (path) => ids.has(path.playerId) && defensiveLineKinds.has(path.kind),
+      )
+      .map(({ playerId }) => playerId),
+  );
+  const jobs = frontJobsOf(document, call.key);
+  const lines = men
+    .filter(({ id }) => !kept.has(id))
+    .map((man) =>
+      unitLine(
+        cleared,
+        man,
+        { job: jobs.get(man.id)!, unitCall: "front" },
+        createId,
+      ),
+    );
+  const draft = withUnitCalls(
+    { ...cleared, paths: [...cleared.paths, ...lines] },
+    { ...others, front: call.key },
+  );
+  const next = settleZoneShell(document, draft);
+  const command = diffPlayDocuments(document, next, `Applied ${call.name}`);
+  return command.commands.length > 0 ? command : undefined;
 }
 
 /**

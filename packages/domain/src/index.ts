@@ -20,6 +20,7 @@ export * from "./film-observation";
 export * from "./formation-catalogue";
 export * from "./formation-language";
 export * from "./formations";
+export * from "./front-calls";
 export * from "./game-plan";
 export * from "./geometry";
 export * from "./image-normalize";

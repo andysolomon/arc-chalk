@@ -64,6 +64,8 @@ import {
   copyNameFor,
   coverageCalls,
   coverageMenOf,
+  frontCalls,
+  frontMenOf,
   openZonesOf,
   emptyPlayDocument,
   inInstallOrder,
@@ -120,6 +122,7 @@ import {
   spotBallCommand,
   conceptIsOn,
   applyCoverageCallCommand,
+  applyFrontCallCommand,
   applyLinePresetCommand,
   coverReceiverCommand,
   flipStrengthCommand,
@@ -2448,6 +2451,8 @@ interface UnitCallRow {
   readonly title: string;
   /** The call of its kind on the field now, if one is. */
   readonly current?: string;
+  /** Nobody is on the field for its calls to be given to. */
+  readonly disabled?: boolean;
 }
 
 /**
@@ -2622,6 +2627,7 @@ function Inspector({
         <button
           className="wide-picker preset-summary"
           data-unit-call={row.group}
+          disabled={row.disabled}
           key={row.group}
           onClick={() => onOpenPresets(row.group)}
           title={row.title}
@@ -5080,6 +5086,14 @@ export function ChalkApp({
     Record<PresetChoice["group"], (key: string) => void>
   > = {
     coverage: runCoverageCall,
+    front: (key) => {
+      const command = applyFrontCallCommand(
+        editorStore.getSnapshot().document,
+        key,
+        createStableId,
+      );
+      if (command) runPanelCommand(command, {});
+    },
   };
 
   /**
@@ -6348,6 +6362,14 @@ export function ChalkApp({
     [editor.document],
   );
   const coverageOn = editor.document.unitCalls?.coverage;
+  // A front call can be put on whenever there is a front to give it to.
+  const lined = useMemo(
+    () =>
+      editor.document.unit === "defense" &&
+      frontMenOf(editor.document).length > 0,
+    [editor.document],
+  );
+  const frontOn = editor.document.unitCalls?.front;
   const coverageChoices: readonly PresetChoice[] = coverageCalls.map(
     ({ key, name, hint }) => ({
       key: `coverage:${key}`,
@@ -6360,7 +6382,16 @@ export function ChalkApp({
   );
   // The front's call (#189) and the linebackers' (#190) join the coverage
   // here, each as its own catalogue.
-  const frontChoices: readonly PresetChoice[] = [];
+  const frontChoices: readonly PresetChoice[] = frontCalls.map(
+    ({ key, name, hint }) => ({
+      key: `front:${key}`,
+      name,
+      group: "front" as const,
+      hint,
+      on: frontOn === key,
+      available: lined,
+    }),
+  );
   const linebackerChoices: readonly PresetChoice[] = [];
   const presetChoices: readonly PresetChoice[] =
     editor.document.unit === "defense"
@@ -6369,10 +6400,13 @@ export function ChalkApp({
   const unitCallRows: readonly UnitCallRow[] = DEFENSIVE_UNIT_ROWS.filter(
     ({ group }) => presetChoices.some((choice) => choice.group === group),
   ).map((row) => {
-    const current = presetChoices.find(
-      ({ group, on }) => group === row.group && on,
-    )?.name;
-    return current === undefined ? row : { ...row, current };
+    const mine = presetChoices.filter(({ group }) => group === row.group);
+    const current = mine.find(({ on }) => on)?.name;
+    return {
+      ...row,
+      ...(current === undefined ? {} : { current }),
+      disabled: !mine.some(({ available }) => available),
+    };
   });
   const openZones = useMemo(
     () => openZonesOf(editor.document),

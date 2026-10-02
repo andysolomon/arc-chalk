@@ -1,5 +1,6 @@
 import { coverageCallOf, coverageJobsOf } from "./coverage-calls";
 import { defensiveFieldOf, frontCallFor } from "./defensive-field";
+import { frontCallOf, frontJobsOf } from "./front-calls";
 import { defensivePositions } from "./positions";
 import type { MovementPath, PlayDocument, Player } from "./schema";
 
@@ -22,11 +23,12 @@ export function frontMenOf(
 
 /**
  * The job the front gives a man on it, as the key of the quick assignment
- * that draws it; nothing for a man who is not on the front. With no front
- * call this version knows, the outside man on each side keeps contain and
- * everyone inside him rushes his gap — what a defensive call leaves its front
- * doing (ADR 0064). A man the coverage drops off the front to fill a zone
- * goes back to this when the zone is his no longer.
+ * that draws it; nothing for a man who is not on the front. It is the front
+ * call's job for him (issue #189); with no front call this version knows, the
+ * outside man on each side keeps contain and everyone inside him rushes his
+ * gap — what a defensive call leaves its front doing (ADR 0064). A man the
+ * coverage drops off the front to fill a zone goes back to this when the zone
+ * is his no longer.
  */
 export function frontJobOf(
   play: Pick<PlayDocument, "players" | "fieldProfile" | "unitCalls">,
@@ -34,7 +36,11 @@ export function frontJobOf(
 ): string | undefined {
   const man = frontMenOf(play).find(({ id }) => id === playerId);
   if (!man) return undefined;
-  return frontCallFor(man.position, defensiveFieldOf(play));
+  const call = frontCallOf(play);
+  return (
+    (call ? frontJobsOf(play, call.key).get(playerId) : undefined) ??
+    frontCallFor(man.position, defensiveFieldOf(play))
+  );
 }
 
 /** The job a unit call gives a man: the quick assignment, its unit and its call's name. */
@@ -59,6 +65,13 @@ export function unitJobOf(
     : undefined;
   if (coverage && job) {
     return { unitCall: "coverage", job, callName: coverage.name };
+  }
+  const front = frontCallOf(play);
+  const frontJob = front
+    ? frontJobsOf(play, front.key).get(playerId)
+    : undefined;
+  if (front && frontJob) {
+    return { unitCall: "front", job: frontJob, callName: front.name };
   }
   return undefined;
 }
