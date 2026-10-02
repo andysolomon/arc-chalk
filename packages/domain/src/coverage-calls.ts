@@ -307,7 +307,7 @@ function strongSafetySide(
 }
 
 /** A zone a coverage must have a man in, and what the roster calls it. */
-interface Ground {
+export interface Ground {
   readonly id: string;
   readonly name: string;
 }
@@ -339,7 +339,7 @@ const curlFlat = (side: -1 | 1): Ground => ({
  * and the curl/flat on each side. Hooks are played by whoever is left, so a
  * hook is never open; nor is a man in man, whom man match answers for.
  */
-function groundsOf(
+export function coverageGroundsOf(
   key: CoverageKey,
   play: Pick<PlayDocument, "players" | "fieldProfile">,
 ): readonly Ground[] {
@@ -373,8 +373,11 @@ function groundsOf(
   }
 }
 
-/** The ground a defender's line covers, when it is a zone a coverage counts. */
-function groundOfLine(
+/**
+ * The ground a defender's line covers, when it is a zone a coverage counts,
+ * read from `stance`: his own, or that of the man whose zone he took over.
+ */
+export function groundOfLine(
   path: MovementPath,
   stance: Player["position"],
   field: DefensiveField,
@@ -396,33 +399,4 @@ function groundOfLine(
     (ground.lateralYards + width / 2) / ground.shareYards - 0.5,
   );
   return deepShare(count, index).id;
-}
-
-/**
- * The zones the Play's coverage plays that nobody is in (ADR 0075): the man
- * it gave one to was given his own call elsewhere, or the defense has nobody
- * it could give it to. Any defender in the zone, whoever called him there,
- * fills it. Empty when the Play has no coverage this version knows.
- */
-export function openZonesOf(
-  play: Pick<PlayDocument, "players" | "paths" | "fieldProfile" | "unitCalls">,
-): readonly string[] {
-  const coverage = coverageCallOf(play);
-  if (!coverage) return [];
-  const field = defensiveFieldOf(play);
-  const stances = new Map(
-    play.players
-      .filter(({ unit }) => unit === "defense")
-      .map(({ id, position }) => [id, position]),
-  );
-  const held = new Set(
-    play.paths.flatMap((path) => {
-      const stance = stances.get(path.playerId);
-      const ground = stance && groundOfLine(path, stance, field);
-      return ground ? [ground] : [];
-    }),
-  );
-  return groundsOf(coverage.key, play)
-    .filter(({ id }) => !held.has(id))
-    .map(({ name }) => name);
 }

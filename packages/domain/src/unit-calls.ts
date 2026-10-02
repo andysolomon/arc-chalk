@@ -1,5 +1,6 @@
 import { coverageCallOf, coverageJobsOf } from "./coverage-calls";
 import { defensiveFieldOf, frontCallFor } from "./defensive-field";
+import { linebackerCallOf, linebackerJobsOf } from "./linebacker-calls";
 import { defensivePositions } from "./positions";
 import type { MovementPath, PlayDocument, Player } from "./schema";
 
@@ -53,6 +54,15 @@ export function unitJobOf(
   play: Pick<PlayDocument, "players" | "fieldProfile" | "unitCalls">,
   playerId: string,
 ): UnitJob | undefined {
+  // A backer the linebacker call sends, or puts on the quarterback, goes
+  // back to that; one it leaves in the coverage, to the coverage's job.
+  const linebackers = linebackerCallOf(play);
+  const sent = linebackers
+    ? linebackerJobsOf(play, linebackers.key).get(playerId)
+    : undefined;
+  if (linebackers && sent) {
+    return { unitCall: "linebackers", job: sent, callName: linebackers.name };
+  }
   const coverage = coverageCallOf(play);
   const job = coverage
     ? coverageJobsOf(play, coverage.key).get(playerId)

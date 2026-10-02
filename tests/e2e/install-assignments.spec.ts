@@ -145,7 +145,8 @@ test("a defensive install page lists every defender's job under the call it is",
   await expect(browser).toBeHidden();
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
 
-  // The Mike is sent from the Quick assignments, through the A gap.
+  // The Mike is sent from the Quick assignments, through the A gap, and the
+  // coverage drops the left tackle into the hook he left (ADR 0075, #190).
   await quickCall(page, "M defense player", "Quick assignments", "A gap");
 
   const preview = await installPreview(page);
@@ -154,7 +155,7 @@ test("a defensive install page lists every defender's job under the call it is",
     .poll(() => tableRows(preview))
     .toEqual([
       "LE: Contain",
-      "LT: Rush",
+      "LT: Hook",
       "RT: Rush",
       "RE: Contain",
       "W: Curl / flat",
