@@ -189,6 +189,12 @@ const movementPathFields = {
    * which the unit calls work around.
    */
   unitCall: z.optional(z.enum(["coverage", "front", "linebackers"])),
+  /**
+   * The man whose coverage zone this line took over (ADR 0075): a man off
+   * the front dropped into it, or a defensive back rotated up to it. Its
+   * ground is read off that man's stance, not this one's.
+   */
+  fills: z.optional(entityIdSchema),
   /** Things tied together so they move as one, as a Player can be. */
   group: z.optional(z.string()),
   /**
@@ -360,12 +366,15 @@ export const defensiveCallSourceSchema = z.object({
 });
 
 /**
- * The calls the defense is given by unit (ADR 0075). A coverage is kept by its
- * key as written, so a Play whose coverage a newer Chalk named still loads
- * here, with no coverage this version knows.
+ * The calls the defense is given by unit (ADR 0075): the coverage, the
+ * front's call and the linebackers' call. Each is kept by its key as written,
+ * so a Play whose call a newer Chalk named still loads here, with no call
+ * this version knows.
  */
 export const unitCallsSchema = z.object({
   coverage: z.optional(z.string()),
+  front: z.optional(z.string()),
+  linebackers: z.optional(z.string()),
 });
 
 const releasedPlayDocumentFields = {

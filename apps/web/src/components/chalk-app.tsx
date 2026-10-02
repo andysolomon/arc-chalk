@@ -62,10 +62,12 @@ import {
   formationFromDefense,
   coachDefensiveCall,
   copyNameFor,
-  coverageCallOf,
   coverageCalls,
   coverageMenOf,
   openZonesOf,
+  linebackerCalls,
+  linebackerJobsOf,
+  linebackerMenOf,
   emptyPlayDocument,
   inInstallOrder,
   stockDefensiveCalls,
@@ -121,6 +123,7 @@ import {
   spotBallCommand,
   conceptIsOn,
   applyCoverageCallCommand,
+  applyLinebackerCallCommand,
   applyLinePresetCommand,
   coverReceiverCommand,
   flipStrengthCommand,
@@ -2440,6 +2443,43 @@ function clearedWords(command: PlayCommand): { name: string; text: string } {
   };
 }
 
+/** One of the defense's unit calls as a row of its Play call (ADR 0075). */
+interface UnitCallRow {
+  readonly group: PresetChoice["group"];
+  readonly label: string;
+  /** What the row says while nothing of its kind is on. */
+  readonly empty: string;
+  readonly title: string;
+  /** The call of its kind on the field now, if one is. */
+  readonly current?: string;
+}
+
+/**
+ * The defense's unit calls, in the order a coordinator calls them: the
+ * coverage, which is in charge, then the front, then the linebackers. A row
+ * stands only when its unit has calls to offer.
+ */
+const DEFENSIVE_UNIT_ROWS: readonly UnitCallRow[] = Object.freeze([
+  {
+    group: "coverage",
+    label: "Coverage",
+    empty: "No coverage yet",
+    title: "Coverages — give the secondary and the linebackers one call",
+  },
+  {
+    group: "front",
+    label: "Front",
+    empty: "No front call yet",
+    title: "Front calls — give the whole line one call",
+  },
+  {
+    group: "linebackers",
+    label: "Linebackers",
+    empty: "No linebacker call yet",
+    title: "Linebacker calls — say which backers are sent",
+  },
+]);
+
 /** The play's own men as rows the Coach can pick from, grouped by position. */
 function RosterList({
   onSelectPlayer,
@@ -2525,7 +2565,6 @@ function RosterList({
  */
 function Inspector({
   currentConcept,
-  currentCoverage,
   currentLineCall,
   labelEditor,
   linemanCount,
@@ -2541,11 +2580,10 @@ function Inspector({
   sheet = false,
   sheetSnap = "full",
   unit,
+  unitCalls = [],
 }: {
   /** The concept drawn on the field now, if one is. */
   currentConcept?: string;
-  /** The defense's coverage, if it has one (ADR 0075). */
-  currentCoverage?: string;
   currentLineCall?: string;
   /** The panel for what is picked out, when something is. */
   labelEditor?: React.ReactNode;
@@ -2567,6 +2605,8 @@ function Inspector({
   sheet?: boolean;
   sheetSnap?: "peek" | "full";
   unit: PlayDocument["unit"];
+  /** The defense's unit calls, one row each, in the order they are called (ADR 0075). */
+  unitCalls?: readonly UnitCallRow[];
 }) {
   const defense = unit === "defense";
   // A man on words alone is counted — the words are his instruction (ADR
@@ -2582,15 +2622,19 @@ function Inspector({
         Play call
         {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
       </div>
-      <button
-        className="wide-picker preset-summary"
-        onClick={() => onOpenPresets("coverage")}
-        title="Coverages — give the secondary and the linebackers one call"
-        type="button"
-      >
-        <span>{currentCoverage ?? "No coverage yet"}</span>
-        <span>Coverage &nbsp;›</span>
-      </button>
+      {unitCalls.map((row) => (
+        <button
+          className="wide-picker preset-summary"
+          data-unit-call={row.group}
+          key={row.group}
+          onClick={() => onOpenPresets(row.group)}
+          title={row.title}
+          type="button"
+        >
+          <span>{row.current ?? row.empty}</span>
+          <span>{row.label} &nbsp;›</span>
+        </button>
+      ))}
     </section>
   ) : (
     <section className="inspector-section play-call">
@@ -2661,7 +2705,9 @@ function Inspector({
   // Full: the roster, or the picked thing with a pager through the unit.
   const snap = (next: "peek" | "full") => onSheetSnap?.(next);
   const calls = (
-    defense ? [currentCoverage] : [currentConcept, currentLineCall]
+    defense
+      ? unitCalls.map(({ current }) => current)
+      : [currentConcept, currentLineCall]
   )
     .filter(Boolean)
     .join(" · ");
@@ -5034,6 +5080,27 @@ export function ChalkApp({
   };
 
   /**
+   * The linebackers' call put on, changed, or taken off (ADR 0075, #190); the
+   * zones the men sent leave are refilled as the edit settles.
+   */
+  const runLinebackerCall = (key: string): void => {
+    const command = applyLinebackerCallCommand(
+      editorStore.getSnapshot().document,
+      key,
+      createStableId,
+    );
+    if (command) runPanelCommand(command, {});
+  };
+
+  /** What each of the defense's unit calls does when one is picked (ADR 0075). */
+  const unitCallRunners: Partial<
+    Record<PresetChoice["group"], (key: string) => void>
+  > = {
+    coverage: runCoverageCall,
+    linebackers: runLinebackerCall,
+  };
+
+  /**
    * The three places the official can spot the ball. The whole Play travels
    * with it, defense included, so each is one transaction — and the one it is
    * already on is no command at all, which greys it.
@@ -6298,19 +6365,51 @@ export function ChalkApp({
       coverageMenOf(editor.document).length > 0,
     [editor.document],
   );
+  // The linebackers' calls (#190): each one there is a backer for. Base and
+  // Fire need any backer; Mike, Will, Sam and Spy the man they name.
+  const linebackerCallOptions = useMemo((): readonly PresetChoice[] => {
+    const document = editor.document;
+    if (document.unit !== "defense") return [];
+    const backers = linebackerMenOf(document).length > 0;
+    return linebackerCalls.map(({ key, name, hint }) => ({
+      key: `linebackers:${key}`,
+      name,
+      group: "linebackers" as const,
+      hint,
+      on: document.unitCalls?.linebackers === key,
+      available:
+        key === "base" || key === "fire"
+          ? backers
+          : linebackerJobsOf(document, key).size > 0,
+    }));
+  }, [editor.document]);
   const coverageOn = editor.document.unitCalls?.coverage;
+  const coverageChoices: readonly PresetChoice[] = coverageCalls.map(
+    ({ key, name, hint }) => ({
+      key: `coverage:${key}`,
+      name,
+      group: "coverage" as const,
+      hint,
+      on: coverageOn === key,
+      available: dropping,
+    }),
+  );
+  // The front's call (#189) and the linebackers' (#190) join the coverage
+  // here, each as its own catalogue.
+  const frontChoices: readonly PresetChoice[] = [];
+  const linebackerChoices: readonly PresetChoice[] = linebackerCallOptions;
   const presetChoices: readonly PresetChoice[] =
     editor.document.unit === "defense"
-      ? coverageCalls.map(({ key, name, hint }) => ({
-          key: `coverage:${key}`,
-          name,
-          group: "coverage" as const,
-          hint,
-          on: coverageOn === key,
-          available: dropping,
-        }))
+      ? [...coverageChoices, ...frontChoices, ...linebackerChoices]
       : offensePresetChoices;
-  const currentCoverage = coverageCallOf(editor.document)?.name;
+  const unitCallRows: readonly UnitCallRow[] = DEFENSIVE_UNIT_ROWS.filter(
+    ({ group }) => presetChoices.some((choice) => choice.group === group),
+  ).map((row) => {
+    const current = presetChoices.find(
+      ({ group, on }) => group === row.group && on,
+    )?.name;
+    return current === undefined ? row : { ...row, current };
+  });
   const openZones = useMemo(
     () => openZonesOf(editor.document),
     [editor.document],
@@ -6322,11 +6421,11 @@ export function ChalkApp({
     setOverlay("presets");
   };
   const pickPreset = (choice: PresetChoice) => {
-    const key = choice.key.replace(/^(concept|line|coverage):/, "");
+    const key = choice.key.slice(choice.group.length + 1);
     putInspectorAway();
     if (choice.group === "concept") runConcept(key);
-    else if (choice.group === "coverage") runCoverageCall(key);
-    else runLineCall(key);
+    else if (choice.group === "line") runLineCall(key);
+    else unitCallRunners[choice.group]?.(key);
     rememberChrome({
       recentPresets: [
         choice.key,
@@ -8361,7 +8460,6 @@ export function ChalkApp({
               ) : undefined
             }
             currentConcept={currentConcept}
-            currentCoverage={currentCoverage}
             currentLineCall={currentLineCall}
             linemanCount={linemen.length}
             onCollapse={() => setInspectorOpen(false)}
@@ -8376,6 +8474,7 @@ export function ChalkApp({
             sheet={phoneWorkspace}
             sheetSnap={sheetSnap}
             unit={editor.document.unit}
+            unitCalls={unitCallRows}
           />
         ) : (
           inspectorStub
