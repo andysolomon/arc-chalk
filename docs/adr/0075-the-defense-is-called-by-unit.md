@@ -91,17 +91,56 @@ and it gives those jobs to the men who drop:
 | Cover 4     | Corners and safeties: Deep 1/4                                | The rest: Curl / flat outside, Hook inside                 | —                    |
 | Cover 6     | The strong safety's side: Deep 1/4. The other side: the free safety, Deep 1/2 | The corner on the half side: Curl / flat. The rest: Curl / flat outside, Hook inside | — |
 
-The free safety is the man the alignment reads as the free safety, else the deepest
-safety. Man match picks the receivers (ADR 0060), and the scheme still decides who lines
-up on his man (ADR 0061).
+**How the coverage reads the men** (`coverageJobsOf`, issue #188). The men are read the way
+the roster reads them (`defensivePositions`, ADR 0066). The coverage is put on everyone the
+roster does not put on the front: the secondary, and until the linebacker call is built,
+every linebacker.
+
+- The free safety is the man the roster calls the free safety, else the deepest safety.
+  The strong safety is the man it calls the strong safety, else the next deepest. A nickel
+  or a dime is neither: he plays underneath, or in man. The Mike is the backer it calls
+  the Mike, else the backer nearest the ball.
+- "Curl / flat outside, Hook inside": on each side of the ball, the widest man left takes
+  the curl/flat and everyone inside him a hook. On a side where a corner already has the
+  curl/flat, everyone left plays a hook.
+- Cover 6 plays its quarters to the strong safety's side, or to the right when the
+  defense has no strong safety.
+- In Cover 0 and Cover 1, man match picks the receivers (ADR 0060), and the scheme still
+  decides who lines up on his man (ADR 0061). A man that man match leaves with nobody to
+  cover, while the offense has receivers, plays a hook instead: the hole. With no offense
+  on the field, everyone in man keeps the Man call.
+- The catalogue's _Fire zone_ is Cover 3: three deep and three under behind the pressure.
+- The zones the coverage must have a man in are its deep zones and the curl/flat on each
+  side. A hook is played by whoever is left, so it is never open. Nor is a receiver,
+  because man match answers for him.
+
+**How the front call reads the line** (`frontJobsOf`, issue #189). The front is the men the
+roster puts on it: the ends, the tackles and the nose. A backer standing up on the line,
+like a 3-4's outside backers, is a linebacker, and the front call gives him nothing.
+
+- A man's side is the side of the ball he stands on. A man straight over it counts as
+  on the right, as `sideOfBall` reads him.
+- Contain's ends are the widest front man on each side, read off the front alone, so a
+  backer outside an end does not make the end a tackle.
+- Pinch slants everyone in. Slant left sends a man on the left out a gap and a man on
+  the right in a gap; Slant right is the reverse.
+- Twist pairs the end and the tackle beside him on each side: the tackle crashes out
+  first and the end loops inside him. A nose is no side's tackle. A man left over (the
+  nose, an end with no tackle beside him, a third man on one side) rushes, so a 3-4
+  front under Twist rushes all three.
+- The first front call replaces every front man's lines. A man the coverage has dropped
+  into a zone keeps it, as he would his own call. The Front row is disabled while nobody
+  is on the front. A defensive call from the Defenses browser sets no front call, and its
+  front stays as drawn.
 
 **A man's own call.** Putting a unit call on gives every man in the group his job,
 replacing what he had. After that, a call the Coach gives one man is his **own call**.
-Changing a unit call, and refilling a zone, go around it. Pressing a man's own call again
-hands him back to his unit's call; with no unit call on, it takes the call off as it
-always has. A defensive call from the Defenses browser sets the coverage it names. Its
-lines belong to the units, not to any man, and stay as the art draws them until a unit
-call or a refill redraws them.
+Changing a unit call, and refilling a zone, go around it. Pressing a man's own call
+again hands him back to his unit's call; with no unit call on, it takes the call off as
+it always has. Pressing a call his unit gave him still takes it off, leaving his zone
+open. A defensive call from the Defenses browser sets the coverage it names. Its lines
+belong to the units, not to any man, and stay as the art draws them until a unit call or
+a refill redraws them.
 
 **A zone left open is refilled in the same step.** A zone is open when the coverage
 plays it and the man it gave it to is sent, or is given his own call that takes him out

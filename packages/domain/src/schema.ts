@@ -183,6 +183,12 @@ const movementPathFields = {
    */
   preset: z.optional(z.string()),
   concept: z.optional(z.string()),
+  /**
+   * The unit call that drew this line (ADR 0075): the coverage, the front's
+   * call or the linebackers'. A defender's line without one is his own call,
+   * which the unit calls work around.
+   */
+  unitCall: z.optional(z.enum(["coverage", "front", "linebackers"])),
   /** Things tied together so they move as one, as a Player can be. */
   group: z.optional(z.string()),
   /**
@@ -353,6 +359,18 @@ export const defensiveCallSourceSchema = z.object({
   slotBindings: z.array(formationSlotBindingSchema),
 });
 
+/**
+ * The calls the defense is given by unit (ADR 0075): the coverage, the
+ * front's call and the linebackers' call. Each is kept by its key as written,
+ * so a Play whose call a newer Chalk named still loads here, with no call
+ * this version knows.
+ */
+export const unitCallsSchema = z.object({
+  coverage: z.optional(z.string()),
+  front: z.optional(z.string()),
+  linebackers: z.optional(z.string()),
+});
+
 const releasedPlayDocumentFields = {
   id: entityIdSchema,
   name: nameSchema,
@@ -390,6 +408,7 @@ const currentPlayDocumentSchema = z.object({
   conceptSource: z.optional(conceptSourceSchema),
   formationSource: z.optional(formationSourceSchema),
   defensiveCallSource: z.optional(defensiveCallSourceSchema),
+  unitCalls: z.optional(unitCallsSchema),
   fieldProfile: fieldProfileSchema,
   players: z.array(playerSchema),
   assignments: z.array(assignmentSchema),
@@ -991,6 +1010,7 @@ export type ConceptSource = z.infer<typeof conceptSourceSchema>;
 export type FormationSlotBinding = z.infer<typeof formationSlotBindingSchema>;
 export type FormationSource = z.infer<typeof formationSourceSchema>;
 export type DefensiveCallSource = z.infer<typeof defensiveCallSourceSchema>;
+export type UnitCalls = z.infer<typeof unitCallsSchema>;
 export type PlayDocumentV1 = z.infer<typeof playDocumentV1Schema>;
 export type PlayDocumentV2 = z.infer<typeof playDocumentV2Schema>;
 export type PlayDocument = z.infer<typeof playDocumentSchema>;

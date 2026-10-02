@@ -13,6 +13,7 @@ import {
   conceptSourceSchema,
   coordinateSchema,
   defensiveCallSourceSchema,
+  unitCallsSchema,
   entityIdSchema,
   formationSourceSchema,
   fieldProfileSchema,
@@ -85,6 +86,10 @@ const setFormationSourceSchema = z.object({
 const setDefensiveCallSourceSchema = z.object({
   kind: z.literal("set-defensive-call-source"),
   defensiveCallSource: z.optional(defensiveCallSourceSchema),
+});
+const setUnitCallsSchema = z.object({
+  kind: z.literal("set-unit-calls"),
+  unitCalls: z.optional(unitCallsSchema),
 });
 const insertPlayersSchema = z.object({
   kind: z.literal("insert-players"),
@@ -177,6 +182,7 @@ const primitivePlayCommandSchemas = [
   setConceptSourceSchema,
   setFormationSourceSchema,
   setDefensiveCallSourceSchema,
+  setUnitCallsSchema,
   insertPlayersSchema,
   removePlayersSchema,
   movePlayersSchema,
@@ -412,6 +418,16 @@ function applyPrimitive(
           ...(play.defensiveCallSource === undefined
             ? {}
             : { defensiveCallSource: play.defensiveCallSource }),
+        },
+      };
+    case "set-unit-calls":
+      return {
+        document: withOptional(play, "unitCalls", command.unitCalls),
+        inverse: {
+          kind: "set-unit-calls",
+          ...(play.unitCalls === undefined
+            ? {}
+            : { unitCalls: play.unitCalls }),
         },
       };
     case "insert-players":
@@ -764,6 +780,8 @@ export function describePlayCommand(command: PlayCommand): string {
       return "Change Formation source";
     case "set-defensive-call-source":
       return "Change defensive call source";
+    case "set-unit-calls":
+      return "Change the coverage";
     case "insert-players":
       return plural(command.players.length, "Add Player", "Add Players");
     case "remove-players":
@@ -1250,6 +1268,13 @@ export function diffPlayDocuments(
       ...(to.defensiveCallSource === undefined
         ? {}
         : { defensiveCallSource: to.defensiveCallSource }),
+    });
+  }
+
+  if (!sameValue(from.unitCalls, to.unitCalls)) {
+    commands.push({
+      kind: "set-unit-calls",
+      ...(to.unitCalls === undefined ? {} : { unitCalls: to.unitCalls }),
     });
   }
 

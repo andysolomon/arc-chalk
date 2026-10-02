@@ -8539,6 +8539,21 @@ button.shell-quiet:hover {
 .roster-summary.empty {
   color: var(--disabled);
 }
+/* A zone the coverage plays that nobody is in (ADR 0075): said, not picked. */
+.roster-open {
+  margin: 0;
+  color: var(--warn);
+  cursor: default;
+}
+.roster-open:hover {
+  background: transparent;
+}
+.roster-open .roster-symbol {
+  box-shadow: inset 0 0 0 1.4px var(--warn);
+}
+.roster-open .roster-role {
+  color: var(--warn);
+}
 .roster-text-only {
   flex: none;
   color: var(--muted);
