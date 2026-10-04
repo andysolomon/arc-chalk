@@ -273,7 +273,8 @@ test("keeps a man's own call through a change of coverage, names the zone it lea
   expect(await droppers(page)).toEqual(cover3);
 
   // The strong safety's own call: the middle third with the free safety.
-  // The curl/flat the coverage gave him is open until someone fills it.
+  // The curl/flat the coverage gave him is refilled by the end on his side
+  // (#190), so nothing is left open.
   const strongSafety = page.locator('[aria-label="$ defense player"]');
   await strongSafety.click({ force: true });
   await expect(page.locator(".player-heading")).toBeVisible();
@@ -283,7 +284,8 @@ test("keeps a man's own call through a change of coverage, names the zone it lea
   await quick.getByRole("button", { name: "Middle 1/3", exact: true }).click();
   await page.keyboard.press("Escape");
   await expect.poll(async () => (await droppers(page)).$).toBe("Middle 1/3");
-  expect(await openZones(page)).toEqual(["Open: Curl / flat right"]);
+  expect((await jobs(page)).E2).toBe("Curl / flat");
+  expect(await openZones(page)).toEqual([]);
   await saveField(page, testInfo, "own-call-middle-third");
 
   // A new coverage works around him: everyone else is redrawn, he is not,

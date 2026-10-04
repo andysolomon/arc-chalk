@@ -18,6 +18,10 @@ import {
   coverageJobsOf,
   unitJobOf,
   coverageMenOf,
+  linebackerCallByKey,
+  linebackerCallOf,
+  linebackerJobsOf,
+  linebackerMenOf,
   coverReceiver,
   defensiveLineKinds,
   deletePathsCommand,
@@ -2182,6 +2186,90 @@ export function applyCoverageCallCommand(
 
   const next = settleZoneShell(document, draft);
   const command = diffPlayDocuments(document, next, `Applied ${call.name}`);
+  return command.commands.length > 0 ? command : undefined;
+}
+
+/**
+ * The linebackers' call (ADR 0075, issue #190): the backers it names are sent
+ * through the gap their alignment owns, or put on the quarterback, and marked
+ * as the call's; every other backer plays the coverage — his coverage job
+ * when a coverage is on, and what he has when there is none. On a defense
+ * with no linebacker call yet, that is every backer's job, whatever he had;
+ * changing the call redraws only what it drew, so a backer's own call stays.
+ * Pressing the call that is on takes it off, and the men it sent go back to
+ * the coverage. The zones the men sent leave are refilled as every edit
+ * settles (`settleRefills`), in the same step.
+ */
+export function applyLinebackerCallCommand(
+  document: PlayDocument,
+  key: string,
+  createId: (prefix: string) => string,
+): PlayCommand | undefined {
+  const call = linebackerCallByKey(key);
+  if (!call) return undefined;
+  const backers = linebackerMenOf(document);
+  if (backers.length === 0) return undefined;
+  const current = linebackerCallOf(document);
+  const takingOff = current?.key === call.key;
+  const sends = takingOff
+    ? new Map<string, string>()
+    : linebackerJobsOf(document, call.key);
+  const coverage = coverageCallOf(document);
+  const coverageJobs = coverage
+    ? coverageJobsOf(document, coverage.key)
+    : undefined;
+  const others: UnitCalls = { ...document.unitCalls };
+  delete others.linebackers;
+
+  const linesOf = (id: string) =>
+    document.paths.filter(
+      (path) => path.playerId === id && defensiveLineKinds.has(path.kind),
+    );
+  const redrawn = new Map<string, MovementPath | null>();
+  for (const backer of backers) {
+    const lines = linesOf(backer.id);
+    const own = lines.some(({ unitCall }) => unitCall === undefined);
+    if (own && current !== undefined) continue;
+    const sent = sends.get(backer.id);
+    if (sent) {
+      redrawn.set(
+        backer.id,
+        unitLine(
+          document,
+          backer,
+          { job: sent, unitCall: "linebackers" },
+          createId,
+        ),
+      );
+      continue;
+    }
+    const wasSent = lines.some(({ unitCall }) => unitCall === "linebackers");
+    if (!wasSent && !own) continue;
+    const job = coverageJobs?.get(backer.id);
+    if (job)
+      redrawn.set(backer.id, coverageLine(document, backer, job, createId));
+    else if (wasSent) redrawn.set(backer.id, null);
+  }
+
+  const kept = document.paths.filter(
+    (path) =>
+      !(redrawn.has(path.playerId) && defensiveLineKinds.has(path.kind)),
+  );
+  const drawn = [...redrawn.values()].filter(
+    (line): line is MovementPath => line !== null,
+  );
+  const next = settleZoneShell(
+    document,
+    withUnitCalls(
+      { ...document, paths: [...kept, ...drawn] },
+      takingOff ? others : { ...others, linebackers: call.key },
+    ),
+  );
+  const command = diffPlayDocuments(
+    document,
+    next,
+    takingOff ? `${call.name} — off` : `Applied ${call.name}`,
+  );
   return command.commands.length > 0 ? command : undefined;
 }
 
