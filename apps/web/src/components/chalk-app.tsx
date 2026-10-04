@@ -7738,6 +7738,7 @@ export function ChalkApp({
                     playbooks={playbookSummaries}
                     playOrder={playbook.snapshot.playbook.playOrder}
                     playTypes={playbook.snapshot.playbook.playTypes}
+                    presentation={presentation}
                   />
                 ) : (
                   <GamePlansWorkspace
@@ -7824,6 +7825,7 @@ export function ChalkApp({
               pageScroll={phoneWorkspace}
               playbooks={playbookSummaries}
               playTypes={playbook.snapshot.playbook.playTypes}
+              presentation={presentation}
             />
           )}
           {libraryNotice ? (

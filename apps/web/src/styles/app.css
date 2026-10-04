@@ -4048,8 +4048,8 @@ button.library-dot.target.small {
   border-radius: 0;
 }
 .playbook-row .playbook-thumb {
-  width: 88px;
-  height: 50px;
+  width: 128px;
+  height: 72px;
   flex: none;
   border-radius: 6px;
   background: #0c1117;
@@ -4178,6 +4178,210 @@ button.library-dot.target.small {
 }
 .play-sheet-actions .play-sheet-danger:first-child:hover {
   background: #a93236;
+}
+/* On the page a card is read, not picked: a name and a line that can be. */
+.embedded .playbook-card strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.embedded .playbook-card .playbook-card-type {
+  font-size: 12px;
+}
+/*
+ * A Play's card: the Play as large as the glass allows, what it is, and what
+ * the Coach wrote on it, with Open in editor beside a walk through the book.
+ * A sheet that fills a phone; a wide card on a desk.
+ */
+.play-card-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(23, 23, 23, 0.36);
+}
+.play-card {
+  display: flex;
+  width: min(960px, 100%);
+  max-height: 100%;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 18px 16px;
+  overflow: auto;
+  border-radius: 14px;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgb(var(--shade) / 0.08),
+    0 24px 56px -16px rgba(0, 0, 0, 0.35);
+}
+.play-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.play-card-title {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+.play-card-title strong {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.play-card-title .playbook-card-type {
+  font-size: 13px;
+  white-space: normal;
+}
+.play-card-close {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+.play-card-close:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.play-card-art {
+  display: flex;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 260px);
+  max-height: calc(100dvh - 260px);
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.play-card-art .field-diagram {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  touch-action: auto;
+}
+.play-card-wait {
+  color: var(--muted);
+  font-size: 13px;
+}
+.play-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px 24px;
+  padding: 0 2px;
+}
+.play-card-fact {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+.play-card-fact > span:first-child {
+  color: var(--muted);
+}
+.play-card-fact strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.play-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.play-card-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--wash);
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.play-card-notes {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+.play-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.play-card-steps {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+}
+.play-card-steps button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--wash);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+.play-card-steps button:hover:not(:disabled) {
+  background: var(--hover);
+}
+.play-card-steps button:disabled {
+  color: var(--disabled);
+  cursor: default;
+}
+.play-card-place {
+  min-width: 64px;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.play-card-more,
+.play-card-open {
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+.play-card-more {
+  background: var(--wash);
+  color: var(--ink);
+}
+.play-card-more:hover {
+  background: var(--hover);
+}
+.play-card-open {
+  background: var(--ink);
+  color: var(--paper);
+}
+.play-card-open:hover {
+  background: var(--ink-hover);
 }
 
 /*
@@ -6593,6 +6797,35 @@ button.library-dot.target.small {
   }
   .play-sheet-actions button {
     height: 48px;
+  }
+  .play-card-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .play-card {
+    padding: 16px 14px max(14px, env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+  }
+  .play-card-title strong {
+    font-size: 18px;
+  }
+  .play-card-art {
+    max-height: none;
+  }
+  .play-card-foot {
+    flex-wrap: wrap;
+  }
+  .play-card-open {
+    order: -1;
+    flex-basis: 100%;
+    height: 48px;
+  }
+  .play-card-more {
+    height: 44px;
+  }
+  .play-card-steps button {
+    width: 44px;
+    height: 44px;
   }
 }
 .browser-foot {
