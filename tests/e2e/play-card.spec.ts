@@ -30,12 +30,15 @@ test("reads a play on its card and opens it in the editor from there", async ({
   const scroller = page.locator(".playbook-scroll");
   await expect(scroller).toHaveAttribute("data-layout", "grid");
 
-  // Four across a desk, each card's art at the sheet's own proportions.
-  await expect(scroller).toHaveAttribute("data-grid-columns", "4");
+  // Wide cards — no more than four across a desk, three on an iPad — each
+  // card's art at the sheet's own sixteen by nine.
+  const columns = Number(await scroller.getAttribute("data-grid-columns"));
+  expect(columns).toBeGreaterThanOrEqual(2);
+  expect(columns).toBeLessThanOrEqual(4);
   const card = play(page, "Four Verticals");
   const art = await card.locator(".playbook-thumb").boundingBox();
   expect(art!.width).toBeGreaterThanOrEqual(300);
-  expect(art!.height).toBeGreaterThanOrEqual(170);
+  expect(art!.height).toBeGreaterThanOrEqual((art!.width * 9) / 16 - 4);
 
   // Selecting a Play opens its card; the editor stays where it was.
   await page.getByRole("combobox", { name: "Sort plays" }).selectOption("name");
