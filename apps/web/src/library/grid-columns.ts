@@ -5,6 +5,12 @@
  * disagree.
  */
 const CARD_MIN_WIDTH = 200;
+/**
+ * On a book's own page a card is where the Coach reads the Play, so it is
+ * half again as wide as a pick in the dialog over the editor: four across a
+ * desk rather than six.
+ */
+export const PAGE_CARD_MIN_WIDTH = 300;
 const GRID_GAP = 10;
 const GRID_INSET = 32;
 const MAX_COLUMNS = 6;
@@ -32,15 +38,34 @@ export const NARROW_PLAY_CARD_ROW_HEIGHT = 240;
  * diagram beside the name, so a screen holds a page of the book rather than
  * two pictures of it.
  */
-export const PLAY_LIST_ROW_HEIGHT = 72;
+export const PLAY_LIST_ROW_HEIGHT = 92;
 
 /** How many cards fit across a scroller this wide. */
-export function gridColumnsFor(width: number): number {
+export function gridColumnsFor(
+  width: number,
+  minWidth: number = CARD_MIN_WIDTH,
+): number {
   if (!(width > 0)) return 4;
   const across = Math.floor(
-    (width - GRID_INSET + GRID_GAP) / (CARD_MIN_WIDTH + GRID_GAP),
+    (width - GRID_INSET + GRID_GAP) / (minWidth + GRID_GAP),
   );
   return Math.max(1, Math.min(MAX_COLUMNS, across));
+}
+
+/** A card's padding across, and what its name and meta take under the art. */
+const PAGE_CARD_PADDING_X = 18;
+const PAGE_CARD_CHROME_Y = 72;
+
+/**
+ * Virtual row height for a book's own page: the art keeps the play sheet's
+ * sixteen by nine at whatever width the column gives it, so a wide card
+ * shows a bigger Play rather than more turf around a small one.
+ */
+export function pageCardRowHeightFor(width: number, columns: number): number {
+  if (!(width > 0)) return PLAY_CARD_ROW_HEIGHT;
+  const column = (width - GRID_INSET - (columns - 1) * GRID_GAP) / columns;
+  const art = ((column - PAGE_CARD_PADDING_X) * 9) / 16;
+  return Math.round(art + PAGE_CARD_CHROME_Y + PLAY_CARD_ROW_GAP);
 }
 
 /** Virtual row height for the Playbook grid on this screen. */

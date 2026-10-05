@@ -1,6 +1,5 @@
 import {
   UNCLASSIFIED_PLAY_TYPE_NAME,
-  CLASSIFICATION_SEPARATOR,
   movePlayInOrder,
   playUnits,
   type Concept,
@@ -9,6 +8,7 @@ import {
   type PlayUnit,
 } from "@chalk/domain";
 import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
+import type { Presentation } from "@chalk/render";
 import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
   useEffect,
@@ -25,7 +25,6 @@ import type {
   PlaybookLayout,
   PlaybookSort,
 } from "../app/editor-runtime";
-import { UnitBadge } from "../components/unit-badge";
 import { ANY, FilterChip } from "./filter-chip";
 import {
   emptyPlayFilters,
@@ -38,10 +37,13 @@ import {
 import {
   gridColumnsFor,
   NARROW_BROWSER_QUERY,
+  PAGE_CARD_MIN_WIDTH,
   PLAY_CARD_ROW_GAP,
   PLAY_LIST_ROW_HEIGHT,
+  pageCardRowHeightFor,
   playCardRowHeightFor,
 } from "./grid-columns";
+import { PlayCard, PlayMeta } from "./play-card";
 import {
   createPlaySearchClient,
   projectionsForHits,
@@ -125,6 +127,7 @@ export function PlaybookBrowser({
   playbooks = [],
   playOrder,
   playTypes,
+  presentation,
 }: {
   /** The Concepts of the book, for the Advanced row's Concept filter. */
   concepts?: readonly Concept[];
@@ -186,6 +189,8 @@ export function PlaybookBrowser({
    */
   pageScroll?: boolean;
   playTypes: readonly PlayTypeDefinition[];
+  /** How the editor draws a Play, so a Play's card on the page draws it alike. */
+  presentation?: Presentation;
 }) {
   const [query, setQuery] = useState(initial.query);
   const [values, setValues] = useState<PlayFilterValues>(() => ({
@@ -228,6 +233,8 @@ export function PlaybookBrowser({
   const [hits, setHits] = useState<readonly PlaySearchProjection[]>(members);
   const [focusedPlayId, setFocusedPlayId] = useState(initial.focusedPlayId);
   const [actionsFor, setActionsFor] = useState<string>();
+  /** The Play whose card is open over the page. */
+  const [cardFor, setCardFor] = useState<string>();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const restoredRef = useRef(false);
@@ -240,17 +247,27 @@ export function PlaybookBrowser({
       ? "list"
       : "grid";
   const list = shownLayout === "list";
-  const rowHeight = list ? PLAY_LIST_ROW_HEIGHT : playCardRowHeightFor(narrow);
-  const [gridColumns, setGridColumns] = useState(() =>
-    gridColumnsFor(scrollerRef.current?.clientWidth ?? 0),
+  const [scrollerWidth, setScrollerWidth] = useState(
+    () => scrollerRef.current?.clientWidth ?? 0,
   );
+  // On the page a card is read, not picked, so it is wider and its art
+  // keeps its proportions; the dialog over the editor keeps its small picks.
+  const gridColumns = embedded
+    ? gridColumnsFor(scrollerWidth, PAGE_CARD_MIN_WIDTH)
+    : gridColumnsFor(scrollerWidth);
   const columns = list ? 1 : gridColumns;
+  const rowHeight = list
+    ? PLAY_LIST_ROW_HEIGHT
+    : embedded
+      ? pageCardRowHeightFor(scrollerWidth, columns)
+      : playCardRowHeightFor(narrow);
   useEffect(() => {
     const node = scrollerRef.current;
     if (!node || typeof ResizeObserver !== "function") return;
     const observer = new ResizeObserver(([entry]) => {
-      const width = entry?.contentRect.width ?? node.clientWidth;
-      setGridColumns(gridColumnsFor(width));
+      setScrollerWidth(
+        Math.round(entry?.contentRect.width ?? node.clientWidth),
+      );
     });
     observer.observe(node);
     return () => observer.disconnect();
@@ -535,6 +552,30 @@ export function PlaybookBrowser({
   );
 
   const actionsMember = shown.find((member) => member.playId === actionsFor);
+  const cardIndex = shown.findIndex((member) => member.playId === cardFor);
+  const cardMember = cardIndex < 0 ? undefined : shown[cardIndex];
+  const offersActions = (member: PlaySearchProjection) =>
+    embedded && ((onDelete !== undefined && deletable(member)) || onTransfer);
+  const showCard = (playId: string) => {
+    setFocusedPlayId(playId);
+    setCardFor(playId);
+    remember(playId);
+  };
+  /** Back on the page where the Coach left it, on the Play the card showed. */
+  const closeCard = () => {
+    const playId = cardFor;
+    setCardFor(undefined);
+    if (!playId) return;
+    const index = shown.findIndex((member) => member.playId === playId);
+    if (index >= 0) virtualizer.scrollToIndex(Math.floor(index / columns));
+    globalThis.requestAnimationFrame(() => {
+      scrollerRef.current
+        ?.querySelector<HTMLElement>(
+          `[data-play-id="${CSS.escape(playId)}"] .playbook-open`,
+        )
+        ?.focus({ preventScroll: true });
+    });
+  };
 
   return (
     <div
@@ -915,13 +956,14 @@ export function PlaybookBrowser({
                           : undefined
                       }
                       onActions={
-                        embedded &&
-                        ((onDelete && deletable(member)) || onTransfer)
+                        offersActions(member)
                           ? () => setActionsFor(member.playId)
                           : undefined
                       }
                       onFocus={() => setFocusedPlayId(member.playId)}
-                      onOpen={() => open(member.playId)}
+                      onOpen={() =>
+                        embedded ? showCard(member.playId) : open(member.playId)
+                      }
                       urlFor={thumbnails.urlFor}
                     />
                   ))}
@@ -962,6 +1004,37 @@ export function PlaybookBrowser({
           ) : null}
         </div>
       </div>
+      {cardMember ? (
+        <PlayCard
+          current={cardMember.playId === currentPlayId}
+          library={library}
+          member={cardMember}
+          onActions={
+            offersActions(cardMember)
+              ? () => {
+                  setCardFor(undefined);
+                  setActionsFor(cardMember.playId);
+                }
+              : undefined
+          }
+          onClose={closeCard}
+          onOpen={() => {
+            setCardFor(undefined);
+            open(cardMember.playId);
+          }}
+          onStep={(step) => {
+            const next = shown[cardIndex + step];
+            if (next) showCard(next.playId);
+          }}
+          place={{ index: cardIndex + 1, total: shown.length }}
+          presentation={presentation}
+          set={
+            choices
+              ? playFacets(cardMember, formationsById).formation?.name
+              : undefined
+          }
+        />
+      ) : null}
       {actionsMember ? (
         <PlayActions
           current={actionsMember.playId === currentPlayId}
@@ -1023,30 +1096,6 @@ function SearchGlyph() {
       <circle cx="7" cy="7" fill="none" r="4.75" strokeWidth="1.5" />
       <path d="m10.5 10.5 3.25 3.25" strokeLinecap="round" strokeWidth="1.5" />
     </svg>
-  );
-}
-
-function PlayMeta({
-  member,
-  set,
-}: {
-  member: PlaySearchProjection;
-  /** The set the Play stands in, where the page knows it. */
-  set?: string;
-}) {
-  const type =
-    member.playTypeId === undefined
-      ? undefined
-      : (member.playTypeName ?? member.playTypeId);
-  return (
-    <span className="playbook-card-type">
-      <UnitBadge unit={member.unit} />
-      {type === undefined ? "" : `${CLASSIFICATION_SEPARATOR}${type}`}
-      {set ? `${CLASSIFICATION_SEPARATOR}${set}` : ""}
-      {member.tags[0] && !set
-        ? `${CLASSIFICATION_SEPARATOR}${member.tags[0]}`
-        : ""}
-    </span>
   );
 }
 
