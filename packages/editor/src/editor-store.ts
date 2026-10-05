@@ -10,6 +10,8 @@ import {
   playCommandCoalesceKey,
   playDocumentSchema,
   settleManCoverage,
+  settleRefills,
+  settleZoneShell,
   type PlayCommand,
   type PlayDocument,
   type UndoEntry,
@@ -230,19 +232,26 @@ export interface CreateEditorStoreOptions {
 }
 
 /**
- * Every edit settles man coverage in the same step (ADR 0060): a man call
- * given, a receiver picked, a set changed or a man dragged — whatever the
- * edit, the defenders in man are matched against the offense it leaves —
- * and in Cover 0 lined up on their men (ADR 0061) — and one undo takes the
- * edit and what it moved back together. An
- * edit that touches neither the offense nor a man call comes back as it was.
+ * Every edit settles the defense in the same step. A zone a man left — sent
+ * by a call, given his own call out of it, cleared — is refilled, and a man
+ * who filled one goes back once it is his no longer (ADR 0075); the zone
+ * shell makes room for what that moved. Then man coverage (ADR 0060): a man
+ * call given, a receiver picked, a set changed or a man dragged — whatever
+ * the edit, the defenders in man are matched against the offense it leaves
+ * — and in Cover 0 lined up on their men (ADR 0061). One undo takes the edit
+ * and what it moved back together. An edit that changes nobody's call and
+ * touches neither the offense nor a man call comes back as it was.
  */
 function withManCoverageSettled(
   before: PlayDocument,
   asked: PlayCommand,
 ): { readonly command: PlayCommand; readonly settled: boolean } {
   const edited = applyPlayCommand(before, asked);
-  const settling = diffPlayDocuments(edited, settleManCoverage(before, edited));
+  const refilled = settleZoneShell(edited, settleRefills(before, edited));
+  const settling = diffPlayDocuments(
+    edited,
+    settleManCoverage(before, refilled),
+  );
   if (settling.commands.length === 0) return { command: asked, settled: false };
   return {
     settled: true,

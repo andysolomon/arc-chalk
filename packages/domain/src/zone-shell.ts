@@ -153,6 +153,11 @@ interface Drop {
   readonly path: MovementPath;
   readonly level: ZoneShellLevel;
   readonly stance: Coordinate;
+  /**
+   * Whose ground the call names: his own, or — for a man who took over
+   * another's zone (ADR 0075) — the stance of the man whose zone it was.
+   */
+  readonly ground: Coordinate;
   readonly end: Coordinate;
   readonly area: CoverageArea;
 }
@@ -194,7 +199,10 @@ function dropsOf(play: ZoneShellPlay): readonly Drop[] {
       ...DEFAULT_ZONE_COVERAGE_RADII,
     };
     const level = levelOf(area.type);
-    return level ? [{ path, level, stance, end, area }] : [];
+    const ground =
+      (path.fills === undefined ? undefined : stances.get(path.fills)) ??
+      stance;
+    return level ? [{ path, level, stance, ground, end, area }] : [];
   });
 }
 
@@ -250,7 +258,7 @@ function layDeep(
   const called = drops.flatMap((drop) => {
     const ground = deepGroundOf(
       drop.path.preset,
-      drop.stance,
+      drop.ground,
       ballLateralYards,
       width,
     );

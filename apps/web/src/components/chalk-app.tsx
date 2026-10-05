@@ -67,6 +67,9 @@ import {
   frontCalls,
   frontMenOf,
   openZonesOf,
+  linebackerCalls,
+  linebackerJobsOf,
+  linebackerMenOf,
   emptyPlayDocument,
   inInstallOrder,
   stockDefensiveCalls,
@@ -123,6 +126,7 @@ import {
   conceptIsOn,
   applyCoverageCallCommand,
   applyFrontCallCommand,
+  applyLinebackerCallCommand,
   applyLinePresetCommand,
   coverReceiverCommand,
   flipStrengthCommand,
@@ -5081,6 +5085,19 @@ export function ChalkApp({
     if (command) runPanelCommand(command, {});
   };
 
+  /**
+   * The linebackers' call put on, changed, or taken off (ADR 0075, #190); the
+   * zones the men sent leave are refilled as the edit settles.
+   */
+  const runLinebackerCall = (key: string): void => {
+    const command = applyLinebackerCallCommand(
+      editorStore.getSnapshot().document,
+      key,
+      createStableId,
+    );
+    if (command) runPanelCommand(command, {});
+  };
+
   /** What each of the defense's unit calls does when one is picked (ADR 0075). */
   const unitCallRunners: Partial<
     Record<PresetChoice["group"], (key: string) => void>
@@ -5094,6 +5111,7 @@ export function ChalkApp({
       );
       if (command) runPanelCommand(command, {});
     },
+    linebackers: runLinebackerCall,
   };
 
   /**
@@ -6361,6 +6379,24 @@ export function ChalkApp({
       coverageMenOf(editor.document).length > 0,
     [editor.document],
   );
+  // The linebackers' calls (#190): each one there is a backer for. Base and
+  // Fire need any backer; Mike, Will, Sam and Spy the man they name.
+  const linebackerCallOptions = useMemo((): readonly PresetChoice[] => {
+    const document = editor.document;
+    if (document.unit !== "defense") return [];
+    const backers = linebackerMenOf(document).length > 0;
+    return linebackerCalls.map(({ key, name, hint }) => ({
+      key: `linebackers:${key}`,
+      name,
+      group: "linebackers" as const,
+      hint,
+      on: document.unitCalls?.linebackers === key,
+      available:
+        key === "base" || key === "fire"
+          ? backers
+          : linebackerJobsOf(document, key).size > 0,
+    }));
+  }, [editor.document]);
   const coverageOn = editor.document.unitCalls?.coverage;
   // A front call can be put on whenever there is a front to give it to.
   const lined = useMemo(
@@ -6392,7 +6428,7 @@ export function ChalkApp({
       available: lined,
     }),
   );
-  const linebackerChoices: readonly PresetChoice[] = [];
+  const linebackerChoices: readonly PresetChoice[] = linebackerCallOptions;
   const presetChoices: readonly PresetChoice[] =
     editor.document.unit === "defense"
       ? [...coverageChoices, ...frontChoices, ...linebackerChoices]

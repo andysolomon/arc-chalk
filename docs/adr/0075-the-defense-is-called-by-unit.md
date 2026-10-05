@@ -156,6 +156,59 @@ of it. The nearest man who can take an open zone does:
 "Nearest" is measured from where he stands to the zone's landmark. Refilling is part of
 the call or the change that opened the zone: one command, one undo step.
 
+### Linebacker call and refills (#190)
+
+**The linebacker call** (`linebackerJobsOf`). The backers are the men the roster puts at
+the second level (ADR 0066). The Mike is the backer the roster calls the Mike, else the
+one nearest the ball, as the coverage reads him. A Will or a Sam the roster does not name
+is the backer nearest the Mike on his left, or on his right. **Mike**, **Will** and
+**Sam** send that backer through the gap his alignment owns (`ownGapOf`, Rush's
+reading), drawn as that gap's quick assignment, so the roster says _A gap_ or _C gap_.
+**Fire** sends every backer, **Spy** puts the Mike on the quarterback, and **Base** sends
+nobody. The lines it draws are the call's (`unitCall: "linebackers"`). A backer it does
+not send plays the coverage: his coverage job when a coverage is on, and what he has when
+there is none. The call follows the rules for a man's own call, and pressing the call
+that is on takes it off, sending the backers it sent back to the coverage.
+
+**Refills are settled with every edit** (`settleRefills`), in the editor store's step
+before man coverage, the way man coverage is settled (ADR 0060). So the linebacker call, a
+man's own call, the coverage, the front's call and clearing a man's lines all refill
+without each command doing it. The plan (`refillPlanOf`) is worked out afresh from the
+coverage's jobs each time:
+
+- A man the coverage gave a zone has left it when he is sent, or has his own call (unless
+  it is that same zone). A zone another man already stands in, by his own call, is not
+  refilled. A man whose lines were cleared has gone nowhere: Clear leaves nothing drawn,
+  and the roster names his deep or curl/flat ground open instead. Clearing a man who was
+  sent still releases whoever filled for him.
+- **Deep before underneath.** An open deep zone goes to the nearest defensive back
+  playing a zone the coverage gave him underneath. A man in man stays on his man, so in
+  Cover 1 a free safety put in man leaves the middle open, and the call becomes Cover 0
+  as ADR 0061 reads it. The underneath zone the back rotated out of is open in turn.
+- **Underneath, the front.** An open curl/flat or hook goes to a man on the front on its
+  side, or on either side for a hook over the ball, who has no call of his own. A front
+  man's line drawn by hand counts as his own. The zones are shared out by matching: as
+  many filled as can be, then the least ground covered, then the first way found taking
+  the zones and the men each from the left. So two men the same distance from a zone
+  are settled the same way every time: the one on the left.
+- **A filler's line is the coverage's**, marked with the man whose zone it took
+  (`fills`). It runs from the filler's stance to that man's landmark, and the deep shell
+  lays it on that man's ground, not on the filler's side of the ball. When the zone is
+  his no longer, a man off the front goes back to what the front gives him
+  (`frontJobOf`), and a defensive back to the coverage's job for him.
+- Only a change to the coverage, a defender's letter, or whether a man plays a unit
+  call's job, has his own call, is sent or has nothing re-plans the refills. Dragging a
+  man never swaps who drops.
+- The roster's open zones (`openZonesOf`) are the deep zones and curl/flats the defense
+  has nobody to give, plus every zone a man left that nobody could take. That includes a
+  hook, named _Hook left_, _middle_ or _right_; a hook the coverage gave nobody is never
+  open.
+
+As built, matching by distance changes two of the scenarios first written above, which
+are corrected there. Under Fire, the right end is nearer the Sam's hook than the right
+tackle, so one tackle and both ends drop. With both ends on their own Rush, the tackles
+still take the hooks, so only the Will's curl/flat stays open.
+
 ### What the Play keeps
 
 A Play keeps its three unit calls, and each line keeps the unit call it came from. A
@@ -171,13 +224,16 @@ renders as before, and a Play with no unit call on behaves as it does today.
   third, with one bubble and two lines. His curl/flat is open, so the end on his side
   drops into it and the tackle beside the end keeps rushing.
 - **Linebacker Fire in that Cover 3.** The Will's curl/flat and both hooks are open. The
-  left end takes the curl/flat and the two tackles take the hooks. Will, Mike, Sam and
-  the right end rush: four men, with seven in coverage.
+  left end takes the curl/flat, the left tackle the Mike's hook over the ball, and the
+  right end, nearer the Sam's hook than the right tackle is, takes that one. Will, Mike,
+  Sam and the right tackle rush: four men, with seven in coverage.
 - **The left corner's own call: D gap.** The deep left third is open. The strong safety
-  is the only defensive back not already deep, so he rotates up to it, and the right
-  end drops into the curl/flat he left.
-- **Fire with the ends on their own Rush calls.** Nobody may take the curl/flat or the
-  hooks, so they stay open and the roster names all three.
+  is the only defensive back playing a zone underneath, so he rotates up to it, and the
+  right end drops into the curl/flat he left.
+- **Fire with the ends on their own Rush calls.** Nobody may move the ends, so the
+  tackles take the two hooks and the Will's curl/flat stays open; the roster names it.
+  With the tackles on their own calls too, all three stay open and the roster names
+  them.
 
 ## Consequences
 

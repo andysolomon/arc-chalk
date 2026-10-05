@@ -21,6 +21,8 @@ import { describe, expect, it } from "vitest";
  *   or a line's unit call it never had;
  * - a coverage, or the unit call a line came from, is dropped between a save
  *   and a load;
+ * - the man whose zone a filler took is dropped between a save and a load,
+ *   so the zone reads as open again and another man is sent into it;
  * - a Play whose coverage a newer Chalk named fails to load on this one,
  *   instead of loading with no coverage this version knows;
  * - undoing the first coverage put on a Play leaves an empty record behind,
@@ -89,6 +91,14 @@ describe("storing a Play's unit calls", () => {
     expect(again.unitCalls).toEqual({ coverage: "cover3" });
     expect(again.paths[0]!.unitCall).toBe("coverage");
     expect(coverageCallOf(again)?.name).toBe("Cover 3");
+  });
+
+  it("keeps the man whose zone a filler took through a save and a load", () => {
+    const filled = play({
+      unitCalls: { coverage: "cover3" },
+      paths: [drop({ unitCall: "coverage", fills: "ss" })],
+    });
+    expect(reloaded(filled).paths[0]!.fills).toBe("ss");
   });
 
   it("loads a Play whose coverage a newer Chalk named, with no coverage this version knows", () => {
