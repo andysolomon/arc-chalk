@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { chooseWorkspaceView, expect, test } from "./fixtures";
 
 /**
  * Game-plan forms and browser heads on a phone (issue #94), and the touch
@@ -74,10 +74,7 @@ const openGamePlans = async (page: Page) => {
   expect(
     await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
   ).toBe(true);
-  await page
-    .getByRole("navigation", { name: "Workspace views" })
-    .getByRole("button", { name: "Playbooks", exact: true })
-    .tap();
+  await chooseWorkspaceView(page, "Playbooks");
   await page
     .getByRole("navigation", { name: "Book pages" })
     .getByRole("button", { name: "Game plans", exact: true })

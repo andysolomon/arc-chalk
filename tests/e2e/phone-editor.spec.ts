@@ -1,6 +1,6 @@
 import { type Page, test as blankTest } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { expect, headerCommand, test } from "./fixtures";
 
 /**
  * The editor on a phone (issues #98 and #99): the status bar's controls stay
@@ -353,12 +353,12 @@ for (const viewport of WORKSPACES) {
     }) => {
       await enterEditor(page);
 
-      // A compact header: two rows in portrait, one held sideways — not four.
+      // Every header stays on one row, including a phone held upright.
       const portrait = viewport.height > viewport.width;
       const header = page.locator("header.topbar");
       expect(
         (await insideViewport(page, header, viewport)).height,
-      ).toBeLessThanOrEqual(portrait ? 104 : 60);
+      ).toBeLessThanOrEqual(60);
 
       const tools = page.locator('nav[aria-label="Drawing tools"] > button');
       const toolCount = await tools.count();
@@ -371,24 +371,13 @@ for (const viewport of WORKSPACES) {
         expect(box.width).toBeGreaterThanOrEqual(44);
         expect(box.height).toBeGreaterThanOrEqual(44);
       }
-      for (const name of ["Undo", "Redo", "Save", "More actions"]) {
+      for (const name of ["Save", "More actions"]) {
         await insideViewport(
           page,
-          page
-            .locator("header.topbar")
-            .getByRole("button", { name, exact: true }),
+          header.getByRole("button", { name, exact: true }),
           viewport,
         );
       }
-      await insideViewport(
-        page,
-        page.locator("header.topbar .play-type"),
-        viewport,
-      );
-
-      // Where, then what (ADR 0057): the destinations and More share the
-      // first row; the play's name, with room to be read, shares the second
-      // with what acts on it, and Save closes the header at its trailing edge.
       const tabsBox = await insideViewport(
         page,
         page.getByRole("navigation", { name: "Workspace views" }),
@@ -410,16 +399,16 @@ for (const viewport of WORKSPACES) {
         viewport,
       );
       expect(nameBox.width).toBeGreaterThanOrEqual(96);
-      if (portrait) {
-        expect(Math.abs(moreBox.y - tabsBox.y)).toBeLessThanOrEqual(1);
-        expect(nameBox.y).toBeGreaterThanOrEqual(tabsBox.y + tabsBox.height);
-        expect(Math.abs(saveBox.y - nameBox.y)).toBeLessThanOrEqual(1);
-        expect(
-          Math.abs(saveBox.x + saveBox.width - (moreBox.x + moreBox.width)),
-        ).toBeLessThanOrEqual(1);
-      } else {
-        expect(Math.abs(nameBox.y - tabsBox.y)).toBeLessThanOrEqual(1);
-        expect(saveBox.x).toBeGreaterThan(moreBox.x);
+      expect(Math.abs(nameBox.y - tabsBox.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(saveBox.y - nameBox.y)).toBeLessThanOrEqual(1);
+      expect(saveBox.x).toBeGreaterThan(moreBox.x);
+      for (const command of ["Undo", "Redo", "Play type"] as const) {
+        await insideViewport(
+          page,
+          await headerCommand(page, command),
+          viewport,
+        );
+        await page.keyboard.press("Escape");
       }
 
       // The sidebar's ≡ and the assignments sheet's handle are on the glass.
@@ -550,15 +539,9 @@ for (const viewport of WORKSPACES) {
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
       await expectSavedOnThisDevice(page);
 
-      await page
-        .locator("header.topbar")
-        .getByRole("button", { name: "Undo", exact: true })
-        .tap();
+      await (await headerCommand(page, "Undo")).tap();
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes);
-      await page
-        .locator("header.topbar")
-        .getByRole("button", { name: "Redo", exact: true })
-        .tap();
+      await (await headerCommand(page, "Redo")).tap();
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
       await expectSavedOnThisDevice(page);
 
@@ -604,12 +587,7 @@ for (const viewport of WORKSPACES) {
         await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
       }
       // Tapping men moved none of them.
-      await expect(
-        page.locator("header.topbar").getByRole("button", {
-          name: "Undo",
-          exact: true,
-        }),
-      ).toBeDisabled();
+      await expect(await headerCommand(page, "Undo")).toBeDisabled();
     });
 
     test("opens the header's menus over the assignments sheet, not under it", async ({

@@ -182,6 +182,7 @@ select:disabled {
   height: 56px;
   flex: none;
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 10px;
   padding: 0 16px;
@@ -5896,6 +5897,9 @@ button.library-dot.target.small {
  * invisible pseudo-element.
  */
 @media (pointer: coarse) {
+  .topbar > .play-name {
+    height: 44px;
+  }
   .topbar {
     gap: 8px;
   }
@@ -6024,29 +6028,66 @@ button.library-dot.target.small {
  * and close it, the rail stays put, and the field keeps the width. The
  * header gives up what the More menu and Help already carry.
  */
-.top-break {
+/* Keep the header on one row. Commands have one visible home: on the
+   row when it fits, and in More at compact widths. */
+.view-tabs select,
+.header-overflow-actions,
+.phone-overflow-actions {
   display: none;
 }
-/* A header that cannot hold everything on one row breaks after the play's
-   name and type, and the actions take a second row, right-aligned — rather
-   than shedding Undo, Present or Help where a finger needs them most. */
-/* Reset positions joined New play and Present; at 1180 with finger-sized
-   controls the row no longer fits, so the break moves up with them. */
-@media (max-width: 1023px), (max-width: 1240px) and (pointer: coarse) {
+@media (max-width: 1240px) {
   .topbar {
-    flex-wrap: wrap;
-    height: auto;
-    min-height: 56px;
-    padding: 6px 10px;
-    row-gap: 2px;
+    height: 56px;
+    gap: 6px;
+    padding: 0 10px;
   }
-  .top-break {
+  .topbar > .brand,
+  .topbar > .chalk-mark,
+  .topbar > .slash,
+  .topbar > .top-spacer,
+  .topbar > .divider,
+  .topbar > .menu-new,
+  .topbar > .reset-positions,
+  .topbar > .present,
+  .topbar > .menu-export {
+    display: none;
+  }
+  .topbar > .play-name {
+    width: auto;
+    min-width: 0;
+    height: 44px;
+    flex: 1 1 0;
+    text-overflow: ellipsis;
+  }
+  .topbar .view-tabs {
+    margin-left: 0;
+  }
+  .topbar > .classify-menu {
+    max-width: 104px;
+  }
+  .topbar .classify-menu > .play-type {
+    max-width: 100%;
+  }
+  .header-overflow-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .topbar .menu > .menu-panel {
+    top: calc(100% + 2px);
+  }
+}
+/* Larger tablets have room for the complete action strip once the name
+   can shrink and the decorative chrome is gone. */
+@media (min-width: 1024px) and (max-width: 1240px) {
+  .topbar:not(.phone-topbar) > .menu-new,
+  .topbar:not(.phone-topbar) > .reset-positions,
+  .topbar:not(.phone-topbar) > .present,
+  .topbar:not(.phone-topbar) > .menu-export {
     display: block;
-    flex-basis: 100%;
-    height: 0;
   }
-  .play-name {
-    width: clamp(120px, 30vw, 300px);
+  .topbar:not(.phone-topbar) .header-overflow-actions {
+    display: none;
   }
 }
 @media (max-width: 1023px) {
@@ -6996,25 +7037,25 @@ button.library-dot.target.small {
 /*
  * Editing on a screen below the floor (issue #92). A phone gets the editor
  * laid out for a phone rather than the desktop editor squeezed into one: a
- * two-row header, the tools in a tray along the bottom, the inspector as a
+ * single-row header, the tools in a tray along the bottom, the inspector as a
  * sheet over the field. Everything the header sheds is in the More menu.
  * The header is the phone's on every destination, not just the editor.
  *
- * The two rows read where, then what (ADR 0057). The first is where the
- * Coach is: the three destinations as one segmented control across the
- * row, and More at its end. The second is the work in hand: the
- * play's name with the room it needs, its Unit, Undo and Redo as arrows,
- * and Save, anchored at the trailing edge beneath More. Every control is a
- * 44 px box; the pill and Save are painted inside theirs at the wider
- * header's 32 px, so the name stays the loudest thing on the row.
+ * On a narrow phone the view picker leaves the name, More and Save on
+ * the same row. Undo, Redo and the type picker move to More.
  */
 .topbar.phone-topbar {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   height: auto;
-  min-height: 0;
-  gap: 2px 4px;
+  min-height: 52px;
+  gap: 4px;
   padding: max(4px, env(safe-area-inset-top))
     max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+}
+.topbar.phone-topbar .header-overflow-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .topbar.phone-topbar > .chalk-mark,
 .topbar.phone-topbar > .brand,
@@ -7045,10 +7086,10 @@ button.library-dot.target.small {
   color: var(--ink);
 }
 
-/* Row one — where. */
+/* Destinations share the row with the work in hand. */
 .topbar.phone-topbar .view-tabs {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: none;
   margin-left: 0;
 }
 /* The tabs already take the row; a spacer beside them only squeezes them. */
@@ -7063,7 +7104,7 @@ button.library-dot.target.small {
 }
 .topbar.phone-topbar > .menu-more,
 .topbar.phone-topbar > .header-icons {
-  order: 1;
+  order: 4;
 }
 .topbar.phone-topbar .header-icons > .icon-button,
 .topbar.phone-topbar .header-icons .menu > .icon-button {
@@ -7075,19 +7116,6 @@ button.library-dot.target.small {
   padding: 0;
   font-size: 20px;
 }
-.topbar.phone-topbar > .top-break {
-  order: 2;
-  display: block;
-  flex-basis: 100%;
-  height: 0;
-}
-
-/* Row two — what. The name takes whatever the row has left, from a zero
-   basis: a wrapping row places its items by basis before anything shrinks,
-   so a long name would otherwise push Save onto a third row. The Unit pill
-   says the Unit's word alone and is capped, tighter on the narrowest phones:
-   its Type is one tap away in the panel it opens, and the name's words are
-   nowhere else. */
 .topbar.phone-topbar > .play-name {
   order: 3;
   width: auto;
@@ -7203,32 +7231,41 @@ button.library-dot.target.small {
   top: calc(100% + 2px);
 }
 
-/* Wide and shallow — a phone held sideways — has the width for one row and
-   needs the depth: the destinations at their own width, the name between
-   them and the actions, the pill's Type back beside its Unit, More beside
-   Save. */
-@media (min-width: 668px) {
-  .topbar.phone-topbar > .top-break {
+@media (max-width: 667px) {
+  .topbar .view-tabs > button,
+  .topbar.phone-topbar > .undo,
+  .topbar.phone-topbar > .redo,
+  .topbar.phone-topbar .classify-menu > .play-type {
     display: none;
   }
-  .topbar.phone-topbar .view-tabs {
-    flex: none;
-  }
-  .topbar.phone-topbar > .topbar-fill {
+  .topbar .view-tabs select {
     display: block;
-  }
-  .topbar.phone-topbar .view-tabs button {
-    flex: none;
-    padding: 0 12px;
-  }
-  .topbar.phone-topbar > .menu-more {
-    order: 4;
+    width: 80px;
+    height: 44px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--wash);
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
   }
   .topbar.phone-topbar > .classify-menu {
-    max-width: 180px;
+    min-width: 0;
+    width: 0;
+    max-width: 0;
+    flex: none;
   }
-  .topbar.phone-topbar .play-type-name {
-    display: inline;
+  .phone-overflow-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+@media (min-width: 668px) {
+  .topbar.phone-topbar .view-tabs button {
+    flex: none;
+    padding: 0 8px;
   }
 }
 .phone-workspace .workspace {
@@ -8538,7 +8575,7 @@ button.shell-quiet:hover {
 .sidebar-open:hover {
   background: var(--wash);
 }
-/* The ≡ leads the first row, before the destinations (ADR 0058): a 44 px
+/* The ≡ leads the row, before the destinations (ADR 0058): a 44 px
    box like every other control in the phone header. */
 .topbar.phone-topbar > .sidebar-open {
   order: 0;

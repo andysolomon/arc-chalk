@@ -81,8 +81,8 @@ function MenuItem({
  * More (⋯): what the Coach does to the field and the play in front of him,
  * and nothing that has a home elsewhere (ADR 0074). Settings and Help stand
  * at the sidebar's foot; the destinations are the header's tabs; New play and
- * Present are header buttons — except on a phone, whose header sheds them, so
- * there this menu carries them.
+ * Present are header buttons on wide screens; the compact header moves them
+ * here so the row never wraps.
  */
 export function MoreMenu({
   actions,
@@ -91,6 +91,7 @@ export function MoreMenu({
   onDismiss,
   onToggle,
   open,
+  overflowActions,
   phone = false,
   zonesHidden,
 }: {
@@ -101,7 +102,9 @@ export function MoreMenu({
   onDismiss: () => void;
   onToggle: () => void;
   open: boolean;
-  /** The phone header, which has no New play or Present of its own. */
+  /** Actions that move off the row when the header is compact. */
+  overflowActions?: React.ReactNode;
+  /** The phone sidebar already carries Print & export. */
   phone?: boolean;
   zonesHidden: boolean;
 }) {
@@ -136,18 +139,6 @@ export function MoreMenu({
       title:
         "Flip the play and its terminology — swaps X/Z, LEFT/RIGHT, STRONG/WEAK",
     },
-    // A phone's header sheds New play and Present (issue #92, ADR 0057); the
-    // menu carries them there and nowhere else.
-    ...(phone
-      ? [
-          ...newPlayEntries,
-          {
-            id: "present",
-            label: "Present",
-            title: "Present the play full-window — esc returns",
-          } satisfies MenuEntry,
-        ]
-      : []),
   ];
 
   return (
@@ -173,6 +164,29 @@ export function MoreMenu({
           />
         ) : (
           <>
+            <div className="header-overflow-actions">
+              {newPlayEntries.map((entry) => (
+                <MenuItem
+                  actions={actions}
+                  entry={entry}
+                  key={entry.id}
+                  onDismiss={onDismiss}
+                />
+              ))}
+              <MenuItem
+                actions={actions}
+                entry={{ id: "present", label: "Present" }}
+                onDismiss={onDismiss}
+              />
+              {!phone ? (
+                <MenuItem
+                  actions={actions}
+                  entry={{ id: "output", label: "Print & export" }}
+                  onDismiss={onDismiss}
+                />
+              ) : null}
+              {overflowActions}
+            </div>
             {entries.map((entry) => (
               <MenuItem
                 actions={actions}

@@ -6798,6 +6798,7 @@ export function ChalkApp({
       demoPlayName={demoPlayName}
       focused={focused}
       onCloseMenu={() => setOpenMenu(null)}
+      onClassify={() => toggleMenu("classify")}
       onCreateVersion={createVersion}
       onMenu={toggleMenu}
       onRedo={redo}
@@ -9225,6 +9226,7 @@ function Header({
   demoPlayName,
   focused,
   onCloseMenu,
+  onClassify,
   onCreateVersion,
   onMenu,
   onRedo,
@@ -9258,6 +9260,7 @@ function Header({
   demoPlayName: string;
   focused: boolean;
   onCloseMenu: () => void;
+  onClassify: () => void;
   onCreateVersion: (label: string) => void;
   onMenu: (menu: "more" | "export" | "save" | "help" | "new") => void;
   onRedo: () => void;
@@ -9271,7 +9274,7 @@ function Header({
   runtime: ChalkRuntime;
   /** Opens the sidebar as a drawer — the ≡ at a phone header's left (ADR 0058). */
   onOpenSidebar: () => void;
-  /** A screen below the floor: the two-row header of issue #92. */
+  /** A screen below the editor floor. */
   phone: boolean;
   setPlayName: (name: string) => void;
   undo: EditorUndoState;
@@ -9286,6 +9289,48 @@ function Header({
       onToggle={() => onMenu("more")}
       open={openMenu === "more"}
       phone={phone}
+      overflowActions={
+        <>
+          <button
+            className="menu-item"
+            disabled={!canResetPositions}
+            onClick={() => {
+              onCloseMenu();
+              onResetPositions();
+            }}
+            type="button"
+          >
+            Reset positions
+          </button>
+          <div className="phone-overflow-actions">
+            <button
+              className="menu-item"
+              disabled={!undo.canUndo}
+              onClick={() => {
+                onCloseMenu();
+                onUndo();
+              }}
+              type="button"
+            >
+              Undo
+            </button>
+            <button
+              className="menu-item"
+              disabled={!undo.canRedo}
+              onClick={() => {
+                onCloseMenu();
+                onRedo();
+              }}
+              type="button"
+            >
+              Redo
+            </button>
+            <button className="menu-item" onClick={onClassify} type="button">
+              Play type
+            </button>
+          </div>
+        </>
+      }
       zonesHidden={zonesHidden}
     >
       <PlaySharePanel runtime={runtime} />
@@ -9309,6 +9354,22 @@ function Header({
       </div>
       <strong className="brand">{PRODUCT_NAME}</strong>
       <nav className="view-tabs" aria-label="Workspace views">
+        <select
+          aria-label="Workspace view"
+          value={activeView}
+          onChange={(event) => onView(event.target.value as View)}
+        >
+          {!destinations.some(({ view }) => view === activeView) ? (
+            <option value={activeView}>
+              {activeView === "GameDay" ? "Game Day" : activeView}
+            </option>
+          ) : null}
+          {destinations.map(({ view, label }) => (
+            <option key={view} value={view}>
+              {label}
+            </option>
+          ))}
+        </select>
         {destinations.map(({ view, label }) => (
           <button
             aria-current={activeView === view ? "page" : undefined}
@@ -9374,8 +9435,6 @@ function Header({
             value={playName}
           />
           {classification}
-          {/* Where a narrow header breaks into its second row (issue #68). */}
-          <span className="top-break" aria-hidden="true" />
           <span className="top-spacer" />
           {/* Undo, Redo, Reset positions and Present are icons named for a
               screen reader, their titles saying what each would do (ADR 0057
