@@ -1085,20 +1085,20 @@ button.play-type.open {
   background: var(--wash);
 }
 /* The same affordance the inspector has on its right edge — a slim handle
-   the Coach can click to bring the tool rail back when it was hidden for
-   focus mode (issue: tool rail had no stub to come back from). */
+   across the top of the field the Coach can click to bring the tools back
+   when they were hidden for focus mode (issue: tool rail had no stub to come
+   back from). */
 .rail-stub {
-  width: 28px;
+  height: 28px;
   flex: none;
   border: 0;
   background: var(--canvas);
-  box-shadow: 1px 0 rgb(var(--shade) / 0.06);
+  box-shadow: 0 1px rgb(var(--shade) / 0.06);
   color: var(--muted);
   font-family: "Geist Mono", monospace;
   font-size: 10px;
   letter-spacing: 1.4px;
   text-transform: uppercase;
-  writing-mode: vertical-rl;
   cursor: pointer;
 }
 .rail-stub:hover {
@@ -1268,18 +1268,19 @@ button.play-type.open {
   flex: 1;
   display: flex;
 }
+/* The tools stand in a row across the top of the field, between the sidebar
+   and the inspector; a phone keeps them along the bottom of the glass. */
 .tool-rail {
   position: relative;
   z-index: 2;
-  width: 56px;
   flex: none;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   gap: 4px;
-  padding: 12px 0;
+  padding: 6px 12px;
   background: var(--canvas);
-  box-shadow: 1px 0 0 rgb(var(--shade) / 0.06);
+  box-shadow: 0 1px 0 rgb(var(--shade) / 0.06);
 }
 /* Only the rail's own tool buttons — not nested Clear/menu panel items,
    which need full grid-cell width so labels like Coverage don't bleed. */
@@ -1343,8 +1344,6 @@ button.play-type.open {
   flex: 1;
 }
 .tool-rail .rail-collapse {
-  height: 22px;
-  padding: 0;
   color: var(--faint);
   font-size: 12px;
   line-height: 1;
@@ -5940,23 +5939,18 @@ button.library-dot.target.small {
     color: var(--ink);
   }
   .tool-rail {
-    width: 60px;
     gap: 6px;
-    padding-top: 10px;
   }
   .tool-rail > button,
   .tool-rail .menu > button {
     width: 44px;
     height: 44px;
   }
-  .tool-rail .rail-collapse {
-    height: 32px;
-  }
   .inspector-stub {
     width: 44px;
   }
   .rail-stub {
-    width: 44px;
+    height: 44px;
   }
   .menu-item,
   .clear-grid .menu-item,
@@ -6077,12 +6071,22 @@ button.library-dot.target.small {
     bottom: 0;
     z-index: 7;
   }
-  .rail-stub {
+  .phone-workspace .rail-stub {
     position: absolute;
     top: 0;
     left: 0;
     bottom: 0;
     z-index: 7;
+  }
+  /* The inspector's stub floats over the field's right edge here, so the
+     tools' row ends short of it rather than under it. */
+  .tool-rail {
+    padding-right: 40px;
+  }
+}
+@media (max-width: 1023px) and (pointer: coarse) {
+  .tool-rail {
+    padding-right: 56px;
   }
 }
 @media (max-width: 667px) {
@@ -8670,14 +8674,6 @@ button.shell-quiet:hover {
 .sidebar-status .sidebar-save.error {
   color: var(--red);
 }
-/* Below 1024 px the sidebar stub keeps its own column, as on a desktop, so
-   the tool rail stands beside it rather than under it; only the tools' own
-   stub floats, and it moves over to clear the sidebar's. */
-@media (max-width: 1023px) {
-  .sidebar-stub ~ .rail-stub {
-    left: 28px;
-  }
-}
 @media (pointer: coarse) {
   .sidebar-row,
   .sidebar-fold-toggle {
@@ -8690,9 +8686,6 @@ button.shell-quiet:hover {
   }
   .sidebar-stub {
     width: 44px;
-  }
-  .sidebar-stub ~ .rail-stub {
-    left: 44px;
   }
 }
 
