@@ -1,5 +1,5 @@
 import { type Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, headerCommand, test } from "./fixtures";
 
 /**
  * Drives real pointer gestures through the production field: the unified
@@ -2386,7 +2386,7 @@ test.describe("on a phone", () => {
       page.getByRole("button", { name: "Edit on this screen" }),
     ).toHaveCount(0);
     await expect(page.getByLabel("Drawing tools")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+    await expect(await headerCommand(page, "Undo")).toBeVisible();
     // The whole field, to begin with.
     await expect
       .poll(async () => (await cameraOf(page)).width)
