@@ -1338,6 +1338,14 @@ button.play-type.open {
 .rail-spacer {
   flex: 1;
 }
+/* Between what the rail puts on the field and what it takes off (ADR 0077). */
+.rail-divider {
+  width: 20px;
+  height: 1px;
+  flex: none;
+  margin: 4px 0;
+  background: var(--line);
+}
 /* What pushes the header's last actions to its end where there is no
    Play name to take the room. */
 .topbar-fill {
@@ -7295,6 +7303,11 @@ button.library-dot.target.small {
 }
 .phone-workspace .tool-rail .rail-collapse {
   display: none;
+}
+.phone-workspace .tool-rail .rail-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
 }
 .phone-workspace .tool-rail .rail-finish {
   width: auto;

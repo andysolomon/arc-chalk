@@ -76,6 +76,7 @@ export type ActionId =
   | "clearRoutesOffense"
   | "clearRoutesDefense"
   | "clearAllLines"
+  | "clearPlayers"
   | "clearOffense"
   | "clearDefense"
   | "clearText"
@@ -471,6 +472,7 @@ export function paletteCommands(
     { id: "clearRoutesOffense", label: "Clear offensive routes" },
     { id: "clearRoutesDefense", label: "Clear defensive assignments" },
     { id: "clearAllLines", label: "Clear every line" },
+    { id: "clearPlayers", label: "Clear every player" },
     { id: "clearOffense", label: "Clear offense" },
     { id: "clearDefense", label: "Clear defense" },
     { id: "clearText", label: "Clear text" },

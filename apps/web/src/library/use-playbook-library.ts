@@ -169,9 +169,11 @@ export function usePlaybookLibrary(
     });
   }, [editorStore, library, refresh, variationDraft]);
 
+  /** Settles once the blank Play is the one in the editor. */
   const newPlay = useCallback(
-    (unit: PlayUnit) => {
-      void createUntitledPlay(library, editorStore, unit).then(() => refresh());
+    async (unit: PlayUnit): Promise<void> => {
+      await createUntitledPlay(library, editorStore, unit);
+      void refresh();
     },
     [editorStore, library, refresh],
   );

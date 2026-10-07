@@ -106,7 +106,9 @@ export async function openSettings(page: Page) {
 
 /**
  * A blank play from the header's New play menu — its one home on a desktop;
- * More carries it only on a phone, whose header has no room (ADR 0074).
+ * More carries it only on a phone, whose header has no room (ADR 0074). A
+ * new play opens on the browser for its unit (ADR 0077); this closes it
+ * unpicked, leaving the blank field these specs start from.
  */
 export async function startNewPlay(
   page: Page,
@@ -120,6 +122,20 @@ export async function startNewPlay(
     .getByRole("group", { name: "New play" })
     .getByRole("button", { name: new RegExp(`^New ${unit} play`) })
     .click();
+  await closeNewPlayBrowser(page, unit);
+}
+
+/** Closes the browser a new play opens on, with nothing picked (ADR 0077). */
+export async function closeNewPlayBrowser(
+  page: Page,
+  unit: "offensive" | "defensive",
+): Promise<void> {
+  const browser = page.getByRole("dialog", {
+    name: unit === "offensive" ? "Formations" : "Defenses",
+  });
+  await expect(browser).toBeVisible();
+  await browser.getByTitle("Close — esc").click();
+  await expect(browser).toBeHidden();
 }
 
 /** Switch destinations through tabs or the narrow header's view picker. */

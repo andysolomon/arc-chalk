@@ -50,12 +50,13 @@ const editor = async (page: Page) => {
 async function makePlay(
   page: Page,
   play: { readonly name: string; readonly call: RegExp },
+  /** A new play opens on the Formations browser (ADR 0077). */
+  browserOpen = false,
 ) {
-  await page.getByTitle("Browse formations — ⇧⌘F").click();
-  await page
-    .getByRole("dialog", { name: "Formations" })
-    .getByText("Gun Doubles Right", { exact: true })
-    .click();
+  const formations = page.getByRole("dialog", { name: "Formations" });
+  if (browserOpen) await expect(formations).toBeVisible();
+  else await page.getByTitle("Browse formations — ⇧⌘F").click();
+  await formations.getByText("Gun Doubles Right", { exact: true }).click();
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
   const name = page.getByRole("textbox", { name: "Play name" });
   await name.fill(play.name);
@@ -162,7 +163,7 @@ test("prints the book under its name, in its page's order, with every line call 
     await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
       "Untitled play",
     );
-    await makePlay(page, play);
+    await makePlay(page, play, true);
   }
 
   // The roster reads each lineman's block as the call it is.

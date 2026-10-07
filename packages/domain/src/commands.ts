@@ -1384,12 +1384,15 @@ export function clearPlayLayerCommand(
  * The erasures the original offers. Two of them are what a Coach reaches for
  * daily: Routes takes the concept off and Coverage takes the call off, both
  * leaving their players standing, so the next concept is drawn from the same
- * formation without setting it again.
+ * formation without setting it again. Players is the tool rail's own (ADR
+ * 0077): every man on either side, his lines with him, the notes left where
+ * they are, so the next set is put on an empty field.
  */
 export const playErasures = Object.freeze([
   "offensive-lines",
   "defensive-lines",
   "lines",
+  "players",
   "offense",
   "defense",
   "text",
@@ -1402,6 +1405,7 @@ const erasureLabels: Record<PlayErasure, string> = {
   "offensive-lines": "Clear offensive routes",
   "defensive-lines": "Clear defensive assignments",
   lines: "Clear every line",
+  players: "Clear every player",
   offense: "Clear offense",
   defense: "Clear defense",
   text: "Clear text",
@@ -1481,6 +1485,12 @@ function erasureTargets(
       return {
         playerIds: NOTHING,
         pathIds: idsOf(play.paths),
+        labelIds: NOTHING,
+      };
+    case "players":
+      return {
+        playerIds: idsOf(play.players),
+        pathIds: NOTHING,
         labelIds: NOTHING,
       };
     case "offense":
