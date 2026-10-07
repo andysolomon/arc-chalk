@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { chooseWorkspaceView, expect, test } from "./fixtures";
 
 /**
  * A Game Plan calls a Play from another book on a phone (ADR 0067, issue
@@ -34,11 +34,8 @@ const noRootOverflow = (page: Page) =>
     )
     .toBeLessThanOrEqual(0);
 
-const gotoView = (page: Page, name: string) =>
-  page
-    .getByRole("navigation", { name: "Workspace views" })
-    .getByRole("button", { name, exact: true })
-    .tap();
+const gotoView = (page: Page, name: "Editor" | "Playbooks" | "Game Day") =>
+  chooseWorkspaceView(page, name);
 
 /** The shelf, from the open book's bar on the Playbooks page. */
 const openShelf = async (page: Page) => {

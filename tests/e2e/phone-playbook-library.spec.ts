@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { chooseWorkspaceView, expect, test } from "./fixtures";
 
 /**
  * Organizing a library on a phone (issue #166): a book's actions and a
@@ -62,10 +62,7 @@ for (const viewport of VIEWPORTS) {
       await page.goto("/");
       await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
       const pages = page.getByRole("navigation", { name: "Playbooks pages" });
-      await page
-        .getByRole("navigation", { name: "Workspace views" })
-        .getByRole("button", { name: "Playbooks", exact: true })
-        .tap();
+      await chooseWorkspaceView(page, "Playbooks");
       await expect(pages).toBeVisible();
 
       // Install order, set one step at a time from a Play's sheet.

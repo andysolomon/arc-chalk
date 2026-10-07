@@ -1,6 +1,11 @@
 import type { Page } from "@playwright/test";
 
-import { expect, openSeededEditor, test } from "./fixtures";
+import {
+  chooseWorkspaceView,
+  expect,
+  openSeededEditor,
+  test,
+} from "./fixtures";
 
 /**
  * On a phone the Playbooks pages scroll the document, not a box inside a
@@ -19,9 +24,6 @@ test.use({
   isMobile: true,
   deviceScaleFactor: 2,
 });
-
-const views = (page: Page) =>
-  page.getByRole("navigation", { name: "Workspace views" });
 
 const documentScroll = (page: Page) =>
   page.evaluate(() => ({
@@ -53,9 +55,7 @@ test("scrolls the Playbooks page, not a box inside it, under a pinned header", a
   expect(scroll.height).toBeLessThanOrEqual(scroll.viewport);
 
   for (let index = 0; index < EXTRA_PLAYS; index += 1) {
-    await views(page)
-      .getByRole("button", { name: "Playbooks", exact: true })
-      .tap();
+    await chooseWorkspaceView(page, "Playbooks");
     await page.locator(".destination-new").tap();
     await page
       .getByRole("group", { name: "New play" })
@@ -64,9 +64,7 @@ test("scrolls the Playbooks page, not a box inside it, under a pinned header", a
     await expect(page.locator(".view-playbooks")).toHaveCount(0);
   }
 
-  await views(page)
-    .getByRole("button", { name: "Playbooks", exact: true })
-    .tap();
+  await chooseWorkspaceView(page, "Playbooks");
   const list = page.locator(".playbook-scroll");
   await expect(list).toHaveAttribute("data-layout", "list");
   const total = Number(await list.getAttribute("data-virtual-count"));
@@ -129,7 +127,7 @@ test("scrolls the Playbooks page, not a box inside it, under a pinned header", a
   await toBottom(page);
   expect(Math.round((await header.boundingBox())!.y)).toBe(0);
 
-  await views(page).getByRole("button", { name: "Editor", exact: true }).tap();
+  await chooseWorkspaceView(page, "Editor");
   await expect.poll(async () => (await documentScroll(page)).top).toBe(0);
   scroll = await documentScroll(page);
   expect(scroll.height).toBeLessThanOrEqual(scroll.viewport);

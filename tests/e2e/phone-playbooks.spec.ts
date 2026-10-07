@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { chooseWorkspaceView, expect, test } from "./fixtures";
 
 /**
  * The Playbooks destination on a phone (ADR 0060): three pages across one
@@ -32,10 +32,7 @@ const noRootOverflow = (page: Page) =>
 const openPlaybooks = async (page: Page) => {
   await page.goto("/");
   await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Workspace views" })
-    .getByRole("button", { name: "Playbooks", exact: true })
-    .tap();
+  await chooseWorkspaceView(page, "Playbooks");
   const pages = page.getByRole("navigation", { name: "Playbooks pages" });
   await expect(pages).toBeVisible();
   return pages;

@@ -1,4 +1,9 @@
-import { expect, openSeededEditor, test } from "./fixtures";
+import {
+  chooseWorkspaceView,
+  expect,
+  openSeededEditor,
+  test,
+} from "./fixtures";
 
 /**
  * ADR 0074 on a phone. The header sheds New play, Present, Help and Print &
@@ -60,10 +65,7 @@ test("a phone reaches each control from one place", async ({
 
   // The Playbooks page has no drawer: Help and Settings stand where More
   // stood, and the ≡ that would open nothing is gone.
-  await page
-    .getByRole("navigation", { name: "Workspace views" })
-    .getByRole("button", { name: "Playbooks", exact: true })
-    .tap();
+  await chooseWorkspaceView(page, "Playbooks");
   await expect(
     banner.getByRole("button", { name: "Open the sidebar" }),
   ).toHaveCount(0);
@@ -104,10 +106,7 @@ test.describe("held sideways", () => {
     await banner.getByRole("button", { name: "More actions" }).tap();
 
     // Help on the Playbooks page: the Command palette is its last entry.
-    await page
-      .getByRole("navigation", { name: "Workspace views" })
-      .getByRole("button", { name: "Playbooks", exact: true })
-      .tap();
+    await chooseWorkspaceView(page, "Playbooks");
     await banner.getByRole("button", { name: "Help", exact: true }).tap();
     await onGlass(".help-panel");
     const palette = page.getByRole("button", {

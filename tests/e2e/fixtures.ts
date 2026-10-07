@@ -121,3 +121,33 @@ export async function startNewPlay(
     .getByRole("button", { name: new RegExp(`^New ${unit} play`) })
     .click();
 }
+
+/** Switch destinations through tabs or the narrow header's view picker. */
+export async function chooseWorkspaceView(
+  page: Page,
+  label: "Editor" | "Playbooks" | "Game Day",
+) {
+  const nav = page.getByRole("navigation", { name: "Workspace views" });
+  const picker = nav.getByRole("combobox", { name: "Workspace view" });
+  await expect(nav).toBeVisible();
+  if (await picker.isVisible()) {
+    await picker.selectOption({ label });
+  } else {
+    await nav.getByRole("button", { name: label, exact: true }).click();
+  }
+}
+
+/** The command's single visible home is either the row or More. */
+export async function headerCommand(
+  page: Page,
+  name: "Undo" | "Redo" | "Play type",
+) {
+  const header = page.getByRole("banner");
+  const command = header.getByRole("button", { name, exact: true });
+  if (!(await command.isVisible())) {
+    await header
+      .getByRole("button", { name: "More actions", exact: true })
+      .click();
+  }
+  return command;
+}
