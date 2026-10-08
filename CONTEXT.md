@@ -64,6 +64,22 @@ _Avoid_: Override, hot route
 A zone the Coverage plays that nobody is left to drop into.
 _Avoid_: Hole (the Cover 1 hole is a zone someone plays), gap (a gap is in the offensive line)
 
+**Defensive adjustment**:
+A change to defenders' alignment, rush, coverage technique, or responsibilities within a Play. It can address the entire defense, a position group, or selected men.
+_Avoid_: New defensive call, replacement formation
+
+**Offense read key**:
+A defender whose reaction the offense reads to choose a give, keep, pitch, or pass. Option Read, Pitch Key, RPO Read, and Pass Key identify that defender's place in the offense's decision.
+_Avoid_: Defensive read, man match
+
+**Defensive read**:
+An offensive player a defender watches for an option, pitch, RPO, or pass cue. It is the defender's coaching responsibility and can coexist with his designation as an Offense read key.
+_Avoid_: Offense read key, coverage target
+
+**Plaster**:
+A defender's instruction to stay attached to a receiver when the quarterback scrambles. It supplements the original coverage with a scramble response.
+_Avoid_: Blitz, spy, base man coverage
+
 **Man match**:
 The receiver a defender in man covers. By default the defense matches its men in man to the receivers it makes most sense for each to take — corners the wide receivers, the nickel the slot, the safety the tight end, a linebacker the back — and lines each up on his man; the Coach can pick a different man, which is kept while that man is on the field. The defense matches again whenever the offense changes.
 _Avoid_: Man assignment target, coverage pairing

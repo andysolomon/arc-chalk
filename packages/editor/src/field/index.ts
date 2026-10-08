@@ -6,3 +6,5 @@ export * from "./geometry";
 export * from "./handles";
 export * from "./machine";
 export * from "./model";
+export * from "./selection-assignments";
+export * from "./defensive-adjustments";

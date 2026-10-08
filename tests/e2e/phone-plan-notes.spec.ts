@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 
 import type { Locator, Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { chooseWorkspaceView, expect, test } from "./fixtures";
 
 /**
  * Issue #155 on a phone: the game-plan fields are the same ones, and a thumb
@@ -16,10 +16,7 @@ async function openGamePlans(page: Page): Promise<Locator> {
   await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
   const workspace = page.getByRole("region", { name: "Game plans" });
   if ((await workspace.count()) === 0) {
-    await page
-      .getByRole("navigation", { name: "Workspace views" })
-      .getByRole("button", { name: "Playbooks", exact: true })
-      .tap();
+    await chooseWorkspaceView(page, "Playbooks");
     await page
       .getByRole("navigation", { name: "Book pages" })
       .getByRole("button", { name: "Game plans", exact: true })

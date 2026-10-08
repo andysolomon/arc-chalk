@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { chooseWorkspaceView, expect, test } from "./fixtures";
 
 /**
  * A Play's card on a phone: a tap on a Play in the open book raises its card
@@ -45,10 +45,7 @@ for (const viewport of VIEWPORTS) {
     }, testInfo) => {
       await page.goto("/");
       await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
-      await page
-        .getByRole("navigation", { name: "Workspace views" })
-        .getByRole("button", { name: "Playbooks", exact: true })
-        .tap();
+      await chooseWorkspaceView(page, "Playbooks");
       await expect(page.locator(".playbook-scroll")).toHaveAttribute(
         "data-layout",
         "list",

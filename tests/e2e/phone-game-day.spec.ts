@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { expect, test } from "./fixtures";
+import { chooseWorkspaceView, expect, test } from "./fixtures";
 
 /**
  * Game Day on a phone (issue #93): the selected call has the glass, the
@@ -47,10 +47,7 @@ const noRootOverflow = (page: Page) =>
 async function preparePlanOnPhone(page: Page): Promise<number> {
   await page.goto("/");
   await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Workspace views" })
-    .getByRole("button", { name: "Playbooks", exact: true })
-    .tap();
+  await chooseWorkspaceView(page, "Playbooks");
   await page
     .getByRole("navigation", { name: "Book pages" })
     .getByRole("button", { name: "Game plans", exact: true })
@@ -141,10 +138,7 @@ for (const viewport of SIDELINE) {
       page,
     }, testInfo) => {
       const count = await preparePlanOnPhone(page);
-      await page
-        .getByRole("navigation", { name: "Workspace views" })
-        .getByRole("button", { name: "Game Day", exact: true })
-        .tap();
+      await chooseWorkspaceView(page, "Game Day");
       const reader = page.getByRole("main", { name: "Game Day" });
       await reader
         .getByRole("button", { name: new RegExp(PLAN.slice(0, 20)) })
@@ -264,10 +258,7 @@ for (const viewport of VIEWPORTS) {
       page,
     }, testInfo) => {
       const count = await preparePlanOnPhone(page);
-      await page
-        .getByRole("navigation", { name: "Workspace views" })
-        .getByRole("button", { name: "Game Day", exact: true })
-        .tap();
+      await chooseWorkspaceView(page, "Game Day");
       const reader = page.getByRole("main", { name: "Game Day" });
       await reader
         .getByRole("button", { name: new RegExp(PLAN.slice(0, 20)) })

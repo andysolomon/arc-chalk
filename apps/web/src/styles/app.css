@@ -182,6 +182,7 @@ select:disabled {
   height: 56px;
   flex: none;
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 10px;
   padding: 0 16px;
@@ -5895,6 +5896,9 @@ button.library-dot.target.small {
  * invisible pseudo-element.
  */
 @media (pointer: coarse) {
+  .topbar > .play-name {
+    height: 44px;
+  }
   .topbar {
     gap: 8px;
   }
@@ -6018,29 +6022,66 @@ button.library-dot.target.small {
  * and close it, the rail stays put, and the field keeps the width. The
  * header gives up what the More menu and Help already carry.
  */
-.top-break {
+/* Keep the header on one row. Commands have one visible home: on the
+   row when it fits, and in More at compact widths. */
+.view-tabs select,
+.header-overflow-actions,
+.phone-overflow-actions {
   display: none;
 }
-/* A header that cannot hold everything on one row breaks after the play's
-   name and type, and the actions take a second row, right-aligned — rather
-   than shedding Undo, Present or Help where a finger needs them most. */
-/* Reset positions joined New play and Present; at 1180 with finger-sized
-   controls the row no longer fits, so the break moves up with them. */
-@media (max-width: 1023px), (max-width: 1240px) and (pointer: coarse) {
+@media (max-width: 1240px) {
   .topbar {
-    flex-wrap: wrap;
-    height: auto;
-    min-height: 56px;
-    padding: 6px 10px;
-    row-gap: 2px;
+    height: 56px;
+    gap: 6px;
+    padding: 0 10px;
   }
-  .top-break {
+  .topbar > .brand,
+  .topbar > .chalk-mark,
+  .topbar > .slash,
+  .topbar > .top-spacer,
+  .topbar > .divider,
+  .topbar > .menu-new,
+  .topbar > .reset-positions,
+  .topbar > .present,
+  .topbar > .menu-export {
+    display: none;
+  }
+  .topbar > .play-name {
+    width: auto;
+    min-width: 0;
+    height: 44px;
+    flex: 1 1 0;
+    text-overflow: ellipsis;
+  }
+  .topbar .view-tabs {
+    margin-left: 0;
+  }
+  .topbar > .classify-menu {
+    max-width: 104px;
+  }
+  .topbar .classify-menu > .play-type {
+    max-width: 100%;
+  }
+  .header-overflow-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .topbar .menu > .menu-panel {
+    top: calc(100% + 2px);
+  }
+}
+/* Larger tablets have room for the complete action strip once the name
+   can shrink and the decorative chrome is gone. */
+@media (min-width: 1024px) and (max-width: 1240px) {
+  .topbar:not(.phone-topbar) > .menu-new,
+  .topbar:not(.phone-topbar) > .reset-positions,
+  .topbar:not(.phone-topbar) > .present,
+  .topbar:not(.phone-topbar) > .menu-export {
     display: block;
-    flex-basis: 100%;
-    height: 0;
   }
-  .play-name {
-    width: clamp(120px, 30vw, 300px);
+  .topbar:not(.phone-topbar) .header-overflow-actions {
+    display: none;
   }
 }
 @media (max-width: 1023px) {
@@ -7000,25 +7041,25 @@ button.library-dot.target.small {
 /*
  * Editing on a screen below the floor (issue #92). A phone gets the editor
  * laid out for a phone rather than the desktop editor squeezed into one: a
- * two-row header, the tools in a tray along the bottom, the inspector as a
+ * single-row header, the tools in a tray along the bottom, the inspector as a
  * sheet over the field. Everything the header sheds is in the More menu.
  * The header is the phone's on every destination, not just the editor.
  *
- * The two rows read where, then what (ADR 0057). The first is where the
- * Coach is: the three destinations as one segmented control across the
- * row, and More at its end. The second is the work in hand: the
- * play's name with the room it needs, its Unit, Undo and Redo as arrows,
- * and Save, anchored at the trailing edge beneath More. Every control is a
- * 44 px box; the pill and Save are painted inside theirs at the wider
- * header's 32 px, so the name stays the loudest thing on the row.
+ * On a narrow phone the view picker leaves the name, More and Save on
+ * the same row. Undo, Redo and the type picker move to More.
  */
 .topbar.phone-topbar {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   height: auto;
-  min-height: 0;
-  gap: 2px 4px;
+  min-height: 52px;
+  gap: 4px;
   padding: max(4px, env(safe-area-inset-top))
     max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+}
+.topbar.phone-topbar .header-overflow-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .topbar.phone-topbar > .chalk-mark,
 .topbar.phone-topbar > .brand,
@@ -7049,10 +7090,10 @@ button.library-dot.target.small {
   color: var(--ink);
 }
 
-/* Row one — where. */
+/* Destinations share the row with the work in hand. */
 .topbar.phone-topbar .view-tabs {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: none;
   margin-left: 0;
 }
 /* The tabs already take the row; a spacer beside them only squeezes them. */
@@ -7067,7 +7108,7 @@ button.library-dot.target.small {
 }
 .topbar.phone-topbar > .menu-more,
 .topbar.phone-topbar > .header-icons {
-  order: 1;
+  order: 4;
 }
 .topbar.phone-topbar .header-icons > .icon-button,
 .topbar.phone-topbar .header-icons .menu > .icon-button {
@@ -7079,19 +7120,6 @@ button.library-dot.target.small {
   padding: 0;
   font-size: 20px;
 }
-.topbar.phone-topbar > .top-break {
-  order: 2;
-  display: block;
-  flex-basis: 100%;
-  height: 0;
-}
-
-/* Row two — what. The name takes whatever the row has left, from a zero
-   basis: a wrapping row places its items by basis before anything shrinks,
-   so a long name would otherwise push Save onto a third row. The Unit pill
-   says the Unit's word alone and is capped, tighter on the narrowest phones:
-   its Type is one tap away in the panel it opens, and the name's words are
-   nowhere else. */
 .topbar.phone-topbar > .play-name {
   order: 3;
   width: auto;
@@ -7207,32 +7235,41 @@ button.library-dot.target.small {
   top: calc(100% + 2px);
 }
 
-/* Wide and shallow — a phone held sideways — has the width for one row and
-   needs the depth: the destinations at their own width, the name between
-   them and the actions, the pill's Type back beside its Unit, More beside
-   Save. */
-@media (min-width: 668px) {
-  .topbar.phone-topbar > .top-break {
+@media (max-width: 667px) {
+  .topbar .view-tabs > button,
+  .topbar.phone-topbar > .undo,
+  .topbar.phone-topbar > .redo,
+  .topbar.phone-topbar .classify-menu > .play-type {
     display: none;
   }
-  .topbar.phone-topbar .view-tabs {
-    flex: none;
-  }
-  .topbar.phone-topbar > .topbar-fill {
+  .topbar .view-tabs select {
     display: block;
-  }
-  .topbar.phone-topbar .view-tabs button {
-    flex: none;
-    padding: 0 12px;
-  }
-  .topbar.phone-topbar > .menu-more {
-    order: 4;
+    width: 80px;
+    height: 44px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--wash);
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
   }
   .topbar.phone-topbar > .classify-menu {
-    max-width: 180px;
+    min-width: 0;
+    width: 0;
+    max-width: 0;
+    flex: none;
   }
-  .topbar.phone-topbar .play-type-name {
-    display: inline;
+  .phone-overflow-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+@media (min-width: 668px) {
+  .topbar.phone-topbar .view-tabs button {
+    flex: none;
+    padding: 0 8px;
   }
 }
 .phone-workspace .workspace {
@@ -8542,7 +8579,7 @@ button.shell-quiet:hover {
 .sidebar-open:hover {
   background: var(--wash);
 }
-/* The ≡ leads the first row, before the destinations (ADR 0058): a 44 px
+/* The ≡ leads the row, before the destinations (ADR 0058): a 44 px
    box like every other control in the phone header. */
 .topbar.phone-topbar > .sidebar-open {
   order: 0;
@@ -9430,4 +9467,419 @@ html:has(.chalk-shell.phone-page) #root {
   max-height: none;
   flex: none;
   overflow: visible;
+}
+
+/* Football actions follow the men selected, within reach above the field. */
+.selection-toolbar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 28px);
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.1);
+  color: var(--ink);
+  font-size: 12px;
+}
+.scope-bar + .selection-toolbar {
+  top: 54px;
+}
+.selection-toolbar-heading {
+  font-weight: 600;
+}
+.selection-toolbar-actions,
+.receiver-order {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+.selection-toolbar button,
+.selection-toolbar select,
+.selection-toolbar summary {
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.selection-toolbar button:hover {
+  background: var(--hover);
+}
+.selection-toolbar button[aria-pressed="true"] {
+  color: var(--blue);
+  border-color: currentColor;
+}
+.selection-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.receiver-order label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+}
+.selection-toolbar-more {
+  position: relative;
+}
+.selection-toolbar-more > div {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  min-width: 160px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.1);
+}
+@media (pointer: coarse) {
+  .selection-toolbar button,
+  .selection-toolbar select,
+  .selection-toolbar summary {
+    min-height: 44px;
+  }
+}
+
+.defense-dialog {
+  margin: auto;
+  inset: 0;
+  width: min(960px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 0.3);
+  overflow: auto;
+}
+.defense-dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+.defense-dialog > header,
+.defense-dialog > footer,
+.defense-scope {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+}
+.defense-dialog > header {
+  border-bottom: 1px solid var(--rule);
+}
+.defense-dialog h2 {
+  margin: 4px 0 0;
+  font-size: 22px;
+}
+.defense-dialog h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.defense-dialog small {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.defense-dialog p {
+  margin: 6px 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.defense-dialog button,
+.defense-dialog select,
+.tips-page button,
+.tips-page input {
+  min-height: 36px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.defense-dialog button,
+.tips-page button {
+  cursor: pointer;
+}
+.defense-dialog button:hover,
+.tips-page button:hover {
+  background: var(--hover);
+}
+.defense-dialog button:disabled,
+.defense-dialog select:disabled,
+.tips-page button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.defense-dialog button[aria-pressed="true"],
+.tips-page button[aria-pressed="true"] {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 8%, var(--paper));
+}
+.defense-dialog label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.defense-scope {
+  flex-wrap: wrap;
+  background: var(--canvas);
+  font-size: 12px;
+}
+.defense-scope label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.defense-adjustment-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--rule);
+}
+.defense-adjustment-grid > section {
+  padding: 20px;
+  background: var(--paper);
+  min-width: 0;
+}
+.defense-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.defense-alignment-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.defense-dialog select {
+  width: 100%;
+  min-width: 0;
+}
+.defense-read-section {
+  grid-column: 1 / -1;
+}
+.defense-read-section > label {
+  max-width: 260px;
+  margin-bottom: 14px;
+}
+.defense-read-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
+}
+.defense-read-fields > p {
+  align-self: center;
+  margin: 0;
+}
+.defense-dialog > footer {
+  font-size: 12px;
+  border-top: 1px solid var(--rule);
+}
+.defense-dialog > footer > span {
+  color: var(--muted);
+}
+.view-tips {
+  height: 100dvh;
+  overflow: hidden;
+}
+.tips-page {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--canvas);
+  padding: 40px clamp(20px, 5vw, 80px);
+}
+.tips-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  max-width: 1240px;
+  margin: 0 auto 26px;
+}
+.tips-heading h1 {
+  font-size: clamp(28px, 4vw, 42px);
+  letter-spacing: -1.4px;
+  margin: 8px 0 12px;
+}
+.tips-heading p,
+.tips-intro,
+.tips-footer {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.tips-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+.tips-controls input {
+  flex: 1;
+  min-width: 230px;
+}
+.tips-controls > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tips-intro,
+.tips-empty-defense,
+.tips-footer {
+  max-width: 1240px;
+  margin: 20px auto;
+}
+.tips-empty-defense {
+  font-size: 13px;
+  padding: 12px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.tips-grid {
+  max-width: 1240px;
+  margin: 24px auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+.tip-card {
+  padding: 24px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.tip-eyebrow {
+  display: flex;
+  justify-content: space-between;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.tip-card h2 {
+  font-size: 23px;
+  letter-spacing: -0.6px;
+  margin: 16px 0 10px;
+  line-height: 1.2;
+}
+.tip-card p,
+.tip-card li {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.tip-card > p {
+  color: var(--muted);
+}
+.tip-card ol {
+  list-style: decimal;
+  padding-left: 20px;
+  margin: 22px 0;
+}
+.tip-card li {
+  padding-left: 5px;
+  margin: 10px 0;
+}
+.tip-card li::marker {
+  color: var(--blue);
+  font-weight: 600;
+}
+.tip-aim,
+.tip-watch {
+  border-top: 1px solid var(--rule);
+  padding-top: 12px;
+  margin-top: 14px;
+}
+.tip-aim strong,
+.tip-watch strong {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.tip-aim p,
+.tip-watch p {
+  margin: 6px 0;
+}
+.tip-watch {
+  color: var(--muted);
+}
+.tip-card > button {
+  margin-top: 18px;
+  width: 100%;
+}
+.tips-footer a {
+  color: var(--ink);
+  text-underline-offset: 3px;
+}
+@media (max-width: 1100px) {
+  .tips-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 650px) {
+  .defense-dialog {
+    margin: auto;
+    inset: 0;
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: 10px;
+  }
+  .defense-adjustment-grid,
+  .defense-read-fields {
+    grid-template-columns: 1fr;
+  }
+  .defense-scope label {
+    flex: 1;
+  }
+  .defense-scope span {
+    display: none;
+  }
+  .defense-dialog button,
+  .defense-dialog select,
+  .tips-page button,
+  .tips-page input {
+    min-height: 44px;
+  }
+  .tips-heading {
+    display: block;
+  }
+  .tips-grid {
+    grid-template-columns: 1fr;
+  }
+  .tips-page {
+    padding: 24px 16px;
+  }
+  .tip-card {
+    padding: 20px;
+  }
 }

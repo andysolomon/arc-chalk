@@ -53,3 +53,4 @@ export * from "./linebacker-calls";
 export * from "./refills";
 export * from "./unit-calls";
 export * from "./zone-shell";
+export * from "./defensive-coaching";

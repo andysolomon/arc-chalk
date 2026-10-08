@@ -1,6 +1,11 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { expect, openViewAndLibrary, test } from "./fixtures";
+import {
+  chooseWorkspaceView,
+  expect,
+  openViewAndLibrary,
+  test,
+} from "./fixtures";
 
 /**
  * Issue #68: the shell chooses a docked inspector, a drawer or the reading
@@ -55,10 +60,7 @@ for (const [label, viewport] of VIEWPORTS) {
       page,
     }) => {
       await page.goto("/");
-      await page
-        .getByRole("navigation", { name: "Workspace views" })
-        .getByRole("button", { name: "Playbooks", exact: true })
-        .click();
+      await chooseWorkspaceView(page, "Playbooks");
       // The sidebar's two icons stand at the header's end where there is no
       // sidebar (ADR 0074), and a finger gets the same box for each.
       for (const name of ["Help", "Settings"]) {
@@ -79,7 +81,9 @@ for (const [label, viewport] of VIEWPORTS) {
       ).toBe(true);
       await noHorizontalOverflow(page);
       const nav = page.getByRole("navigation", { name: "Workspace views" });
-      for (const name of ["Editor", "Playbooks", "Game Day"]) {
+      for (const name of viewport.width < 668
+        ? []
+        : ["Editor", "Playbooks", "Game Day"]) {
         const tab = nav.getByRole("button", { name, exact: true });
         await expect(tab).toBeVisible();
         const rect = await box(tab);
@@ -125,7 +129,9 @@ for (const [label, viewport] of VIEWPORTS) {
           expect(overlaps(rects[i]!, rects[j]!), `${i} vs ${j}`).toBe(false);
         }
       }
-      for (const name of ["Present", "Print & export", "Save"]) {
+      for (const name of viewport.width < 1024
+        ? ["Save"]
+        : ["Present", "Print & export", "Save"]) {
         const rect = await box(
           page.getByRole("banner").getByRole("button", { name, exact: true }),
         );
@@ -163,10 +169,7 @@ for (const [label, viewport] of VIEWPORTS) {
       page,
     }) => {
       await page.goto("/");
-      await page
-        .getByRole("navigation", { name: "Workspace views" })
-        .getByRole("button", { name: "Playbooks", exact: true })
-        .click();
+      await chooseWorkspaceView(page, "Playbooks");
       const search = page.getByRole("textbox", { name: "Search plays" });
       await expect(search).toBeVisible();
       await expect(search).not.toBeFocused();
