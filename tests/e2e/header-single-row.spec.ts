@@ -1,4 +1,4 @@
-import { expect, openBlankEditor, test } from "./fixtures";
+import { closeNewPlayBrowser, expect, openBlankEditor, test } from "./fixtures";
 
 for (const touch of [false, true]) {
   for (const width of [668, 694, 768, 820, 834, 1024, 1180, 1240, 1366]) {
@@ -93,6 +93,7 @@ test.describe("iPad portrait overflow actions", () => {
       await expect(
         header.getByRole("button", { name: "Play type", exact: true }),
       ).toContainText("Defense");
+      await closeNewPlayBrowser(page, "defensive");
       await openMore();
       await more.getByRole("button", { name: "Present", exact: true }).click();
       await expect(
@@ -117,6 +118,7 @@ test.describe("iPad portrait overflow actions", () => {
       await expect(
         header.getByRole("button", { name: "Play type", exact: true }),
       ).toContainText("Offense");
+      await closeNewPlayBrowser(page, "offensive");
     }
     await page.screenshot({
       path: info.outputPath("ipad-portrait-dark-final.png"),

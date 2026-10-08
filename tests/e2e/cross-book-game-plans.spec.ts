@@ -1,6 +1,12 @@
 import type { Page } from "@playwright/test";
 
-import { expect, openGamePlans, openSeededEditor, test } from "./fixtures";
+import {
+  expect,
+  openGamePlans,
+  openSeededEditor,
+  startNewPlay,
+  test,
+} from "./fixtures";
 
 /**
  * A Game Plan calls Plays from any of the Coach's books (ADR 0067, issue
@@ -69,14 +75,7 @@ test("calls plays from another book, prepares them, and reports one deleted late
   await expect(page.locator(".book-title strong")).toHaveText(OTHER);
   await gotoView(page, "Editor");
   await namePlay(page, "Stick — Thunder");
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "New play" })
-    .click();
-  await page
-    .getByRole("group", { name: "New play" })
-    .getByRole("button", { name: /^New offensive play/ })
-    .click();
+  await startNewPlay(page, "offensive");
   await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
     "Untitled play",
   );

@@ -24,9 +24,49 @@ export type RailGlyph =
   | "zone"
   | "text"
   | "snap"
-  | "erase"
+  | "formation"
   | "shadow"
+  | "shadow-add"
+  | "clear-lines"
+  | "clear-players"
   | "trash";
+
+/**
+ * A set as the browsers draw one: three men on the line and a back behind
+ * the middle. Drawn here at full size for Formation, and smaller in the
+ * corner Clear every player leaves for its badge.
+ */
+const SET = [
+  [0, 0],
+  [5.5, 0],
+  [11, 0],
+  [5.5, 7.5],
+] as const;
+const men = (scale: number, x: number, y: number, r = 2 * scale) =>
+  SET.map(([dx, dy]) => (
+    <circle
+      cx={x + dx * scale}
+      cy={y + dy * scale}
+      key={`${dx}-${dy}`}
+      r={r}
+      {...stroke}
+    />
+  ));
+
+/**
+ * The add and take-off badges (ADR 0077): a ringed + or − tucked into the
+ * glyph's lower right, so every rail button that puts something on the field
+ * or takes it off says which, and what.
+ */
+const badge = (sign: "+" | "-") => (
+  <>
+    <circle cx="13.6" cy="13.6" r="3.4" {...stroke} />
+    <path
+      d={sign === "+" ? "M12 13.6h3.2M13.6 12v3.2" : "M12 13.6h3.2"}
+      {...stroke}
+    />
+  </>
+);
 
 const icons: Record<RailGlyph, ReactNode> = {
   select: (
@@ -83,13 +123,7 @@ const icons: Record<RailGlyph, ReactNode> = {
       />
     </>
   ),
-  erase: (
-    <>
-      <path d="M3 15.2 L15 15.2" {...stroke} />
-      <path d="M6.4 15.2 L3.6 12.1 L10.2 3.6 L14 6.4 Z" {...stroke} />
-      <path d="M7.2 9.1 L11.4 12.2" {...stroke} />
-    </>
-  ),
+  formation: <>{men(1, 3.5, 5.5)}</>,
   shadow: (
     // The Play's own man and, ghosted beside him, the other unit's: an O
     // and a dashed X, which is what the shadow looks like on the field.
@@ -97,6 +131,31 @@ const icons: Record<RailGlyph, ReactNode> = {
       <circle cx="6.5" cy="11.5" r="4" {...stroke} />
       <path d="M10.5 3.5 L15.5 8.5" {...stroke} strokeDasharray="2 2" />
       <path d="M15.5 3.5 L10.5 8.5" {...stroke} strokeDasharray="2 2" />
+    </>
+  ),
+  "shadow-add": (
+    // The same O and dashed X, drawn smaller to make room for the + that
+    // says there is no other unit yet and this puts one on.
+    <>
+      <circle cx="5" cy="8.5" r="3.2" {...stroke} />
+      <path d="M10 2.5 L14.5 7" {...stroke} strokeDasharray="2 2" />
+      <path d="M14.5 2.5 L10 7" {...stroke} strokeDasharray="2 2" />
+      {badge("+")}
+    </>
+  ),
+  "clear-lines": (
+    // A route breaking to the corner, and the − that takes it off.
+    <>
+      <path d="M2.8 15.5 L2.8 11 L10 4.2" {...stroke} />
+      <path d="M6.4 3.6 L10.4 3.8 L10.2 7.8" {...stroke} />
+      {badge("-")}
+    </>
+  ),
+  "clear-players": (
+    // The Formation glyph, smaller, and the − that takes the men off.
+    <>
+      {men(0.82, 3, 4, 1.8)}
+      {badge("-")}
     </>
   ),
   trash: (

@@ -1,4 +1,10 @@
-import { expect, openSettings, openViewAndLibrary, test } from "./fixtures";
+import {
+  expect,
+  openSettings,
+  openViewAndLibrary,
+  startNewPlay,
+  test,
+} from "./fixtures";
 
 const LOCAL_SAVE_BUDGET_MS = 50;
 
@@ -749,11 +755,7 @@ test("keeps undo and redo inside the Play after saving it and starting a new one
 
   await header.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("button", { name: /^Save ⌘S/ }).click();
-  await header.getByRole("button", { name: "New play" }).click();
-  await page
-    .getByRole("group", { name: "New play" })
-    .getByRole("button", { name: /^New offensive play/ })
-    .click();
+  await startNewPlay(page, "offensive");
   await expect(playName).toHaveValue("Untitled play");
 
   // The new Play has nothing to undo, and nothing here leads back to the

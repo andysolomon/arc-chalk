@@ -2561,7 +2561,8 @@ function RosterList({
       ))}
       {roster.total === 0 ? (
         <p className="roster-empty">
-          Nobody on the field yet. Pick a formation from the sidebar to start.
+          Nobody on the field yet. Pick a formation from the tools or the
+          sidebar to start.
         </p>
       ) : null}
     </div>
@@ -5608,12 +5609,21 @@ export function ChalkApp({
    * A blank Play of one unit, drawn in the editor wherever it was asked for.
    * The unit is settled here for good (ADR 0053); the shadow of the other
    * side starts shown so the first call or formation he picks is seen.
+   * Once the blank Play is in, the browser for its unit opens on it — the
+   * set comes first on almost every play — and closing it leaves the field
+   * blank to draw on (ADR 0077).
    */
   const startPlay = (unit: PlayUnit) => {
     if (interactionRef.current.drawing) {
       dispatchFieldRef.current({ type: "escape" });
     }
-    playbook.newPlay(unit);
+    void playbook.newPlay(unit).then(() =>
+      // Anything he opened meanwhile is left as it is.
+      setOverlay(
+        (current) =>
+          current ?? (unit === "defense" ? "defenses" : "formations"),
+      ),
+    );
     setPresentation((current) =>
       current.hideShadow ? { ...current, hideShadow: false } : current,
     );
@@ -5761,6 +5771,7 @@ export function ChalkApp({
     clearRoutesOffense: clearAction("offensive-lines"),
     clearRoutesDefense: clearAction("defensive-lines"),
     clearAllLines: clearAction("lines"),
+    clearPlayers: clearAction("players"),
     clearOffense: clearAction("offense"),
     clearDefense: clearAction("defense"),
     clearText: clearAction("text"),
@@ -7003,6 +7014,18 @@ export function ChalkApp({
   const defenderCount = editor.document.players.filter(
     ({ unit }) => unit === "defense",
   ).length;
+  /** The other unit's men: the shadow, which may not be there yet. */
+  const shadowCount = defensePlay
+    ? editor.document.players.length - defenderCount
+    : defenderCount;
+  // The rail's names for the set and the shadow it adds (ADR 0077), each
+  // with the key that opens the same browser.
+  const railSetName = defensePlay
+    ? "Add or change the defense — ⇧⌘D"
+    : "Add or change the formation — ⇧⌘F";
+  const railShadowAddName = `Add a ${shadowName.toLowerCase()} — ${
+    defensePlay ? "⇧⌘F" : "⇧⌘D"
+  }`;
   // A call moved by hand names the one it came from, so the variant keeps
   // its front and coverage in view.
   const callName =
@@ -7999,6 +8022,47 @@ export function ChalkApp({
         )}
         {railOpen ? (
           <nav className="tool-rail" aria-label="Drawing tools">
+            {/* What goes on the field, then what comes off it, then the
+                selection (ADR 0077). Each is one press from a blank canvas:
+                the set, the other unit under it, a note. */}
+            <button
+              // The set for an offensive play, the call for a defensive one:
+              // the same browser the sidebar's Formation row opens.
+              aria-label={railSetName}
+              className="rail-formation"
+              onClick={defensePlay ? openDefenses : openFormations}
+              title={railSetName}
+              type="button"
+            >
+              <RailIcon glyph="formation" />
+            </button>
+            {shadowCount === 0 ? (
+              // Nobody to show yet: the button puts the other unit on, in
+              // the browser for its side, and is a toggle once it is there.
+              <button
+                aria-label={railShadowAddName}
+                className="rail-shadow rail-shadow-add"
+                onClick={defensePlay ? openFormations : openDefenses}
+                title={railShadowAddName}
+                type="button"
+              >
+                <RailIcon glyph="shadow-add" />
+              </button>
+            ) : (
+              <button
+                // The other unit under the play, shown or hidden (ADR 0053).
+                // Pressed means it is on the field; it stays in the play
+                // either way.
+                aria-label={`${shadowLayerName} — H`}
+                aria-pressed={shadowOnField}
+                className="rail-shadow"
+                onClick={toggleShadow}
+                title={`${shadowLayerName} on / off — H`}
+                type="button"
+              >
+                <RailIcon glyph="shadow" />
+              </button>
+            )}
             {tools.map((tool) => (
               // Text is the one tool left here (ADR 0052): a note goes on
               // the grass, so it needs a tool; a line goes on a man, so it
@@ -8030,6 +8094,7 @@ export function ChalkApp({
                 Done
               </button>
             ) : null}
+            <span aria-hidden="true" className="rail-divider" />
             <button
               // Every line off the field at once — routes, motions, blocks,
               // drops and blitzes — with the men left standing, so the next
@@ -8039,22 +8104,23 @@ export function ChalkApp({
               className="rail-clear"
               disabled={!erasures.lines}
               onClick={clearAction("lines")}
-              title="Clear every line — the men stay where they are"
+              title="Clear every route, block and drop — the men stay where they are"
               type="button"
             >
-              <RailIcon glyph="erase" />
+              <RailIcon glyph="clear-lines" />
             </button>
             <button
-              // The other unit under the play, shown or hidden (ADR 0053).
-              // Pressed means it is on the field; it stays in the play either way.
-              aria-label={`${shadowLayerName} — H`}
-              aria-pressed={shadowOnField}
-              className="rail-shadow"
-              onClick={toggleShadow}
-              title={`${shadowLayerName} on / off — H`}
+              // Every man off the field, on both sides, with his lines; the
+              // notes stay. The canvas is blank for the next set, and ⌘Z
+              // puts them all back.
+              aria-label="Clear every player"
+              className="rail-clear rail-clear-players"
+              disabled={!erasures.players}
+              onClick={clearAction("players")}
+              title="Clear every player — his routes go with him, notes stay"
               type="button"
             >
-              <RailIcon glyph="shadow" />
+              <RailIcon glyph="clear-players" />
             </button>
             <span className="rail-spacer" />
             <button
