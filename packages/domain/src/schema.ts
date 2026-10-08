@@ -123,6 +123,15 @@ export const pathPointSchema = z.object({
   ),
 });
 
+export const defensiveTechniqueSchema = z.object({
+  depthShade: z.optional(z.enum(["underneath", "overtop"])),
+  leverage: z.optional(z.enum(["inside", "outside"])),
+  aggressive: z.optional(z.boolean()),
+  showBlitzFromDepth: z.optional(z.number()),
+});
+
+export const readKeySchema = z.enum(["option", "pitch", "rpo", "pass"]);
+
 export const playerSchema = z.object({
   id: entityIdSchema,
   unit: playUnitSchema,
@@ -133,7 +142,15 @@ export const playerSchema = z.object({
   fill: playerFillSchema,
   color: colorSchema,
   role: z.optional(z.string()),
+  defensiveTechnique: z.optional(defensiveTechniqueSchema),
   group: z.optional(z.string()),
+  groupDesignation: z.optional(
+    z.object({
+      kind: z.enum(["trips", "double-team", "coverage"]),
+      name: z.string(),
+      order: z.optional(z.number().check(z.int(), z.gte(1), z.lte(3))),
+    }),
+  ),
 });
 
 export const pathStyleSchema = z.object({
@@ -195,6 +212,9 @@ const movementPathFields = {
    * ground is read off that man's stance, not this one's.
    */
   fills: z.optional(entityIdSchema),
+  /** The applied coverage bias, so later edits can replace it without accumulating it. */
+  coverageAdjustment: z.optional(coordinateSchema),
+  trigger: z.optional(z.literal("scramble")),
   /** Things tied together so they move as one, as a Player can be. */
   group: z.optional(z.string()),
   /**
@@ -278,6 +298,13 @@ const targetedAssignmentActionFields = {
 };
 
 export const assignmentActionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    ...targetedAssignmentActionFields,
+    kind: z.literal("read"),
+    perspective: z.enum(["offense-key", "defensive-read"]),
+    read: readKeySchema,
+  }),
+  z.object({ ...targetedAssignmentActionFields, kind: z.literal("plaster") }),
   z.object({
     id: entityIdSchema,
     kind: z.literal("movement"),

@@ -10,6 +10,7 @@ import {
   playCommandCoalesceKey,
   playDocumentSchema,
   settleManCoverage,
+  settleDefensiveCoaching,
   settleRefills,
   settleZoneShell,
   type PlayCommand,
@@ -250,7 +251,7 @@ function withManCoverageSettled(
   const refilled = settleZoneShell(edited, settleRefills(before, edited));
   const settling = diffPlayDocuments(
     edited,
-    settleManCoverage(before, refilled),
+    settleDefensiveCoaching(settleManCoverage(before, refilled)),
   );
   if (settling.commands.length === 0) return { command: asked, settled: false };
   return {

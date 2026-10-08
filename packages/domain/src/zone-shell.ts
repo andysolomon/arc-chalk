@@ -444,6 +444,34 @@ export function layoutZoneShell<Play extends ZoneShellPlay>(
   play: Play,
   levels: readonly ZoneShellLevel[] = zoneShellLevels,
 ): Play {
+  // Layout reads the unshaded shell; the editor reapplies each man's saved
+  // technique afterwards. Otherwise repeated calls accumulate the same shade.
+  const relaid = new Set(
+    dropsOf(play)
+      .filter((drop) => levels.includes(drop.level))
+      .map((drop) => drop.path.id),
+  );
+  play = {
+    ...play,
+    paths: play.paths.map((path) => {
+      if (!relaid.has(path.id) || !path.coverageAdjustment) return path;
+      const offset = path.coverageAdjustment;
+      const next = {
+        ...path,
+        points: path.points.map((point, index) =>
+          index === path.points.length - 1
+            ? {
+                ...point,
+                lateralYards: point.lateralYards - offset.lateralYards,
+                depthYards: point.depthYards - offset.depthYards,
+              }
+            : point,
+        ),
+      };
+      delete next.coverageAdjustment;
+      return next;
+    }),
+  };
   const drops = dropsOf(play);
   const at = (level: ZoneShellLevel) =>
     drops.filter((drop) => drop.level === level);

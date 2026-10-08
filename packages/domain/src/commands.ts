@@ -1015,6 +1015,34 @@ function dependentCleanup(
   /** Assignments going in their own right, with no line left to name. */
   removedAssignmentIds: ReadonlySet<string> = new Set(),
 ): PrimitivePlayCommand[] {
+  // Conditional coaching loses its line and words when the player it names
+  // leaves the play. Ordinary freeform coaching keeps its existing cleanup.
+  const lostReads = play.assignments.filter(
+    (assignment) =>
+      assignment.actions.some(
+        (action) =>
+          (action.kind === "read" || action.kind === "plaster") &&
+          action.target?.kind === "player" &&
+          removedPlayerIds.has(action.target.playerId),
+      ) ||
+      (assignment.actions.some((action) => action.kind === "plaster") &&
+        assignment.actions.some(
+          (action) =>
+            action.kind === "movement" && removedPathIds.has(action.pathId),
+        )),
+  );
+  removedAssignmentIds = new Set([
+    ...removedAssignmentIds,
+    ...lostReads.map((assignment) => assignment.id),
+  ]);
+  removedPathIds = new Set([
+    ...removedPathIds,
+    ...lostReads.flatMap((assignment) =>
+      assignment.actions.flatMap((action) =>
+        action.kind === "movement" ? [action.pathId] : [],
+      ),
+    ),
+  ]);
   const labelIds = play.labels
     .filter(
       ({ binding, id }) =>
