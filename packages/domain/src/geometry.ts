@@ -142,6 +142,9 @@ export function mirrorPlayGeometry(play: PlayDocument): PlayDocument {
     paths: play.paths.map((path) => ({
       ...path,
       points: path.points.map(mirrorPathPoint),
+      ...(path.coverageAdjustment
+        ? { coverageAdjustment: mirrorCoordinate(path.coverageAdjustment) }
+        : {}),
       branches: path.branches.map((branch) => ({
         ...branch,
         points: branch.points.map(mirrorPathPoint),

@@ -1900,7 +1900,10 @@ export function applyLinePresetCommand(
   );
 
   const replaced = document.paths.filter(
-    (path) => owners.has(path.playerId) && kinds.has(path.kind),
+    (path) =>
+      owners.has(path.playerId) &&
+      kinds.has(path.kind) &&
+      path.trigger !== "scramble",
   );
   const cleared =
     replaced.length > 0
@@ -2046,6 +2049,7 @@ export function applyFrontCallCommand(
   const replaced = (path: MovementPath) =>
     ids.has(path.playerId) &&
     defensiveLineKinds.has(path.kind) &&
+    path.trigger !== "scramble" &&
     path.unitCall !== "coverage" &&
     (current === undefined || path.unitCall === "front");
   const cleared = removing(document.paths.filter(replaced));
@@ -2054,7 +2058,10 @@ export function applyFrontCallCommand(
   const kept = new Set(
     cleared.paths
       .filter(
-        (path) => ids.has(path.playerId) && defensiveLineKinds.has(path.kind),
+        (path) =>
+          ids.has(path.playerId) &&
+          defensiveLineKinds.has(path.kind) &&
+          path.trigger !== "scramble",
       )
       .map(({ playerId }) => playerId),
   );
@@ -2128,6 +2135,7 @@ export function applyCoverageCallCommand(
             (path) =>
               ids.has(path.playerId) &&
               defensiveLineKinds.has(path.kind) &&
+              path.trigger !== "scramble" &&
               path.unitCall !== "coverage",
           )
           .map(({ playerId }) => playerId),
@@ -2136,6 +2144,7 @@ export function applyCoverageCallCommand(
     document.paths.filter(
       (path) =>
         defensiveLineKinds.has(path.kind) &&
+        path.trigger !== "scramble" &&
         (current === undefined
           ? ids.has(path.playerId)
           : path.unitCall === "coverage"),
@@ -2223,7 +2232,10 @@ export function applyLinebackerCallCommand(
 
   const linesOf = (id: string) =>
     document.paths.filter(
-      (path) => path.playerId === id && defensiveLineKinds.has(path.kind),
+      (path) =>
+        path.playerId === id &&
+        defensiveLineKinds.has(path.kind) &&
+        path.trigger !== "scramble",
     );
   const redrawn = new Map<string, MovementPath | null>();
   for (const backer of backers) {
@@ -2253,7 +2265,11 @@ export function applyLinebackerCallCommand(
 
   const kept = document.paths.filter(
     (path) =>
-      !(redrawn.has(path.playerId) && defensiveLineKinds.has(path.kind)),
+      !(
+        redrawn.has(path.playerId) &&
+        defensiveLineKinds.has(path.kind) &&
+        path.trigger !== "scramble"
+      ),
   );
   const drawn = [...redrawn.values()].filter(
     (line): line is MovementPath => line !== null,
@@ -2492,7 +2508,9 @@ export function groupSelectionCommand(
   const next: PlayDocument = {
     ...document,
     players: document.players.map((player) =>
-      picked("player", player.id) ? { ...player, group } : player,
+      picked("player", player.id)
+        ? { ...player, group, groupDesignation: undefined }
+        : player,
     ),
     paths: document.paths.map((path) =>
       picked("path", path.id) ? { ...path, group } : path,
@@ -2534,7 +2552,9 @@ export function ungroupSelectionCommand(
   ): Item =>
     item.group && groups.has(item.group)
       ? (Object.fromEntries(
-          Object.entries(item).filter(([key]) => key !== "group"),
+          Object.entries(item).filter(
+            ([key]) => key !== "group" && key !== "groupDesignation",
+          ),
         ) as Item)
       : item;
   const command = diffPlayDocuments(
