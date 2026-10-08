@@ -10,6 +10,7 @@ import type {
 } from "@chalk/domain";
 import {
   assignmentForPath,
+  defenderCoachingMarks,
   buildFieldLandmarks,
   evaluatePlayAt,
   GHOST_TRAIL_OPACITY,
@@ -45,8 +46,10 @@ export interface ScenePlayer extends Pick<
   | "color"
   | "role"
   | "group"
+  | "groupDesignation"
 > {
   readonly position: Coordinate;
+  readonly coachingMarks?: readonly string[];
   /**
    * A man faded back rather than removed — the Position view keeps the
    * other groups on the field at 22% so the sheet keeps its context.
@@ -259,10 +262,26 @@ export function buildRenderScene(
         color,
         role,
         group,
+        groupDesignation,
+        defensiveTechnique,
       }) => ({
         id,
         unit,
         position: frame?.playerPositions[id] ?? position,
+        coachingMarks: defenderCoachingMarks(play, {
+          id,
+          unit,
+          position,
+          symbol,
+          label,
+          sublabel,
+          fill,
+          color,
+          role,
+          group,
+          groupDesignation,
+          defensiveTechnique,
+        }),
         symbol,
         label,
         sublabel,
@@ -270,6 +289,7 @@ export function buildRenderScene(
         color,
         ...(role === undefined ? {} : { role }),
         ...(group === undefined ? {} : { group }),
+        ...(groupDesignation === undefined ? {} : { groupDesignation }),
         ...(faded(id) ? { opacity: fadedOpacity } : {}),
       }),
     ),

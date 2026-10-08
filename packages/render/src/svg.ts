@@ -634,6 +634,38 @@ function buildSvgPlayer(
     });
   }
 
+  if (player.groupDesignation) {
+    texts.push({
+      text:
+        player.groupDesignation.kind === "trips"
+          ? `TRIPS #${player.groupDesignation.order}`
+          : player.groupDesignation.name.toUpperCase(),
+      x: 0,
+      y: player.sublabel ? 43 : 30,
+      fill: paint("#4D4D4D", flat),
+      fontFamily: "Geist Mono, monospace",
+      fontSize: 8,
+      fontWeight: 500,
+      letterSpacing: 0,
+    });
+  }
+
+  for (const [index, mark] of (player.coachingMarks ?? []).entries()) {
+    texts.push({
+      text: mark,
+      x: 0,
+      y:
+        (player.sublabel ? 43 : 30) +
+        (player.groupDesignation ? 12 : 0) +
+        index * 10,
+      fill: paint("#3267A8", flat),
+      fontFamily: "Geist Mono, monospace",
+      fontSize: 7,
+      fontWeight: 500,
+      letterSpacing: 0,
+    });
+  }
+
   const description =
     player.label || player.sublabel || player.role || "player";
   return {
@@ -641,6 +673,9 @@ function buildSvgPlayer(
     unit: player.unit,
     ...(player.role === undefined ? {} : { role: player.role }),
     ...(player.group === undefined ? {} : { group: player.group }),
+    ...(player.groupDesignation === undefined
+      ? {}
+      : { groupDesignation: player.groupDesignation }),
     ...(player.opacity === undefined ? {} : { opacity: player.opacity }),
     position: projectCoordinate(player.position, viewport),
     ariaLabel: `${description} ${player.unit} player`,

@@ -1,5 +1,10 @@
+import { DefensiveAdjustmentsDialog } from "./defensive-adjustments-dialog";
+import { TipsPage, type DefensiveTip } from "../coaching/tips-page";
+import { SelectionToolbar } from "./selection-toolbar";
 import {
   assignmentForPath,
+  applyPlayCommand,
+  diffPlayDocuments,
   ballPosition,
   ballSpotNames,
   currentBallSpot,
@@ -100,6 +105,7 @@ import {
 } from "@chalk/domain";
 import {
   addAlternateRouteCommand,
+  defensiveAdjustmentCommand,
   addDepthLabelCommand,
   alignPlayersCommand,
   cameraForBounds,
@@ -360,7 +366,8 @@ export { FieldDiagram };
  * destinations in the header (issue #65); Demo lives under Help, Present is
  * an action, and Print is the preview behind Print & export.
  */
-type View = "Editor" | "Playbooks" | "GameDay" | "Demo" | "Present" | "Print";
+type View =
+  "Editor" | "Playbooks" | "GameDay" | "Tips" | "Demo" | "Present" | "Print";
 type Menu =
   | "more"
   | "export"
@@ -391,6 +398,7 @@ const destinations: readonly { readonly view: View; readonly label: string }[] =
     { view: "Editor", label: "Editor" },
     { view: "Playbooks", label: "Playbooks" },
     { view: "GameDay", label: "Game Day" },
+    { view: "Tips", label: "Tips" },
   ];
 
 /**
@@ -2570,6 +2578,7 @@ function RosterList({
  * a single bar above the tools; full, the roster or the picked man.
  */
 function Inspector({
+  defensiveAdjustments,
   currentConcept,
   currentLineCall,
   labelEditor,
@@ -2588,6 +2597,7 @@ function Inspector({
   unit,
   unitCalls = [],
 }: {
+  defensiveAdjustments?: React.ReactNode;
   /** The concept drawn on the field now, if one is. */
   currentConcept?: string;
   currentLineCall?: string;
@@ -2682,6 +2692,7 @@ function Inspector({
     if (labelEditor) {
       return (
         <aside className="inspector" aria-label="Play inspector">
+          {defensiveAdjustments}
           {labelEditor}
         </aside>
       );
@@ -2703,6 +2714,7 @@ function Inspector({
           </button>
         </div>
         {playCall}
+        {defensiveAdjustments}
         {rosterList}
       </aside>
     );
@@ -2797,7 +2809,10 @@ function Inspector({
           <span className="sheet-title">{title}</span>
           {fieldButton}
         </div>
-        <div className="sheet-body">{labelEditor}</div>
+        <div className="sheet-body">
+          {defensiveAdjustments}
+          {labelEditor}
+        </div>
         {selected.kind === "player" && index >= 0 ? (
           <div aria-label="Next man" className="sheet-pager" role="group">
             <button
@@ -2849,6 +2864,7 @@ function Inspector({
       </div>
       <div className="sheet-body">
         {playCall}
+        {defensiveAdjustments}
         {rosterList}
       </div>
     </aside>
@@ -2888,6 +2904,9 @@ export function ChalkApp({
     sync?.getSnapshot ?? (() => localSyncSnapshot),
   );
   const [activeView, setActiveView] = useState<View>("Editor");
+  const [defenseAdjustmentScope, setDefenseAdjustmentScope] = useState<
+    readonly string[] | null
+  >(null);
   const [presentation, setPresentation] =
     useState<Presentation>(defaultPresentation);
   const [demoPlayName, setDemoPlayName] = useState(
@@ -5305,7 +5324,7 @@ export function ChalkApp({
     (view: View): void => {
       // The Playbooks header has no name field, so a name still being typed
       // is kept before the field goes (it commits on blur in the editor).
-      if (view === "Playbooks") {
+      if (view === "Playbooks" || view === "Tips" || view === "GameDay") {
         void editorStore.commitPlayName().catch(() => undefined);
       }
       setActiveView(view);
@@ -5969,7 +5988,11 @@ export function ChalkApp({
         // Arrows and space belong to the tour; editor shortcuts stay off.
         return;
       }
-      if (activeView === "Playbooks" || activeView === "GameDay") {
+      if (
+        activeView === "Playbooks" ||
+        activeView === "GameDay" ||
+        activeView === "Tips"
+      ) {
         // The destinations carry their own keys; the field's shortcuts would
         // draw on a Play nobody is looking at. Escape comes back to it, and
         // the palette still opens.
@@ -7907,6 +7930,49 @@ export function ChalkApp({
     );
   }
 
+  if (activeView === "Tips") {
+    const applyTip = (tip: DefensiveTip) => {
+      const before = editorStore.getSnapshot().document;
+      let next = before;
+      for (const adjustment of tip.adjustments ?? []) {
+        const command = defensiveAdjustmentCommand(
+          next,
+          undefined,
+          adjustment,
+          createStableId,
+        );
+        if (command) next = applyPlayCommand(next, command);
+      }
+      const command = diffPlayDocuments(before, next, tip.title);
+      if (command.commands.length)
+        runPanelCommand(command, { selection: [], drawing: undefined });
+      goToView("Editor");
+      setToast({
+        name: tip.title,
+        text: "— setup applied; review the assignments",
+      });
+    };
+    return (
+      <div
+        className={`chalk-shell view-tips${phoneWorkspace ? " phone-tips" : ""}`}
+      >
+        {header}
+        <TipsPage
+          canApply={editor.document.players.some(
+            (man) => man.unit === "defense",
+          )}
+          onApply={applyTip}
+          onOpenAdjustments={() => {
+            goToView("Editor");
+            setDefenseAdjustmentScope([]);
+          }}
+        />
+        {overlay === "palette" ? paletteOverlay : null}
+        {sharedOverlays}
+      </div>
+    );
+  }
+
   if (activeView === "GameDay") {
     return (
       <div className="chalk-shell view-game-day">
@@ -8116,6 +8182,14 @@ export function ChalkApp({
               onDismiss={playbook.dropOffer}
               onJustThis={() => playbook.setScope("play")}
             />
+            {!picking && !interaction.drawing ? (
+              <SelectionToolbar
+                onAdjustDefense={(ids) => setDefenseAdjustmentScope(ids)}
+                document={editor.document}
+                selection={interaction.selection}
+                onCommand={(command) => runPanelCommand(command, {})}
+              />
+            ) : null}
             {picking ? (
               // The pick is over the field, where the Coach is looking for
               // the man: what it is waiting for, and the way out of it.
@@ -8562,6 +8636,19 @@ export function ChalkApp({
                 />
               ) : undefined
             }
+            defensiveAdjustments={
+              editor.document.players.some((man) => man.unit === "defense") ? (
+                <section className="inspector-section">
+                  <button
+                    className="wide-picker"
+                    type="button"
+                    onClick={() => setDefenseAdjustmentScope([])}
+                  >
+                    Defensive adjustments <span aria-hidden="true">›</span>
+                  </button>
+                </section>
+              ) : undefined
+            }
             currentConcept={currentConcept}
             currentLineCall={currentLineCall}
             linemanCount={linemen.length}
@@ -8760,6 +8847,18 @@ export function ChalkApp({
           playbooks={playbookSummaries}
           render={renderDiagram}
           snapshot={playbook.snapshot}
+        />
+      ) : null}
+      {defenseAdjustmentScope !== null ? (
+        <DefensiveAdjustmentsDialog
+          document={editor.document}
+          selectedIds={defenseAdjustmentScope}
+          onCommand={(command) => runPanelCommand(command, {})}
+          onClose={() => setDefenseAdjustmentScope(null)}
+          onTips={() => {
+            setDefenseAdjustmentScope(null);
+            goToView("Tips");
+          }}
         />
       ) : null}
       {sharedOverlays}
@@ -9404,7 +9503,10 @@ function Header({
   );
   return (
     <header className={phone ? "topbar phone-topbar" : "topbar"}>
-      {phone && activeView !== "Playbooks" && activeView !== "GameDay" ? (
+      {phone &&
+      activeView !== "Playbooks" &&
+      activeView !== "GameDay" &&
+      activeView !== "Tips" ? (
         <button
           aria-label="Open the sidebar"
           className="sidebar-open"
@@ -9453,7 +9555,9 @@ function Header({
           <span className="demo-title">{DEMO_HEADER_TITLE}</span>
           <span className="demo-play-name">{demoPlayName}</span>
         </>
-      ) : activeView === "Playbooks" || activeView === "GameDay" ? (
+      ) : activeView === "Playbooks" ||
+        activeView === "GameDay" ||
+        activeView === "Tips" ? (
         // The Playbook is managed here, and a prepared plan is read here
         // (issue #163) — not the open Play: its name, type, undo and save
         // belong to the editor and wait there.

@@ -9488,3 +9488,418 @@ html:has(.chalk-shell.phone-page) #root {
   flex: none;
   overflow: visible;
 }
+
+/* Football actions follow the men selected, within reach above the field. */
+.selection-toolbar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 28px);
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.1);
+  color: var(--ink);
+  font-size: 12px;
+}
+.scope-bar + .selection-toolbar {
+  top: 54px;
+}
+.selection-toolbar-heading {
+  font-weight: 600;
+}
+.selection-toolbar-actions,
+.receiver-order {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+.selection-toolbar button,
+.selection-toolbar select,
+.selection-toolbar summary {
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.selection-toolbar button:hover {
+  background: var(--hover);
+}
+.selection-toolbar button[aria-pressed="true"] {
+  color: var(--blue);
+  border-color: currentColor;
+}
+.selection-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.receiver-order label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+}
+.selection-toolbar-more {
+  position: relative;
+}
+.selection-toolbar-more > div {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  min-width: 160px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.1);
+}
+@media (pointer: coarse) {
+  .selection-toolbar button,
+  .selection-toolbar select,
+  .selection-toolbar summary {
+    min-height: 44px;
+  }
+}
+
+.defense-dialog {
+  margin: auto;
+  inset: 0;
+  width: min(960px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 0.3);
+  overflow: auto;
+}
+.defense-dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+.defense-dialog > header,
+.defense-dialog > footer,
+.defense-scope {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+}
+.defense-dialog > header {
+  border-bottom: 1px solid var(--rule);
+}
+.defense-dialog h2 {
+  margin: 4px 0 0;
+  font-size: 22px;
+}
+.defense-dialog h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.defense-dialog small {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.defense-dialog p {
+  margin: 6px 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.defense-dialog button,
+.defense-dialog select,
+.tips-page button,
+.tips-page input {
+  min-height: 36px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.defense-dialog button,
+.tips-page button {
+  cursor: pointer;
+}
+.defense-dialog button:hover,
+.tips-page button:hover {
+  background: var(--hover);
+}
+.defense-dialog button:disabled,
+.defense-dialog select:disabled,
+.tips-page button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.defense-dialog button[aria-pressed="true"],
+.tips-page button[aria-pressed="true"] {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 8%, var(--paper));
+}
+.defense-dialog label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.defense-scope {
+  flex-wrap: wrap;
+  background: var(--canvas);
+  font-size: 12px;
+}
+.defense-scope label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.defense-adjustment-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--rule);
+}
+.defense-adjustment-grid > section {
+  padding: 20px;
+  background: var(--paper);
+  min-width: 0;
+}
+.defense-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.defense-alignment-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.defense-dialog select {
+  width: 100%;
+  min-width: 0;
+}
+.defense-read-section {
+  grid-column: 1 / -1;
+}
+.defense-read-section > label {
+  max-width: 260px;
+  margin-bottom: 14px;
+}
+.defense-read-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
+}
+.defense-read-fields > p {
+  align-self: center;
+  margin: 0;
+}
+.defense-dialog > footer {
+  font-size: 12px;
+  border-top: 1px solid var(--rule);
+}
+.defense-dialog > footer > span {
+  color: var(--muted);
+}
+.view-tips {
+  height: 100dvh;
+  overflow: hidden;
+}
+.tips-page {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--canvas);
+  padding: 40px clamp(20px, 5vw, 80px);
+}
+.tips-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  max-width: 1240px;
+  margin: 0 auto 26px;
+}
+.tips-heading h1 {
+  font-size: clamp(28px, 4vw, 42px);
+  letter-spacing: -1.4px;
+  margin: 8px 0 12px;
+}
+.tips-heading p,
+.tips-intro,
+.tips-footer {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.tips-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+.tips-controls input {
+  flex: 1;
+  min-width: 230px;
+}
+.tips-controls > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tips-intro,
+.tips-empty-defense,
+.tips-footer {
+  max-width: 1240px;
+  margin: 20px auto;
+}
+.tips-empty-defense {
+  font-size: 13px;
+  padding: 12px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.tips-grid {
+  max-width: 1240px;
+  margin: 24px auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+.tip-card {
+  padding: 24px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.tip-eyebrow {
+  display: flex;
+  justify-content: space-between;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.tip-card h2 {
+  font-size: 23px;
+  letter-spacing: -0.6px;
+  margin: 16px 0 10px;
+  line-height: 1.2;
+}
+.tip-card p,
+.tip-card li {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.tip-card > p {
+  color: var(--muted);
+}
+.tip-card ol {
+  list-style: decimal;
+  padding-left: 20px;
+  margin: 22px 0;
+}
+.tip-card li {
+  padding-left: 5px;
+  margin: 10px 0;
+}
+.tip-card li::marker {
+  color: var(--blue);
+  font-weight: 600;
+}
+.tip-aim,
+.tip-watch {
+  border-top: 1px solid var(--rule);
+  padding-top: 12px;
+  margin-top: 14px;
+}
+.tip-aim strong,
+.tip-watch strong {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.tip-aim p,
+.tip-watch p {
+  margin: 6px 0;
+}
+.tip-watch {
+  color: var(--muted);
+}
+.tip-card > button {
+  margin-top: 18px;
+  width: 100%;
+}
+.tips-footer a {
+  color: var(--ink);
+  text-underline-offset: 3px;
+}
+@media (max-width: 1100px) {
+  .tips-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 650px) {
+  .defense-dialog {
+    margin: auto;
+    inset: 0;
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: 10px;
+  }
+  .defense-adjustment-grid,
+  .defense-read-fields {
+    grid-template-columns: 1fr;
+  }
+  .defense-scope label {
+    flex: 1;
+  }
+  .defense-scope span {
+    display: none;
+  }
+  .defense-dialog button,
+  .defense-dialog select,
+  .tips-page button,
+  .tips-page input {
+    min-height: 44px;
+  }
+  .tips-heading {
+    display: block;
+  }
+  .tips-grid {
+    grid-template-columns: 1fr;
+  }
+  .tips-page {
+    padding: 24px 16px;
+  }
+  .tip-card {
+    padding: 20px;
+  }
+}
