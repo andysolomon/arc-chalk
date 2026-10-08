@@ -7970,6 +7970,99 @@ export function ChalkApp({
     );
   }
 
+  // The tools stand across the top of the field on a desktop or a tablet,
+  // and along the bottom of the glass on a phone, where the thumb is
+  // (ADR 0055).
+  const toolRail = railOpen ? (
+    <nav className="tool-rail" aria-label="Drawing tools">
+      {tools.map((tool) => (
+        // Text is the one tool left here (ADR 0052): a note goes on
+        // the grass, so it needs a tool; a line goes on a man, so it
+        // starts from him. A second press puts the tool down again.
+        <button
+          className={activeTool === tool.id ? "active" : ""}
+          key={tool.id}
+          onClick={() =>
+            selectTool(activeTool === tool.id ? "select" : tool.id)
+          }
+          title={`${tool.label} — ${tool.shortcut}`}
+          aria-label={`${tool.label} — ${tool.shortcut}`}
+          aria-pressed={activeTool === tool.id}
+        >
+          <RailIcon glyph={tool.id} />
+        </button>
+      ))}
+      {phoneWorkspace && interaction.drawing ? (
+        // A route on a phone ends here; there is no Enter key and a
+        // double tap is not a thing a Coach should have to know. It
+        // says "route" for every kind of line, as the phone specs do.
+        <button
+          aria-label="Finish the route — ⏎"
+          className="rail-finish"
+          onClick={() => dispatchField({ type: "finish-drawing" })}
+          title="Finish the route — ⏎"
+          type="button"
+        >
+          Done
+        </button>
+      ) : null}
+      <button
+        // Every line off the field at once — routes, motions, blocks,
+        // drops and blitzes — with the men left standing, so the next
+        // concept is drawn from the same formation. Nothing to wipe
+        // leaves it disabled; ⌘Z brings the lines back.
+        aria-label="Clear every line"
+        className="rail-clear"
+        disabled={!erasures.lines}
+        onClick={clearAction("lines")}
+        title="Clear every line — the men stay where they are"
+        type="button"
+      >
+        <RailIcon glyph="erase" />
+      </button>
+      <button
+        // The other unit under the play, shown or hidden (ADR 0053).
+        // Pressed means it is on the field; it stays in the play either way.
+        aria-label={`${shadowLayerName} — H`}
+        aria-pressed={shadowOnField}
+        className="rail-shadow"
+        onClick={toggleShadow}
+        title={`${shadowLayerName} on / off — H`}
+        type="button"
+      >
+        <RailIcon glyph="shadow" />
+      </button>
+      <span className="rail-spacer" />
+      <button
+        aria-label="Delete selection — ⌫"
+        className="rail-trash"
+        disabled={interaction.selection.length === 0 && !interaction.drawing}
+        onClick={() => dispatchField({ type: "delete" })}
+        title="Delete selection — ⌫"
+        type="button"
+      >
+        <RailIcon glyph="trash" />
+      </button>
+      <button
+        className="rail-collapse"
+        aria-label="Hide the tools"
+        onClick={() => setRailOpen(false)}
+        title="Hide the tools — ⌥2"
+      >
+        ⌃
+      </button>
+    </nav>
+  ) : (
+    <button
+      className="rail-stub"
+      onClick={() => setRailOpen(true)}
+      title="Show the tools — ⌥2"
+      type="button"
+    >
+      Tools
+    </button>
+  );
+
   return (
     <div className={`chalk-shell${phoneWorkspace ? " phone-workspace" : ""}`}>
       {header}
@@ -7997,98 +8090,9 @@ export function ChalkApp({
             Sidebar
           </button>
         )}
-        {railOpen ? (
-          <nav className="tool-rail" aria-label="Drawing tools">
-            {tools.map((tool) => (
-              // Text is the one tool left here (ADR 0052): a note goes on
-              // the grass, so it needs a tool; a line goes on a man, so it
-              // starts from him. A second press puts the tool down again.
-              <button
-                className={activeTool === tool.id ? "active" : ""}
-                key={tool.id}
-                onClick={() =>
-                  selectTool(activeTool === tool.id ? "select" : tool.id)
-                }
-                title={`${tool.label} — ${tool.shortcut}`}
-                aria-label={`${tool.label} — ${tool.shortcut}`}
-                aria-pressed={activeTool === tool.id}
-              >
-                <RailIcon glyph={tool.id} />
-              </button>
-            ))}
-            {phoneWorkspace && interaction.drawing ? (
-              // A route on a phone ends here; there is no Enter key and a
-              // double tap is not a thing a Coach should have to know. It
-              // says "route" for every kind of line, as the phone specs do.
-              <button
-                aria-label="Finish the route — ⏎"
-                className="rail-finish"
-                onClick={() => dispatchField({ type: "finish-drawing" })}
-                title="Finish the route — ⏎"
-                type="button"
-              >
-                Done
-              </button>
-            ) : null}
-            <button
-              // Every line off the field at once — routes, motions, blocks,
-              // drops and blitzes — with the men left standing, so the next
-              // concept is drawn from the same formation. Nothing to wipe
-              // leaves it disabled; ⌘Z brings the lines back.
-              aria-label="Clear every line"
-              className="rail-clear"
-              disabled={!erasures.lines}
-              onClick={clearAction("lines")}
-              title="Clear every line — the men stay where they are"
-              type="button"
-            >
-              <RailIcon glyph="erase" />
-            </button>
-            <button
-              // The other unit under the play, shown or hidden (ADR 0053).
-              // Pressed means it is on the field; it stays in the play either way.
-              aria-label={`${shadowLayerName} — H`}
-              aria-pressed={shadowOnField}
-              className="rail-shadow"
-              onClick={toggleShadow}
-              title={`${shadowLayerName} on / off — H`}
-              type="button"
-            >
-              <RailIcon glyph="shadow" />
-            </button>
-            <span className="rail-spacer" />
-            <button
-              aria-label="Delete selection — ⌫"
-              className="rail-trash"
-              disabled={
-                interaction.selection.length === 0 && !interaction.drawing
-              }
-              onClick={() => dispatchField({ type: "delete" })}
-              title="Delete selection — ⌫"
-              type="button"
-            >
-              <RailIcon glyph="trash" />
-            </button>
-            <button
-              className="rail-collapse"
-              aria-label="Hide the tools"
-              onClick={() => setRailOpen(false)}
-              title="Hide the tools — ⌥2"
-            >
-              ‹
-            </button>
-          </nav>
-        ) : (
-          <button
-            className="rail-stub"
-            onClick={() => setRailOpen(true)}
-            title="Show the tools — ⌥2"
-            type="button"
-          >
-            Tools
-          </button>
-        )}
+        {phoneWorkspace ? toolRail : null}
         <main className="editor-stage">
+          {phoneWorkspace ? null : toolRail}
           {lifecycle ? (
             <LifecycleNotices
               lifecycle={lifecycle}
