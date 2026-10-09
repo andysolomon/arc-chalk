@@ -32,6 +32,10 @@ import {
   frontMenOf,
   isLineman,
   isOnTheLine,
+  MAX_BACKS,
+  MIN_ON_THE_LINE,
+  PLAYERS_PER_SIDE,
+  scrimmageLine,
   linePresetByKey,
   defensiveFieldOf,
   twistPartnerOf,
@@ -412,6 +416,18 @@ export interface MovePreview {
 /** The names the line goes by, which an unlettered lineman is called by. */
 const LINE_ROLES: ReadonlySet<string> = new Set(["LT", "LG", "C", "RG", "RT"]);
 
+/** The spot on the line each unlettered lineman of the offense stands in. */
+function lineSpots(players: readonly Player[]): Map<string, string> {
+  const offense = players.filter(({ unit }) => unit !== "defense");
+  const roles = assignRoles(offense);
+  return new Map(
+    offense.flatMap((player, index) => {
+      const role = roles[index];
+      return role && LINE_ROLES.has(role) ? [[player.id, role] as const] : [];
+    }),
+  );
+}
+
 /**
  * The men a dragged man can line up with, each called what the Coach calls
  * him: his letter, or for an unlettered lineman the spot he stands in, so a
@@ -421,14 +437,7 @@ function snapReferences(
   players: readonly Player[],
   movingId: string,
 ): SnapReference[] {
-  const offense = players.filter(({ unit }) => unit !== "defense");
-  const roles = assignRoles(offense);
-  const spot = new Map(
-    offense.flatMap((player, index) => {
-      const role = roles[index];
-      return role && LINE_ROLES.has(role) ? [[player.id, role] as const] : [];
-    }),
-  );
+  const spot = lineSpots(players);
   return players
     .filter(({ id }) => id !== movingId)
     .map(({ id, position, label }) => {
@@ -2413,17 +2422,27 @@ export function flipStrengthCommand(
 export type PlayerAlignment = "depth" | "splits";
 
 /**
+ * What lining men up would do: the command, or why there is none — it would
+ * leave a formation the rules forbid, or the men already stand that way.
+ */
+export interface PlayerArrangement {
+  readonly command?: PlayCommand;
+  readonly reason?: string;
+}
+
+/**
  * Lining men up with one another: all to the same depth, or evenly spread
  * between the two widest. Each man's lines travel with him, the way they do
- * when he is dragged.
+ * when he is dragged. A rearrangement is refused when it would make the
+ * formation illegal (see `arrangementFault`).
  */
-export function alignPlayersCommand(
+export function arrangePlayers(
   document: PlayDocument,
   playerIds: readonly string[],
   alignment: PlayerAlignment,
-): PlayCommand | undefined {
+): PlayerArrangement {
   const chosen = document.players.filter(({ id }) => playerIds.includes(id));
-  if (chosen.length < 2) return undefined;
+  if (chosen.length < 2) return {};
 
   const moves = new Map<string, Coordinate>();
   if (alignment === "depth") {
@@ -2450,20 +2469,102 @@ export function alignPlayersCommand(
       });
     }
   }
-  return buildTranslationCommand(document, moves, "Align players");
+  const next = translatedDocument(document, moves);
+  const fault = arrangementFault(document.players, next.players);
+  if (fault) return { reason: fault };
+  const command = diffPlayDocuments(document, next, "Align players");
+  if (command.commands.length > 0) return { command };
+  return {
+    reason: alignment === "depth" ? "Already level" : "Already evenly spaced",
+  };
 }
 
-/** Moves the men given by the amounts given, and their lines with them. */
-function buildTranslationCommand(
+export function alignPlayersCommand(
+  document: PlayDocument,
+  playerIds: readonly string[],
+  alignment: PlayerAlignment,
+): PlayCommand | undefined {
+  return arrangePlayers(document, playerIds, alignment).command;
+}
+
+/**
+ * Two of the drawn men's 13-pixel radii, in the frame the field is drawn in:
+ * nearer than this, one man's mark covers the other's.
+ */
+const OVERLAP_PIXELS = 26;
+
+/**
+ * What a rearrangement may not do to a formation (ADR 0073): leave more than
+ * four backs, carry a man across the line of scrimmage, or stand one man on
+ * another. Only a fault the rearrangement brings about counts — a scout look
+ * already drawn wrong is the Coach's to keep, and a drag may still stand any
+ * formation he likes — so the men before are read against the men after,
+ * and the first fault found is named.
+ */
+export function arrangementFault(
+  before: readonly Player[],
+  after: readonly Player[],
+): string | undefined {
+  const spots = lineSpots(before);
+  const name = (man: Player) =>
+    man.label.trim() ||
+    spots.get(man.id) ||
+    man.role ||
+    (man.unit === "defense" ? "a defender" : "a man");
+  const sentence = (text: string) =>
+    text.charAt(0).toUpperCase() + text.slice(1);
+  const was = new Map(before.map((man) => [man.id, man]));
+
+  // The offense stands on its side of the ball, the defense on its own.
+  const across = (man: Player) =>
+    man.unit === "defense"
+      ? man.position.depthYards < -1e-9
+      : man.position.depthYards > 1e-9;
+  for (const man of after) {
+    const old = was.get(man.id);
+    if (old && !across(old) && across(man)) {
+      return sentence(`${name(man)} would cross the line of scrimmage`);
+    }
+  }
+
+  const line = scrimmageLine(after);
+  const prior = scrimmageLine(before);
+  if (
+    line &&
+    line.backs.length > Math.max(MAX_BACKS, prior?.backs.length ?? 0)
+  ) {
+    return line.offenseCount === PLAYERS_PER_SIDE
+      ? `Needs ${MIN_ON_THE_LINE} on the line`
+      : `No more than ${MAX_BACKS} backs`;
+  }
+
+  const overlapping = (left: Player, right: Player) => {
+    const a = yardsToLegacyCanvas(left.position);
+    const b = yardsToLegacyCanvas(right.position);
+    return Math.hypot(a.x - b.x, a.y - b.y) < OVERLAP_PIXELS - 1e-6;
+  };
+  for (const [index, left] of after.entries()) {
+    for (const right of after.slice(index + 1)) {
+      if (!overlapping(left, right)) continue;
+      const oldLeft = was.get(left.id);
+      const oldRight = was.get(right.id);
+      if (oldLeft && oldRight && overlapping(oldLeft, oldRight)) continue;
+      return sentence(`${name(left)} and ${name(right)} would overlap`);
+    }
+  }
+  return undefined;
+}
+
+/** The Play with the men given moved by the amounts given, and their lines with them. */
+function translatedDocument(
   document: PlayDocument,
   moves: ReadonlyMap<string, Coordinate>,
-  label: string,
-): PlayCommand | undefined {
+): PlayDocument {
   const shift = (point: Coordinate, by: Coordinate): Coordinate => ({
     lateralYards: point.lateralYards + by.lateralYards,
     depthYards: point.depthYards + by.depthYards,
   });
-  const next: PlayDocument = {
+  return {
     ...document,
     players: document.players.map((player) => {
       const by = moves.get(player.id);
@@ -2487,8 +2588,6 @@ function buildTranslationCommand(
       };
     }),
   };
-  const command = diffPlayDocuments(document, next, label);
-  return command.commands.length > 0 ? command : undefined;
 }
 
 /**

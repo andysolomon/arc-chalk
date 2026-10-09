@@ -105,3 +105,10 @@ the shadow is shown.
   line to its edge cases and `tests/editor/even-split-snapping.test.ts` keeps a lineman
   from the backfield's spacing; `tests/editor/smart-snapping.test.ts` now ranks the men
   above the yard marks.
+- The selection toolbar's Arrange menu (Align depth, Space evenly) is held to the rules where
+  a drag is not: a rearrangement that would leave more than four backs, carry a man across the
+  line of scrimmage, or stand two men's marks on one another is greyed, with the reason under
+  it (_Needs 7 on the line_, _C and Q would overlap_). Only a fault the rearrangement causes
+  counts, so a scout look already drawn wrong can still be lined up. `arrangePlayers` in
+  `@chalk/editor` makes the call, and the palette's Same depth and Even splits share it. The
+  regressions are `tests/e2e/arrange-menu.spec.ts` and `tests/e2e/phone-arrange-menu.spec.ts`.
