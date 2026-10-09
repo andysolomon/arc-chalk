@@ -9527,9 +9527,10 @@ html:has(.chalk-shell.phone-page) #root {
   min-width: 0;
   max-width: 100%;
 }
-.selection-toolbar button,
-.selection-toolbar select,
-.selection-toolbar summary {
+/* The toolbar's own controls are outlined; the rows of its Arrange menu are
+   the header menus' rows (.menu-item) and keep their look. */
+.selection-toolbar button:not(.menu-item),
+.selection-toolbar select {
   min-height: 30px;
   padding: 4px 8px;
   border: 1px solid var(--rule);
@@ -9539,14 +9540,15 @@ html:has(.chalk-shell.phone-page) #root {
   font: inherit;
   cursor: pointer;
 }
-.selection-toolbar button:hover {
+.selection-toolbar button:not(.menu-item):hover,
+.selection-toolbar .arrange-toggle.open {
   background: var(--hover);
 }
 .selection-toolbar button[aria-pressed="true"] {
   color: var(--blue);
   border-color: currentColor;
 }
-.selection-toolbar button:disabled {
+.selection-toolbar button:not(.menu-item):disabled {
   opacity: 0.4;
   cursor: default;
 }
@@ -9559,23 +9561,42 @@ html:has(.chalk-shell.phone-page) #root {
 .selection-toolbar-more {
   position: relative;
 }
-.selection-toolbar-more > div {
-  position: absolute;
-  top: 36px;
-  right: 0;
-  display: grid;
-  gap: 4px;
-  padding: 6px;
-  min-width: 160px;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  background: var(--paper);
-  box-shadow: 0 4px 14px rgb(0 0 0 / 0.1);
+.selection-toolbar .arrange-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.arrange-caret {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+}
+/* Arrange opens as the header's menus do (ADR 0039), under its button. */
+.arrange-panel {
+  top: calc(100% + 6px);
+  width: 200px;
+  max-width: calc(100vw - 32px);
+  font-size: 12.5px;
+  text-align: left;
+}
+.arrange-panel .menu-group + .menu-group {
+  margin-top: 2px;
+  border-top: 1px solid var(--line);
+}
+.arrange-panel .menu-head {
+  padding-top: 7px;
+}
+/* Why a row is greyed: an illegal set, or nothing would change. */
+.arrange-reason {
+  margin: -2px 0 4px;
+  padding: 0 9px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 15px;
 }
 @media (pointer: coarse) {
-  .selection-toolbar button,
-  .selection-toolbar select,
-  .selection-toolbar summary {
+  .selection-toolbar button:not(.menu-item),
+  .selection-toolbar select {
     min-height: 44px;
   }
 }

@@ -13,10 +13,10 @@ import {
   selectionAssignmentOptions,
   groupSelectionCommand,
   ungroupSelectionCommand,
-  alignPlayersCommand,
+  arrangePlayers,
   type FieldItemRef,
 } from "@chalk/editor";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export function SelectionToolbar({
   document,
@@ -244,49 +244,141 @@ export function SelectionToolbar({
           </select>
         </label>
       ) : null}
-      <details className="selection-toolbar-more">
-        <summary>Arrange</summary>
-        <div>
-          <button
-            type="button"
-            onClick={() =>
-              onCommand(
-                groupSelectionCommand(document, selection, createStableId),
-              )
-            }
-          >
-            Group
-          </button>
-          <button
-            type="button"
-            disabled={!ungroup}
-            onClick={() => onCommand(ungroup)}
-          >
-            Ungroup
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              onCommand(alignPlayersCommand(document, ids, "depth"))
-            }
-          >
-            Align depth
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              onCommand(alignPlayersCommand(document, ids, "splits"))
-            }
-          >
-            Space evenly
-          </button>
-        </div>
-      </details>
+      <ArrangeMenu
+        onCommand={onCommand}
+        sections={[
+          {
+            head: "GROUP",
+            items: [
+              {
+                label: "Group",
+                command: groupSelectionCommand(
+                  document,
+                  selection,
+                  createStableId,
+                ),
+              },
+              { label: "Ungroup", command: ungroup },
+            ],
+          },
+          {
+            head: "LINE UP",
+            items: [
+              {
+                label: "Align depth",
+                ...arrangePlayers(document, ids, "depth"),
+              },
+              {
+                label: "Space evenly",
+                ...arrangePlayers(document, ids, "splits"),
+              },
+            ],
+          },
+        ]}
+      />
       {designation ? (
         <button type="button" onClick={() => onCommand(ungroup)}>
           Remove designation
         </button>
       ) : null}
+    </div>
+  );
+}
+
+interface ArrangeItem {
+  readonly label: string;
+  readonly command?: PlayCommand | undefined;
+  /** Why the item is greyed, shown under it: an illegal set, or no change. */
+  readonly reason?: string | undefined;
+}
+
+/**
+ * Arrange, drawn the way the header's menus are (ADR 0039): a quiet button
+ * that opens a panel of rows. An arrangement the rules forbid is greyed with
+ * the reason beneath it, so the Coach is never left guessing why (ADR 0073).
+ */
+function ArrangeMenu({
+  sections,
+  onCommand,
+}: {
+  sections: readonly {
+    readonly head: string;
+    readonly items: readonly ArrangeItem[];
+  }[];
+  onCommand: (command: PlayCommand | undefined) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const id = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("pointerdown", away, true);
+    window.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("pointerdown", away, true);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  return (
+    <div className="selection-toolbar-more" ref={root}>
+      <button
+        aria-controls={`${id}-panel`}
+        aria-expanded={open}
+        className={`arrange-toggle${open ? " open" : ""}`}
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        Arrange
+        <span className="arrange-caret" aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      <div
+        aria-label="Arrange"
+        className="menu-panel arrange-panel"
+        hidden={!open}
+        id={`${id}-panel`}
+        role="group"
+      >
+        {sections.map((section, place) => (
+          <div className="menu-group" key={section.head}>
+            <div className="menu-head">{section.head}</div>
+            {section.items.map((item, index) => {
+              const why = `${id}-why-${place}-${index}`;
+              const reason = item.command ? undefined : item.reason;
+              return (
+                <div className="arrange-row" key={item.label}>
+                  <button
+                    aria-describedby={reason ? why : undefined}
+                    className="menu-item"
+                    disabled={!item.command}
+                    onClick={() => {
+                      setOpen(false);
+                      onCommand(item.command);
+                    }}
+                    type="button"
+                  >
+                    <span className="menu-item-name">{item.label}</span>
+                  </button>
+                  {reason ? (
+                    <p className="arrange-reason" id={why}>
+                      {reason}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
