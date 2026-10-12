@@ -2756,6 +2756,14 @@ function Inspector({
       </aside>
     );
   }
+  // The full sheet's head is its grip, as the peek's bar is: a tap on it
+  // anywhere past its own controls puts the sheet away. Field is the way
+  // there for a keyboard or a reader.
+  const onHeadClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("a, button, input, select, textarea")) return;
+    snap("peek");
+  };
   const fieldButton = (
     <button
       aria-label="Show the field"
@@ -2796,7 +2804,7 @@ function Inspector({
         className="inspector sheet sheet-full"
         data-sheet="full"
       >
-        <div className="sheet-head">
+        <div className="sheet-head" onClick={onHeadClick}>
           <span aria-hidden="true" className="sheet-grab" />
           <button
             aria-label={`All ${roster.total} — back to the roster`}
@@ -2855,7 +2863,7 @@ function Inspector({
       className="inspector sheet sheet-full"
       data-sheet="full"
     >
-      <div className="sheet-head">
+      <div className="sheet-head" onClick={onHeadClick}>
         <span aria-hidden="true" className="sheet-grab" />
         <strong>Assignments</strong>
         <span className="assignments-count">{count}</span>
