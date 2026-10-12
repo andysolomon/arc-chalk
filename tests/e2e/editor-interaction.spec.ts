@@ -2312,7 +2312,7 @@ test("hands the field to the finger once the Pencil is out", async ({
   await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
 });
 
-test("moves the field under one finger on the grass, and still picks a man up", async ({
+test("boxes in a group under one finger on the grass, and moves the field under the Hand", async ({
   page,
 }) => {
   await openEditor(page);
@@ -2324,36 +2324,50 @@ test("moves the field under one finger on the grass, and still picks a man up", 
   const looking = await cameraOf(page);
   const qBefore = await playerAt(page, "q");
 
-  // A finger on open grass moves the field — no Pencil has been out, no
-  // second finger is needed, and no man or note is under it.
+  // Under Select a finger on open grass draws a box, as a mouse does (ADR
+  // 0078): the five men on the line are picked and the view stays put.
   const finger = contact(page, "touch", 41);
-  const grass = await fieldPoint(page, 400, 150);
-  await finger.down(grass);
-  await finger.move({ x: grass.x - 60, y: grass.y - 40 });
-  await finger.move({ x: grass.x - 120, y: grass.y - 80 });
+  const from = await fieldPoint(page, 400, 400);
+  const to = await fieldPoint(page, 600, 458);
+  await finger.down(from);
+  await finger.move({ x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 });
+  await finger.move(to);
+  await finger.up(to);
+  await expect(page.locator("[data-scene-player].selected")).toHaveCount(5);
+  expect(await cameraOf(page)).toEqual(looking);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+  // The Hand takes the same finger, on a man or on the grass, and moves the
+  // field: the man stays where he stands and the five stay picked.
+  await page
+    .getByRole("navigation", { name: "Drawing tools" })
+    .getByRole("button", { name: "Hand", exact: true })
+    .click();
+  const q = await playerCenter(page, "q");
+  await finger.down(q);
+  await finger.move({ x: q.x - 60, y: q.y - 40 });
+  await finger.move({ x: q.x - 120, y: q.y - 80 });
   await expect
     .poll(async () => (await cameraOf(page)).x)
     .toBeGreaterThan(looking.x);
-  await finger.up({ x: grass.x - 120, y: grass.y - 80 });
+  await finger.up({ x: q.x - 120, y: q.y - 80 });
   const moved = await cameraOf(page);
   expect(moved.y).toBeGreaterThan(looking.y);
-  // And nothing on the field was drawn into a selection box on the way.
-  await expect(page.locator("[data-scene-player].selected")).toHaveCount(0);
+  expect(await playerAt(page, "q")).toEqual(qBefore);
+  await expect(page.locator("[data-scene-player].selected")).toHaveCount(5);
   await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
 
-  // The same finger on a man still picks him up and moves him, not the view.
-  const q = await playerCenter(page, "q");
-  await finger.down(q);
-  await finger.move({ x: q.x + 40, y: q.y });
-  await finger.up({ x: q.x + 40, y: q.y });
+  // Back on Select, the same finger on a man picks him up and moves him, not
+  // the view; a tap on the grass clears what was picked.
+  await page.keyboard.press("v");
+  const qNow = await playerCenter(page, "q");
+  await finger.down(qNow);
+  await finger.move({ x: qNow.x + 40, y: qNow.y });
+  await finger.up({ x: qNow.x + 40, y: qNow.y });
   await expect
     .poll(async () => (await playerAt(page, "q")).x)
     .toBeGreaterThan(qBefore.x);
   expect(await cameraOf(page)).toEqual(moved);
-  await expect(page.locator('[data-scene-player="q"].selected')).toHaveCount(1);
-
-  // A tap on the grass is still the tap it always was: it clears what was
-  // picked and leaves the view where it is.
   const open = await fieldPoint(page, 400, 150);
   await finger.tap(open);
   await expect(page.locator("[data-scene-player].selected")).toHaveCount(0);

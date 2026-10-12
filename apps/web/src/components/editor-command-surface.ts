@@ -43,6 +43,8 @@ export type ActionId =
   | `demo:${DemoTourId}`
   | "palette"
   | "toolSelect"
+  /** The Hand moves the field from anywhere (ADR 0078). */
+  | "toolHand"
   | "toolText"
   /** Lines by hand start from the selected man (ADR 0052). */
   | "drawRoute"
@@ -379,6 +381,11 @@ export function paletteCommands(
     }));
   return [
     { id: "toolSelect", label: "Select tool", shortcut: "V" },
+    {
+      id: "toolHand",
+      label: "Hand tool",
+      title: "Drag anywhere to move the field — hold space for a moment's Hand",
+    },
     { id: "toolText", label: "Text tool", shortcut: "T" },
     {
       id: "drawRoute",

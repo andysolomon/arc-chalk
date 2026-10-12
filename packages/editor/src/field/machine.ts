@@ -339,10 +339,12 @@ function pointerMove(
     };
   }
 
+  // A finger on the grass draws a box under Select too (ADR 0078), and is
+  // owed the same wobble before its tap becomes one as a press on a man is.
   const active =
     gesture.active ||
     screenDistancePx(gesture.anchor, input.point, context.screenScale) >
-      MARQUEE_THRESHOLD_PX;
+      Math.max(MARQUEE_THRESHOLD_PX, moveThresholdPx(input.pointerType));
   return {
     model: withGesture(model, { ...gesture, corner: input.point, active }),
   };

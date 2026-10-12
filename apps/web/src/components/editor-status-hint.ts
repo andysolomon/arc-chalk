@@ -1,7 +1,7 @@
 import { DEMO_STATUS_HINT } from "@chalk/domain";
 
-/** Select and Text are the field's two modes (ADR 0052). */
-export type StatusHintTool = "select" | "text";
+/** Select, Hand and Text are the field's modes (ADR 0052, ADR 0078). */
+export type StatusHintTool = "select" | "pan" | "text";
 
 export interface EditorStatusHintInput {
   readonly view: "editor" | "demo" | "print";
@@ -47,6 +47,8 @@ const toolHint: Record<StatusHintTool, (atFit: boolean) => string> = {
     atFit
       ? "select a player to give him his assignment on the right, or drag the blue dot above a player in any direction to draw his route — double-click a line to add a node · ⌫ delete"
       : "drag the grass to move the view · shift-drag: marquee select · double-click a line to add a node · ⌫ delete",
+  pan: () =>
+    "drag anywhere to move the view — nothing on the field moves · ⌘+ / ⌘−: zoom · v: back to select",
   text: () => "click the field to drop a text label",
 };
 
@@ -72,7 +74,7 @@ export function editorStatusHint(input: EditorStatusHintInput): string {
       ? `depth ${depth} yds — click to place the point at that depth · ⌫ edits the number · esc cancels`
       : "click: add break · drag from the end: draw it by hand · type a number: exact depth · Done, enter or double-click: finish · ⌫: remove last point · shift: toggle snap";
   }
-  if (input.selectionCount > 1) {
+  if (input.selectionCount > 1 && input.tool !== "pan") {
     return "drag any selected item to move the group · shift-click: add/remove · ⌫ delete · ⌘D duplicate";
   }
   if (input.firstUse && input.tool === "select") return FIRST_USE_HINT;

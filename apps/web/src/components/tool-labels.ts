@@ -4,13 +4,43 @@ import type { Player } from "@chalk/domain";
 import { isLineman } from "@chalk/domain";
 
 /**
- * The field's two modes. Select is the standing one; Text is the one tool
- * left on the rail (ADR 0052). Everything a man is given starts from the man.
+ * The field's modes. Select is the standing one; Hand moves the field from
+ * anywhere and edits nothing (ADR 0078); Text puts a note down (ADR 0052).
+ * Everything a man is given starts from the man.
  */
-export type ToolId = "select" | "text";
+export type ToolId = "select" | "pan" | "text";
 
+/**
+ * How the pointer meets the field, at the head of the rail (ADR 0078): pick
+ * and move what is on it, or take hold of the field itself. Holding space is
+ * a moment's Hand, so the Hand has no key of its own — H is the shadow's.
+ */
+export const pointerTools: ReadonlyArray<{
+  readonly id: "select" | "pan";
+  readonly label: string;
+  readonly name: string;
+  readonly title: string;
+  readonly glyph: "pointer" | "hand";
+}> = [
+  {
+    id: "select",
+    label: "Select",
+    name: "Select — V",
+    title: "Select — V · drag the grass to box in a group",
+    glyph: "pointer",
+  },
+  {
+    id: "pan",
+    label: "Hand",
+    name: "Hand",
+    title: "Hand — drag anywhere to move the field · hold space for a moment",
+    glyph: "hand",
+  },
+];
+
+/** The rail's drawing tools, after the pointer pair: Text alone (ADR 0052). */
 export const tools: ReadonlyArray<{
-  readonly id: ToolId;
+  readonly id: Exclude<ToolId, "select" | "pan">;
   readonly label: string;
   readonly shortcut: string;
 }> = [{ id: "text", label: "Text", shortcut: "T" }];
