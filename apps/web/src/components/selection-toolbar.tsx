@@ -36,10 +36,9 @@ export function SelectionToolbar({
   const selectedDefenders = document.players.filter(
     (man) => ids.includes(man.id) && man.unit === "defense",
   );
-  if (
-    (ids.length < 2 && selectedDefenders.length === 0) ||
-    selection.some(({ kind }) => kind !== "player")
-  )
+  // The bar is a group's: two men or more. One man, a lone defender too, is
+  // worked from his own panel, whose Defensive adjustments open on him.
+  if (ids.length < 2 || selection.some(({ kind }) => kind !== "player"))
     return null;
   const men = document.players.filter(({ id }) => ids.includes(id));
   const options = selectionAssignmentOptions(document, ids);

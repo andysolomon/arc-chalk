@@ -1337,6 +1337,39 @@ button.play-type.open {
   background: transparent;
   color: var(--disabled);
 }
+/* Select and Hand (ADR 0079): a pair in its own well at the head of the
+   rail, the one that is on filled in selection blue. */
+.rail-pointer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--wash);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.rail-pointer > button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.rail-pointer > button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.rail-pointer > button[aria-pressed="true"],
+.rail-pointer > button[aria-pressed="true"]:hover {
+  background: var(--blue);
+  color: #fff;
+}
 .rail-spacer {
   flex: 1;
 }
@@ -2823,6 +2856,16 @@ button.play-type.open {
 }
 .field-wrap:not([data-tool="select"]) .field-diagram {
   cursor: crosshair;
+}
+/* The Hand takes hold of the field from anywhere, a man and a handle
+   included (ADR 0079). */
+.field-wrap[data-tool="pan"] .field-diagram,
+.field-wrap[data-tool="pan"] .field-diagram * {
+  cursor: grab;
+}
+.field-wrap[data-tool="pan"] .field-diagram:active,
+.field-wrap[data-tool="pan"] .field-diagram:active * {
+  cursor: grabbing;
 }
 /* The dot draws rather than moves, and says so before it is pressed. */
 .field-diagram .route-dot,
@@ -5959,7 +6002,8 @@ button.library-dot.target.small {
     padding-top: 10px;
   }
   .tool-rail > button,
-  .tool-rail .menu > button {
+  .tool-rail .menu > button,
+  .rail-pointer > button {
     width: 44px;
     height: 44px;
   }
@@ -7306,6 +7350,24 @@ button.library-dot.target.small {
 .phone-workspace .tool-rail .rail-collapse {
   display: none;
 }
+/* A phone's tool row is full, so the pair floats over the field's lower
+   left, opposite the map (ADR 0079): above the sheet's peek when upright,
+   in the corner when held sideways. */
+.phone-workspace .field-pointer {
+  position: absolute;
+  bottom: 60px;
+  left: max(10px, env(safe-area-inset-left));
+  z-index: 3;
+  flex-direction: row;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px rgb(var(--shade) / 0.1),
+    0 4px 14px rgba(0, 0, 0, 0.08);
+}
+.phone-workspace .field-pointer > button {
+  width: 44px;
+  height: 44px;
+}
 .phone-workspace .tool-rail .rail-divider {
   width: 1px;
   height: 20px;
@@ -7460,6 +7522,9 @@ button.library-dot.target.small {
     bottom: 84px;
   }
   .phone-workspace .minimap {
+    bottom: 130px;
+  }
+  .phone-workspace .field-pointer {
     bottom: 130px;
   }
   /* Upright, the field is letterboxed top and bottom: the count sits in the
