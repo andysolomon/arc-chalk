@@ -9025,6 +9025,7 @@ button.shell-quiet:hover {
   gap: 8px;
   padding: 12px 12px 4px;
   box-shadow: 0 1px 0 var(--line);
+  cursor: pointer;
 }
 .sheet-back,
 .sheet-field {
