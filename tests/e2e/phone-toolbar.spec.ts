@@ -4,9 +4,9 @@ import { expect, openBlankEditor, test } from "./fixtures";
 
 /**
  * The tool rail on a phone (ADR 0077): the row under the field carries the
- * Formation button, the shadow, Text, Clear every line, Clear every player
- * and the trash, each a finger's 44 px and all of them on the glass at
- * 390 px. A new play from More opens on the Formations browser; the rail
+ * Formation button, the shadow, the concept (ADR 0078), Text, Clear every
+ * line, Clear every player and the trash, each a finger's 44 px and all of
+ * them on the glass at 390 px. A new play from More opens on the Formations browser; the rail
  * adds a shadow defense, takes every man off, and puts a set back on. The
  * field with the last set on it is the run's artifact.
  */
@@ -34,6 +34,7 @@ test("the phone's tool row puts men on and takes them off", async ({
   for (const name of [
     "Add or change the formation — ⇧⌘F",
     "Add a shadow defense — ⇧⌘D",
+    "Add or change the concept",
     "Text — T",
     "Clear every line",
     "Clear every player",
