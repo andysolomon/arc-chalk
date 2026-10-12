@@ -357,6 +357,7 @@ import {
   openProgressionStrip,
 } from "./print-progression";
 import { HeaderIcon, RailIcon } from "./rail-icons";
+import { ChalkToolbarIcon } from "./chalk-toolbar-icons";
 import { renderToStaticMarkup } from "react-dom/server";
 
 export { FieldDiagram };
@@ -8101,7 +8102,7 @@ export function ChalkApp({
               title={railSetName}
               type="button"
             >
-              <RailIcon glyph="formation" />
+              <ChalkToolbarIcon glyph="formation" />
             </button>
             {shadowCount === 0 ? (
               // Nobody to show yet: the button puts the other unit on, in
@@ -8113,7 +8114,7 @@ export function ChalkApp({
                 title={railShadowAddName}
                 type="button"
               >
-                <RailIcon glyph="shadow-add" />
+                <ChalkToolbarIcon glyph="shadow-add" />
               </button>
             ) : (
               <button
@@ -8127,7 +8128,7 @@ export function ChalkApp({
                 title={`${shadowLayerName} on / off — H`}
                 type="button"
               >
-                <RailIcon glyph="shadow" />
+                <ChalkToolbarIcon glyph="shadow-toggle" />
               </button>
             )}
             <button
@@ -8160,7 +8161,11 @@ export function ChalkApp({
                 aria-label={`${tool.label} — ${tool.shortcut}`}
                 aria-pressed={activeTool === tool.id}
               >
-                <RailIcon glyph={tool.id} />
+                {tool.id === "text" ? (
+                  <ChalkToolbarIcon glyph="add-text" />
+                ) : (
+                  <RailIcon glyph={tool.id} />
+                )}
               </button>
             ))}
             {phoneWorkspace && interaction.drawing ? (
@@ -8174,7 +8179,7 @@ export function ChalkApp({
                 title="Finish the route — ⏎"
                 type="button"
               >
-                Done
+                <ChalkToolbarIcon glyph="finish-route" />
               </button>
             ) : null}
             <span aria-hidden="true" className="rail-divider" />
@@ -8190,7 +8195,7 @@ export function ChalkApp({
               title="Clear every route, block and drop — the men stay where they are"
               type="button"
             >
-              <RailIcon glyph="clear-lines" />
+              <ChalkToolbarIcon glyph="clear-lines" />
             </button>
             <button
               // Every man off the field, on both sides, with his lines; the
@@ -8203,7 +8208,7 @@ export function ChalkApp({
               title="Clear every player — his routes go with him, notes stay"
               type="button"
             >
-              <RailIcon glyph="clear-players" />
+              <ChalkToolbarIcon glyph="clear-players" />
             </button>
             <span className="rail-spacer" />
             <button
@@ -8216,7 +8221,7 @@ export function ChalkApp({
               title="Delete selection — ⌫"
               type="button"
             >
-              <RailIcon glyph="trash" />
+              <ChalkToolbarIcon glyph="delete-selection" />
             </button>
             <button
               className="rail-collapse"

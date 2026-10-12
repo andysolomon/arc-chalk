@@ -57,6 +57,28 @@ went (ADR 0064 amended), and is one press of undo.
 The empty roster's hint reads _Pick a formation from the tools or the
 sidebar to start._
 
+## October 2026 icon refresh
+
+Product request (2026-10-12): apply the supplied `arc-chalk-toolbar-icons.zip`
+to the drawing toolbar. The eight supplied glyphs live in
+`chalk-toolbar-icons.tsx`: a 24-unit grid, 1.8-unit rounded strokes and a
+20 px display size. Text is drawn with paths rather than a font. The shadow
+is now a solid circle with a dashed second circle; add carries a simple
+**+**, and the two clears carry a simple **−**, replacing the ringed badges
+above. Formation gains a faint scrimmage line. Delete remains a bin.
+The phone's drawing-only Done button uses the supplied checkmark at a
+44 × 44 px target, retaining its Finish the route label and title.
+
+All marks inherit `currentColor`, including active, hidden and disabled
+states in both themes. Labels, titles, pressed states, focus treatment,
+shortcuts, erasure guards and undo stay on their existing buttons. The
+concept glyph, header, desktop Done text and recorded Demo keep their
+existing drawings. The refresh is independent of toolbar placement.
+The existing toolbar journeys now capture both light and dark shells; the
+phone journey draws a line, checks the finish target is at least 44 × 44 px
+and on the glass, and completes it with one tap. Regenerable evidence is
+kept in `docs/reviews/screenshots/toolbar-icons/`.
+
 ## Preserved
 
 The sidebar's Formation and Defensive call rows and their Reset rows; ⇧⌘F,
