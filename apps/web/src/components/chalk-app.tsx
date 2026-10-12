@@ -7034,6 +7034,16 @@ export function ChalkApp({
   const railShadowAddName = `Add a ${shadowName.toLowerCase()} — ${
     defensePlay ? "⇧⌘F" : "⇧⌘D"
   }`;
+  // The play call on the rail (ADR 0078): the concept on an offensive play
+  // and the coverage on a defensive one, in the picker the inspector's row
+  // opens. Grey while nobody on the field could run one.
+  const railCallGroup = defensePlay ? "coverage" : "concept";
+  const railCallName = defensePlay
+    ? "Add or change the coverage"
+    : "Add or change the concept";
+  const railCallReady = presetChoices.some(
+    ({ group, available }) => group === railCallGroup && available,
+  );
   // A call moved by hand names the one it came from, so the variant keeps
   // its front and coverage in view.
   const callName =
@@ -8071,6 +8081,22 @@ export function ChalkApp({
                 <RailIcon glyph="shadow" />
               </button>
             )}
+            <button
+              aria-label={railCallName}
+              className="rail-call"
+              disabled={!railCallReady}
+              onClick={() => openPresets(railCallGroup)}
+              title={
+                railCallReady
+                  ? railCallName
+                  : defensePlay
+                    ? "Put the defense on first — a coverage is called for the men who drop"
+                    : "Put a formation on first — a concept is drawn for the men in the set"
+              }
+              type="button"
+            >
+              <RailIcon glyph="concept" />
+            </button>
             {tools.map((tool) => (
               // Text is the one tool left here (ADR 0052): a note goes on
               // the grass, so it needs a tool; a line goes on a man, so it
