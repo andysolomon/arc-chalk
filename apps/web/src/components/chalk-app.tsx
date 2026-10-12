@@ -142,7 +142,6 @@ import {
   type PlayerAlignment,
   linemenOf,
   linePresetIsOn,
-  FINGER_TAP_SLOP_PX,
   fieldHitOptions,
   fieldInteraction,
   hitTestField,
@@ -201,7 +200,6 @@ import {
   type FieldGesture,
   lineOf,
   type FieldHandleRef,
-  type FieldPointerInput,
   type FieldInteractionContext,
   type FieldInteractionEvent,
   type FieldInteractionModel,
@@ -328,6 +326,7 @@ import { editorStatusHint, SMALL_LABEL_PX } from "./editor-status-hint";
 import {
   drawChoicesFor,
   drawKindForKey,
+  pointerTools,
   tools,
   type ToolId,
 } from "./tool-labels";
@@ -536,9 +535,12 @@ function drawingNoun(kind: FieldDrawingKind, capital = false): string {
   return capital ? noun.charAt(0).toUpperCase() + noun.slice(1) : noun;
 }
 
-/** Tools the interaction machine understands; the rest it never sees. */
+/**
+ * Tools the interaction machine understands; the rest it never sees. The
+ * Hand's presses are the field's before they reach it (ADR 0079).
+ */
 function interactionTool(tool: Tool): FieldInteractionContext["tool"] {
-  return tool;
+  return tool === "pan" ? "select" : tool;
 }
 
 /** The depth a route may reach without leaving the drawn frame. */
@@ -3193,20 +3195,8 @@ export function ChalkApp({
     midX: number;
     midY: number;
   }>(undefined);
-  /**
-   * Where a pan gesture last was, in client pixels — and, when one finger on
-   * open grass started it, where it landed and the press it stands in for,
-   * so a finger that lifts without travelling is still the tap it was.
-   */
-  const panRef = useRef<{
-    x: number;
-    y: number;
-    tap?: {
-      readonly x: number;
-      readonly y: number;
-      readonly input: FieldPointerInput;
-    };
-  }>(undefined);
+  /** Where a pan gesture last was, in client pixels. */
+  const panRef = useRef<{ x: number; y: number }>(undefined);
   /**
    * Which pointer the Coach has in his hand. An iPad calls itself coarse
    * whichever one it is, so the field watches what actually touches it
@@ -3697,7 +3687,7 @@ export function ChalkApp({
    * multi-selection is being moved as a group, not edited node by node.
    */
   const selectedPath =
-    activeTool === "select" &&
+    activeTool !== "text" &&
     !interaction.drawing &&
     interaction.selection.length === 1 &&
     interaction.selection[0]?.kind === "path"
@@ -3705,9 +3695,12 @@ export function ChalkApp({
           ({ id }) => id === interaction.selection[0]!.id,
         )
       : undefined;
-  /** The one selected man, whose Player panel replaces the idle inspector. */
+  /**
+   * The one selected man, whose Player panel replaces the idle inspector. The
+   * Hand moves the view, not the pick, so his panel stays open under it.
+   */
   const selectedPlayer =
-    activeTool === "select" &&
+    activeTool !== "text" &&
     !interaction.drawing &&
     interaction.selection.length === 1 &&
     interaction.selection[0]?.kind === "player"
@@ -4286,35 +4279,6 @@ export function ChalkApp({
     );
     return found?.item.kind === "label" ? undefined : found?.item;
   };
-  /**
-   * Whether one finger, pressed here, moves the field rather than what is on
-   * it. A phone has no Space bar, no middle button and no trackpad, and the
-   * two-finger pan wants a hand that a phone held in one cannot spare; the
-   * selection box the desktop draws on empty grass is, as ADR 0016 has it, a
-   * desktop gesture. So a finger on the grass pans. A finger on a man, a
-   * route or a note still picks it up — a note included, which the menu
-   * leaves out but a drag moves — and a finger mid-drawing or holding the
-   * Text tool still puts down what it came to put down.
-   */
-  const fingerPansFrom = (
-    clientX: number,
-    clientY: number,
-    pointerType: string,
-  ): boolean => {
-    if (pointerType !== "touch") return false;
-    if (interactionRef.current.drawing) return false;
-    if (interactionTool(activeTool) === "text") return false;
-    const document = editorStore.getSnapshot().document;
-    // Measured the way the machine measures its own press, zoom included, so
-    // the finger is told the same thing here that it would be told there.
-    const found = hitTestField(
-      buildRenderScene(document, { presentation }),
-      fieldPointFromClient(clientX, clientY),
-      fieldScreenScale(),
-      fieldHitOptions(pointerType),
-    );
-    return found === undefined;
-  };
   const openContextMenu = (
     clientX: number,
     clientY: number,
@@ -4432,13 +4396,16 @@ export function ChalkApp({
         return;
       }
     }
-    // Held space or a held alt moves the field instead of what is on it —
-    // the gestures every drawing tool has trained into him. So does a finger,
-    // once a Pencil has been out: the tip draws and the hand moves the field,
-    // which is what ADR 0016 means by leaving touch the viewport. A
-    // middle-mouse drag does the same — the Figma way to pan without
-    // giving up the primary button or hunting for a modifier.
+    // The Hand moves the field from wherever it is pressed, a man included,
+    // and edits nothing (ADR 0079). Held space or a held alt is a moment's
+    // Hand — the gestures every drawing tool has trained into him. So is a
+    // finger, once a Pencil has been out: the tip draws and the hand moves
+    // the field, which is what ADR 0016 means by leaving touch the viewport.
+    // A middle-mouse drag does the same — the Figma way to pan without
+    // giving up the primary button or hunting for a modifier. Under Select a
+    // finger on the grass draws a box, as a mouse does.
     if (
+      activeTool === "pan" ||
       spaceHeldRef.current ||
       event.altKey ||
       event.button === 1 ||
@@ -4446,24 +4413,6 @@ export function ChalkApp({
     ) {
       if (spaceHeldRef.current) spacePannedRef.current = true;
       panRef.current = { x: event.clientX, y: event.clientY };
-      cancelLongPress();
-      return;
-    }
-    // Before a Pencil has been out, one finger is the only pointer the Coach
-    // has, and on the grass it moves the field the way it always could with
-    // two. The press is kept with the pan: a finger that lifts where it
-    // landed was a tap on empty grass, which clears the selection the way a
-    // click there does, and that is settled when it lifts.
-    if (fingerPansFrom(event.clientX, event.clientY, event.pointerType)) {
-      panRef.current = {
-        x: event.clientX,
-        y: event.clientY,
-        tap: {
-          x: event.clientX,
-          y: event.clientY,
-          input: fieldPointerInput(event),
-        },
-      };
       cancelLongPress();
       return;
     }
@@ -4588,22 +4537,8 @@ export function ChalkApp({
       return;
     }
     if (panRef.current || pinching) {
-      const tap = panRef.current?.tap;
       panRef.current = undefined;
       setCamera(cameraRef.current);
-      // A finger that came down on the grass and lifted within a tap's
-      // wobble of the same spot never meant to move anything. It is handed
-      // to the machine as the press and release it was, which is how empty
-      // grass clears the selection under a mouse too.
-      if (
-        tap &&
-        Math.hypot(event.clientX - tap.x, event.clientY - tap.y) <=
-          FINGER_TAP_SLOP_PX
-      ) {
-        dispatchField({ type: "pointer-down", input: tap.input });
-        dispatchField({ type: "pointer-up", input: fieldPointerInput(event) });
-        flushLivePaint();
-      }
       return;
     }
     paintLoop.flush();
@@ -4621,6 +4556,9 @@ export function ChalkApp({
     handle: FieldHandleRef,
     event: React.PointerEvent,
   ): void => {
+    // Under the Hand a handle is just more field: the press goes on to it
+    // and moves the view, and the line stays as it was drawn (ADR 0079).
+    if (activeTool === "pan" && !interactionRef.current.drawing) return;
     // The handle owns this press; the field must not also start a move.
     event.stopPropagation();
     if (stylusRejects(stylusRef.current, event.pointerType)) return;
@@ -4649,6 +4587,8 @@ export function ChalkApp({
       dispatchField({ type: "finish-drawing" });
       return;
     }
+    // The Hand edits nothing, so two presses on a route add no break.
+    if (activeTool === "pan") return;
     // Double-clicking the selected route adds a break where the Coach
     // pointed, the way the original did.
     const selected = interactionRef.current.selection.find(
@@ -5697,6 +5637,7 @@ export function ChalkApp({
     }));
   const actions: ActionMap = {
     toolSelect: () => selectTool("select"),
+    toolHand: () => selectTool("pan"),
     toolText: () => selectTool("text"),
     drawRoute: () => startDrawingFromSelection("route"),
     drawMotion: () => startDrawingFromSelection("motion"),
@@ -7057,7 +6998,7 @@ export function ChalkApp({
         : undefined;
   /** A row of the roster is the man on the field: the same pick. */
   const selectRosterPlayer = (playerId: string) => {
-    if (activeTool !== "select") selectTool("select");
+    if (activeTool === "text") selectTool("select");
     focusInteraction({
       selection: [{ kind: "player", id: playerId }],
       selectedBranchIndex: undefined,
@@ -7398,6 +7339,34 @@ export function ChalkApp({
     coverPick !== undefined && selectedPlayer?.id === coverPick
       ? selectedPlayer
       : undefined;
+  /**
+   * Select and Hand (ADR 0079): the head of the rail on a desktop or a
+   * tablet, a pill over the field's lower left on a phone, whose tool row is
+   * full. Select picks and moves, and its drag on the grass boxes in a
+   * group; Hand moves the field from anywhere. Pressing the one that is on
+   * leaves it on.
+   */
+  const pointerPair = (
+    <div
+      aria-label="Pointer"
+      className={`rail-pointer${phoneWorkspace ? " field-pointer" : ""}`}
+      role="group"
+    >
+      {pointerTools.map((tool) => (
+        <button
+          aria-label={tool.name}
+          aria-pressed={activeTool === tool.id}
+          className={activeTool === tool.id ? "active" : ""}
+          key={tool.id}
+          onClick={() => selectTool(tool.id)}
+          title={tool.title}
+          type="button"
+        >
+          <RailIcon glyph={tool.glyph} />
+        </button>
+      ))}
+    </div>
+  );
   const statusHint = picking
     ? COVER_PICK_HINT
     : editorStatusHint({
@@ -8090,9 +8059,17 @@ export function ChalkApp({
         )}
         {railOpen ? (
           <nav className="tool-rail" aria-label="Drawing tools">
-            {/* What goes on the field, then what comes off it, then the
-                selection (ADR 0077). Each is one press from a blank canvas:
-                the set, the other unit under it, a note. */}
+            {/* How the pointer meets the field (ADR 0079), then what goes on
+                the field, then what comes off it, then the selection (ADR
+                0077). Each is one press from a blank canvas: the set, the
+                other unit under it, a note. A phone's row has no room for
+                the pointer pair, so there it floats over the field. */}
+            {phoneWorkspace ? null : (
+              <>
+                {pointerPair}
+                <span aria-hidden="true" className="rail-divider" />
+              </>
+            )}
             <button
               // The set for an offensive play, the call for a defensive one:
               // the same browser the sidebar's Formation row opens.
@@ -8421,6 +8398,7 @@ export function ChalkApp({
             <p aria-live="polite" className="visually-hidden">
               {activeItemName}
             </p>
+            {phoneWorkspace ? pointerPair : null}
             <FieldMinimap
               camera={camera}
               frame={EDITOR_FRAME}
@@ -8730,7 +8708,16 @@ export function ChalkApp({
                   <button
                     className="wide-picker"
                     type="button"
-                    onClick={() => setDefenseAdjustmentScope([])}
+                    // A lone defender's panel opens them on him, the way two
+                    // or more picked open them from the selection's bar;
+                    // the dialog widens to the whole defense from there.
+                    onClick={() =>
+                      setDefenseAdjustmentScope(
+                        selectedPlayer?.unit === "defense"
+                          ? [selectedPlayer.id]
+                          : [],
+                      )
+                    }
                   >
                     Defensive adjustments <span aria-hidden="true">›</span>
                   </button>

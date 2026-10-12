@@ -30,7 +30,9 @@ export type RailGlyph =
   | "concept"
   | "clear-lines"
   | "clear-players"
-  | "trash";
+  | "trash"
+  | "pointer"
+  | "hand";
 
 /**
  * A set as the browsers draw one: three men on the line and a back behind
@@ -169,6 +171,30 @@ const icons: Record<RailGlyph, ReactNode> = {
     <>
       {men(0.82, 3, 4, 1.8)}
       {badge("-")}
+    </>
+  ),
+  pointer: (
+    // Select (ADR 0079): the original's arrow, drawn in outline so it reads
+    // as a pair with the Hand beside it.
+    <path
+      d="M4.5 2.5 L4.5 14.5 L8 11.6 L10 16 L12 15.1 L10 10.8 L14.5 10.5 Z"
+      {...stroke}
+    />
+  ),
+  hand: (
+    // Hand (ADR 0079): an open hand, four fingers and the thumb, that takes
+    // hold of the field rather than of what is on it.
+    <>
+      <path
+        d="M5.2 11.2 L5.2 4.6 A1.2 1.2 0 0 1 7.6 4.6 L7.6 8.6"
+        {...stroke}
+      />
+      <path d="M7.6 8.6 L7.6 3.2 A1.2 1.2 0 0 1 10 3.2 L10 8.6" {...stroke} />
+      <path d="M10 8.6 L10 3.9 A1.2 1.2 0 0 1 12.4 3.9 L12.4 8.6" {...stroke} />
+      <path
+        d="M12.4 8.6 L12.4 5.6 A1.2 1.2 0 0 1 14.8 5.6 L14.8 10.8 C14.8 14 12.5 16.5 9.4 16.5 L8.6 16.5 C7.1 16.5 6 16 5 14.9 L2.6 12 A1.2 1.2 0 0 1 4.3 10.3 L5.2 11.2"
+        {...stroke}
+      />
     </>
   ),
   trash: (
