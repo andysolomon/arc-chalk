@@ -55,6 +55,17 @@ palette lists _Hand tool_ beside _Select tool_ and _Text tool_.
 **The status bar** under the Hand reads _drag anywhere to move the view —
 nothing on the field moves · ⌘+ / ⌘−: zoom · v: back to select_.
 
+**The selection's bar is a group's.** Now that a phone can pick several
+men, the bar over the field goes back to appearing for two men or more. The
+coaching adjustments (#204) made one defender an exception so that _Adjust
+defense_ could reach him, which left a Coach who tapped one man with a bar
+he had not asked for and an Arrange menu every row of which needs two. A
+lone defender's adjustments open from his own panel instead — the inspector
+on a desktop, the sheet on a phone — whose _Defensive adjustments_ row
+opens the dialog on him; with nobody picked the same row opens it on the
+whole defense, and the dialog widens from one to the other. Two defenders
+or more keep _Adjust defense_ on the bar.
+
 ## Preserved
 
 Select's every press, drag, Shift-click and box under a mouse; the route
@@ -104,3 +115,10 @@ picked; finds a tap under the Hand picks nothing; and, back on Select, drags
 a man and clears the field with a tap. It ends on a screenshot at each
 width. `tests/e2e/editor-interaction.spec.ts` replaces _moves the field
 under one finger on the grass_ with the same split on a tablet-sized field.
+`tests/e2e/selection-bar.spec.ts` picks one corner and finds no bar, opens
+his panel's adjustments on him and, with nobody picked, on the whole
+defense, then picks both corners and finds the bar with Adjust defense and
+Arrange, ending on a screenshot. `tests/e2e/phone-selection-bar.spec.ts`
+taps the free safety and then the Quarterback on a 390 px phone and finds
+no bar for either, opens the safety's sheet and its adjustments on him,
+and widens them to the whole defense, ending on a screenshot.

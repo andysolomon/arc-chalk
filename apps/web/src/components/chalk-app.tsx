@@ -8620,7 +8620,16 @@ export function ChalkApp({
                   <button
                     className="wide-picker"
                     type="button"
-                    onClick={() => setDefenseAdjustmentScope([])}
+                    // A lone defender's panel opens them on him, the way two
+                    // or more picked open them from the selection's bar;
+                    // the dialog widens to the whole defense from there.
+                    onClick={() =>
+                      setDefenseAdjustmentScope(
+                        selectedPlayer?.unit === "defense"
+                          ? [selectedPlayer.id]
+                          : [],
+                      )
+                    }
                   >
                     Defensive adjustments <span aria-hidden="true">›</span>
                   </button>
