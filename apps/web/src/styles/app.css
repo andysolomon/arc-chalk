@@ -1311,6 +1311,10 @@ button.play-type.open {
   width: 18px;
   height: 18px;
 }
+.tool-rail .chalk-toolbar-icon {
+  width: 20px;
+  height: 20px;
+}
 .tool-rail .snap-toggle[aria-pressed="true"] {
   background: var(--hover);
   color: var(--ink);
@@ -7374,8 +7378,8 @@ button.library-dot.target.small {
   margin: 0 4px;
 }
 .phone-workspace .tool-rail .rail-finish {
-  width: auto;
-  padding: 0 14px;
+  width: 44px;
+  padding: 0;
   border-radius: 999px;
   background: var(--ink);
   color: var(--on-ink);

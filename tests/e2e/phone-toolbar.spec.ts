@@ -77,5 +77,45 @@ test("the phone's tool row puts men on and takes them off", async ({
   await expect(men).toHaveCount(11);
 
   await expect(page.locator(".toast")).toBeHidden({ timeout: 10_000 });
-  await page.screenshot({ path: testInfo.outputPath("phone-toolbar.png") });
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-theme",
+      colorScheme,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`phone-toolbar-${colorScheme}.png`),
+    });
+  }
+
+  // A line still finishes in one tap when Done is the supplied checkmark.
+  const symbol = men.first().locator("circle, rect, path").first();
+  const at = (await symbol.boundingBox())!;
+  const start = { x: at.x + at.width / 2, y: at.y + at.height / 2 };
+  await page.touchscreen.tap(start.x, start.y);
+  await page.getByRole("button", { name: "Show all assignments" }).tap();
+  await page
+    .getByRole("group", { name: "Draw by hand" })
+    .getByRole("button")
+    .first()
+    .tap();
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(1);
+  await page.touchscreen.tap(start.x, start.y - 40);
+  await page.touchscreen.tap(start.x + 40, start.y - 40);
+  const finish = tools.getByRole("button", { name: "Finish the route — ⏎" });
+  const box = (await finish.boundingBox())!;
+  expect(box.width).toBeGreaterThanOrEqual(44);
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+  await page.screenshot({
+    path: testInfo.outputPath("phone-finish-route.png"),
+  });
+  await finish.tap();
+  await expect(page.locator("[data-drawing-preview]")).toHaveCount(0);
+  await expect(page.locator("[data-scene-path]")).toHaveCount(1);
+  await expect(finish).toHaveCount(0);
+  await page.screenshot({
+    path: testInfo.outputPath("phone-finished-route.png"),
+  });
 });

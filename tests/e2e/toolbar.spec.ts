@@ -156,6 +156,14 @@ test("an offensive play starts on its set, and the rail puts men on and takes th
   await settle(page);
   await page.screenshot({ path: testInfo.outputPath("offense-toolbar.png") });
   await tools.screenshot({ path: testInfo.outputPath("offense-rail.png") });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.screenshot({
+    path: testInfo.outputPath("offense-toolbar-dark.png"),
+  });
+  await tools.screenshot({
+    path: testInfo.outputPath("offense-rail-dark.png"),
+  });
 });
 
 test("a defensive play starts on its call, and the rail adds its shadow offense", async ({
