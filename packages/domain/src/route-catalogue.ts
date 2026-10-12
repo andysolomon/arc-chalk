@@ -16,6 +16,11 @@ import {
   type DefensiveField,
 } from "./defensive-field";
 import { legacyDepthSpanToYards, legacyLateralSpanToYards } from "./geometry";
+import {
+  DEEP_STANCE_YARDS,
+  defenderKind,
+  type DefenderKind,
+} from "./man-coverage";
 import type { Coordinate, PathPoint, PlayDocument, Player } from "./schema";
 import { deepCallLandmark } from "./zone-shell";
 
@@ -679,20 +684,51 @@ const offeredIn = (group: DefensivePresetGroup) =>
   );
 
 /**
+ * The calls each man off the front is offered first, by what he plays: a
+ * safety the deep halves, middle and quarters — or, rolled down into the box,
+ * the underneath calls he plays from there — a corner man and his outside
+ * third, a nickel man and the flat, a backer his hook, curl/flat and gaps.
+ */
+const offeredFirstTo: Readonly<
+  Record<Exclude<DefenderKind, "lineman"> | "rolled", readonly string[]>
+> = Object.freeze({
+  safety: ["deep2", "mid3", "quarter", "deep3", "robber", "man"],
+  rolled: ["curlflat", "robber", "man", "hook"],
+  corner: ["man", "deep3", "quarter", "curlflat", "deep2"],
+  nickel: ["man", "curlflat", "hook", "quarter", "deep3"],
+  backer: ["hook", "curlflat", "man", "spy", "agap", "bgap", "cgap", "dgap"],
+});
+
+/**
  * The calls a defender is offered, in the order he is offered them. A man on
  * the front gets the front's own calls first — rush, contain, the slants and
  * the games — then the gaps, then the drops a zone blitz can send him to.
- * Everyone else gets the gaps and the coverage.
+ * Everyone else gets the calls his position plays first, then
+ * the rest of the coverage, then the gaps.
  */
 export function defensivePresetsFor(
   play: Pick<PlayDocument, "players" | "fieldProfile">,
-  player: Pick<Player, "position">,
+  player: Pick<Player, "label" | "position">,
 ): readonly LinePreset[] {
-  const front = isOnDefensiveFront(player.position, defensiveFieldOf(play));
+  const field = defensiveFieldOf(play);
+  const kind = defenderKind(player, field.ballLateralYards);
+  if (isOnDefensiveFront(player.position, field) || kind === "lineman") {
+    return [
+      ...offeredIn("front"),
+      ...offeredIn("pressure"),
+      ...offeredIn("coverage"),
+    ];
+  }
+  const first =
+    offeredFirstTo[
+      kind === "safety" && player.position.depthYards < DEEP_STANCE_YARDS
+        ? "rolled"
+        : kind
+    ];
+  const rest = [...offeredIn("coverage"), ...offeredIn("pressure")];
   return [
-    ...(front ? offeredIn("front") : []),
-    ...offeredIn("pressure"),
-    ...offeredIn("coverage"),
+    ...first.flatMap((key) => rest.filter((preset) => preset.key === key)),
+    ...rest.filter(({ key }) => !first.includes(key)),
   ];
 }
 
