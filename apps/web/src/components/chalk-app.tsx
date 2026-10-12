@@ -2758,6 +2758,14 @@ function Inspector({
       </aside>
     );
   }
+  // The full sheet's head is its grip, as the peek's bar is: a tap on it
+  // anywhere past its own controls puts the sheet away. Field is the way
+  // there for a keyboard or a reader.
+  const onHeadClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("a, button, input, select, textarea")) return;
+    snap("peek");
+  };
   const fieldButton = (
     <button
       aria-label="Show the field"
@@ -2798,7 +2806,7 @@ function Inspector({
         className="inspector sheet sheet-full"
         data-sheet="full"
       >
-        <div className="sheet-head">
+        <div className="sheet-head" onClick={onHeadClick}>
           <span aria-hidden="true" className="sheet-grab" />
           <button
             aria-label={`All ${roster.total} — back to the roster`}
@@ -2857,7 +2865,7 @@ function Inspector({
       className="inspector sheet sheet-full"
       data-sheet="full"
     >
-      <div className="sheet-head">
+      <div className="sheet-head" onClick={onHeadClick}>
         <span aria-hidden="true" className="sheet-grab" />
         <strong>Assignments</strong>
         <span className="assignments-count">{count}</span>
@@ -3941,13 +3949,54 @@ export function ChalkApp({
   /**
    * On a desktop, a man picked out on his own brings back the inspector the
    * Coach folded: his assignments are what he picked him for. A tablet's
-   * drawer and a phone's sheet keep their own rules.
+   * drawer and a phone's sheet keep their own rules for a man.
+   *
+   * A note picked out on its own brings out its Text panel everywhere — the
+   * folded inspector, the tablet's drawer, the phone's sheet full — since
+   * what it says is only written there.
    */
-  const revealPickedMan = (selection: readonly FieldItemRef[]): void => {
-    if (inspectorFloats) return;
-    if (selection.length === 1 && selection[0]!.kind === "player") {
+  const revealPick = (selection: readonly FieldItemRef[]): void => {
+    if (selection.length !== 1) return;
+    const { kind } = selection[0]!;
+    if (kind === "label") {
+      if (phoneWorkspace) setSheetSnap("full");
+      else setInspectorOpen(true);
+    } else if (kind === "player" && !inspectorFloats) {
       setInspectorOpen(true);
+    } else {
+      return;
     }
+    swallowClickUnderPanel();
+  };
+  /**
+   * A panel that comes out mid-press can rise under the pointer — a phone's
+   * sheet always does — and the mouse events that end the press would land
+   * on whatever it put there: the mousedown takes the caret from a note
+   * just placed, the click picks a meaning or a size. They were the press
+   * on the field, so they go nowhere. The next press lets the guard go, and
+   * a key's click (detail 0) is never one.
+   */
+  const swallowClickUnderPanel = (): void => {
+    const types = ["mousedown", "mouseup", "click"] as const;
+    const swallow = (event: MouseEvent) => {
+      if (event.detail === 0) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest(".inspector")) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    for (const type of types) {
+      globalThis.addEventListener(type, swallow, { capture: true });
+    }
+    globalThis.addEventListener(
+      "pointerdown",
+      () => {
+        for (const type of types) {
+          globalThis.removeEventListener(type, swallow, { capture: true });
+        }
+      },
+      { capture: true, once: true },
+    );
   };
   const dispatchField = (event: FieldInteractionEvent): void => {
     const document = editorStore.getSnapshot().document;
@@ -3975,7 +4024,7 @@ export function ChalkApp({
     if (!hold) setInteraction(result.model);
     // A click, not a drag: a man dragged was only being moved.
     if (event.type === "pointer-up" && previous.gesture.kind === "pressing") {
-      revealPickedMan(result.model.selection);
+      revealPick(result.model.selection);
     }
     if (result.command) {
       pendingCommitPaintRef.current = true;
@@ -3990,8 +4039,12 @@ export function ChalkApp({
     // Finishing a route hands the Coach back the select tool, as the
     // original does, so the route he just drew is his to adjust.
     if (result.requestedTool) setActiveTool(result.requestedTool);
-    if (result.editingLabelId)
+    // A note just placed is typed into at once, so its panel comes out with
+    // it and the caret can land in the text.
+    if (result.editingLabelId) {
       labelAwaitingTextRef.current = result.editingLabelId;
+      revealPick([{ kind: "label", id: result.editingLabelId }]);
+    }
     publishLiveVisualsRef.current(result.model);
   };
   const livePaintFromModel = (
@@ -4710,7 +4763,7 @@ export function ChalkApp({
       selectedSegmentIndex: undefined,
       selectedNodeIndex: undefined,
     });
-    revealPickedMan([item]);
+    revealPick([item]);
   };
   /** What each of them is called, said the way a Coach would say it aloud. */
   const fieldItemName = (item: FieldItemRef): string =>
@@ -6224,7 +6277,11 @@ export function ChalkApp({
   useEffect(() => {
     if (phoneWorkspace ? sheetSnap !== "full" : !inspectorOpen) return;
     if (!inspectorFloats) return;
+    // The press that brought it out — a note placed with the Text tool — is
+    // still on its way up when this listens, and is not a tap past it.
+    const armedAt = performance.now();
     const onPointerDown = (event: PointerEvent) => {
+      if (event.timeStamp < armedAt) return;
       const target = event.target instanceof Element ? event.target : null;
       if (
         target?.closest(
@@ -6967,6 +7024,16 @@ export function ChalkApp({
   const railShadowAddName = `Add a ${shadowName.toLowerCase()} — ${
     defensePlay ? "⇧⌘F" : "⇧⌘D"
   }`;
+  // The play call on the rail (ADR 0078): the concept on an offensive play
+  // and the coverage on a defensive one, in the picker the inspector's row
+  // opens. Grey while nobody on the field could run one.
+  const railCallGroup = defensePlay ? "coverage" : "concept";
+  const railCallName = defensePlay
+    ? "Add or change the coverage"
+    : "Add or change the concept";
+  const railCallReady = presetChoices.some(
+    ({ group, available }) => group === railCallGroup && available,
+  );
   // A call moved by hand names the one it came from, so the variant keeps
   // its front and coverage in view.
   const callName =
@@ -8040,6 +8107,22 @@ export function ChalkApp({
                 <RailIcon glyph="shadow" />
               </button>
             )}
+            <button
+              aria-label={railCallName}
+              className="rail-call"
+              disabled={!railCallReady}
+              onClick={() => openPresets(railCallGroup)}
+              title={
+                railCallReady
+                  ? railCallName
+                  : defensePlay
+                    ? "Put the defense on first — a coverage is called for the men who drop"
+                    : "Put a formation on first — a concept is drawn for the men in the set"
+              }
+              type="button"
+            >
+              <RailIcon glyph="concept" />
+            </button>
             {tools.map((tool) => (
               // Text is the one tool left here (ADR 0052): a note goes on
               // the grass, so it needs a tool; a line goes on a man, so it
