@@ -174,7 +174,7 @@ const icons: Record<RailGlyph, ReactNode> = {
     </>
   ),
   pointer: (
-    // Select (ADR 0078): the original's arrow, drawn in outline so it reads
+    // Select (ADR 0079): the original's arrow, drawn in outline so it reads
     // as a pair with the Hand beside it.
     <path
       d="M4.5 2.5 L4.5 14.5 L8 11.6 L10 16 L12 15.1 L10 10.8 L14.5 10.5 Z"
@@ -182,7 +182,7 @@ const icons: Record<RailGlyph, ReactNode> = {
     />
   ),
   hand: (
-    // Hand (ADR 0078): an open hand, four fingers and the thumb, that takes
+    // Hand (ADR 0079): an open hand, four fingers and the thumb, that takes
     // hold of the field rather than of what is on it.
     <>
       <path

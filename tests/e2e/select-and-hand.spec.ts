@@ -3,7 +3,7 @@ import { type Page } from "@playwright/test";
 import { expect, openSeededEditor, test } from "./fixtures";
 
 /**
- * Select and Hand at the head of the rail (ADR 0078). Select is the standing
+ * Select and Hand at the head of the rail (ADR 0079). Select is the standing
  * mode: a drag on the grass draws a box. Hand moves the field under the
  * pointer from anywhere — a man, a route, a picked route's handle — and edits
  * nothing, so the selection and the inspector it opened stay as they were.
@@ -49,6 +49,19 @@ async function pathD(page: Page, id: string) {
   return page.locator(`[data-scene-path="${id}"]`).getAttribute("d");
 }
 
+/**
+ * Whether a point on the glass is the field's own, not a panel, a bar or
+ * the page past its edge. A pan moves men off the field's window, and a
+ * press there would land on whatever is beside it instead.
+ */
+async function onField(page: Page, at: { x: number; y: number }) {
+  return page.evaluate(
+    ({ x, y }) =>
+      Boolean(document.elementFromPoint(x, y)?.closest("svg.field-diagram")),
+    at,
+  );
+}
+
 async function drag(
   page: Page,
   from: { x: number; y: number },
@@ -90,17 +103,19 @@ test("Hand moves the field from a man or a handle and leaves the route picked; V
   expect(zoomed.width).toBeLessThan(1000);
 
   // Hand: a drag that starts on the route's own handle moves the field and
-  // not the break.
+  // not the break. It carries the field up and to the right, which keeps the
+  // backfield in the window on a tablet's smaller field.
   await hand.click();
   await expect(hand).toHaveAttribute("aria-pressed", "true");
   await expect(select).toHaveAttribute("aria-pressed", "false");
   const grip = await onGlass(page, "circle.handle-target");
-  await drag(page, grip, { x: grip.x + 120, y: grip.y + 80 });
+  expect(await onField(page, grip)).toBe(true);
+  await drag(page, grip, { x: grip.x + 120, y: grip.y - 60 });
   await expect
     .poll(async () => (await cameraOf(page)).x)
     .toBeLessThan(zoomed.x);
   const moved = await cameraOf(page);
-  expect(moved.y).toBeLessThan(zoomed.y);
+  expect(moved.y).toBeGreaterThan(zoomed.y);
   expect(await pathD(page, "rx")).toBe(before);
 
   // And from a man, who stays where he stands.
@@ -108,6 +123,7 @@ test("Hand moves the field from a man or a handle and leaves the route picked; V
     .locator('[data-scene-player="q"]')
     .getAttribute("transform");
   const q = await onGlass(page, '[data-scene-player="q"]');
+  expect(await onField(page, q)).toBe(true);
   await drag(page, q, { x: q.x - 60, y: q.y });
   await expect
     .poll(async () => (await cameraOf(page)).x)
@@ -119,6 +135,7 @@ test("Hand moves the field from a man or a handle and leaves the route picked; V
 
   // A double-click under the Hand adds no break to the picked route.
   const along = await alongRoute(page, "rx");
+  expect(await onField(page, along)).toBe(true);
   await page.mouse.dblclick(along.x, along.y);
   expect(await pathD(page, "rx")).toBe(before);
 
@@ -132,7 +149,9 @@ test("Hand moves the field from a man or a handle and leaves the route picked; V
   await page.screenshot({ path: testInfo.outputPath("hand-field.png") });
   await rail(page).screenshot({ path: testInfo.outputPath("hand-rail.png") });
 
-  // V is Select again, and the grass draws a box once more.
+  // V is Select again, and the grass draws a box once more: from above the
+  // line's left end to just under its linemen, short of the quarterback a
+  // step behind the snap, which takes in the five on the line.
   await page.keyboard.press("v");
   await expect(select).toHaveAttribute("aria-pressed", "true");
   await expect(hand).toHaveAttribute("aria-pressed", "false");
@@ -143,7 +162,7 @@ test("Hand moves the field from a man or a handle and leaves the route picked; V
   await drag(
     page,
     { x: ends[0]!.x - 20, y: ends[0]!.y - 24 },
-    { x: ends[1]!.x + 20, y: ends[1]!.y + 24 },
+    { x: ends[1]!.x + 20, y: ends[1]!.y + 4 },
   );
   await expect(page.locator("[data-scene-player].selected")).toHaveCount(5);
 });

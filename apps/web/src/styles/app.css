@@ -1337,7 +1337,7 @@ button.play-type.open {
   background: transparent;
   color: var(--disabled);
 }
-/* Select and Hand (ADR 0078): a pair in its own well at the head of the
+/* Select and Hand (ADR 0079): a pair in its own well at the head of the
    rail, the one that is on filled in selection blue. */
 .rail-pointer {
   display: flex;
@@ -2858,7 +2858,7 @@ button.play-type.open {
   cursor: crosshair;
 }
 /* The Hand takes hold of the field from anywhere, a man and a handle
-   included (ADR 0078). */
+   included (ADR 0079). */
 .field-wrap[data-tool="pan"] .field-diagram,
 .field-wrap[data-tool="pan"] .field-diagram * {
   cursor: grab;
@@ -7351,7 +7351,7 @@ button.library-dot.target.small {
   display: none;
 }
 /* A phone's tool row is full, so the pair floats over the field's lower
-   left, opposite the map (ADR 0078): above the sheet's peek when upright,
+   left, opposite the map (ADR 0079): above the sheet's peek when upright,
    in the corner when held sideways. */
 .phone-workspace .field-pointer {
   position: absolute;

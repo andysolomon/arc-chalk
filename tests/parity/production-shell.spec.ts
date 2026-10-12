@@ -50,19 +50,20 @@ import { expect, test, type Page } from "@playwright/test";
  * sit in the inspector column the original draws differently anyway.
  */
 /**
- * Raised on 2026-10-12 under ADR 0078 (product decision: Select and Hand head
+ * Raised on 2026-10-12 under ADR 0079 (product decision: Select and Hand head
  * the rail). The pair, its well and the rule under it make the rail two
  * buttons taller, and every glyph below them moves down, so each state that
- * draws the rail moves. Measured on one Linux machine, branch against main:
- * Editor 31,571 → 33,087 px; More 32,558 → 34,074; Export 32,846 → 34,362;
- * Save 31,839 → 33,355; palette 32,791 → 34,326; Formations 33,195 → 34,489;
- * Defenses 26,899 → 28,193. Each raised ratchet below is that branch
- * measurement. The shortcut reference moved 51,836 → 53,346 and stays inside
- * its own; Present and Print did not move, and Demo moved 42 px.
+ * draws the rail moves. Measured on one Linux machine, branch against main
+ * with the rail's concept button (ADR 0078) on both: Editor 31,622 → 33,129
+ * px; More 32,609 → 34,116; Export 32,895 → 34,407; Save 31,890 → 33,397;
+ * palette 32,842 → 34,368; Formations 33,271 → 34,552; Defenses 26,975 →
+ * 28,256. Each raised ratchet below is that branch measurement. The shortcut
+ * reference moved 51,887 → 53,388 and stays inside its own; Present and
+ * Print did not move, and Demo moved 10 px.
  */
 const parityGap: Readonly<Record<string, number>> = {
   // 2.3022% (31,825 px) with the sidebar, from 1.6526% (22,846 px).
-  // Raised 0.0231 → 0.024 under ADR 0078 (33,087 px with Select and Hand).
+  // Raised 0.0231 → 0.024 under ADR 0079 (33,129 px with Select and Hand).
   editor: 0.024,
   // 8.9932% (124,322 px), from 17.96% (248,333 px). The remaining Present
   // gap is the animation scrubber and the "1 / 5 · STICK — THUNDER"
@@ -76,11 +77,11 @@ const parityGap: Readonly<Record<string, number>> = {
   // 1000×620; what remains is the original's cursor having already walked
   // the first clicks before Pause, and the 1.3% Player shift.
   demo: 0.0205,
-  // Each raised under ADR 0078 to its branch measurement with Select and Hand.
-  moreMenu: 0.0247, // 34,074 px, from 2.3956% (33,117 px)
-  exportMenu: 0.0249, // 34,362 px, from 2.3901% (33,041 px)
-  saveMenu: 0.0242, // 33,355 px, from 2.3131% (31,976 px)
-  commandPalette: 0.0249, // 34,326 px, from 2.3933% (33,085 px)
+  // Each raised under ADR 0079 to its branch measurement with Select and Hand.
+  moreMenu: 0.0247, // 34,116 px, from 2.3956% (33,117 px)
+  exportMenu: 0.0249, // 34,407 px, from 2.3901% (33,041 px)
+  saveMenu: 0.0242, // 33,397 px, from 2.3131% (31,976 px)
+  commandPalette: 0.0249, // 34,368 px, from 2.3933% (33,085 px)
   shortcuts: 0.039, // 3.8926% (53,811 px), from 2.4176% (33,420 px)
   // Raised 317 px with the field-aspect slice: more of the Play shows around
   // the panel. Card name-row and thumbnail-dot arithmetic now match the
@@ -89,7 +90,7 @@ const parityGap: Readonly<Record<string, number>> = {
   // in the middle of a card cut to its shape, where the original pinned it
   // to the top of a card two-thirds empty). Measured on the same Linux
   // machine, branch against main: 34,548 → 36,770 px (+2,222).
-  // Raised 0.0247 → 0.025 under ADR 0078: 33,195 → 34,489 px (+1,294).
+  // Raised 0.0247 → 0.025 under ADR 0079: 33,271 → 34,552 px (+1,281).
   formations: 0.025, // 2.3043% (31,854 px) + 2,222 px, from 2.0059% (27,730 px)
   // Raised 0.019 → 0.0197 under ADR 0064 (issue #166, the product owner's
   // request for a Mine tab and "Save the defense on the field as…"): the
@@ -101,8 +102,8 @@ const parityGap: Readonly<Record<string, number>> = {
   // longer claims "labels hidden — zoom in" over labels that are drawn, and
   // the shorter hint shows in this capture. Measured on the same Linux
   // machine, branch against main: 29,609 → 29,679 px (+70).
-  // Raised 0.0198 → 0.0204 under ADR 0078: 26,899 → 28,193 px (+1,294).
-  defenses: 0.0204, // 1.9716% (27,255 px), from 1.8893% (26,118 px)
+  // Raised 0.0198 → 0.0205 under ADR 0079: 26,975 → 28,256 px (+1,281).
+  defenses: 0.0205, // 1.9716% (27,255 px), from 1.8893% (26,118 px)
 };
 
 /**

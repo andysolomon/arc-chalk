@@ -2325,7 +2325,7 @@ test("boxes in a group under one finger on the grass, and moves the field under 
   const qBefore = await playerAt(page, "q");
 
   // Under Select a finger on open grass draws a box, as a mouse does (ADR
-  // 0078): the five men on the line are picked and the view stays put.
+  // 0079): the five men on the line are picked and the view stays put.
   const finger = contact(page, "touch", 41);
   const from = await fieldPoint(page, 400, 400);
   const to = await fieldPoint(page, 600, 458);

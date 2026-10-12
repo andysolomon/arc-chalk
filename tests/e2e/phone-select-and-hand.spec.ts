@@ -3,7 +3,7 @@ import { type Page } from "@playwright/test";
 import { expect, openSeededEditor, test } from "./fixtures";
 
 /**
- * Select and Hand on a phone (ADR 0078). The tool row under the field is
+ * Select and Hand on a phone (ADR 0079). The tool row under the field is
  * full, so the pair floats over the field's lower left, clear of the sheet's
  * peek and the map. The field opens on Select, and one finger dragged across
  * open grass draws a box that picks up every man in it — the only way a

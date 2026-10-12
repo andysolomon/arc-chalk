@@ -1,6 +1,6 @@
 import { DEMO_STATUS_HINT } from "@chalk/domain";
 
-/** Select, Hand and Text are the field's modes (ADR 0052, ADR 0078). */
+/** Select, Hand and Text are the field's modes (ADR 0052, ADR 0079). */
 export type StatusHintTool = "select" | "pan" | "text";
 
 export interface EditorStatusHintInput {

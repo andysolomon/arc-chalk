@@ -43,7 +43,7 @@ export type ActionId =
   | `demo:${DemoTourId}`
   | "palette"
   | "toolSelect"
-  /** The Hand moves the field from anywhere (ADR 0078). */
+  /** The Hand moves the field from anywhere (ADR 0079). */
   | "toolHand"
   | "toolText"
   /** Lines by hand start from the selected man (ADR 0052). */

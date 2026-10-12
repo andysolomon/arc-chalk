@@ -5,13 +5,13 @@ import { isLineman } from "@chalk/domain";
 
 /**
  * The field's modes. Select is the standing one; Hand moves the field from
- * anywhere and edits nothing (ADR 0078); Text puts a note down (ADR 0052).
+ * anywhere and edits nothing (ADR 0079); Text puts a note down (ADR 0052).
  * Everything a man is given starts from the man.
  */
 export type ToolId = "select" | "pan" | "text";
 
 /**
- * How the pointer meets the field, at the head of the rail (ADR 0078): pick
+ * How the pointer meets the field, at the head of the rail (ADR 0079): pick
  * and move what is on it, or take hold of the field itself. Holding space is
  * a moment's Hand, so the Hand has no key of its own — H is the shadow's.
  */

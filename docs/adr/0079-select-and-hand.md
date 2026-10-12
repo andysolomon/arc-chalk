@@ -86,17 +86,18 @@ rail, which replays the original's tools as filmed.
 
 Measured against the original's goldens at 1440 × 960 in
 `tests/parity/production-shell.spec.ts`, on one Linux machine, this branch
-against `main` (pixels differing out of 1,382,400): Editor 31,571 → 33,087;
-More menu 32,558 → 34,074; Export menu 32,846 → 34,362; Save menu 31,839 →
-33,355; command palette 32,791 → 34,326; Formations 33,195 → 34,489;
-Defenses 26,899 → 28,193; shortcut reference 51,836 → 53,346; Demo 29,025
-→ 29,067; Present and Print unchanged at 107,153 and 31,499. The rail is two
-buttons and a rule taller and every glyph below them moves down, about
-1,300 to 1,500 px in each state that draws it. Seven states leave their
-ratchets, and each is raised to its branch measurement by this decision
-(ADR 0039); the shortcut reference stays inside its own. Print and Demo
-sit over their macOS-captured ratchets on this machine on `main` as well,
-and pass with the CI rasterization delta.
+against `main` with the rail's concept button (ADR 0078) on both (pixels
+differing out of 1,382,400): Editor 31,622 → 33,129; More menu 32,609 →
+34,116; Export menu 32,895 → 34,407; Save menu 31,890 → 33,397; command
+palette 32,842 → 34,368; Formations 33,271 → 34,552; Defenses 26,975 →
+28,256; shortcut reference 51,887 → 53,388; Demo 29,042 → 29,032; Present
+and Print unchanged at 107,153 and 31,499. The rail is two buttons and a
+rule taller and every glyph below them moves down, about 1,300 to 1,500 px
+in each state that draws it. Seven states leave their ratchets, and each is
+raised to its branch measurement by this decision (ADR 0039); the shortcut
+reference stays inside its own. Print and Demo sit over their
+macOS-captured ratchets on this machine on `main` as well, and pass with
+the CI rasterization delta.
 
 ## Evidence
 

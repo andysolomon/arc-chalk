@@ -536,7 +536,7 @@ function drawingNoun(kind: FieldDrawingKind, capital = false): string {
 
 /**
  * Tools the interaction machine understands; the rest it never sees. The
- * Hand's presses are the field's before they reach it (ADR 0078).
+ * Hand's presses are the field's before they reach it (ADR 0079).
  */
 function interactionTool(tool: Tool): FieldInteractionContext["tool"] {
   return tool === "pan" ? "select" : tool;
@@ -4396,7 +4396,7 @@ export function ChalkApp({
       }
     }
     // The Hand moves the field from wherever it is pressed, a man included,
-    // and edits nothing (ADR 0078). Held space or a held alt is a moment's
+    // and edits nothing (ADR 0079). Held space or a held alt is a moment's
     // Hand — the gestures every drawing tool has trained into him. So is a
     // finger, once a Pencil has been out: the tip draws and the hand moves
     // the field, which is what ADR 0016 means by leaving touch the viewport.
@@ -4556,7 +4556,7 @@ export function ChalkApp({
     event: React.PointerEvent,
   ): void => {
     // Under the Hand a handle is just more field: the press goes on to it
-    // and moves the view, and the line stays as it was drawn (ADR 0078).
+    // and moves the view, and the line stays as it was drawn (ADR 0079).
     if (activeTool === "pan" && !interactionRef.current.drawing) return;
     // The handle owns this press; the field must not also start a move.
     event.stopPropagation();
@@ -7339,7 +7339,7 @@ export function ChalkApp({
       ? selectedPlayer
       : undefined;
   /**
-   * Select and Hand (ADR 0078): the head of the rail on a desktop or a
+   * Select and Hand (ADR 0079): the head of the rail on a desktop or a
    * tablet, a pill over the field's lower left on a phone, whose tool row is
    * full. Select picks and moves, and its drag on the grass boxes in a
    * group; Hand moves the field from anywhere. Pressing the one that is on
@@ -8058,7 +8058,7 @@ export function ChalkApp({
         )}
         {railOpen ? (
           <nav className="tool-rail" aria-label="Drawing tools">
-            {/* How the pointer meets the field (ADR 0078), then what goes on
+            {/* How the pointer meets the field (ADR 0079), then what goes on
                 the field, then what comes off it, then the selection (ADR
                 0077). Each is one press from a blank canvas: the set, the
                 other unit under it, a note. A phone's row has no room for
