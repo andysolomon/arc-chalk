@@ -1325,11 +1325,13 @@ button.play-type.open {
 .tool-rail .rail-shadow[aria-pressed="false"] {
   color: var(--faint);
 }
+.tool-rail .rail-call:disabled,
 .tool-rail .rail-clear:disabled,
 .tool-rail .rail-trash:disabled {
   color: var(--disabled);
   cursor: default;
 }
+.tool-rail .rail-call:disabled:hover,
 .tool-rail .rail-clear:disabled:hover,
 .tool-rail .rail-trash:disabled:hover {
   background: transparent;

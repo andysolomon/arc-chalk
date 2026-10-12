@@ -27,6 +27,7 @@ export type RailGlyph =
   | "formation"
   | "shadow"
   | "shadow-add"
+  | "concept"
   | "clear-lines"
   | "clear-players"
   | "trash";
@@ -141,6 +142,18 @@ const icons: Record<RailGlyph, ReactNode> = {
       <path d="M10 2.5 L14.5 7" {...stroke} strokeDasharray="2 2" />
       <path d="M14.5 2.5 L10 7" {...stroke} strokeDasharray="2 2" />
       {badge("+")}
+    </>
+  ),
+  concept: (
+    // Two men and what the concept has them run together: one goes deep,
+    // the other breaks in under him.
+    <>
+      <circle cx="4" cy="14.5" r="1.8" {...stroke} />
+      <circle cx="14" cy="14.5" r="1.8" {...stroke} />
+      <path d="M4 12.2 L4 3.5" {...stroke} />
+      <path d="M2.4 5.2 L4 3.5 L5.6 5.2" {...stroke} />
+      <path d="M14 12.2 L14 9 L7.5 9" {...stroke} />
+      <path d="M9.2 7.4 L7.5 9 L9.2 10.6" {...stroke} />
     </>
   ),
   "clear-lines": (
