@@ -234,6 +234,7 @@ function propagatePath(
       ...(next.coachingNote === undefined
         ? {}
         : { coachingNote: next.coachingNote }),
+      ...(next.atSnap === undefined ? {} : { atSnap: next.atSnap }),
       ...(next.preset === undefined ? {} : { preset: next.preset }),
       ...(next.concept === undefined ? {} : { concept: next.concept }),
       ...(reshape ? { points: next.points, branches: next.branches } : {}),

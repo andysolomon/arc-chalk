@@ -267,7 +267,7 @@ test("a man call reads Man in the inspector and names its man in the roster", as
   const inspector = page.getByRole("complementary", {
     name: "Play inspector",
   });
-  await expect(inspector.locator(".route-heading > span").first()).toHaveText(
+  await expect(inspector.locator(".route-heading .line-title")).toHaveText(
     "Man",
   );
   await expect(

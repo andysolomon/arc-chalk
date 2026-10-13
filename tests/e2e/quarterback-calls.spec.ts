@@ -224,7 +224,7 @@ test("a call's own name turns over with it, and the Coach's words stay his", asy
   const named = (words: string) =>
     page.getByRole("img", { name: `Q route: ${words}` });
   const nameHisLine = async (words: string) => {
-    await panel.getByRole("button", { name: "Edit" }).first().click();
+    await panel.getByRole("button", { name: /^Edit Route/ }).click();
     const assignment = panel.getByRole("textbox", { name: "Assignment" });
     await assignment.fill(words);
     await assignment.blur();

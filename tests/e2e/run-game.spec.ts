@@ -200,9 +200,17 @@ test("a jet motion leads into the sweep as one path", async ({
 
   // It is his route, not an alternate to his motion.
   await pick(page, SPOT.z);
-  await expect(inspector(page).getByText(/^Motion ·/)).toBeVisible();
-  await expect(inspector(page).getByText(/^Base stem ·/)).toBeVisible();
-  await expect(inspector(page).getByText(/^Alternate/)).toHaveCount(0);
+  await expect(
+    inspector(page).getByRole("button", {
+      name: "Edit Motion · set at the snap",
+    }),
+  ).toBeVisible();
+  await expect(
+    inspector(page).getByRole("button", { name: "Edit Route" }),
+  ).toBeVisible();
+  await expect(
+    inspector(page).getByRole("button", { name: /^Edit Alternate/ }),
+  ).toHaveCount(0);
 
   // Played, he runs on from the end of his motion rather than going back to
   // where he lined up.

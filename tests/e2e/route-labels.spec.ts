@@ -163,7 +163,7 @@ async function coach(
   const panel = inspector(page);
   await panel.getByRole("button", { name: man }).click();
   await panel.getByRole("button", { name: quickRoute, exact: true }).click();
-  await panel.getByRole("button", { name: "Edit" }).first().click();
+  await panel.getByRole("button", { name: /^Edit Route/ }).click();
   const assignment = panel.getByRole("textbox", { name: "Assignment" });
   await assignment.fill(words.assignment);
   await assignment.blur();

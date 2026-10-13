@@ -1057,8 +1057,8 @@ test("gives a man a second line off his stance and keeps the first", async ({
   await page.mouse.click(x.x, x.y);
   await expect(page.locator(".player-heading")).toBeVisible();
   await expect(page.locator(".line-row")).toHaveCount(1);
-  await expect(page.locator(".line-row span").first()).toHaveText(
-    "Base stem · solid",
+  await expect(page.locator(".line-row .line-name").first()).toHaveText(
+    "Route",
   );
 
   await page.getByRole("button", { name: "+ Alternate route" }).click();
@@ -1068,7 +1068,7 @@ test("gives a man a second line off his stance and keeps the first", async ({
   // already — five stems and the choice off Z's.
   await expect(page.locator("[data-scene-path]")).toHaveCount(7);
   await expect(
-    page.locator(".label-heading").getByText("Route", { exact: true }),
+    page.locator(".label-heading").getByText("Alternate 1", { exact: true }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
   // Measured again: closing the panel reflows the field, so the point he was
@@ -1076,8 +1076,8 @@ test("gives a man a second line off his stance and keeps the first", async ({
   const xAgain = await playerCenter(page, "x");
   await page.mouse.click(xAgain.x, xAgain.y);
   await expect(page.locator(".line-row")).toHaveCount(2);
-  await expect(page.locator(".line-row span").nth(1)).toHaveText(
-    "Alternate 1 · dotted",
+  await expect(page.locator(".line-row .line-name").nth(1)).toHaveText(
+    "Alternate 1",
   );
 
   // One press, one undo entry.

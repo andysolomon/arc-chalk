@@ -47,6 +47,8 @@ import {
   labelRolePresets,
   resolvePathTiming,
   mirroredCallKey,
+  motionCallByKey,
+  motionCallPoints,
   routeCallName,
   turnedOverCallAssignments,
   routeCallPoints,
@@ -74,6 +76,7 @@ import {
   type Formation,
   type LabelRole,
   type LinePreset,
+  type MotionAtSnap,
   type MovementPath,
   type PathBranch,
   type PathPoint,
@@ -332,6 +335,33 @@ export function buildDeleteCommand(
     if (closing.commands.length > 0) {
       commands.push(...closing.commands);
       working = applyPlayCommand(working, closing);
+    }
+    // A motion taken off a man who keeps his routes: they go back to
+    // starting where he is at the snap now (ADR 0080).
+    const inMotion = new Set(
+      document.paths
+        .filter(
+          ({ id, kind, playerId }) =>
+            kind === "motion" &&
+            remainingPaths.includes(id) &&
+            !playerIds.has(playerId),
+        )
+        .map(({ playerId }) => playerId),
+    );
+    for (const playerId of inMotion) {
+      const carried = carryRoutes(
+        working,
+        playerId,
+        snapSpotOf(document, playerId),
+        snapSpotOf(working, playerId),
+      );
+      if (carried.length === 0) continue;
+      commands.push(...carried);
+      working = applyPlayCommand(working, {
+        kind: "batch",
+        label: "Carry routes",
+        commands: carried,
+      });
     }
   }
   const remainingLabels = labelIds.filter((id) =>
@@ -1645,6 +1675,168 @@ export function applyPlayerRoutePresetCommand(
       },
     ],
   };
+}
+
+// ---------------------------------------------------------------------------
+// Pre-snap motion, by type
+// ---------------------------------------------------------------------------
+
+/** How near a route's first break is to a spot to have set out from it. */
+const SET_OUT_YARDS = 0.05;
+
+/**
+ * What he runs after the snap starts where he is at the snap (issue #164),
+ * so when his motion is given, retyped or taken off, the routes that set out
+ * from where it used to leave him are carried to where it leaves him now —
+ * the whole shape, bends and forks with it, held inside the paint. A route
+ * that never started there was drawn that way on purpose, and stays.
+ */
+function carryRoutes(
+  document: PlayDocument,
+  playerId: string,
+  from: Coordinate,
+  to: Coordinate,
+): PrimitivePlayCommand[] {
+  const translation = {
+    lateralYards: to.lateralYards - from.lateralYards,
+    depthYards: to.depthYards - from.depthYards,
+  };
+  if (
+    Math.abs(translation.lateralYards) < SET_OUT_YARDS &&
+    Math.abs(translation.depthYards) < SET_OUT_YARDS
+  ) {
+    return [];
+  }
+  return document.paths.flatMap((path): PrimitivePlayCommand[] => {
+    const start = path.points[0];
+    if (
+      path.playerId !== playerId ||
+      path.kind !== "route" ||
+      !start ||
+      Math.abs(start.lateralYards - from.lateralYards) > SET_OUT_YARDS ||
+      Math.abs(start.depthYards - from.depthYards) > SET_OUT_YARDS
+    ) {
+      return [];
+    }
+    const moved = translatePath(path, translation);
+    return [
+      {
+        kind: "update-path",
+        path: {
+          ...moved,
+          // Where he sets out from is exactly where the motion leaves him.
+          points: [
+            {
+              ...moved.points[0]!,
+              lateralYards: to.lateralYards,
+              depthYards: to.depthYards,
+            },
+            ...insidePoints(document, moved.points.slice(1)),
+          ],
+          branches: moved.branches.map((branch) => ({
+            ...branch,
+            points: insidePoints(document, branch.points),
+          })),
+        },
+      },
+    ];
+  });
+}
+
+/** The motion his snap spot is read off: the last one he has. */
+export function motionOf(
+  document: PlayDocument,
+  playerId: string,
+): MovementPath | undefined {
+  return document.paths
+    .filter(
+      (path) =>
+        path.playerId === playerId &&
+        path.kind === "motion" &&
+        path.points.length > 1,
+    )
+    .at(-1);
+}
+
+/**
+ * A motion type given to the man (ADR 0080): jet, orbit, across, return or
+ * shift, drawn from his stance. A man has one motion, so asking again
+ * redraws the one he has as the new type rather than adding a second, and
+ * the type says whether he is still moving at the snap until the Coach says
+ * otherwise. The routes he runs from where the motion left him follow it.
+ */
+export function applyMotionCallCommand(
+  document: PlayDocument,
+  playerId: string,
+  key: string,
+  createId: () => string,
+): PlayCommand | undefined {
+  const call = motionCallByKey(key);
+  const shape = call ? motionCallPoints(document, playerId, key) : undefined;
+  if (!call || !shape) return undefined;
+  // His stance is left exactly as it is; the breaks are held in the paint.
+  const points = [shape[0]!, ...insidePoints(document, shape.slice(1))];
+  const existing = motionOf(document, playerId);
+  const drawn: MovementPath = {
+    ...(existing ?? { id: createId(), kind: "motion", playerId }),
+    points,
+    branches: [],
+    style: routeKindStyle(
+      "motion",
+      existing?.style ?? { line: "solid", ending: "arrow", color: "ink" },
+    ),
+    preset: call.key,
+  };
+  if (call.atSnap === "moving") drawn.atSnap = "moving";
+  else delete drawn.atSnap;
+
+  const end = points.at(-1)!;
+  const carried = carryRoutes(
+    document,
+    playerId,
+    snapSpotOf(document, playerId),
+    { lateralYards: end.lateralYards, depthYards: end.depthYards },
+  );
+  if (
+    existing &&
+    carried.length === 0 &&
+    canonicalStringify(drawn) === canonicalStringify(existing)
+  ) {
+    return undefined;
+  }
+  return {
+    kind: "batch",
+    label: `Applied ${call.said.toLowerCase()}`,
+    commands: [
+      existing
+        ? { kind: "update-path", path: drawn }
+        : {
+            kind: "insert-paths",
+            paths: [{ index: document.paths.length, item: drawn }],
+          },
+      ...carried,
+    ],
+  };
+}
+
+/**
+ * Whether a man in motion is still moving when the ball is snapped, or set.
+ * Set is how a motion plays with nothing chosen, so choosing it drops the
+ * key rather than storing it, and a motion set by choice hashes like one
+ * the Coach never touched.
+ */
+export function setMotionAtSnapCommand(
+  document: PlayDocument,
+  pathId: string,
+  atSnap: MotionAtSnap,
+): PlayCommand | undefined {
+  return setRouteField(document, pathId, (path) => {
+    if (path.kind !== "motion") return path;
+    const next = { ...path };
+    if (atSnap === "moving") next.atSnap = "moving";
+    else delete next.atSnap;
+    return next;
+  });
 }
 
 /**

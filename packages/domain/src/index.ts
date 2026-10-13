@@ -31,6 +31,7 @@ export * from "./line-kind-choices";
 export * from "./line-of-scrimmage";
 export * from "./line-names";
 export * from "./migrations";
+export * from "./motion-calls";
 export * from "./play-classification";
 export * from "./play-propagation";
 export * from "./play-search";

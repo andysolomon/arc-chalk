@@ -15,13 +15,15 @@ const KIND_ORDER = Object.keys(lineKindNames) as MovementPath["kind"][];
 /**
  * The kinds a line already on the field can be turned into from its panel.
  * `lineKindsFor` says what a man could ever be given; this says what this
- * line could still be. A route and a motion are both where he goes, drawn
- * two ways, so one becomes the other. A block is a block — a receiver's
- * route is never retyped into one, it is drawn with the Block tool. The
- * ball's flight is offered only on a back's line, since the throw or pitch
- * starts in his hands, not a receiver's. A defender's drop, blitz and stunt
- * are all his call and trade freely. The line's own kind is always offered,
- * so a line drawn before this rule still shows what it is.
+ * line could still be. A motion is a motion and a route is a route: one is
+ * what he does before the snap and the other after it, so a man can have
+ * both, and a motion is given to him from his own panel rather than made out
+ * of his route (ADR 0080). A block is a block — a receiver's route is never
+ * retyped into one, it is drawn with the Block tool. The ball's flight is
+ * offered only on a back's line, since the throw or pitch starts in his
+ * hands, not a receiver's. A defender's drop, blitz and stunt are all his
+ * call and trade freely. The line's own kind is always offered, so a line
+ * drawn before this rule still shows what it is.
  */
 export function lineKindChoices(
   play: Pick<PlayDocument, "players">,
@@ -32,9 +34,8 @@ export function lineKindChoices(
   const family = new Set<MovementPath["kind"]>([path.kind]);
   if (defensiveLineKinds.has(path.kind)) {
     for (const kind of defensiveLineKinds) family.add(kind);
-  } else if (path.kind !== "block") {
+  } else if (path.kind !== "block" && path.kind !== "motion") {
     family.add("route");
-    family.add("motion");
     if (handlesBall(play, owner)) family.add("ball");
   }
   return KIND_ORDER.filter(

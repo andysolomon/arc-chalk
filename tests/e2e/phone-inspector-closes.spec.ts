@@ -61,7 +61,7 @@ test.describe("phone", () => {
 
     // His route's own panel: a line style is an option too.
     await openSheet();
-    await sheet.getByRole("button", { name: "Edit" }).first().tap();
+    await sheet.getByRole("button", { name: /^Edit Route/ }).tap();
     await expect(sheet).toHaveAttribute("data-sheet", "full");
     const routeAppearance = sheet.getByRole("button", { name: "Appearance" });
     if ((await routeAppearance.getAttribute("aria-expanded")) !== "true") {

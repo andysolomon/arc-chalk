@@ -226,6 +226,13 @@ const movementPathFields = {
   readOrder: z.optional(z.number().check(z.int(), z.positive())),
   conversion: z.optional(z.string()),
   coachingNote: z.optional(z.string()),
+  /**
+   * What a man in motion is doing when the ball is snapped (ADR 0080):
+   * still moving, so his motion runs right up to the snap, or set. Only a
+   * motion carries it, and one without it is set — which is how every
+   * motion drawn before the choice existed plays.
+   */
+  atSnap: z.optional(z.enum(["moving", "set"])),
   timing: z.optional(
     z.object({
       delayMs: z.number().check(z.int(), z.nonnegative()),
