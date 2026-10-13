@@ -230,6 +230,71 @@ function standardPathData(
   return data;
 }
 
+/** How far apart a zigzag's teeth are along the line, and how far off it. */
+const ZIGZAG_PITCH_PX = 11;
+const ZIGZAG_REACH_PX = 4.5;
+
+/**
+ * A zigzag's teeth along a bent leg (ADR 0080). A motion that bends — an
+ * orbit behind the quarterback — is drawn round the bend the way a solid
+ * line is, each tooth square to the curve where it stands, rather than
+ * chord to chord through whoever the bend was going round.
+ */
+function zigzagBend(start: SvgPoint, control: SvgPoint, end: SvgPoint): string {
+  const rough =
+    Math.hypot(control.x - start.x, control.y - start.y) +
+    Math.hypot(end.x - control.x, end.y - control.y);
+  const steps = Math.min(512, Math.max(8, Math.ceil(rough / 3)));
+  const curve: SvgPoint[] = [];
+  const along: number[] = [0];
+  for (let step = 0; step <= steps; step += 1) {
+    const t = step / steps;
+    const u = 1 - t;
+    const point = {
+      x: u * u * start.x + 2 * u * t * control.x + t * t * end.x,
+      y: u * u * start.y + 2 * u * t * control.y + t * t * end.y,
+    };
+    if (step > 0) {
+      const previous = curve[step - 1]!;
+      along.push(
+        along[step - 1]! +
+          Math.hypot(point.x - previous.x, point.y - previous.y),
+      );
+    }
+    curve.push(point);
+  }
+  const length = along.at(-1)!;
+  if (length < 1) return "";
+
+  const samples = Math.min(
+    4096,
+    Math.max(2, Math.round(length / ZIGZAG_PITCH_PX)),
+  );
+  let data = "";
+  let chord = 1;
+  for (let sample = 1; sample <= samples; sample += 1) {
+    const target = (length * sample) / samples;
+    while (chord < steps && along[chord]! < target) chord += 1;
+    const from = curve[chord - 1]!;
+    const to = curve[chord]!;
+    const span = along[chord]! - along[chord - 1]! || 1;
+    const share = (target - along[chord - 1]!) / span;
+    const unitX = (to.x - from.x) / span;
+    const unitY = (to.y - from.y) / span;
+    const offset =
+      sample === samples
+        ? 0
+        : sample % 2 === 1
+          ? ZIGZAG_REACH_PX
+          : -ZIGZAG_REACH_PX;
+    data += ` L ${pointCommand({
+      x: Math.round(from.x + (to.x - from.x) * share - unitY * offset),
+      y: Math.round(from.y + (to.y - from.y) * share + unitX * offset),
+    })}`;
+  }
+  return data;
+}
+
 function zigzagPathData(
   points: readonly PathPoint[],
   viewport: SvgProjection,
@@ -242,6 +307,11 @@ function zigzagPathData(
   for (let index = 1; index < projected.length; index += 1) {
     const start = projected[index - 1]!;
     const end = projected[index]!;
+    const control = points[index]!.control;
+    if (control) {
+      data += zigzagBend(start, projectCoordinate(control, viewport), end);
+      continue;
+    }
     const length = Math.hypot(end.x - start.x, end.y - start.y);
     if (length < 1) continue;
 

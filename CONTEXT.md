@@ -40,6 +40,10 @@ _Avoid_: Opponent, scout team, the other play
 Standing level with the snapper — within half a yard of his depth on the diagram. Every other man of the offense is a back. No more than four backs are allowed, so with eleven on offense at least seven are on the line; there is no most. A receiver a step off the line is a back.
 _Avoid_: Lineman (a position, not a place), on the ball
 
+**Motion**:
+What one man does before the snap — a jet, an orbit, across, a return or a shift, or a line the Coach drew for him. It is his own, apart from his route, so he can have both, and it says whether he is **moving** or **set** when the ball is snapped. His route starts where it leaves him.
+_Avoid_: Motion route, kind of route, pre-snap route
+
 **Zone shell**:
 A defense's zone drops taken together rather than one defender at a time. Each zone is the ground its call names — Middle 1/3, the outside third on a man's side, his half, his quarter — men called into the same zone share it, and bubbles of different zones sit side by side instead of stacking.
 _Avoid_: Coverage template, zone preset

@@ -48,6 +48,9 @@ import {
   lineKindNames,
   lineKindChoices,
   lineKindWord,
+  motionAtSnap,
+  motionCallOf,
+  motionCalls,
   labelSizeChoices,
   playErasureCommand,
   playErasures,
@@ -105,6 +108,9 @@ import {
 } from "@chalk/domain";
 import {
   addAlternateRouteCommand,
+  applyMotionCallCommand,
+  buildDeleteCommand,
+  setMotionAtSnapCommand,
   defensiveAdjustmentCommand,
   addDepthLabelCommand,
   alignPlayersCommand,
@@ -331,6 +337,7 @@ import {
   type ToolId,
 } from "./tool-labels";
 import { FieldMinimap } from "./field-minimap";
+import { LineHeading, MotionInspector } from "./motion-inspector";
 import { LineCountChip, SnapGuideMark } from "./alignment-guides";
 import { lineStatusWords } from "./line-count";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
@@ -1339,9 +1346,11 @@ const playerFillChoices: ReadonlyArray<{
 ];
 
 /**
- * What the Coach calls each of a man's lines. The original numbers them in the
- * order he drew them — the first is the call, the rest are alternates — and
- * says how it is drawn and how many ways it forks.
+ * What the Coach calls each of a man's lines in his list (ADR 0080): what
+ * it is, never how it is drawn — the field already shows that. A route is
+ * his route or an alternate to it, numbered in the order he drew them, and
+ * says how many ways it forks; the call it was drawn as is in the picker
+ * beside it. A motion says its type and what he is doing at the snap.
  */
 function lineName(
   path: MovementPath,
@@ -1350,18 +1359,30 @@ function lineName(
 ): string {
   if (defensiveLineKinds.has(path.kind)) {
     // A man call says man, not zone (issue #154).
-    return `${assignment?.trim() || lineKindWord(path).toLowerCase()} · ${path.style.line}`;
+    return assignment?.trim() || lineKindWord(path);
   }
   // A block drawn as a call is listed as that call (issue #156), so a
   // lineman's Drive and his neighbour's Reach are told apart in the list.
-  if (path.kind === "block") {
-    return `${quickCallName(path) ?? "Block"} · ${path.style.line}`;
+  if (path.kind === "block") return quickCallName(path) ?? "Block";
+  if (path.kind === "motion") {
+    return `${motionCallOf(path)?.name ?? "Motion"} · ${motionAtSnap(path)} at the snap`;
   }
-  if (path.kind === "motion") return `Motion · ${path.style.line}`;
-  const stem = index === 0 ? "Base stem" : `Alternate ${index}`;
-  const choices =
-    path.branches.length > 0 ? ` · ${path.branches.length} choice` : "";
-  return `${stem} · ${path.style.line}${choices}`;
+  if (path.kind === "ball") return lineKindNames.ball;
+  const stem = lineTitle(path, index);
+  const forks = path.branches.length;
+  return forks > 0
+    ? `${stem} · ${forks} ${forks === 1 ? "choice" : "choices"}`
+    : stem;
+}
+
+/**
+ * What a line is, for the head of its own panel: Route, Alternate 1, Motion,
+ * Block, Man. Whose it is stands beside it.
+ */
+function lineTitle(path: MovementPath, index: number): string {
+  return path.kind === "route" && index > 0
+    ? `Alternate ${index}`
+    : lineKindWord(path);
 }
 
 /**
@@ -1593,11 +1614,93 @@ function CoverRow({
 }
 
 /**
- * The Player panel (ADR 0058): the man himself, then only the kind of
- * assignment that pertains to him — routes and alternates for a receiver or
- * back, blocking for a lineman, a call for a defender — with the quick calls
- * he can be given right there, and how he is drawn folded under Appearance.
- * Nothing about the play, the formation or the field lives here.
+ * One of a man's lines in his list (ADR 0080). The row itself opens the
+ * line's panel — the whole name is the way in, not a small Edit beside it —
+ * with the calls the line can be redrawn as and the way to take it off him
+ * after it.
+ */
+function LineRow({
+  line,
+  onApplyPreset,
+  onRemoveLine,
+  onSelectLine,
+}: {
+  line: PlayerLine;
+  onApplyPreset: (pathId: string, presetKey: string) => void;
+  onRemoveLine: (pathId: string) => void;
+  onSelectLine: (pathId: string) => void;
+}) {
+  return (
+    <div className="line-row">
+      <button
+        aria-label={`Edit ${line.name}`}
+        className="line-open"
+        onClick={() => onSelectLine(line.id)}
+        title="Open this line"
+        type="button"
+      >
+        <span className="line-name">{line.name}</span>
+        <span aria-hidden="true" className="line-chevron">
+          ›
+        </span>
+      </button>
+      {line.presets.length > 0 ? (
+        <select
+          aria-label={`Quick call for ${line.name}`}
+          onChange={(event) => {
+            if (event.target.value === "") return;
+            onApplyPreset(line.id, event.target.value);
+          }}
+          title="Redraw this line as one of the calls it can be"
+          value={line.preset ?? ""}
+        >
+          <option value="">Quick call…</option>
+          {line.presets.map(({ key, name }) => (
+            <option key={key} value={key}>
+              {name}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      <button
+        aria-label={`Delete ${line.name}`}
+        className="remove"
+        onClick={() => onRemoveLine(line.id)}
+        title={
+          line.kind === "motion"
+            ? "Take this motion off him"
+            : "Delete this option"
+        }
+        type="button"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+/** One of a man's lines, as his panel lists it. */
+interface PlayerLine {
+  readonly id: string;
+  readonly kind: MovementPath["kind"];
+  readonly name: string;
+  /** The calls that belong to this kind of line, if it has any. */
+  readonly presets: readonly {
+    readonly key: string;
+    readonly name: string;
+  }[];
+  /** Which call off the tree it was last drawn as, if it was. */
+  readonly preset?: string;
+}
+
+/**
+ * The Player panel (ADR 0058, ADR 0080): the man himself, then what he does
+ * in the order he does it — his pre-snap motion, then only the kind of
+ * assignment that pertains to him: his route and its alternates for a
+ * receiver or back, blocking for a lineman, a call for a defender — with
+ * the quick calls he can be given right there, and how he is drawn folded
+ * under Appearance. Nothing about the play, the formation or the field
+ * lives here.
  */
 function PlayerInspector({
   activePresets,
@@ -1608,6 +1711,7 @@ function PlayerInspector({
   scopeBadge,
   lines,
   onAddAlternate,
+  onAddMotion,
   onApplyPreset,
   onAppearance,
   onCover,
@@ -1648,18 +1752,10 @@ function PlayerInspector({
   /** Whether a line by hand is traced under the pointer or clicked in breaks. */
   freeDraw: boolean;
   onFreeDraw: (enabled: boolean) => void;
-  lines: readonly {
-    readonly id: string;
-    readonly name: string;
-    /** The calls that belong to this kind of line, if it has any. */
-    readonly presets: readonly {
-      readonly key: string;
-      readonly name: string;
-    }[];
-    /** Which call off the tree it was last drawn as, if it was. */
-    readonly preset?: string;
-  }[];
+  lines: readonly PlayerLine[];
   onAddAlternate: () => void;
+  /** Gives him a motion of this type, drawn from his stance (ADR 0080). */
+  onAddMotion: (key: string) => void;
   onApplyPreset: (pathId: string, presetKey: string) => void;
   onAppearance: (appearance: PlayerAppearance) => void;
   onDeselect: () => void;
@@ -1686,11 +1782,10 @@ function PlayerInspector({
   // A receiver or a back runs routes; the quarterback is given calls.
   const runner = !defense && !lineman && !quarterback;
   const heading =
-    defense || quarterback
-      ? "Assignments"
-      : lineman
-        ? "Blocking"
-        : "Routes & alternates";
+    defense || quarterback ? "Assignments" : lineman ? "Blocking" : "Route";
+  // What he does before the snap, and what he does after it.
+  const motions = lines.filter(({ kind }) => kind === "motion");
+  const assigned = lines.filter(({ kind }) => kind !== "motion");
   const nothingYet = defense
     ? "No assignment yet. Pick one below, or draw his zone drop or blitz path from here."
     : lineman
@@ -1753,48 +1848,72 @@ function PlayerInspector({
           value={text.sublabel}
         />
       </div>
+      {runner || motions.length > 0 ? (
+        <>
+          <span className="section-heading">Pre-snap motion</span>
+          {motions.length > 0 ? (
+            <div className="line-list">
+              {motions.map((line) => (
+                <LineRow
+                  key={line.id}
+                  line={line}
+                  onApplyPreset={onApplyPreset}
+                  onRemoveLine={onRemoveLine}
+                  onSelectLine={onSelectLine}
+                />
+              ))}
+            </div>
+          ) : (
+            <div
+              aria-label="Add a pre-snap motion"
+              className="button-grid fives"
+              role="group"
+            >
+              {motionCalls.map((call) => (
+                <button
+                  key={call.key}
+                  onClick={() => onAddMotion(call.key)}
+                  title={`${call.about} — drawn from his stance`}
+                  type="button"
+                >
+                  {call.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      ) : null}
       <span className="section-heading">{heading}</span>
-      {lines.length === 0 ? (
+      {assigned.length === 0 ? (
         <p>{nothingYet}</p>
       ) : (
         <div className="line-list">
-          {lines.map((line) => (
-            <div className="line-row" key={line.id}>
-              <span>{line.name}</span>
-              {line.presets.length > 0 ? (
-                <select
-                  aria-label={`Quick call for ${line.name}`}
-                  onChange={(event) => {
-                    if (event.target.value === "") return;
-                    onApplyPreset(line.id, event.target.value);
-                  }}
-                  title="Redraw this line as one of the calls it can be"
-                  value={line.preset ?? ""}
-                >
-                  <option value="">Quick call…</option>
-                  {line.presets.map(({ key, name }) => (
-                    <option key={key} value={key}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              <button onClick={() => onSelectLine(line.id)} type="button">
-                Edit
-              </button>
-              <button
-                aria-label={`Delete ${line.name}`}
-                className="remove"
-                onClick={() => onRemoveLine(line.id)}
-                title="Delete this option"
-                type="button"
-              >
-                ×
-              </button>
-            </div>
+          {assigned.map((line) => (
+            <LineRow
+              key={line.id}
+              line={line}
+              onApplyPreset={onApplyPreset}
+              onRemoveLine={onRemoveLine}
+              onSelectLine={onSelectLine}
+            />
           ))}
         </div>
       )}
+      {!defense && !lineman && assigned.length > 0 ? (
+        // Another call he could run goes with the ones he has, not at the
+        // foot of the panel under the quick calls.
+        <div className="help-row alternate-row">
+          <button className="alternate" onClick={onAddAlternate} type="button">
+            {quarterback ? "+ Alternate call" : "+ Alternate route"}
+          </button>
+          <Hint about="alternates and choices">
+            An <strong>alternate</strong> starts over at his stance: a different
+            call he could be asked to run, drawn dotted. A{" "}
+            <strong>choice</strong> stays inside one stem — he runs it, then
+            reads and forks. Open a line to add one.
+          </Hint>
+        </div>
+      ) : null}
       <div className="draw-row" role="group" aria-label="Draw by hand">
         <span className="section-heading">Draw</span>
         {drawChoices.map((choice) => (
@@ -1921,21 +2040,6 @@ function PlayerInspector({
           picking={pickingCover}
         />
       ) : null}
-      {!defense && !lineman && (
-        <div className="help-row alternate-row">
-          <button className="alternate" onClick={onAddAlternate} type="button">
-            {quarterback
-              ? "+ Alternate call — new path from stance"
-              : "+ Alternate route — new stem from stance"}
-          </button>
-          <Hint about="alternates and choices">
-            An <strong>alternate</strong> starts over at his stance: a different
-            call he could be asked to run, drawn dotted. A{" "}
-            <strong>choice</strong> stays inside one stem — he runs it, then
-            reads and forks. Select a line to add one.
-          </Hint>
-        </div>
-      )}
       {lineman && (
         <p>
           One block per lineman. Select the line and drag its break to set where
@@ -2033,7 +2137,7 @@ function RouteInspector({
   bare?: boolean;
   branchIndex?: number;
   coaching: Readonly<Record<RouteCoachingField, string>>;
-  /** What the line is called in his list: Base stem, Alternate 1, Block. */
+  /** What the line is: Route, Alternate 1, Block, Man. */
   lineTitle?: string;
   /** Whose line it is. */
   ownerLetter?: string;
@@ -2057,9 +2161,10 @@ function RouteInspector({
   segmentIndex?: number;
   timing: Readonly<Record<RouteTimingField, string>>;
   /**
-   * What this line can still be turned into — a receiver's route can become
-   * a motion but never a block or the ball's flight, and a lineman's block is
-   * only ever a block. With nothing else to offer, no picker is shown.
+   * What this line can still be turned into — a back's route can become the
+   * ball's flight, a defender's drop a blitz or a stunt, and a receiver's
+   * route or a lineman's block only ever what it is (ADR 0080). With nothing
+   * else to offer, no picker is shown.
    */
   kinds: readonly MovementPath["kind"][];
 }) {
@@ -2090,20 +2195,23 @@ function RouteInspector({
     segmentIndex !== undefined
       ? (line[segmentIndex]?.segmentStyle?.ending ?? style.ending)
       : style.ending;
+  // The head says what the panel is narrowed to, when it is: with the whole
+  // line picked there is nothing to add to its name (ADR 0080).
   const scope =
     segmentIndex !== undefined
       ? `Segment ${segmentIndex}`
       : branchIndex !== undefined
         ? `Branch ${branchIndex + 1}`
-        : `${line.length} breaks`;
+        : undefined;
   const lineName =
     lineStyleChoices.find((choice) => choice.line === shownLine)?.name ??
     shownLine;
   const endingName =
     endingChoices.find((choice) => choice.ending === shownEnding)?.name ??
     shownEnding;
-  const timed =
-    timing.delay !== "" || timing.hold !== "" || timing.speed !== "";
+  // What the fields show is always a number — the default when the Coach has
+  // set none — so whether timing is set is read off the line itself.
+  const timed = path.timing !== undefined;
   // A read number, a conversion and a choice are a route's: the quarterback
   // reads receivers, not blocks or drops. One already written on a line that
   // was since retyped stays in view, so it can be cleared.
@@ -2116,25 +2224,13 @@ function RouteInspector({
   return (
     <div className="label-inspector route-inspector">
       {bare ? null : (
-        <div className="section-heading label-heading route-heading">
-          <button
-            aria-label="Back to the play"
-            className="back-button"
-            onClick={onDeselect}
-            title="Back to the play — esc"
-            type="button"
-          >
-            ←
-          </button>
-          <span>{kindName}</span>
-          {ownerLetter || lineTitle ? (
-            <span className="route-owner">
-              {[ownerLetter, lineTitle].filter(Boolean).join(" · ")}
-            </span>
-          ) : null}
-          {scopeBadge ? <span className="scope-tag">{scopeBadge}</span> : null}
-          <span className="scope-tag scope-tag-blue">{scope}</span>
-        </div>
+        <LineHeading
+          onDeselect={onDeselect}
+          owner={ownerLetter}
+          scope={scope}
+          scopeBadge={scopeBadge}
+          title={lineTitle ?? kindName}
+        />
       )}
       {kinds.length > 1 ? (
         <div aria-label="Kind of line" className="segments" role="group">
@@ -2232,7 +2328,7 @@ function RouteInspector({
           <Hint about="choices">
             A <strong>choice</strong> forks this same stem at the break you
             picked — one release, then he reads. For a whole second line off his
-            stance, use <strong>alternate route</strong> in the player panel.
+            stance, use <strong>+ Alternate route</strong> in his own panel.
           </Hint>
         ) : null}
       </div>
@@ -3715,6 +3811,7 @@ export function ChalkApp({
     );
     return his.map((path, index) => ({
       id: path.id,
+      kind: path.kind,
       // A route is his base stem or an alternate to it, counted among his
       // routes: a motion or a block before it is not a route he could run
       // instead (issue #164).
@@ -3949,8 +4046,10 @@ export function ChalkApp({
   };
   /**
    * On a desktop, a man picked out on his own brings back the inspector the
-   * Coach folded: his assignments are what he picked him for. A tablet's
-   * drawer and a phone's sheet keep their own rules for a man.
+   * Coach folded: his assignments are what he picked him for. So does a line
+   * (ADR 0080) — its panel is where its type, its coaching and its look are
+   * set, and a click on it is how the Coach asks for that. A tablet's drawer
+   * and a phone's sheet keep their own rules for both.
    *
    * A note picked out on its own brings out its Text panel everywhere — the
    * folded inspector, the tablet's drawer, the phone's sheet full — since
@@ -3962,7 +4061,7 @@ export function ChalkApp({
     if (kind === "label") {
       if (phoneWorkspace) setSheetSnap("full");
       else setInspectorOpen(true);
-    } else if (kind === "player" && !inspectorFloats) {
+    } else if ((kind === "player" || kind === "path") && !inspectorFloats) {
       setInspectorOpen(true);
     } else {
       return;
@@ -6977,11 +7076,24 @@ export function ChalkApp({
   const selectedLineOwner = selectedPath
     ? editor.document.players.find(({ id }) => id === selectedPath.playerId)
     : undefined;
-  const selectedLineName =
-    selectedPath && selectedLineOwner
-      ? playerLines(selectedLineOwner).find(({ id }) => id === selectedPath.id)
-          ?.name
-      : undefined;
+  /** The spot he plays, for a man with no letter of his own (LT, C). */
+  const selectedLineMark = selectedLineOwner
+    ? roster.rows.find(({ player }) => player.id === selectedLineOwner.id)?.mark
+    : undefined;
+  const selectedLineTitle = selectedPath
+    ? lineTitle(
+        selectedPath,
+        editor.document.paths
+          .slice(
+            0,
+            editor.document.paths.findIndex(({ id }) => id === selectedPath.id),
+          )
+          .filter(
+            ({ kind, playerId }) =>
+              kind === selectedPath.kind && playerId === selectedPath.playerId,
+          ).length,
+      )
+    : undefined;
   const selectedThing:
     | { readonly kind: "player"; readonly row?: RosterRow }
     | { readonly kind: "path"; readonly name: string }
@@ -8433,11 +8545,66 @@ export function ChalkApp({
         {inspectorOpen || phoneWorkspace ? (
           <Inspector
             labelEditor={
-              selectedPath ? (
+              selectedPath?.kind === "motion" ? (
+                <MotionInspector
+                  assignment={routeCoaching(selectedPath).assignment}
+                  atSnap={motionAtSnap(selectedPath)}
+                  bare={phoneWorkspace}
+                  note={routeCoaching(selectedPath).coachingNote}
+                  onAssignment={(value) =>
+                    editRouteCoaching(selectedPath.id, "assignment", value)
+                  }
+                  onAssignmentCommitted={() => {
+                    editorStore.endCoalescing();
+                    setCoachingDraft((draft) =>
+                      draft?.field === "assignment" ? undefined : draft,
+                    );
+                  }}
+                  onAtSnap={(atSnap) => {
+                    putInspectorAway();
+                    runLabelCommand(
+                      setMotionAtSnapCommand(
+                        editor.document,
+                        selectedPath.id,
+                        atSnap,
+                      ),
+                    );
+                  }}
+                  onDelete={() => dispatchField({ type: "delete" })}
+                  onDeselect={() => dispatchField({ type: "escape" })}
+                  onNote={(value) =>
+                    editRouteCoaching(selectedPath.id, "coachingNote", value)
+                  }
+                  onNoteCommitted={() => {
+                    editorStore.endCoalescing();
+                    setCoachingDraft((draft) =>
+                      draft?.field === "coachingNote" ? undefined : draft,
+                    );
+                  }}
+                  onType={(key) => {
+                    putInspectorAway();
+                    runLabelCommand(
+                      applyMotionCallCommand(
+                        editor.document,
+                        selectedPath.playerId,
+                        key,
+                        () => createStableId("path"),
+                      ),
+                    );
+                  }}
+                  ownerLetter={
+                    selectedLineOwner?.label.trim() || selectedLineMark
+                  }
+                  scopeBadge={playbook.scopeBadge}
+                  type={selectedPath.preset}
+                />
+              ) : selectedPath ? (
                 <RouteInspector
                   bare={phoneWorkspace}
-                  lineTitle={selectedLineName}
-                  ownerLetter={selectedLineOwner?.label.trim() || undefined}
+                  lineTitle={selectedLineTitle}
+                  ownerLetter={
+                    selectedLineOwner?.label.trim() || selectedLineMark
+                  }
                   onToggle={toggleDisclosure}
                   open={chrome.open}
                   branchIndex={interaction.selectedBranchIndex}
@@ -8568,6 +8735,21 @@ export function ChalkApp({
                   scopeBadge={playbook.scopeBadge}
                   lines={playerLines(selectedPlayer)}
                   onApplyPreset={runLinePreset}
+                  onAddMotion={(key) => {
+                    putInspectorAway();
+                    runPanelCommand(
+                      applyMotionCallCommand(
+                        editor.document,
+                        selectedPlayer.id,
+                        key,
+                        () => createStableId("path"),
+                      ),
+                      // He stays picked, the way a quick route leaves him:
+                      // the row that names his motion takes the buttons'
+                      // place, and his route is still his to give.
+                      {},
+                    );
+                  }}
                   onAddAlternate={() => {
                     const id = createStableId("path");
                     runPanelCommand(
@@ -8610,7 +8792,14 @@ export function ChalkApp({
                   onQuickCall={runQuickCall}
                   onRemoveLine={(pathId) =>
                     runLabelCommand(
-                      deletePathsCommand(editor.document, [pathId]),
+                      // A motion taken off him puts his routes back on his
+                      // stance, the way deleting it on the field does.
+                      editor.document.paths.find(({ id }) => id === pathId)
+                        ?.kind === "motion"
+                        ? buildDeleteCommand(editor.document, [
+                            { kind: "path", id: pathId },
+                          ])
+                        : deletePathsCommand(editor.document, [pathId]),
                     )
                   }
                   onSelectLine={(pathId) =>

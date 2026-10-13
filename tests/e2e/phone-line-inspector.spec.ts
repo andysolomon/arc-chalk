@@ -4,10 +4,11 @@ import { expect, test } from "./fixtures";
 
 /**
  * A picked line's inspector offers only what that line can be: a receiver's
- * route turns into a motion but never a block or the ball's flight, a back's
- * line can carry the ball, and a lineman's block has no kind to change and
- * no read, conversion or choice. The sheet on X's route is the run's
- * artifact.
+ * route is a route and nothing else — a motion is given to the man, not made
+ * out of his route (ADR 0080) — a back's line can carry the ball, and a
+ * lineman's block has no kind to change and no read, conversion or choice.
+ * A motion's sheet is its three choices: the type, moving or set, and a
+ * note. The sheets on X's route and on his motion are the run's artifacts.
  */
 
 /** A point part way along a drawn line, on the glass. */
@@ -60,11 +61,7 @@ test("offers only the options that fit the picked line", async ({
 
   // A back's line can be the ball's flight — a pitch or a halfback pass.
   await openLine(page, "rf");
-  await expect(kinds.getByRole("button")).toHaveText([
-    "Route",
-    "Motion",
-    "Ball",
-  ]);
+  await expect(kinds.getByRole("button")).toHaveText(["Route", "Ball"]);
   if (await showField.isVisible()) await showField.tap();
 
   // A lineman's block: no kind to change, no read, no conversion, no choice.
@@ -74,7 +71,7 @@ test("offers only the options that fit the picked line", async ({
   // His block is too short to land a finger on beside him, so it is opened
   // from his Blocking row.
   await page.getByRole("button", { name: "Show all assignments" }).tap();
-  await sheet.getByRole("button", { name: "Edit", exact: true }).tap();
+  await sheet.getByRole("button", { name: /^Edit / }).tap();
   await expect(
     sheet.getByRole("textbox", { name: "Assignment" }),
   ).toBeVisible();
@@ -88,14 +85,10 @@ test("offers only the options that fit the picked line", async ({
   );
   if (await showField.isVisible()) await showField.tap();
 
-  // X's route — the screenshot in the report: Route and Motion, never Block
-  // or Ball, with the read, the conversion and the choice it runs on.
+  // X's route — the screenshot in the report: a route and nothing else, so
+  // no kind to pick, with the read, the conversion and the choice it runs on.
   await openLine(page, "rx");
-  await expect(kinds.getByRole("button")).toHaveText(["Route", "Motion"]);
-  await expect(kinds.getByRole("button", { name: "Route" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(kinds).toHaveCount(0);
   await expect(sheet.getByRole("textbox", { name: "Read" })).toBeVisible();
   await expect(
     sheet.getByRole("textbox", { name: "Conversion" }),
@@ -104,5 +97,57 @@ test("offers only the options that fit the picked line", async ({
 
   await sheet.screenshot({
     path: testInfo.outputPath("route-inspector.png"),
+  });
+
+  // His motion is given from his own sheet, by type. Picking one is an
+  // option picked, so the sheet drops and the field shows it. He is picked
+  // from the roster: on the field his route's first break sits on him.
+  await sheet.locator(".sheet-back").tap();
+  await sheet.getByRole("button", { name: /^X: / }).tap();
+  const add = sheet.getByRole("group", { name: "Add a pre-snap motion" });
+  await expect(add.getByRole("button")).toHaveText([
+    "Jet",
+    "Orbit",
+    "Across",
+    "Return",
+    "Shift",
+  ]);
+  for (const type of await add.getByRole("button").all()) {
+    const box = (await type.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBeGreaterThanOrEqual(44);
+  }
+  await add.getByRole("button", { name: "Across" }).tap();
+  await expect(sheet).toHaveAttribute("data-sheet", "peek");
+  await expect(page.getByRole("img", { name: /^X motion/ })).toHaveCount(1);
+
+  // The row that names it opens its sheet: the three choices, and nothing
+  // of a route's.
+  await page.getByRole("button", { name: "Show all assignments" }).tap();
+  await sheet
+    .getByRole("button", { name: "Edit Across · set at the snap" })
+    .tap();
+  const types = sheet.getByRole("group", { name: "Type of motion" });
+  const snap = sheet.getByRole("group", { name: "At the snap" });
+  await expect(types.getByRole("button", { name: "Across" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(snap.getByRole("button", { name: "Set" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(
+    sheet.getByRole("textbox", { name: "Coaching note" }),
+  ).toBeVisible();
+  await expect(kinds).toHaveCount(0);
+  await expect(sheet.getByRole("button", { name: "Appearance" })).toHaveCount(
+    0,
+  );
+  await expect(sheet.getByRole("button", { name: "Advanced" })).toHaveCount(0);
+  await expect(sheet.getByRole("textbox", { name: "Read" })).toHaveCount(0);
+
+  await sheet.screenshot({
+    path: testInfo.outputPath("motion-inspector.png"),
   });
 });

@@ -86,7 +86,7 @@ test("keeps a name the Coach typed, and says so", async ({ page }) => {
   await meshFromGunTripsRight(page);
 
   await inspector(page).getByRole("button", { name: "H: DIG — Slot" }).click();
-  await inspector(page).getByRole("button", { name: "Edit" }).first().click();
+  await inspector(page).getByRole("button", { name: "Edit Route" }).click();
   const assignment = inspector(page).getByRole("textbox", {
     name: "Assignment",
   });
@@ -122,7 +122,7 @@ test("takes a deleted route's name off the roster and the count", async ({
 
   // H's route, named by hand.
   await roster.getByRole("button", { name: /^H: / }).click();
-  await roster.getByRole("button", { name: "Edit" }).first().click();
+  await roster.getByRole("button", { name: "Edit Route" }).click();
   const assignment = roster.getByRole("textbox", { name: "Assignment" });
   await assignment.fill("BUBBLE");
   await assignment.blur();
@@ -133,7 +133,7 @@ test("takes a deleted route's name off the roster and the count", async ({
   // Deleted from his panel with the × on its row.
   await roster.getByRole("button", { name: "Back to the play" }).click();
   await roster.getByRole("button", { name: "H: BUBBLE — Back" }).click();
-  await roster.getByRole("button", { name: /^Delete Base stem/ }).click();
+  await roster.getByRole("button", { name: "Delete Route" }).click();
   await expect(roster.getByText(/^No route yet/)).toBeVisible();
   await backToRoster(page);
 

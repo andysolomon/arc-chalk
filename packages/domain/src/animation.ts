@@ -8,6 +8,7 @@ import {
   type PathGeometry,
 } from "./geometry";
 import { isManLine } from "./man-coverage";
+import { motionAtSnap } from "./motion-calls";
 import type { Coordinate, MovementPath, PlayDocument, Player } from "./schema";
 
 /** One beat of the cadence. Delay in the inspector is counted in these. */
@@ -580,6 +581,28 @@ function clearMotion(
     : buildPathGeometry({ points: [...cleared] });
 }
 
+/**
+ * How long before the snap a motion finishes. A man who is set gets a
+ * breath; one who is still moving runs right up to the snap (ADR 0080) —
+ * as long as the line he runs next starts where the motion leaves him. If
+ * it starts somewhere else he cannot be in both places, so he is given the
+ * breath to get there, the way a set man is.
+ */
+function breathBeforeSnap(
+  motion: PlannedMovement,
+  after: readonly PlannedMovement[],
+): number {
+  if (motionAtSnap(motion.path) !== "moving") return MOTION_GAP_MS;
+  const end = motion.geometry.points.at(-1);
+  const carriesOn = after
+    .filter(({ playerId, ball }) => playerId === motion.playerId && !ball)
+    .every(({ geometry }) => {
+      const from = geometry.points[0];
+      return !end || !from || distance(end, from) <= MOTION_CLOSE_YARDS;
+    });
+  return carriesOn ? 0 : MOTION_GAP_MS;
+}
+
 export function planPlay(play: PlayDocument): PlayAnimationPlan {
   const pre: PlannedMovement[] = [];
   const post: PlannedMovement[] = [];
@@ -606,19 +629,19 @@ export function planPlay(play: PlayDocument): PlayAnimationPlan {
     (path.kind === "motion" ? pre : post).push(item);
   }
 
-  const preDurMs = pre.reduce(
-    (longest, item) => Math.max(longest, item.durationMs),
-    0,
-  );
-  const snapOffsetMs = preDurMs > 0 ? preDurMs + MOTION_GAP_MS : 0;
-  const startMs = -snapOffsetMs;
-
+  // Each motion is timed back from the snap: it finishes its own breath
+  // before it — none for a man still moving — so the one that takes longest
+  // to get there starts the timeline and the rest start later.
   const motions = pre.map((item) => ({
     ...item,
-    // Longest motion starts at the timeline origin; shorter ones start later
-    // so every motion finishes MOTION_GAP before the snap.
-    startMs: startMs + Math.max(0, preDurMs - item.durationMs),
+    startMs: -(item.durationMs + breathBeforeSnap(item, post)),
   }));
+  const snapOffsetMs = motions.reduce(
+    (longest, item) => Math.max(longest, -item.startMs),
+    0,
+  );
+  const startMs = -snapOffsetMs;
+
   const others = post.map((item) => ({
     ...item,
     startMs: item.delayMs,

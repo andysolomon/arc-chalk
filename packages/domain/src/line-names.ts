@@ -9,6 +9,7 @@ import {
 } from "./defensive-field";
 import { classifyZoneCoverage } from "./geometry";
 import { isManLine } from "./man-coverage";
+import { motionCallOf } from "./motion-calls";
 import { routeCallName } from "./quarterback";
 import { blockPresets, linePresetByKey } from "./route-catalogue";
 import type { MovementPath, PathPoint, PlayDocument, Player } from "./schema";
@@ -54,13 +55,15 @@ function blockShapeCall(path: MovementPath): string | undefined {
  * The quick call a line was drawn as, while it is still that call. A block
  * keeps its call's name by its key, or by its shape when it was drawn before
  * the key was kept (issue #156): Drive, Reach and Pass set never print as a
- * bare "Block".
+ * bare "Block". A motion is named for its type, said so it cannot be taken
+ * for a route: Jet motion (ADR 0080).
  */
 export function quickCallName(path: MovementPath): string | undefined {
   if (path.preset === undefined) {
     return path.kind === "block" ? blockShapeCall(path) : undefined;
   }
   if (path.kind === "route") return routeCallName(path.preset);
+  if (path.kind === "motion") return motionCallOf(path)?.said;
   return linePresetByKey(path.preset)?.name;
 }
 
