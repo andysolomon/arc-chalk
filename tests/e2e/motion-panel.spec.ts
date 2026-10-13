@@ -297,9 +297,17 @@ test("a line clicked on the field opens its panel, and the alternate's help has 
     });
   await page.mouse.click(along.x, along.y);
   await expect(panel.getByRole("group", { name: "Z — Route" })).toBeVisible();
-  // Its own actions each keep to one line.
+  // Its own actions each keep to one line of words. Counted in lines, not
+  // pixels: under a finger the button is 44 px tall either way.
   const choice = panel.getByRole("button", { name: /^\+ Choice/ });
-  expect((await choice.boundingBox())!.height).toBeLessThan(40);
+  const lines = await choice.evaluate((node) => {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return new Set(
+      [...range.getClientRects()].map(({ top }) => Math.round(top)),
+    ).size;
+  });
+  expect(lines).toBe(1);
 
   // A click on the grass puts it down again.
   const grass = await field(page).boundingBox();
