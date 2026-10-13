@@ -1,7 +1,11 @@
 import {
+  ballLateralYards,
   highSchoolFieldProfile,
   playDocumentSchema,
   settleManCoverage,
+  stickThunderPlay,
+  stockDefensiveCalls,
+  stockFormations,
   type MovementPath,
   type PlayDocument,
   type Player,
@@ -23,7 +27,12 @@ import { describe, expect, it } from "vitest";
  *   him;
  * - the best match doubles one receiver while another goes uncovered, or
  *   hands the extra defender somebody to double;
- * - a small move of one receiver re-sorts everybody else's man.
+ * - a small move of one receiver re-sorts everybody else's man;
+ * - a defender is sent across the ball to a receiver while a man in man
+ *   stands free on that receiver's side (#196), over any stock man call and
+ *   any stock set, either way round;
+ * - who takes whom depends on which way the field faces, so a set and its
+ *   mirror image are not met by mirror-image matches.
  */
 
 const man = (
@@ -193,5 +202,143 @@ describe("settling man coverage", () => {
       );
     });
     expect(moved.map(({ id }) => coveredBy(settled, id))).toEqual(["y"]);
+  });
+});
+
+/** A stock set's men, or a stock call's, as players on the field. */
+const fromSlots = (
+  slots: readonly {
+    readonly id: string;
+    readonly position: Player["position"];
+    readonly label: string;
+    readonly symbol: Player["symbol"];
+  }[],
+  unit: Player["unit"],
+): Player[] =>
+  slots.map(({ id, position, label, symbol }) =>
+    man(id, label, position.lateralYards, position.depthYards, unit, symbol),
+  );
+
+/**
+ * The stock man calls, and the men each puts in man: Nickel Cover 1 and
+ * Bear Front Cover 0 as the catalogue draws them, and 4-3 Cover 3's men in
+ * Cover 1 — everyone who drops but the free safety, who stays deep.
+ */
+const manCalls = [
+  ...["Nickel Cover 1", "Bear Front Cover 0"].map((name) => {
+    const call = stockDefensiveCalls.find((c) => c.formation.name === name)!;
+    const inMan = new Set(
+      call.assignments
+        .filter(({ kind }) => kind === "man")
+        .map(({ slotId }) => slotId),
+    );
+    return { name, call, inMan };
+  }),
+  (() => {
+    const name = "4-3 Cover 3";
+    const call = stockDefensiveCalls.find((c) => c.formation.name === name)!;
+    const inMan = new Set(
+      call.formation.slots
+        .filter(({ label }) => ["C", "$", "W", "M", "S"].includes(label))
+        .map(({ id }) => id),
+    );
+    return { name: "4-3 Cover 3's men in Cover 1", call, inMan };
+  })(),
+];
+
+const offenses: readonly { name: string; players: readonly Player[] }[] = [
+  ...stockFormations.map((set) => ({
+    name: set.name,
+    players: fromSlots(set.slots, "offense"),
+  })),
+  {
+    name: stickThunderPlay.name,
+    players: stickThunderPlay.players.filter(({ unit }) => unit !== "defense"),
+  },
+];
+
+const mirrored = (player: Player): Player => ({
+  ...player,
+  position: {
+    ...player.position,
+    lateralYards: -player.position.lateralYards,
+  },
+});
+
+/** A man call over a set, settled, either way round. */
+function settledOver(
+  { call, inMan }: (typeof manCalls)[number],
+  offense: readonly Player[],
+  reflect: boolean,
+) {
+  const flip = reflect ? mirrored : (player: Player) => player;
+  const defense = fromSlots(call.formation.slots, "defense").map(flip);
+  const men = defense.filter(({ id }) => inMan.has(id));
+  const play = playOf(
+    [...offense.map(flip), ...defense],
+    men.map((defender) => manLine(defender)),
+  );
+  return { play, men, settled: settleManCoverage(undefined, play) };
+}
+
+/** Which side of the ball a man stands on, or neither when he is over it. */
+const sideOf = (lateralYards: number, ball: number) =>
+  Math.abs(lateralYards - ball) < 1e-9 ? 0 : Math.sign(lateralYards - ball);
+
+/**
+ * Every defender sent across the ball to a receiver while a man in man
+ * stands free on that receiver's side, as the defender's letter, his man's
+ * and the free man's: "$ on H past W". A man over the ball is on neither
+ * side to be sent across from, and free on both.
+ */
+function crossedPastAFreeMan(
+  play: PlayDocument,
+  men: readonly Player[],
+  settled: PlayDocument,
+): string[] {
+  const offense = play.players.filter(({ unit }) => unit !== "defense");
+  const ball = ballLateralYards(offense);
+  const free = men.filter((defender) => !coveredBy(settled, defender.id));
+  return men.flatMap((defender) => {
+    const receiver = offense.find(
+      ({ id }) => id === coveredBy(settled, defender.id),
+    );
+    if (!receiver) return [];
+    const his = sideOf(receiver.position.lateralYards, ball);
+    const mine = sideOf(defender.position.lateralYards, ball);
+    if (his === 0 || mine === 0 || mine === his) return [];
+    const helper = free.find(({ position }) =>
+      [0, his].includes(sideOf(position.lateralYards, ball)),
+    );
+    return helper
+      ? [`${defender.label} on ${receiver.label} past ${helper.label}`]
+      : [];
+  });
+}
+
+describe("matching each man in man on his own side of the ball", () => {
+  describe.each(manCalls)("$name", (scheme) => {
+    it.each(offenses)(
+      "sends nobody across the ball past a free man over $name, either way round",
+      ({ players }) => {
+        for (const reflect of [false, true]) {
+          const { play, men, settled } = settledOver(scheme, players, reflect);
+          expect(crossedPastAFreeMan(play, men, settled)).toEqual([]);
+        }
+      },
+    );
+
+    it.each(offenses)(
+      "meets $name and its mirror image with mirror-image matches",
+      ({ players }) => {
+        const asDrawn = settledOver(scheme, players, false);
+        const reflected = settledOver(scheme, players, true);
+        // Ids are the same either way round, so the same pairs mean the
+        // mirror-image match.
+        expect(
+          reflected.men.map(({ id }) => coveredBy(reflected.settled, id)),
+        ).toEqual(asDrawn.men.map(({ id }) => coveredBy(asDrawn.settled, id)));
+      },
+    );
   });
 });

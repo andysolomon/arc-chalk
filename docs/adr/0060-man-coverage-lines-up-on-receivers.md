@@ -50,12 +50,51 @@ receivers in this order:
 | Linebacker | back  | tight | slot         | wide |
 
 The matching is exact over the whole defense, not one man at a time: as many receivers
-as possible are covered, then each defender gets the kind he prefers (one step down his
-list outweighs 30 yards of travel), then the nearest across the field, and a man keeps
-the receiver he already had in a close call so a nudge re-sorts nobody. Nobody is doubled
-by the match; a defender left over when every receiver is taken is free and keeps his
-line as drawn. Who is in man is the scheme's to say, so who takes whom follows from it:
-with the safety deep in a two-deep call, a linebacker takes the tight end.
+as possible are covered, then nobody is sent across the ball past a free man (below),
+then each defender gets the kind he prefers (one step down his list outweighs 30 yards of
+travel), then the nearest across the field, and a man keeps the receiver he already had
+in a close call so a nudge re-sorts nobody. Nobody is doubled by the match; a defender
+left over when every receiver is taken is free and keeps his line as drawn. Who is in man
+is the scheme's to say, so who takes whom follows from it: with the safety deep in a
+two-deep call, a linebacker takes the tight end.
+
+**Each man on his own side of the ball** (amended 2026-10-01, #196). Preference
+weighed against distance alone let one step down a defender's list outweigh more than
+half the field's width: two men each one step down and one of them sent 24 yards across
+the formation cost less than a backer three steps down covering the slot in front of him,
+so Cover 1 over Gun Doubles Right sent the `$` across to the slot and left the Will, who
+stood over that slot, in the hole. No single weight fixes it: a charge for crossing the
+ball, or a smaller step, that is large enough to keep Nickel Cover 1's nickel on his own
+side over Gun Doubles Right also stops Bear Front Cover 0 sending its nickel and its `$`
+across to Stick — Thunder's slot and tight end, where every man in man has somebody and
+crossing is the only way the receivers they suit are covered. What the Coach objects to
+is not the crossing; it is a man crossing while one stands free on the far side. So that
+is decided as a rule, not weighed:
+
+- **No defender is matched across the ball to a receiver while a man in man stands free
+  on that receiver's side.** The free man takes him instead. Sides are read from the
+  ball. A back is on the side he is offset to, and one straight behind the ball is on
+  neither. A defender over the ball is never sent across it, and left free he is free
+  on both sides.
+- Coverage still comes first: the rule never leaves a receiver open. A match that meets
+  it always exists — handing the receiver to the free man and freeing the man who
+  crossed covers as many and crosses less — and the cheapest of those is the match.
+- **A back is measured from halfway between his spot and the ball.** He releases from
+  behind the line to either side of it, so the backer over the ball has him before one
+  who stands a step nearer his spot but out on a side: over Gun Doubles Right the Mike
+  takes the back and the Sam, on the side where the `$` already has the tight end, plays
+  the hole.
+- **Lines that do not cross break a tie.** Each pairing also costs a ten-thousandth of
+  its distance squared — too little to outweigh a yard — so two matches the same yards
+  apart all told go to the one where the wider defender takes the wider receiver, and a
+  set and its mirror image are met by mirror-image matches.
+
+Past a dozen receivers, where the match is shared out one man at a time, there are more
+receivers than a defense has men, so nobody is left free and the rule has nothing to
+decide. The rule is checked in isolation over each stock man call — Nickel Cover 1,
+Bear Front Cover 0, and 4-3 Cover 3's men in Cover 1 — against every stock set and
+Stick — Thunder, each way round (`tests/domain/man-coverage.test.ts`), and over Gun
+Doubles Right in the editor (`tests/e2e/cover-1-over-doubles.spec.ts`).
 
 **Lining up.** (Since ADR 0061, only in Cover 0 — with deep help nobody in man is moved.) A defender given a man lines up a yard inside him (over him, on a back) at
 his own depth held between one and seven yards off the ball. Two defenders on one man
