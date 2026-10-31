@@ -259,6 +259,7 @@ const header = {
       <path d="M7.75 5.25v4.5L11.5 7.5z" {...stroke} />
     </>
   ),
+  chevron: <path d="M5.5 7.5 9 11l3.5-3.5" {...stroke} />,
 } as const;
 
 export type HeaderGlyph = keyof typeof header;
