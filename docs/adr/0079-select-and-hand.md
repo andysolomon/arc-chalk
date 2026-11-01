@@ -43,10 +43,21 @@ on Select once its note is down.
 **Where they live.** On a desktop and a tablet the pair is the head of the
 rail, above Formation, in a well of its own with a rule under it. A phone's
 tool row is already six 44 px buttons and eight do not fit on a 360 px
-glass, so on a phone the pair floats over the field's lower left, opposite
-the map: above the sheet's peek when the phone is upright, in the corner
-when it is held sideways. It is the pair's one home on each layout (ADR
-0074); the phone's row is unchanged.
+glass, so on a phone the pair floats by the field's lower left, opposite
+the map: when the phone is upright, in the letterbox just under the field
+and above the sheet's peek; in the corner when it is held sideways. It is
+the pair's one home on each layout (ADR 0074); the phone's row is
+unchanged.
+
+_Amended:_ the pair first stood a fixed 130 px above the bottom of the
+field's box, with the map. On an iPhone in Safari, whose bars take their
+share of the height, that sat both on the field's lower edge — the pair
+over the corner man, the map over the backfield once zoomed. Both now take
+their place from the field's own edge, which the letterbox fixes from the
+box's size (`min(31cqw, 50cqh)` either side of the middle), and never drop
+behind the peek. The count on the line keeps its place above the peek; while
+it is up the pair and the map stand above it, over the field's edge on a
+short glass until it goes.
 
 **Keys.** V is Select, as it was. Hand has no letter of its own — H is the
 shadow's (ADR 0053), and held space is already the keyboard's Hand. The
@@ -107,9 +118,10 @@ field without bending the line or moving the man, double-clicks the route
 without adding a break, and finds the route still picked with its panel
 open and Undo still disabled; V puts Select back and a drag on the grass
 boxes in the line. It ends on screenshots of the field and the rail.
-`tests/e2e/phone-select-and-hand.spec.ts`, at 360, 390 and 430 px, checks
-the pair is two 44 px buttons over the field, above the sheet's peek and
-clear of the map, with the tool row's trash still on the glass; boxes in the
+`tests/e2e/phone-select-and-hand.spec.ts`, at 360, 390 and 430 px and at
+390 × 664 — the height Safari leaves a 390 px iPhone — checks the pair is
+two 44 px buttons under the field, above the sheet's peek and clear of the
+map, with the tool row's trash still on the glass; boxes in the
 five linemen with one finger without moving the view; takes the Hand and
 moves the field from a man with every man where he stood and the five still
 picked; finds a tap under the Hand picks nothing; and, back on Select, drags

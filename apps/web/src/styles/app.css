@@ -7408,9 +7408,9 @@ button.library-dot.target.small {
 .phone-workspace .tool-rail .rail-collapse {
   display: none;
 }
-/* A phone's tool row is full, so the pair floats over the field's lower
-   left, opposite the map (ADR 0079): above the sheet's peek when upright,
-   in the corner when held sideways. */
+/* A phone's tool row is full, so the pair floats by the field's lower left
+   (ADR 0079): in the letterbox just under the field when upright, in the
+   corner when held sideways. */
 .phone-workspace .field-pointer {
   position: absolute;
   bottom: 60px;
@@ -7579,11 +7579,24 @@ button.library-dot.target.small {
   .phone-workspace .field-wrap > .toast {
     bottom: 84px;
   }
-  .phone-workspace .minimap {
-    bottom: 130px;
+  /* The pair and the map tuck in just under the field's lower corners,
+     wherever the letterbox puts that edge: the fitted field is centred in
+     this box at min(31cqw, 50cqh) either side of the middle (see
+     .field-diagram). A fixed offset sat them on the field once Safari's
+     bars took their share of the height. Neither drops behind the sheet's
+     44 px peek, and while the count on the line is up they stand above it
+     — on a short glass, over the field's edge until it goes. */
+  .phone-workspace .field-wrap > .field-pointer {
+    bottom: max(52px, calc(50cqh - min(31cqw, 50cqh) - 56px));
   }
-  .phone-workspace .field-pointer {
-    bottom: 130px;
+  .phone-workspace .field-wrap > .minimap {
+    bottom: max(52px, calc(50cqh - min(31cqw, 50cqh) - 90px));
+  }
+  .phone-workspace .field-wrap:has(> .line-count) > .field-pointer {
+    bottom: max(102px, calc(50cqh - min(31cqw, 50cqh) - 56px));
+  }
+  .phone-workspace .field-wrap:has(> .line-count) > .minimap {
+    bottom: max(102px, calc(50cqh - min(31cqw, 50cqh) - 90px));
   }
   /* Upright, the field is letterboxed top and bottom: the count sits in the
      grass under it, just above the sheet's peek. */
