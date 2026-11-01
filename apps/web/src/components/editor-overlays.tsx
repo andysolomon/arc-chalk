@@ -82,7 +82,7 @@ function MenuItem({
  * and nothing that has a home elsewhere (ADR 0074). Settings and Help stand
  * at the sidebar's foot; the destinations are the header's tabs; New play and
  * Present are header buttons on wide screens; the compact header moves them
- * here so the row never wraps.
+ * here so the row never wraps. A phone keeps New play on its row as a plus.
  */
 export function MoreMenu({
   actions,
@@ -104,7 +104,8 @@ export function MoreMenu({
   open: boolean;
   /** Actions that move off the row when the header is compact. */
   overflowActions?: React.ReactNode;
-  /** The phone sidebar already carries Print & export. */
+  /** The phone sidebar already carries Print & export, and the phone
+   *  header's plus New play. */
   phone?: boolean;
   zonesHidden: boolean;
 }) {
@@ -165,14 +166,16 @@ export function MoreMenu({
         ) : (
           <>
             <div className="header-overflow-actions">
-              {newPlayEntries.map((entry) => (
-                <MenuItem
-                  actions={actions}
-                  entry={entry}
-                  key={entry.id}
-                  onDismiss={onDismiss}
-                />
-              ))}
+              {!phone
+                ? newPlayEntries.map((entry) => (
+                    <MenuItem
+                      actions={actions}
+                      entry={entry}
+                      key={entry.id}
+                      onDismiss={onDismiss}
+                    />
+                  ))
+                : null}
               <MenuItem
                 actions={actions}
                 entry={{ id: "present", label: "Present" }}
@@ -261,18 +264,22 @@ function ClearPage({
 
 /**
  * New play, as a choice rather than a button: an offensive play or a
- * defensive one. The header carries it beside Reset positions; the
- * Playbooks page carries the same menu at the end of its tabs.
+ * defensive one. The header carries it beside Reset positions — on a phone
+ * as a plus icon; the Playbooks page carries the same menu at the end of its
+ * tabs.
  */
 export function NewPlayMenu({
   actions,
   buttonClassName = "quiet",
+  icon,
   onDismiss,
   onToggle,
   open,
 }: {
   actions: ActionMap;
   buttonClassName?: string;
+  /** Draws the button as this glyph, named for a screen reader. */
+  icon?: React.ReactNode;
   onDismiss: () => void;
   onToggle: () => void;
   open: boolean;
@@ -283,13 +290,14 @@ export function NewPlayMenu({
       <button
         aria-expanded={open}
         aria-haspopup="true"
-        className={`${buttonClassName} new-play${open ? " open" : ""}`}
+        aria-label={icon ? "New play" : undefined}
+        className={`${buttonClassName} new-play${icon ? " icon-button" : ""}${open ? " open" : ""}`}
         disabled={!enabled}
         onClick={onToggle}
         title="Start a blank offensive or defensive play"
         type="button"
       >
-        New play
+        {icon ?? "New play"}
       </button>
       {open ? (
         <div

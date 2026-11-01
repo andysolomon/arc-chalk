@@ -215,6 +215,7 @@ export function PlaySidebar({
   drawer = false,
   fold,
   footer,
+  name,
   onClose,
   onCollapse,
   onOpen,
@@ -228,6 +229,8 @@ export function PlaySidebar({
   fold?: SidebarFold;
   /** The icons at the foot. */
   footer: readonly SidebarRowSpec[];
+  /** The play's name, heading This play where the header has no room for it. */
+  name?: ReactNode;
   /** Puts the drawer away. */
   onClose?: () => void;
   /** Folds the docked sidebar (⌥3). */
@@ -293,6 +296,7 @@ export function PlaySidebar({
         <>
           <div className="sidebar-group">
             <div className="sidebar-heading">This play</div>
+            {name ? <div className="sidebar-name">{name}</div> : null}
             {thisPlay.map(row)}
           </div>
           {fold ? (

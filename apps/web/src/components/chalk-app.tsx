@@ -7424,6 +7424,16 @@ export function ChalkApp({
           </span>
         ) : undefined
       }
+      name={
+        phoneWorkspace ? (
+          <PlayNameInput
+            commitPlayName={commitPlayName}
+            playName={editor.draftPlayName}
+            resetPlayName={editorStore.resetPlayNameDraft}
+            setPlayName={editorStore.setPlayNameDraft}
+          />
+        ) : undefined
+      }
       thisPlay={sidebarThisPlay}
     />
   );
@@ -9647,6 +9657,37 @@ function PresentMode({
   );
 }
 
+/** The open Play's name, edited in place: Enter keeps it, Escape puts it back. */
+function PlayNameInput({
+  commitPlayName,
+  playName,
+  resetPlayName,
+  setPlayName,
+}: {
+  commitPlayName: () => void;
+  playName: string;
+  resetPlayName: () => void;
+  setPlayName: (name: string) => void;
+}) {
+  return (
+    <input
+      aria-label="Play name"
+      className="play-name"
+      onBlur={commitPlayName}
+      onChange={(event) => setPlayName(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur();
+        if (event.key === "Escape") {
+          resetPlayName();
+          event.currentTarget.blur();
+        }
+      }}
+      spellCheck={false}
+      value={playName}
+    />
+  );
+}
+
 function Header({
   actions,
   activeView,
@@ -9709,7 +9750,8 @@ function Header({
   phone: boolean;
   setPlayName: (name: string) => void;
   undo: EditorUndoState;
-  /** The open Play's side of the ball, named above a phone's play name. */
+  /** The open Play's side of the ball, named on a phone's row in place of
+   *  the play name. */
   unit: PlayUnit;
   versions: readonly EditorVersionSummary[];
   zonesHidden: boolean;
@@ -9860,27 +9902,21 @@ function Header({
       ) : (
         <>
           <span className="slash">/</span>
+          {/* A phone's row names only the side of the ball; the play's name
+              is the first thing in its drawer. */}
           {phone ? (
             <span className="play-unit" data-unit={unit}>
               <i />
               {unitName(unit)}
             </span>
-          ) : null}
-          <input
-            aria-label="Play name"
-            className={phone ? "play-name with-unit" : "play-name"}
-            onBlur={commitPlayName}
-            onChange={(event) => setPlayName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") event.currentTarget.blur();
-              if (event.key === "Escape") {
-                resetPlayName();
-                event.currentTarget.blur();
-              }
-            }}
-            spellCheck={false}
-            value={playName}
-          />
+          ) : (
+            <PlayNameInput
+              commitPlayName={commitPlayName}
+              playName={playName}
+              resetPlayName={resetPlayName}
+              setPlayName={setPlayName}
+            />
+          )}
           {classification}
           <span className="top-spacer" />
           {/* Undo, Redo, Reset positions and Present are icons named for a
@@ -9911,6 +9947,7 @@ function Header({
           <span className="divider" />
           <NewPlayMenu
             actions={actions}
+            icon={phone ? <HeaderIcon glyph="plus" /> : undefined}
             onDismiss={onCloseMenu}
             onToggle={() => onMenu("new")}
             open={openMenu === "new"}

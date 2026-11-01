@@ -14,9 +14,9 @@ test("a phone's Arrange menu fits the app and refuses an illegal set", async ({
   page,
 }, testInfo) => {
   await openBlankEditor(page);
-  await page.getByRole("button", { name: "More actions", exact: true }).tap();
+  await page.getByRole("button", { name: "New play", exact: true }).tap();
   await page
-    .locator(".more-panel")
+    .getByRole("group", { name: "New play" })
     .getByRole("button", { name: /^New offensive play/ })
     .tap();
   const browser = page.getByRole("dialog", { name: "Formations" });

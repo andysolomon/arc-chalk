@@ -26,9 +26,9 @@ test("names the coverage in the sheet's peek and changes it from the sheet", asy
     timeout: 30_000,
   });
 
-  await page.getByRole("button", { name: "More actions", exact: true }).tap();
+  await page.getByRole("button", { name: "New play", exact: true }).tap();
   await page
-    .locator(".more-panel")
+    .getByRole("group", { name: "New play" })
     .getByRole("button", { name: /^New defensive play/ })
     .tap();
   await expect(page.locator("[data-scene-player]")).toHaveCount(0);

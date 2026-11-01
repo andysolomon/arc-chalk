@@ -260,6 +260,13 @@ const header = {
     </>
   ),
   chevron: <path d="M5.5 7.5 9 11l3.5-3.5" {...stroke} />,
+  // New play on a phone's header: a plain plus.
+  plus: (
+    <>
+      <path d="M9 3.5 L9 14.5" {...stroke} />
+      <path d="M3.5 9 L14.5 9" {...stroke} />
+    </>
+  ),
 } as const;
 
 export type HeaderGlyph = keyof typeof header;
