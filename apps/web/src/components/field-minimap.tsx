@@ -10,12 +10,18 @@ import {
   type Camera,
   type CameraFrame,
 } from "@chalk/editor";
-import { useRef, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
+
+/** How long the map stays up once the view has stopped moving. */
+const MINIMAP_REST_MS = 1500;
 
 /**
  * The original's navigator — a 132×82 map of the field, only live when
  * there is something off screen to find. A press centres the camera on
- * that point of the frame; a drag keeps doing so.
+ * that point of the frame; a drag keeps doing so. It comes up while the
+ * view moves and fades once the view has been still a moment, so a zoomed
+ * field is not left with a box over its corner; a finger on the map holds
+ * it up.
  */
 export function FieldMinimap({
   camera,
@@ -29,8 +35,20 @@ export function FieldMinimap({
   players: readonly Player[];
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const dragging = useRef(false);
-  const shown = minimapIsShown(camera, frame);
+  const [held, setHeld] = useState(false);
+  const view = `${camera.x} ${camera.y} ${camera.width} ${camera.height}`;
+  const [lastView, setLastView] = useState(view);
+  const [awake, setAwake] = useState(true);
+  if (view !== lastView) {
+    setLastView(view);
+    setAwake(true);
+  }
+  useEffect(() => {
+    if (!awake || held) return;
+    const timer = setTimeout(() => setAwake(false), MINIMAP_REST_MS);
+    return () => clearTimeout(timer);
+  }, [awake, held, view]);
+  const shown = minimapIsShown(camera, frame) && (awake || held);
   const viewport = minimapViewportRect(camera);
   const lineY = minimapLineOfScrimmageY();
 
@@ -51,22 +69,18 @@ export function FieldMinimap({
         aria-hidden={!shown}
         aria-label="Field navigator"
         height={MINIMAP_SIZE.height}
-        onPointerCancel={() => {
-          dragging.current = false;
-        }}
+        onPointerCancel={() => setHeld(false)}
         onPointerDown={(event) => {
           if (!shown) return;
           event.stopPropagation();
-          dragging.current = true;
+          setHeld(true);
           svgRef.current?.setPointerCapture(event.pointerId);
           panTo(event);
         }}
         onPointerMove={(event) => {
-          if (dragging.current) panTo(event);
+          if (held) panTo(event);
         }}
-        onPointerUp={() => {
-          dragging.current = false;
-        }}
+        onPointerUp={() => setHeld(false)}
         ref={svgRef}
         role="img"
         viewBox={`0 0 ${MINIMAP_SIZE.width} ${MINIMAP_SIZE.height}`}
