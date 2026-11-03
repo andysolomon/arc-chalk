@@ -6952,6 +6952,7 @@ export function ChalkApp({
       }}
       setPlayName={editorStore.setPlayNameDraft}
       undo={editor.undo}
+      unit={editor.document.unit}
       versions={editor.versions}
       zonesHidden={zonesHidden}
     />
@@ -9672,6 +9673,7 @@ function Header({
   recentOutputs,
   setPlayName,
   undo,
+  unit,
   versions,
   wristband,
   zonesHidden,
@@ -9701,12 +9703,14 @@ function Header({
   playName: string;
   resetPlayName: () => void;
   runtime: ChalkRuntime;
-  /** Opens the sidebar as a drawer — the ≡ at a phone header's left (ADR 0058). */
+  /** Opens the sidebar as a drawer — the icon at a phone header's left (ADR 0058). */
   onOpenSidebar: () => void;
   /** A screen below the editor floor. */
   phone: boolean;
   setPlayName: (name: string) => void;
   undo: EditorUndoState;
+  /** The open Play's side of the ball, named above a phone's play name. */
+  unit: PlayUnit;
   versions: readonly EditorVersionSummary[];
   zonesHidden: boolean;
 }) {
@@ -9733,7 +9737,7 @@ function Header({
           </button>
           <div className="phone-overflow-actions">
             <button
-              className="menu-item"
+              className="menu-item overflow-undo"
               disabled={!undo.canUndo}
               onClick={() => {
                 onCloseMenu();
@@ -9744,7 +9748,7 @@ function Header({
               Undo
             </button>
             <button
-              className="menu-item"
+              className="menu-item overflow-redo"
               disabled={!undo.canRedo}
               onClick={() => {
                 onCloseMenu();
@@ -9778,7 +9782,7 @@ function Header({
           title="Playbook, this play, settings"
           type="button"
         >
-          <span aria-hidden="true">≡</span>
+          <SidebarIcon glyph="sidebar" />
         </button>
       ) : null}
       <div className="chalk-mark" aria-hidden="true">
@@ -9802,6 +9806,9 @@ function Header({
             </option>
           ))}
         </select>
+        <span className="view-picker-chevron">
+          <HeaderIcon glyph="chevron" />
+        </span>
         {destinations.map(({ view, label }) => (
           <button
             aria-current={activeView === view ? "page" : undefined}
@@ -9853,9 +9860,15 @@ function Header({
       ) : (
         <>
           <span className="slash">/</span>
+          {phone ? (
+            <span className="play-unit" data-unit={unit}>
+              <i />
+              {unitName(unit)}
+            </span>
+          ) : null}
           <input
             aria-label="Play name"
-            className="play-name"
+            className={phone ? "play-name with-unit" : "play-name"}
             onBlur={commitPlayName}
             onChange={(event) => setPlayName(event.target.value)}
             onKeyDown={(event) => {

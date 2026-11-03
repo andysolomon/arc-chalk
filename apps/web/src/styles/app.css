@@ -6113,6 +6113,7 @@ button.library-dot.target.small {
 /* Keep the header on one row. Commands have one visible home: on the
    row when it fits, and in More at compact widths. */
 .view-tabs select,
+.view-picker-chevron,
 .header-overflow-actions,
 .phone-overflow-actions {
   display: none;
@@ -7255,6 +7256,43 @@ button.library-dot.target.small {
 .topbar.phone-topbar .play-type-name {
   display: none;
 }
+/* Offense or defense, named over the play name where the pill has no room:
+   a zero-width item whose words hang over the name's top, so the row gives
+   up nothing to say it. */
+.topbar.phone-topbar > .play-unit {
+  display: none;
+}
+@media (max-width: 667px) {
+  .topbar.phone-topbar > .play-unit {
+    order: 3;
+    display: flex;
+    width: 0;
+    height: 44px;
+    align-items: flex-start;
+    gap: 5px;
+    margin-right: -10px;
+    padding: 6px 0 0 6px;
+    color: var(--unit-accent);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    line-height: 12px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .topbar.phone-topbar > .play-unit i {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    margin-top: 3px;
+    border-radius: 50%;
+    background: var(--unit-accent);
+  }
+  .topbar.phone-topbar > .play-name.with-unit {
+    padding-top: 14px;
+  }
+}
 @media (max-width: 374px) {
   .topbar.phone-topbar > .classify-menu {
     max-width: 88px;
@@ -7345,22 +7383,60 @@ button.library-dot.target.small {
 
 @media (max-width: 667px) {
   .topbar .view-tabs > button,
-  .topbar.phone-topbar > .undo,
-  .topbar.phone-topbar > .redo,
   .topbar.phone-topbar .classify-menu > .play-type {
     display: none;
   }
+  /* Undo and Redo stay on the row as a narrower pair, still 44 px tall. */
+  .topbar.phone-topbar > .undo,
+  .topbar.phone-topbar > .redo {
+    width: 36px;
+    min-width: 36px;
+  }
+  /* The picker reads as the row's label, not a filled field: no fill,
+     only the press shows, and it is as wide as the view it names. */
   .topbar .view-tabs select {
     display: block;
-    width: 80px;
+    width: auto;
+    field-sizing: content;
     height: 44px;
-    padding: 0 6px;
+    padding: 0 22px 0 6px;
     border: 0;
+    appearance: none;
     border-radius: 6px;
-    background: var(--wash);
+    background: transparent;
     color: var(--ink);
     font: inherit;
-    font-size: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .topbar .view-tabs select:active {
+    background: var(--hover);
+  }
+  /* The browser's own arrow comes with its own gray box, so the picker
+     draws a plain chevron instead. */
+  .topbar .view-tabs {
+    position: relative;
+    padding: 0;
+    background: transparent;
+  }
+  .topbar .view-picker-chevron {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    display: grid;
+    color: var(--ink-soft);
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
+  .topbar .view-picker-chevron > svg {
+    width: 16px;
+    height: 16px;
+  }
+  @supports not (field-sizing: content) {
+    .topbar .view-tabs select {
+      width: 80px;
+    }
   }
   .topbar.phone-topbar > .classify-menu {
     min-width: 0;
@@ -7372,6 +7448,20 @@ button.library-dot.target.small {
     display: flex;
     flex-direction: column;
     gap: 4px;
+  }
+}
+/* Below 400 px the pair would squeeze the play name under 96 px, so it
+   moves to More; one home either way. */
+@media (max-width: 399px) {
+  .topbar.phone-topbar > .undo,
+  .topbar.phone-topbar > .redo {
+    display: none;
+  }
+}
+@media (min-width: 400px) {
+  .phone-overflow-actions > .overflow-undo,
+  .phone-overflow-actions > .overflow-redo {
+    display: none;
   }
 }
 @media (min-width: 668px) {
@@ -8707,7 +8797,7 @@ button.shell-quiet:hover {
 .sidebar-stub:hover {
   background: var(--wash);
 }
-/* The ≡ at a phone header's left. */
+/* The sidebar icon at a phone header's left. */
 .sidebar-open {
   display: inline-flex;
   align-items: center;
@@ -8719,14 +8809,16 @@ button.shell-quiet:hover {
   border-radius: 8px;
   background: transparent;
   color: var(--ink);
-  font-size: 20px;
-  line-height: 1;
   cursor: pointer;
+}
+.sidebar-open > svg {
+  width: 20px;
+  height: 20px;
 }
 .sidebar-open:hover {
   background: var(--wash);
 }
-/* The ≡ leads the row, before the destinations (ADR 0058): a 44 px
+/* The sidebar icon leads the row, before the destinations (ADR 0058): a 44 px
    box like every other control in the phone header. */
 .topbar.phone-topbar > .sidebar-open {
   order: 0;
@@ -8736,7 +8828,7 @@ button.shell-quiet:hover {
 }
 
 /* Below the docked inspector's floor the sidebar is a drawer over the field's
-   left edge, and on a phone it is the drawer the ≡ opens. */
+   left edge, and on a phone it is the drawer the sidebar icon opens. */
 .sidebar-scrim {
   position: fixed;
   inset: 0;

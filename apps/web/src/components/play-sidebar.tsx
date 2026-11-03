@@ -18,7 +18,8 @@ export type SidebarGlyph =
   | "library"
   | "print"
   | "settings"
-  | "help";
+  | "help"
+  | "sidebar";
 
 const stroke = {
   fill: "none",
@@ -76,6 +77,12 @@ const glyphs: Record<SidebarGlyph, ReactNode> = {
     <>
       <path d="M5.8 6.2a2.3 2.3 0 1 1 3.2 2.1c-.7.3-1 .7-1 1.4" {...stroke} />
       <circle cx="8" cy="12.2" fill="currentColor" r=".8" />
+    </>
+  ),
+  sidebar: (
+    <>
+      <rect height="10" rx="2" width="11" x="2.5" y="3" {...stroke} />
+      <path d="M6.5 3v10" {...stroke} />
     </>
   ),
 };
