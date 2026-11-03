@@ -109,6 +109,10 @@ the shadow is shown.
   a drag is not: a rearrangement that would leave more than four backs, carry a man across the
   line of scrimmage, or stand two men's marks on one another is greyed, with the reason under
   it (_Needs 7 on the line_, _C and Q would overlap_). Only a fault the rearrangement causes
-  counts, so a scout look already drawn wrong can still be lined up. `arrangePlayers` in
-  `@chalk/editor` makes the call, and the palette's Same depth and Even splits share it. The
-  regressions are `tests/e2e/arrange-menu.spec.ts` and `tests/e2e/phone-arrange-menu.spec.ts`.
+  counts, so a scout look already drawn wrong can still be lined up. Space evenly also keeps
+  the line's splits: the five linemen are spaced only when the pick is the line alone, since
+  spread between the widest of a pick that reaches past them — the whole team — they would
+  be scattered across the field; such a pick is greyed with _The line keeps its splits_.
+  `arrangePlayers` in `@chalk/editor` makes the call, and the palette's Same depth and Even
+  splits share it. The regressions are `tests/e2e/arrange-menu.spec.ts` and
+  `tests/e2e/phone-arrange-menu.spec.ts`.
