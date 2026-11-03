@@ -2626,7 +2626,10 @@ export interface PlayerArrangement {
  * Lining men up with one another: all to the same depth, or evenly spread
  * between the two widest. Each man's lines travel with him, the way they do
  * when he is dragged. A rearrangement is refused when it would make the
- * formation illegal (see `arrangementFault`).
+ * formation illegal (see `arrangementFault`), and the offensive line is
+ * spaced only on its own: spread between the widest of a pick that reaches
+ * past it — the whole team, say — its five would be scattered across the
+ * field, so such a pick is refused with the reason.
  */
 export function arrangePlayers(
   document: PlayDocument,
@@ -2635,6 +2638,14 @@ export function arrangePlayers(
 ): PlayerArrangement {
   const chosen = document.players.filter(({ id }) => playerIds.includes(id));
   if (chosen.length < 2) return {};
+
+  if (alignment === "splits") {
+    const spots = lineSpots(document.players);
+    const linemen = chosen.filter(({ id }) => spots.has(id)).length;
+    if (linemen > 0 && linemen < chosen.length) {
+      return { reason: "The line keeps its splits" };
+    }
+  }
 
   const moves = new Map<string, Coordinate>();
   if (alignment === "depth") {
