@@ -93,10 +93,10 @@ test("motion goes round the men in its way, on both sides of the ball", async ({
   ).toHaveCount(1);
   expect(overlapping(await everyone(page))).toEqual([]);
 
-  // Z, split wide right, in motion flat across to the other slot: the line
-  // runs straight through Y and the line.
+  // Z, split wide right a step off the line, in motion flat across to the
+  // other slot: the line runs straight through Y and the line.
   await page.keyboard.press("Escape");
-  await clickField(page, { x: 886, y: 452 });
+  await clickField(page, { x: 886, y: 460 });
   await expect(page.locator(".player-heading")).toBeVisible();
   await page
     .getByRole("complementary", { name: "Play inspector" })

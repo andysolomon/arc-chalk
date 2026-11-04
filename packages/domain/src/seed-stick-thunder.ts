@@ -112,7 +112,7 @@ export const originalStickThunder: LegacyPlay = {
       {
         id: "z",
         x: 886,
-        y: 452,
+        y: 460,
         symbol: "circle",
         label: "Z",
         sub: "THUNDER",
@@ -191,7 +191,7 @@ export const originalStickThunder: LegacyPlay = {
           },
         ],
         points: [
-          { x: 886, y: 452 },
+          { x: 886, y: 460 },
           { x: 886, y: 296 },
         ],
         lineStyle: "solid",

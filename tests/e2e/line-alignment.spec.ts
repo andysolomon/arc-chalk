@@ -2,12 +2,13 @@ import { type Page } from "@playwright/test";
 import { expect, openSeededEditor, test } from "./fixtures";
 
 /**
- * Lining a formation up (ADR 0073), on the Stick — Thunder starter. A man
- * dragged near the line stays level with it; a tackle dragged back out lands
- * the split his guards keep, measured where the Coach can see it; a receiver
- * a step off the line is off it, and the count of men on the line says so as
- * he goes; a fifth back is called illegal until a man goes back on; and ⌘ or
- * Ctrl held through a drag puts a man exactly where the pointer does.
+ * Lining a formation up (ADR 0073, ADR 0081), on the Stick — Thunder
+ * starter. A man dragged near the line stays level with it; a tackle dragged
+ * back out lands the split his guards keep, measured where the Coach can see
+ * it; a receiver brought up on the line outside the tight end covers him,
+ * and the call says who is covered by whom until he steps back off; a fifth
+ * back is called illegal until a man goes back on; and ⌘ or Ctrl held
+ * through a drag puts a man exactly where the pointer does.
  *
  * Positions are read in the frame the field is drawn in — 448 is the line
  * the starter's linemen stand on, 460 a yard under it. Each test ends with a
@@ -121,18 +122,46 @@ test("keeps a lineman level with the line and puts him back at his split", async
   expect(back.y).toBe(LINE_Y);
 });
 
-test("counts the line as receivers come off it and calls a fifth back illegal", async ({
+test("calls a covered receiver and a fifth back as the line changes", async ({
   page,
 }, testInfo) => {
   await openSeededEditor(page);
   const status = page.locator("[data-line-status]");
-  // The starter has X, Y and Z on the line with the five linemen.
-  await expect(status).toHaveText("LINE 8 · BACKS 3");
+  // The starter has X and Y on the line with the five linemen, Z a step off
+  // it, and H, F and Q in the backfield.
+  await expect(status).toHaveText("LINE 7 · BACKS 4");
+  await expect(status).toHaveAttribute("data-line-status", "legal");
   await expect(chip(page)).toHaveCount(0);
 
-  // Z a step off the line: the count rides beside the field while he moves.
+  // Z up on the line: the count rides beside the field while he moves, and
+  // the moment he is level with the line he covers Y — eight on the line is
+  // no count fault, but Y can no longer catch a pass, and the call says so
+  // until Z steps back off.
   const z = await manAt(page, "z");
-  await pickUp(page, "z", { x: z.x - 4, y: OFF_THE_LINE_Y + 3 });
+  await pickUp(page, "z", { x: z.x - 4, y: LINE_Y + 3 });
+  await expect(guide(page, "line")).toHaveAttribute(
+    "data-snap-label",
+    "On the line",
+  );
+  await expect(readout(page)).toContainText("on the line");
+  await expect(chip(page)).toHaveAttribute("data-line-count", "illegal");
+  await expect(chip(page)).toContainText("8 on the line · 3 backs");
+  await putDown(page);
+  expect((await manAt(page, "z")).y).toBe(LINE_Y);
+  await expect(chip(page)).toHaveAttribute("data-line-faults", "covered");
+  await expect(chip(page)).toContainText(
+    "Y is covered by Z — only the end man on the line can catch a pass",
+  );
+  await expect(status).toHaveText("LINE 8 · BACKS 3");
+  await expect(status).toHaveAttribute("data-line-status", "illegal");
+  await page
+    .locator(".field-wrap")
+    .screenshot({ path: testInfo.outputPath("covered-receiver.png") });
+
+  // Z a step off the line again: Y is the end man, and a legal set at rest
+  // says nothing over the field.
+  const up = await manAt(page, "z");
+  await pickUp(page, "z", { x: up.x, y: OFF_THE_LINE_Y + 3 });
   await expect(guide(page, "line")).toHaveAttribute(
     "data-snap-label",
     "Off the line",
@@ -143,7 +172,6 @@ test("counts the line as receivers come off it and calls a fifth back illegal", 
   await putDown(page);
   expect((await manAt(page, "z")).y).toBe(OFF_THE_LINE_Y);
   await expect(status).toHaveText("LINE 7 · BACKS 4");
-  // A legal set at rest says nothing over the field.
   await expect(chip(page)).toHaveCount(0);
 
   // X off too, level with Z: five backs is an illegal formation, and it
@@ -157,6 +185,10 @@ test("counts the line as receivers come off it and calls a fifth back illegal", 
   await putDown(page);
   expect((await manAt(page, "x")).y).toBe(OFF_THE_LINE_Y);
   await expect(chip(page)).toHaveAttribute("data-line-count", "illegal");
+  await expect(chip(page)).toHaveAttribute(
+    "data-line-faults",
+    "too-many-backs",
+  );
   await expect(chip(page)).toContainText("6 on the line · 5 backs");
   await expect(chip(page)).toContainText(
     "Illegal formation — needs 7 on the line",

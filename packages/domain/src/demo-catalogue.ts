@@ -134,7 +134,7 @@ const toolsSteps: readonly DemoStep[] = [
       [281, 486],
       [492, 560],
       [632, 452],
-      [886, 452],
+      [886, 460],
     ],
     "Player",
     [
@@ -226,7 +226,7 @@ const toolsSteps: readonly DemoStep[] = [
     1500,
     ["rz", "l10"],
     [
-      [886, 452],
+      [886, 460],
       [886, 296],
     ],
     "Player · Routes & alternates",
@@ -292,8 +292,8 @@ const quickPlay = playFrom("demo-quick", "Quick Routes — Four Verts", "Pass", 
     player("q", 500, 504, "Q"),
     player("f", 556, 504, "F"),
     player("x", 130, 452, "X"),
-    player("h", 262, 452, "H"),
-    player("y", 738, 452, "Y"),
+    player("h", 262, 460, "H"),
+    player("y", 738, 460, "Y"),
     player("z", 870, 452, "Z"),
   ]),
   routes: [
@@ -302,12 +302,12 @@ const quickPlay = playFrom("demo-quick", "Quick Routes — Four Verts", "Pass", 
       [130, 284],
     ]),
     route("rh", "h", [
-      [262, 452],
+      [262, 460],
       [262, 414],
       [372, 318],
     ]),
     route("ry", "y", [
-      [738, 452],
+      [738, 460],
       [738, 316],
       [712, 342],
     ]),
@@ -362,7 +362,7 @@ const quickSteps: readonly DemoStep[] = [
     "V · click",
     1200,
     ["rh"],
-    [[262, 452]],
+    [[262, 460]],
     "Player · Quick routes",
     [
       ["a", "Slant — three steps, then in"],
@@ -378,7 +378,7 @@ const quickSteps: readonly DemoStep[] = [
     1500,
     ["ry", "rz"],
     [
-      [738, 452],
+      [738, 460],
       [870, 452],
     ],
     "Player · Quick routes",
@@ -412,7 +412,7 @@ const blockPlay = playFrom("demo-block", "Outside Zone — Pull", "Run", {
     player("f", 556, 504, "F"),
     player("x", 130, 452, "X"),
     player("y", 700, 450, "Y"),
-    player("z", 870, 452, "Z"),
+    player("z", 870, 460, "Z"),
     // The front he blocks is the defense's, drawn as the Play's shadow.
     player("dt", 452, 404, "T", { symbol: "triangle", side: "def" }),
     player("dn", 548, 404, "N", { symbol: "triangle", side: "def" }),
@@ -725,8 +725,8 @@ const defender = { symbol: "triangle" };
 const offense = offensiveLine("g", { side: "off" }).concat([
   player("oq", 500, 504, "Q", gray),
   player("ox", 130, 452, "X", gray),
-  player("oh", 262, 452, "H", gray),
-  player("oy", 738, 452, "Y", gray),
+  player("oh", 262, 460, "H", gray),
+  player("oy", 738, 460, "Y", gray),
   player("oz", 870, 452, "Z", gray),
 ]);
 const front = [

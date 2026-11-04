@@ -143,17 +143,24 @@ describe("flipping the strength", () => {
 
 describe("lining men up with one another", () => {
   // The quarterback and the back stand deep; the X stands on the line. Three
-  // men at three depths, so lining them up has to move somebody.
+  // men at three depths, so lining them up has to move somebody. The H is
+  // left off the field: the shipped set stands him and Y a step off the line
+  // (ADR 0081), so with him drawn, X joining the backs would be a fifth and
+  // the rearrangement would be refused rather than made.
   const ids = ["man_5", "man_6", "man_7"];
+  const tenMen = {
+    ...play,
+    players: play.players.filter(({ id }) => id !== "man_9"),
+  };
 
   it("puts them all at the depth between them, and takes their lines with them", () => {
-    const before = ids.map((id) => at(play, id).position.depthYards);
+    const before = ids.map((id) => at(tenMen, id).position.depthYards);
     const mean = before.reduce((total, value) => total + value, 0) / 3;
     expect(
       new Set(before.map((value) => value.toFixed(6))).size,
     ).toBeGreaterThan(1);
 
-    const aligned = run(play, alignPlayersCommand(play, ids, "depth"));
+    const aligned = run(tenMen, alignPlayersCommand(tenMen, ids, "depth"));
     const depths = ids.map(
       (id) =>
         aligned.players.find((player) => player.id === id)!.position.depthYards,
@@ -164,21 +171,21 @@ describe("lining men up with one another", () => {
     // His route moved with him, exactly as far.
     const moved =
       at(aligned, "man_7").position.depthYards -
-      at(play, "man_7").position.depthYards;
+      at(tenMen, "man_7").position.depthYards;
     expect(aligned.paths[0]!.points[1]!.depthYards).toBeCloseTo(
-      play.paths[0]!.points[1]!.depthYards + moved,
+      tenMen.paths[0]!.points[1]!.depthYards + moved,
       9,
     );
     expect(aligned.paths[0]!.branches[0]!.points[0]!.depthYards).toBeCloseTo(
-      play.paths[0]!.branches[0]!.points[0]!.depthYards + moved,
+      tenMen.paths[0]!.branches[0]!.points[0]!.depthYards + moved,
       9,
     );
   });
 
   it("spreads them evenly between the two widest, who do not move", () => {
-    const spread = run(play, alignPlayersCommand(play, ids, "splits"));
+    const spread = run(tenMen, alignPlayersCommand(tenMen, ids, "splits"));
     const before = ids
-      .map((id) => at(play, id).position.lateralYards)
+      .map((id) => at(tenMen, id).position.lateralYards)
       .sort((left, right) => left - right);
     const after = ids
       .map((id) => at(spread, id).position.lateralYards)
@@ -189,11 +196,11 @@ describe("lining men up with one another", () => {
   });
 
   it("needs two men to line up with each other", () => {
-    expect(alignPlayersCommand(play, ["man_7"], "depth")).toBeUndefined();
+    expect(alignPlayersCommand(tenMen, ["man_7"], "depth")).toBeUndefined();
     // Evening the splits between one man is a division by no gaps at all,
     // which is why this is turned away rather than attempted.
-    expect(alignPlayersCommand(play, ["man_7"], "splits")).toBeUndefined();
-    expect(alignPlayersCommand(play, [], "splits")).toBeUndefined();
+    expect(alignPlayersCommand(tenMen, ["man_7"], "splits")).toBeUndefined();
+    expect(alignPlayersCommand(tenMen, [], "splits")).toBeUndefined();
   });
 });
 
