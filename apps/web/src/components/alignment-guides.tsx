@@ -1,16 +1,10 @@
-import {
-  MAX_BACKS,
-  MIN_ON_THE_LINE,
-  PLAYERS_PER_SIDE,
-  type PlayDocument,
-  type ScrimmageLine,
-} from "@chalk/domain";
+import { type PlayDocument, type ScrimmageLine } from "@chalk/domain";
 import type { AxisSnapGuide, FieldInteractionModel } from "@chalk/editor";
 import { projectCoordinate, type SvgProjection } from "@chalk/render";
 import { useSyncExternalStore } from "react";
 
 import { SELECTION_BLUE } from "./field-marks";
-import { liveScrimmageLine } from "./line-count";
+import { lineFaultWords, liveScrimmageLine } from "./line-count";
 
 /**
  * What a drag lines a man up with, drawn the way a design tool draws it
@@ -222,7 +216,7 @@ export function SnapGuideMark({
 }
 
 const RULE =
-  "No level — NFL, college or high school — allows more than four backs; with eleven on offense that is at least seven on the line. A man is on the line when he stands level with the snapper.";
+  "No level — NFL, college or high school — allows more than four backs; with eleven on offense that is at least seven on the line. A man is on the line when he stands level with the snapper. Only the man at each end of the line and the backs can catch a pass: a receiver on the line inside another man on it is covered.";
 
 function countWords(line: ScrimmageLine): string {
   const backs = line.backs.length;
@@ -232,8 +226,10 @@ function countWords(line: ScrimmageLine): string {
 /**
  * How many of the offense are on the line. It shows while a man of the
  * offense is being moved, so the Coach sees a receiver come off the line as
- * he drags him, and stays while the formation is illegal. A legal set at rest
- * says nothing over the field; the status bar carries its count.
+ * he drags him, and stays while the formation is illegal — a fifth back, a
+ * twelfth man, a man over the ball, a covered receiver — with each fault on
+ * its own line (ADR 0081). A legal set at rest says nothing over the field;
+ * the status bar carries its count.
  */
 export function LineCountChip({
   document,
@@ -270,17 +266,14 @@ export function LineCountChip({
     <div
       className="line-count"
       data-line-count={line.legal ? "legal" : "illegal"}
+      data-line-faults={line.faults.map(({ kind }) => kind).join(" ")}
       role="status"
       title={RULE}
     >
       <strong>{countWords(line)}</strong>
-      {line.legal ? null : (
-        <span>
-          {line.offenseCount === PLAYERS_PER_SIDE
-            ? `Illegal formation — needs ${MIN_ON_THE_LINE} on the line`
-            : `Illegal formation — no more than ${MAX_BACKS} backs`}
-        </span>
-      )}
+      {lineFaultWords(line, document.players).map((words) => (
+        <span key={words}>{words}</span>
+      ))}
     </div>
   );
 }

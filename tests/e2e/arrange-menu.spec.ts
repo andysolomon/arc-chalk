@@ -151,12 +151,13 @@ test("Arrange looks like a menu and only offers legal rearrangements", async ({
   await expect(alignDepth).toHaveAccessibleDescription("Needs 7 on the line");
   await expect(page.locator('[data-line-status="illegal"]')).toHaveCount(0);
 
-  // X, Y and Z spaced evenly is legal: only Y moves, to the middle.
+  // X, Y and Z at one depth would bring X and Y off the line with Z, for
+  // six backs; spaced evenly is legal: only Y moves, to the middle.
   const before = await savedPlay(page);
   await selectPlayers(page, ["x", "y", "z"]);
   await arrange.click();
   await expect(alignDepth).toBeDisabled();
-  await expect(alignDepth).toHaveAccessibleDescription("Already level");
+  await expect(alignDepth).toHaveAccessibleDescription("Needs 7 on the line");
   await spaceEvenly.click();
   await expect(menu).toBeHidden();
   await expect

@@ -2806,9 +2806,9 @@ export function alignPlayersCommand(
 const OVERLAP_PIXELS = 26;
 
 /**
- * What a rearrangement may not do to a formation (ADR 0073): leave more than
- * four backs, carry a man across the line of scrimmage, or stand one man on
- * another. Only a fault the rearrangement brings about counts — a scout look
+ * What a rearrangement may not do to a formation (ADR 0073, ADR 0081): leave
+ * more than four backs, carry a man across the line of scrimmage, stand one
+ * man on another, or cover a receiver. Only a fault the rearrangement brings about counts — a scout look
  * already drawn wrong is the Coach's to keep, and a drag may still stand any
  * formation he likes — so the men before are read against the men after,
  * and the first fault found is named.
@@ -2849,7 +2849,6 @@ export function arrangementFault(
       ? `Needs ${MIN_ON_THE_LINE} on the line`
       : `No more than ${MAX_BACKS} backs`;
   }
-
   const overlapping = (left: Player, right: Player) => {
     const a = yardsToLegacyCanvas(left.position);
     const b = yardsToLegacyCanvas(right.position);
@@ -2862,6 +2861,17 @@ export function arrangementFault(
       const oldRight = was.get(right.id);
       if (oldLeft && oldRight && overlapping(oldLeft, oldRight)) continue;
       return sentence(`${name(left)} and ${name(right)} would overlap`);
+    }
+  }
+
+  // A receiver brought level with the man outside him is covered (ADR 0081).
+  const coveredBefore = new Set(prior?.covered.map(({ id }) => id));
+  const newlyCovered = line?.covered.find(({ id }) => !coveredBefore.has(id));
+  if (newlyCovered) {
+    const man = after.find(({ id }) => id === newlyCovered.id);
+    const end = after.find(({ id }) => id === newlyCovered.byId);
+    if (man && end) {
+      return sentence(`${name(man)} would be covered by ${name(end)}`);
     }
   }
   return undefined;

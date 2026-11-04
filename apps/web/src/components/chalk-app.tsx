@@ -342,7 +342,7 @@ import {
 import { FieldMinimap } from "./field-minimap";
 import { LineHeading, MotionInspector } from "./motion-inspector";
 import { LineCountChip, SnapGuideMark } from "./alignment-guides";
-import { lineStatusWords } from "./line-count";
+import { lineFaultWords, lineStatusWords } from "./line-count";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { FieldDiagram } from "./field-diagram";
 import { SELECTION_BLUE, sceneColors, selectionKey } from "./field-marks";
@@ -9012,7 +9012,12 @@ export function ChalkApp({
             <span
               className={`status-line${lineCount?.legal === false ? " illegal" : ""}`}
               data-line-status={lineCount?.legal ? "legal" : "illegal"}
-              title="Men on the line of scrimmage and in the backfield — no more than four backs"
+              title={[
+                "Men on the line of scrimmage and in the backfield — no more than four backs, and only the end man on the line can catch a pass",
+                ...(lineCount
+                  ? lineFaultWords(lineCount, editor.document.players)
+                  : []),
+              ].join("\n")}
             >
               {lineStatus}
             </span>

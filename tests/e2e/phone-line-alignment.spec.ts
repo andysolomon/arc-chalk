@@ -3,13 +3,14 @@ import { type Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 
 /**
- * Lining a formation up on a phone (ADR 0073). Zoomed out to fit a phone,
- * eight pixels is nearly two yards of depth, so a line that pulled from that
- * far would drag every receiver back onto it: a finger has to be able to put
- * Z a step off the line and have him stay there. Taking X off too leaves five
- * backs, and the call that the formation is illegal has to be on the glass,
- * clear of the assignments sheet, until X goes back on. The phone with the
- * call showing is the run's artifact.
+ * Lining a formation up on a phone (ADR 0073, ADR 0081). Zoomed out to fit
+ * a phone, eight pixels is nearly two yards of depth, so a line that pulled
+ * from that far would drag every receiver back onto it: a finger has to be
+ * able to put Z up on the line — where he covers Y, and the call says so —
+ * and back a step off it, and have him stay there. Taking X off too leaves
+ * five backs, and the call that the formation is illegal has to be on the
+ * glass, clear of the assignments sheet, until X goes back on. The phone
+ * with the call showing is the run's artifact.
  */
 
 const VIEWPORTS = [
@@ -94,8 +95,9 @@ async function fingerCarry(
       { type, at, under },
     );
   await send("pointerdown", from, true);
-  await settledField(page);
-  const end = await onGlass(page, to);
+  // Off the spot at once: a finger that rests on a man for half a second is
+  // a long press and opens his menu, and under load the field can take that
+  // long to settle.
   const clear = { x: from.x, y: from.y + 40 };
   for (let step = 1; step <= 4; step += 1) {
     await send(
@@ -104,6 +106,8 @@ async function fingerCarry(
       false,
     );
   }
+  await settledField(page);
+  const end = await onGlass(page, to);
   for (let step = 1; step <= 4; step += 1) {
     await send(
       "pointermove",
@@ -126,7 +130,7 @@ for (const viewport of VIEWPORTS) {
       deviceScaleFactor: 2,
     });
 
-    test("puts a receiver a step off the line and calls a fifth back illegal", async ({
+    test("calls a covered receiver and a fifth back on the glass", async ({
       page,
     }, testInfo) => {
       await page.goto("/");
@@ -137,8 +141,14 @@ for (const viewport of VIEWPORTS) {
       const chip = page.locator("[data-line-count]");
       await expect(chip).toHaveCount(0);
 
+      // Z up on the line covers Y; a step back off it clears the call.
       const z = await manAt(page, "z");
-      await fingerCarry(page, "z", { x: z.x, y: OFF_THE_LINE_Y + 3 });
+      await fingerCarry(page, "z", { x: z.x, y: LINE_Y + 2 });
+      expect((await manAt(page, "z")).y).toBe(LINE_Y);
+      await expect(chip).toHaveAttribute("data-line-faults", "covered");
+      await expect(chip).toContainText("Y is covered by Z");
+      const up = await manAt(page, "z");
+      await fingerCarry(page, "z", { x: up.x, y: OFF_THE_LINE_Y + 3 });
       expect((await manAt(page, "z")).y).toBe(OFF_THE_LINE_Y);
       await expect(chip).toHaveCount(0);
 
