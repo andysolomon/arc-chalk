@@ -4,8 +4,9 @@ import { expect, openSeededEditor, test } from "./fixtures";
 
 /**
  * Select and Hand on a phone (ADR 0079). The tool row under the field is
- * full, so the pair floats over the field's lower left, clear of the sheet's
- * peek and the map. The field opens on Select, and one finger dragged across
+ * full, so the pair floats just under the field's lower left, clear of the
+ * field itself, the sheet's peek and the map — at the full glass and at the
+ * height Safari leaves once its bars are drawn. The field opens on Select, and one finger dragged across
  * open grass draws a box that picks up every man in it — the only way a
  * phone has to pick several at once. Hand turns the same finger into the
  * field's: it moves the view from anywhere, a man included, and leaves the
@@ -18,6 +19,9 @@ const VIEWPORTS = [
   { name: "360", width: 360, height: 780 },
   { name: "390", width: 390, height: 844 },
   { name: "430", width: 430, height: 932 },
+  // Safari's status and address bars take their share of a 390 px iPhone's
+  // height, which shrinks the letterbox under the field.
+  { name: "390-safari", width: 390, height: 664 },
 ] as const;
 
 const field = (page: Page) => page.locator("svg.field-diagram").first();
@@ -141,14 +145,16 @@ for (const viewport of VIEWPORTS) {
         .getByRole("button", { name: "Delete selection — ⌫" })
         .boundingBox())!;
       expect(trash.x + trash.width).toBeLessThanOrEqual(viewport.width);
-      // Each is a finger's 44 px, on the glass, above the sheet's peek and
-      // clear of the map in the other corner.
+      // Each is a finger's 44 px, on the glass, under the field and above
+      // the sheet's peek, and clear of the map in the other corner.
       const peek = (await page.locator('[data-sheet="peek"]').boundingBox())!;
+      const drawn = (await field(page).boundingBox())!;
       for (const button of [select, hand]) {
         const box = (await button.boundingBox())!;
         expect(box.height).toBeGreaterThanOrEqual(44);
         expect(box.width).toBeGreaterThanOrEqual(44);
         expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.y).toBeGreaterThanOrEqual(drawn.y + drawn.height);
         expect(box.y + box.height).toBeLessThanOrEqual(peek.y);
       }
       const pill = (await pointer.boundingBox())!;
