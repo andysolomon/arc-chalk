@@ -4,8 +4,9 @@ import { expect, openBlankEditor, test } from "./fixtures";
  * The Arrange menu on a phone (ADR 0073). With all eleven of Gun Doubles
  * picked, it opens as the header's menus do — a panel of quiet rows a finger
  * wide, on the glass — and Align depth is greyed with the reason, since one
- * depth for all eleven would stand men on one another. Space evenly is legal
- * and leaves the formation legal. The phone with the menu open is the run's
+ * depth for all eleven would stand men on one another, and Space evenly is
+ * greyed too, since spreading eleven between the widest two would scatter the
+ * line: it keeps its splits. The phone with the menu open is the run's
  * artifact.
  */
 test.use({ viewport: { width: 390, height: 844 } });
@@ -55,23 +56,16 @@ test("a phone's Arrange menu fits the app and refuses an illegal set", async ({
   await expect(alignDepth).toBeDisabled();
   await expect(alignDepth).toHaveAccessibleDescription(/ would overlap$/);
   await expect(menu.getByText(/ would overlap$/)).toBeVisible();
+  const spaceEvenly = menu.getByRole("button", {
+    name: "Space evenly",
+    exact: true,
+  });
+  await expect(spaceEvenly).toBeDisabled();
+  await expect(spaceEvenly).toHaveAccessibleDescription(
+    "The line keeps its splits",
+  );
+  await expect(menu.getByText("The line keeps its splits")).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("phone-arrange-menu.png"),
   });
-
-  const before = await men.evaluateAll((nodes) =>
-    nodes.map((node) => node.getAttribute("transform")),
-  );
-  await menu.getByRole("button", { name: "Space evenly", exact: true }).tap();
-  await expect(menu).toBeHidden();
-  await expect
-    .poll(() =>
-      men.evaluateAll((nodes) =>
-        nodes.map((node) => node.getAttribute("transform")),
-      ),
-    )
-    .not.toEqual(before);
-  await expect(
-    page.locator('.line-count[data-line-count="illegal"]'),
-  ).toHaveCount(0);
 });

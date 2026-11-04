@@ -7,8 +7,10 @@ import { expect, test } from "./fixtures";
  * header's menus are, and it never leaves a formation the rules forbid. Lining
  * X, Y, Z and F up at the depth between them would put six backs behind the
  * line, so Align depth is greyed and says why; lining up all eleven would
- * stand the quarterback on the centre. Spacing X, Y and Z evenly is legal and
- * moves only Y. The menu open on the illegal pick is the run's artifact.
+ * stand the quarterback on the centre, and spacing all eleven evenly would
+ * scatter the line between X and Z, so the line keeps its splits and is
+ * spaced only on its own. Spacing X, Y and Z evenly is legal and moves only
+ * Y. The menu open on the whole-team pick is the run's artifact.
  */
 test.use({ viewport: { width: 1440, height: 960 } });
 
@@ -102,9 +104,45 @@ test("Arrange looks like a menu and only offers legal rearrangements", async ({
   });
   await expect(alignDepth).toBeDisabled();
   await expect(alignDepth).toHaveAccessibleDescription("C and Q would overlap");
+  // Space evenly would spread the line between X and Z: refused, with why.
+  const spaceEvenly = menu.getByRole("button", {
+    name: "Space evenly",
+    exact: true,
+  });
+  await expect(spaceEvenly).toBeDisabled();
+  await expect(spaceEvenly).toHaveAccessibleDescription(
+    "The line keeps its splits",
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("arrange-menu-illegal.png"),
+  });
   // Escape folds it away again.
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
+
+  // The line on its own is still spaced: RG nudged half a yard wide is
+  // brought back to an even split, and nobody else moves.
+  await selectPlayers(page, ["ol3"]);
+  await page.keyboard.press("ArrowRight");
+  const uneven = await savedPlay(page);
+  await expect
+    .poll(async () => lateral(await savedPlay(page), "ol3"))
+    .toBeGreaterThan(lateral(uneven, "ol2") + 0.01);
+  await selectPlayers(page, ["ol0", "ol1", "ol2", "ol3", "ol4"]);
+  await arrange.click();
+  await expect(spaceEvenly).toBeEnabled();
+  await spaceEvenly.click();
+  await expect(menu).toBeHidden();
+  await expect
+    .poll(async () => {
+      const play = await savedPlay(page);
+      return lateral(play, "ol3") - lateral(play, "ol2");
+    })
+    .toBeCloseTo(lateral(uneven, "ol2") - lateral(uneven, "ol1"), 6);
+  const spaced = await savedPlay(page);
+  for (const id of ["ol0", "ol4", "q", "x", "y", "z"]) {
+    expect(lateral(spaced, id), id).toBeCloseTo(lateral(uneven, id), 6);
+  }
 
   // X, Y, Z and F at one depth leave six backs.
   await selectPlayers(page, ["x", "y", "z", "f"]);
@@ -112,9 +150,6 @@ test("Arrange looks like a menu and only offers legal rearrangements", async ({
   await expect(alignDepth).toBeDisabled();
   await expect(alignDepth).toHaveAccessibleDescription("Needs 7 on the line");
   await expect(page.locator('[data-line-status="illegal"]')).toHaveCount(0);
-  await page.screenshot({
-    path: testInfo.outputPath("arrange-menu-illegal.png"),
-  });
 
   // X, Y and Z spaced evenly is legal: only Y moves, to the middle.
   const before = await savedPlay(page);
@@ -122,7 +157,7 @@ test("Arrange looks like a menu and only offers legal rearrangements", async ({
   await arrange.click();
   await expect(alignDepth).toBeDisabled();
   await expect(alignDepth).toHaveAccessibleDescription("Already level");
-  await menu.getByRole("button", { name: "Space evenly", exact: true }).click();
+  await spaceEvenly.click();
   await expect(menu).toBeHidden();
   await expect
     .poll(async () => {
