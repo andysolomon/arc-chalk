@@ -8,6 +8,13 @@ import type { Formation, FormationSlot, PlayerSymbol } from "./schema";
  * strong to the right; each one's left-handed twin is derived from it rather
  * than written out again, because a Coach who tightens one expects the other
  * to be the same set the other way.
+ *
+ * The original stood every receiver level with the line at 452, which
+ * covered its slots and tight ends (ADR 0081). Each set now keeps the end
+ * man of each side on the line and stands the men inside him a yard under
+ * it, at 460, so every shipped set is seven on the line and four backs with
+ * its receivers eligible: the outside receivers in the gun sets, the tight
+ * end and the split end in the I, both tight ends in Ace, the point in Bunch.
  */
 
 interface LegacySlot {
@@ -60,8 +67,8 @@ const rightHandedSets: readonly LegacyFormation[] = [
       shotgunQb,
       man(556, 504, "F", "RB"),
       man(130, 452, "X", "X"),
-      man(262, 452, "H", "H"),
-      man(738, 452, "Y", "TE"),
+      man(262, 460, "H", "H"),
+      man(738, 460, "Y", "TE"),
       man(870, 452, "Z", "Z"),
     ],
   },
@@ -75,8 +82,8 @@ const rightHandedSets: readonly LegacyFormation[] = [
       shotgunQb,
       man(444, 504, "F", "RB"),
       man(130, 452, "X", "X"),
-      man(654, 452, "Y", "TE"),
-      man(756, 452, "H", "H"),
+      man(654, 460, "Y", "TE"),
+      man(756, 460, "H", "H"),
       man(872, 452, "Z", "Z"),
     ],
   },
@@ -92,7 +99,7 @@ const rightHandedSets: readonly LegacyFormation[] = [
       man(130, 452, "X", "X"),
       man(700, 446, "Y", "TE"),
       man(736, 468, "H", "H"),
-      man(772, 446, "Z", "Z"),
+      man(772, 460, "Z", "Z"),
     ],
   },
   {
@@ -104,9 +111,9 @@ const rightHandedSets: readonly LegacyFormation[] = [
     slots: [
       shotgunQb,
       man(110, 452, "X", "X"),
-      man(228, 452, "F", "RB"),
-      man(660, 452, "Y", "TE"),
-      man(762, 452, "H", "H"),
+      man(228, 460, "F", "RB"),
+      man(660, 460, "Y", "TE"),
+      man(762, 460, "H", "H"),
       man(878, 452, "Z", "Z"),
     ],
   },
@@ -121,7 +128,7 @@ const rightHandedSets: readonly LegacyFormation[] = [
       man(500, 526, "F", "RB"),
       man(500, 566, "H", "H"),
       man(130, 452, "X", "X"),
-      man(870, 452, "Z", "Z"),
+      man(870, 460, "Z", "Z"),
       man(618, 450, "Y", "TE"),
     ],
   },
@@ -135,8 +142,8 @@ const rightHandedSets: readonly LegacyFormation[] = [
       shotgunQb,
       man(556, 504, "F", "RB"),
       man(120, 452, "X", "X"),
-      man(258, 452, "H", "H"),
-      man(742, 452, "A", "H"),
+      man(258, 460, "H", "H"),
+      man(742, 460, "A", "H"),
       man(880, 452, "Z", "Z"),
     ],
   },
@@ -149,10 +156,10 @@ const rightHandedSets: readonly LegacyFormation[] = [
     slots: [
       shotgunQb,
       man(556, 504, "F", "RB"),
-      man(130, 452, "X", "X"),
+      man(130, 460, "X", "X"),
       man(392, 450, "U", "TE"),
       man(608, 450, "Y", "TE"),
-      man(870, 452, "Z", "Z"),
+      man(870, 460, "Z", "Z"),
     ],
   },
   {
@@ -166,7 +173,7 @@ const rightHandedSets: readonly LegacyFormation[] = [
       man(500, 540, "F", "RB"),
       man(576, 506, "H", "H"),
       man(130, 452, "X", "X"),
-      man(870, 452, "Z", "Z"),
+      man(870, 460, "Z", "Z"),
       man(618, 450, "Y", "TE"),
     ],
   },
@@ -180,8 +187,8 @@ const rightHandedSets: readonly LegacyFormation[] = [
       man(500, 492, "Q", "QB"),
       man(500, 548, "F", "RB"),
       man(130, 452, "X", "X"),
-      man(654, 452, "Y", "TE"),
-      man(756, 452, "H", "H"),
+      man(654, 460, "Y", "TE"),
+      man(756, 460, "H", "H"),
       man(872, 452, "Z", "Z"),
     ],
   },

@@ -28,6 +28,18 @@ export const PULL_CALLS: ReadonlySet<string> = new Set([
   "trap",
 ]);
 
+/** The screen route: wherever he stands, the ball is going where it goes. */
+const SCREEN_ROUTE = "screen";
+
+/**
+ * Blocks drawn to the play side: the pulls, and a screen release, which
+ * runs out to the side the screen is thrown (ADR 0081).
+ */
+const PLAY_SIDE_BLOCKS: ReadonlySet<string> = new Set([
+  ...PULL_CALLS,
+  "screenrelease",
+]);
+
 /** A line that moves less than this across the field says nothing about a side. */
 const SIDE_SIGNAL_YARDS = 1;
 
@@ -84,8 +96,10 @@ export function snapSpotOf(play: PlayDocument, playerId: string): Coordinate {
  * Which way the run is going, read in the order a coach would read the
  * diagram: the down blocks first — the play side blocks down, away from the
  * hole — then the ball carrier's path, then any other man already pulling,
- * then the strength of the set. The man being given a call is left out, so
- * his own old pull does not decide his new one. Nothing to read is no side.
+ * then the strength of the set. A screen is where the ball is going too, so
+ * a receiver's screen route counts as the carrier's path though he stands
+ * on the line (ADR 0081). The man being given a call is left out, so his
+ * own old pull does not decide his new one. Nothing to read is no side.
  */
 export function playSideOf(
   play: PlayDocument,
@@ -120,13 +134,17 @@ export function playSideOf(
     if (path.kind !== "route" || !player || carried.has(player.id))
       return total;
     if (isLineman(player) || isQuarterback(player)) return total;
+    // His base stem is the run; alternates are other calls he could run.
+    carried.add(player.id);
     const inMotion = play.paths.some(
       (line) => line.playerId === player.id && line.kind === "motion",
     );
-    if (!inMotion && player.position.depthYards > BACKFIELD_DEPTH_YARDS)
+    if (
+      path.preset !== SCREEN_ROUTE &&
+      !inMotion &&
+      player.position.depthYards > BACKFIELD_DEPTH_YARDS
+    )
       return total;
-    // His base stem is the run; alternates are other calls he could run.
-    carried.add(player.id);
     const across = netLateral(path);
     return Math.abs(across) < SIDE_SIGNAL_YARDS
       ? total
@@ -136,7 +154,11 @@ export function playSideOf(
   if (byCarrier) return byCarrier;
 
   const pulls = play.paths.reduce((total, path) => {
-    if (path.kind !== "block" || !path.preset || !PULL_CALLS.has(path.preset))
+    if (
+      path.kind !== "block" ||
+      !path.preset ||
+      !PLAY_SIDE_BLOCKS.has(path.preset)
+    )
       return total;
     return offense(path) ? total + moved(path) : total;
   }, 0);

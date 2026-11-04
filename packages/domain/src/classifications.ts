@@ -159,6 +159,11 @@ const LINE_LETTERS: ReadonlySet<string> = new Set([
   "RT",
 ]);
 
+/** Whether this letter names a spot on the offensive line: LT, LG, C, RG, RT. */
+export function isLineLetter(label: string): boolean {
+  return LINE_LETTERS.has(label.trim().toUpperCase());
+}
+
 /**
  * Who is on the line. The original reads this off where a man stands rather
  * than off a role he was given — an offensive player with no letter on him,

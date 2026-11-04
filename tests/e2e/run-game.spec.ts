@@ -19,7 +19,7 @@ const SPOT = {
   rt: { x: 572, y: 448 },
   f: { x: 500, y: 526 },
   y: { x: 618, y: 450 },
-  z: { x: 870, y: 452 },
+  z: { x: 870, y: 460 },
 } as const;
 const LOS_Y = 430;
 

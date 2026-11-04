@@ -629,7 +629,7 @@ test("edits a route through its handles", async ({ page }) => {
     .locator('[data-scene-path="rz"]')
     .getAttribute("d"))!;
 
-  // Z's stem runs straight downfield at x 886, from y 452 up to 296.
+  // Z's stem runs straight downfield at x 886, from y 460 up to 296.
   const zStem = await fieldPoint(page, 886, 374);
   await page.mouse.click(zStem.x, zStem.y);
   await expect(page.locator("[data-node-handle]")).toHaveCount(2);
@@ -1389,7 +1389,9 @@ test("keeps eleven on when a set wants a man the side has no room for", async ({
   await browser.getByText("Gun Spread Right", { exact: true }).click();
 
   await expect(page.locator("[data-scene-player]")).toHaveCount(11);
-  const toast = page.getByRole("status");
+  // Y left on the line inside Z is covered, and the count on the line says
+  // so beside the toast (ADR 0081); the toast is the one being read here.
+  const toast = page.locator(".toast");
   await expect(toast).toContainText("Gun Spread Right");
   await expect(toast).toContainText("left in place");
   await expect(toast).not.toContainText("added");

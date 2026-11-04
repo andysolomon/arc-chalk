@@ -140,6 +140,9 @@ import {
   applyFrontCallCommand,
   applyLinebackerCallCommand,
   applyLinePresetCommand,
+  applyScreenLineCommand,
+  SCREEN_LINE_CALL,
+  screenLineIsOn,
   coverReceiverCommand,
   flipStrengthCommand,
   groupSelectionCommand,
@@ -339,7 +342,7 @@ import {
 import { FieldMinimap } from "./field-minimap";
 import { LineHeading, MotionInspector } from "./motion-inspector";
 import { LineCountChip, SnapGuideMark } from "./alignment-guides";
-import { lineStatusWords } from "./line-count";
+import { lineFaultWords, lineStatusWords } from "./line-count";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { FieldDiagram } from "./field-diagram";
 import { SELECTION_BLUE, sceneColors, selectionKey } from "./field-marks";
@@ -5146,14 +5149,15 @@ export function ChalkApp({
   };
 
   /**
-   * The six calls the original puts on the whole line at once. As with the
-   * concepts, a call with no line to give it to is no command at all, which
-   * is what greys the button.
+   * The six calls the original puts on the whole line at once, and the
+   * screen (ADR 0081), which gives the play side one job and the backside
+   * another. As with the concepts, a call with no line to give it to is no
+   * command at all, which is what greys the button.
    */
   const linemen = useMemo(() => linemenOf(editor.document), [editor.document]);
   const lineCallCommands = useMemo(
-    () =>
-      lineCallKeys.map((key) => {
+    () => [
+      ...lineCallKeys.map((key) => {
         const preset = linePresetByKey(key)!;
         const playerIds = linemen.map((player) => player.id);
         return {
@@ -5170,16 +5174,27 @@ export function ChalkApp({
           ),
         };
       }),
+      {
+        key: SCREEN_LINE_CALL,
+        name: "Screen",
+        hint: "The play-side tackle and guard and the centre set, then release to block in front of the screen; the backside pair stay in and pass set. The screen side is the side the screen route goes.",
+        on: screenLineIsOn(editor.document),
+        command: applyScreenLineCommand(editor.document, createStableId),
+      },
+    ],
     [editor.document, linemen],
   );
   const runLineCall = (key: string): void => {
     const document = editorStore.getSnapshot().document;
-    const command = applyLinePresetCommand(
-      document,
-      linemenOf(document).map((player) => player.id),
-      key,
-      createStableId,
-    );
+    const command =
+      key === SCREEN_LINE_CALL
+        ? applyScreenLineCommand(document, createStableId)
+        : applyLinePresetCommand(
+            document,
+            linemenOf(document).map((player) => player.id),
+            key,
+            createStableId,
+          );
     // The selection is left where it was: picking the line would swap in
     // another panel and unmount the very buttons just pressed.
     if (command) runPanelCommand(command, {});
@@ -6495,10 +6510,11 @@ export function ChalkApp({
       on,
       available: command !== undefined,
     })),
-    ...lineCallCommands.map(({ key, name, on, command }) => ({
+    ...lineCallCommands.map(({ key, name, on, command, ...rest }) => ({
       key: `line:${key}`,
       name,
       group: "line" as const,
+      ...("hint" in rest ? { hint: rest.hint } : {}),
       on,
       available: command !== undefined,
     })),
@@ -9006,7 +9022,12 @@ export function ChalkApp({
             <span
               className={`status-line${lineCount?.legal === false ? " illegal" : ""}`}
               data-line-status={lineCount?.legal ? "legal" : "illegal"}
-              title="Men on the line of scrimmage and in the backfield — no more than four backs"
+              title={[
+                "Men on the line of scrimmage and in the backfield — no more than four backs, and only the end man on the line can catch a pass",
+                ...(lineCount
+                  ? lineFaultWords(lineCount, editor.document.players)
+                  : []),
+              ].join("\n")}
             >
               {lineStatus}
             </span>
