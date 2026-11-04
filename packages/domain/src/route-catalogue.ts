@@ -61,8 +61,9 @@ interface LegacyPreset {
 }
 
 /**
- * The ten shapes the original offers, plus the wheel, which is the only one
- * of them that bends.
+ * The ten shapes the original offers, the wheel among them the only one that
+ * bends, and the screen (ADR 0081), which bends the other way: back behind
+ * the line and out.
  */
 const legacyRoutePresets: Readonly<Record<string, LegacyPreset>> = {
   go: { name: "Go", points: [[0, 0, -168]] },
@@ -129,6 +130,15 @@ const legacyRoutePresets: Readonly<Record<string, LegacyPreset>> = {
       [108, 0, -190],
     ],
     controls: { 0: [48, 0, -2], 1: [118, 0, -95] },
+  },
+  // A screen is caught behind the line with blockers in front: a step back
+  // and a drift out, four and a half yards wide of where he stood. One shape
+  // serves a receiver's bubble and a back's release to the flat, because
+  // each is measured from his own spot.
+  screen: {
+    name: "Screen",
+    points: [[82, 0, 18]],
+    controls: { 0: [14, 0, 26] },
   },
 };
 
@@ -310,6 +320,22 @@ const legacyBlockPresets: Readonly<Record<string, LegacyLinePreset>> = {
     ticks: [0],
     line: "solid",
     ending: "arrow",
+  },
+  // On a screen he sets as if to pass block, lets his man go, and releases
+  // to the screen side to block out in front of the catch (ADR 0081). The
+  // set is ticked where he leaves it; the release runs to the play side the
+  // way a pull does.
+  screenrelease: {
+    name: "Screen release",
+    points: [
+      [0, 0, 18],
+      [60, 0, 8],
+      [104, 0, -30],
+    ],
+    ticks: [0],
+    line: "dashed",
+    ending: "bar",
+    pull: true,
   },
 };
 

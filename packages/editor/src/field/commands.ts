@@ -40,6 +40,7 @@ import {
   defensiveFieldOf,
   twistPartnerOf,
   mirrorPlayGeometry,
+  offensivePlayers,
   playSideOf,
   recognizeFormation,
   RECOGNITION_THRESHOLD,
@@ -82,6 +83,7 @@ import {
   type PathPoint,
   type Player,
   type PlayerSideOfBall,
+  type PlaySide,
   type PlayCommand,
   type PlayDocument,
   type PrimitivePlayCommand,
@@ -2003,11 +2005,12 @@ function presetShape(
   document: PlayDocument,
   player: Player,
   preset: LinePreset,
+  toward?: PlaySide,
 ): readonly PathPoint[] {
   // A call aimed at the field reads the gaps and the quarterback off it.
   const field = defensiveFieldOf(document);
   if (!preset.pull) return preset.pointsFrom(player.position, field);
-  const side = playSideOf(document, player.id);
+  const side = toward ?? playSideOf(document, player.id);
   if (side === undefined) return preset.pointsFrom(player.position, field);
   const box = tackleBoxOf(document);
   const fromBackfield =
@@ -2026,8 +2029,9 @@ function presetPath(
   player: Player,
   preset: LinePreset,
   id: string,
+  toward?: PlaySide,
 ): MovementPath {
-  const drawn = presetShape(document, player, preset);
+  const drawn = presetShape(document, player, preset, toward);
   return {
     id,
     kind: preset.kind,
@@ -2521,6 +2525,111 @@ export function linemenOf(document: PlayDocument): readonly Player[] {
   return document.players.filter(
     (player) => player.unit !== "defense" && isLineman(player),
   );
+}
+
+/** The whole-line Screen's key in the line calls, beside the catalogue's six. */
+export const SCREEN_LINE_CALL = "screen";
+
+/**
+ * The screen as a line call (ADR 0081): the men on the screen side and the
+ * centre set, then release out in front of the catch; the backside men stay
+ * in and pass set. The screen side is the side the ball is going — the
+ * screen route, else what the Play already says — and the right with nothing
+ * drawn yet.
+ */
+export function screenLineJobs(
+  document: PlayDocument,
+): readonly { readonly player: Player; readonly key: string }[] {
+  const linemen = linemenOf(document);
+  if (linemen.length === 0) return [];
+  const side: PlaySide = playSideOf(document) ?? 1;
+  const ball = ballLateralYards(offensivePlayers(document));
+  const centre = linemen.reduce((best, player) =>
+    Math.abs(player.position.lateralYards - ball) <
+    Math.abs(best.position.lateralYards - ball)
+      ? player
+      : best,
+  );
+  return linemen.map((player) => ({
+    player,
+    key:
+      player.id === centre.id ||
+      (player.position.lateralYards - ball) * side > 0
+        ? "screenrelease"
+        : "passset",
+  }));
+}
+
+/** Whether the line is blocking the screen: every man has the job it gives him. */
+export function screenLineIsOn(document: PlayDocument): boolean {
+  const jobs = screenLineJobs(document);
+  return (
+    jobs.length > 0 &&
+    jobs.every(({ player, key }) =>
+      document.paths.some(
+        (path) =>
+          path.playerId === player.id &&
+          path.kind === "block" &&
+          path.preset === key,
+      ),
+    )
+  );
+}
+
+/**
+ * The screen put on the whole line, or taken off again when it is already
+ * blocking it, the way the catalogue's own line calls go on and come off.
+ * The release runs to the screen side whichever man it is on, so the centre
+ * goes with his play-side guard rather than to his own side of the ball.
+ */
+export function applyScreenLineCommand(
+  document: PlayDocument,
+  createId: (prefix: string) => string,
+): PlayCommand | undefined {
+  const jobs = screenLineJobs(document);
+  if (jobs.length === 0) return undefined;
+  const owners = new Set(jobs.map(({ player }) => player.id));
+  const replaced = document.paths.filter(
+    (path) =>
+      owners.has(path.playerId) &&
+      path.kind === "block" &&
+      path.trigger !== "scramble",
+  );
+  const cleared =
+    replaced.length > 0
+      ? applyPlayCommand(
+          document,
+          deletePathsCommand(
+            document,
+            replaced.map(({ id }) => id),
+          ),
+        )
+      : document;
+  const already = screenLineIsOn(document);
+  const side: PlaySide = playSideOf(document) ?? 1;
+  const called: PlayDocument = already
+    ? cleared
+    : {
+        ...cleared,
+        paths: [
+          ...cleared.paths,
+          ...jobs.map(({ player, key }) =>
+            presetPath(
+              cleared,
+              player,
+              linePresetByKey(key)!,
+              createId("path"),
+              side,
+            ),
+          ),
+        ],
+      };
+  const command = diffPlayDocuments(
+    document,
+    called,
+    already ? "Screen — off" : "Applied Screen",
+  );
+  return command.commands.length > 0 ? command : undefined;
 }
 
 /** Whether every man given is already running this call. */
