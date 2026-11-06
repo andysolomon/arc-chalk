@@ -55,10 +55,40 @@ export async function openBlankEditor(page: Page): Promise<void> {
     }
   });
   await page.goto("/");
-  await expect(page.getByRole("textbox", { name: "Play name" })).toHaveValue(
-    "Untitled play",
-    { timeout: 30_000 },
-  );
+  // A phone names the play in its drawer, not its header, so wait on the
+  // field, which every screen draws.
+  await expect(
+    page.getByRole("img", { name: "Untitled play football play" }),
+  ).toBeVisible({ timeout: 30_000 });
+}
+
+/**
+ * The open Play's name field. A wide header carries it; a phone's header
+ * names only the unit, and the name heads the drawer's This play, so this
+ * opens the drawer when it has to. `closePlayName` puts the drawer away.
+ */
+export async function playNameField(page: Page) {
+  const header = page
+    .getByRole("banner")
+    .getByRole("textbox", { name: "Play name" });
+  if (await header.isVisible()) return header;
+  const sidebar = page.getByRole("navigation", { name: "Sidebar" });
+  if (!(await sidebar.isVisible())) {
+    await page.getByRole("button", { name: "Open the sidebar" }).click();
+  }
+  const field = sidebar.getByRole("textbox", { name: "Play name" });
+  await expect(field).toBeVisible();
+  return field;
+}
+
+/** Puts a phone's drawer away, if `playNameField` opened it. */
+export async function closePlayName(page: Page): Promise<void> {
+  const close = page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: "Close the sidebar" });
+  if (!(await close.isVisible())) return;
+  await close.click();
+  await expect(page.getByRole("navigation", { name: "Sidebar" })).toBeHidden();
 }
 
 /**
@@ -105,9 +135,9 @@ export async function openSettings(page: Page) {
 }
 
 /**
- * A blank play from the header's New play menu — its one home on a desktop;
- * More carries it only on a phone, whose header has no room (ADR 0074). A
- * new play opens on the browser for its unit (ADR 0077); this closes it
+ * A blank play from the header's New play menu — its one home (ADR 0074): a
+ * button on a wide header, a plus on a phone's, and in More only on the
+ * compact tablet header, which has no room for either. A new play opens on the browser for its unit (ADR 0077); this closes it
  * unpicked, leaving the blank field these specs start from.
  */
 export async function startNewPlay(

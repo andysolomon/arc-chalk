@@ -47,10 +47,10 @@ test("the phone's tool row puts men on and takes them off", async ({
     expect(box.x + box.width, name).toBeLessThanOrEqual(390);
   }
 
-  // A new play from More opens on the set to start from.
-  await page.getByRole("button", { name: "More actions", exact: true }).tap();
+  // A new play from the header's plus opens on the set to start from.
+  await page.getByRole("button", { name: "New play", exact: true }).tap();
   await page
-    .locator(".more-panel")
+    .getByRole("group", { name: "New play" })
     .getByRole("button", { name: /^New offensive play/ })
     .tap();
   await pick(page, "Formations", "Gun Doubles Right");

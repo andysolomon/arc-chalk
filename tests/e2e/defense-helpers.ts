@@ -1,6 +1,6 @@
 import type { PlayDocument } from "@chalk/domain";
 import type { Page } from "@playwright/test";
-import { expect } from "./fixtures";
+import { closePlayName, expect, playNameField } from "./fixtures";
 export async function selectPlayers(page: Page, ids: readonly string[]) {
   await page.keyboard.press("Escape");
   for (const [index, id] of ids.entries()) {
@@ -18,9 +18,13 @@ export async function selectPlayers(page: Page, ids: readonly string[]) {
 }
 
 export async function savedPlay(page: Page): Promise<PlayDocument> {
-  const name = await page
-    .getByRole("textbox", { name: "Play name" })
-    .inputValue();
+  // A phone keeps the name in its drawer; put the drawer back as it was.
+  const drawerWasOpen = await page
+    .getByRole("navigation", { name: "Sidebar" })
+    .getByRole("button", { name: "Close the sidebar" })
+    .isVisible();
+  const name = await (await playNameField(page)).inputValue();
+  if (!drawerWasOpen) await closePlayName(page);
   return page.evaluate(
     (name) =>
       new Promise<PlayDocument>((resolve, reject) => {

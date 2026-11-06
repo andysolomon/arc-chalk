@@ -1,9 +1,18 @@
-import { chooseWorkspaceView, expect, headerCommand, test } from "./fixtures";
+import {
+  chooseWorkspaceView,
+  closePlayName,
+  expect,
+  headerCommand,
+  playNameField,
+  test,
+} from "./fixtures";
 
 test.use({ hasTouch: true, isMobile: true });
 test("keeps one row through portrait, destinations and rotation", async ({
   page,
 }, info) => {
+  // Four sizes, each renaming through the drawer.
+  test.setTimeout(90_000);
   for (const viewport of [
     { width: 360, height: 800 },
     { width: 390, height: 844 },
@@ -13,9 +22,16 @@ test("keeps one row through portrait, destinations and rotation", async ({
     await page.setViewportSize(viewport);
     await page.goto("/");
     const header = page.getByRole("banner");
-    const name = header.getByRole("textbox", { name: "Play name" });
-    await expect(name).toBeVisible();
+    // The row names no play; the drawer does.
+    await expect(
+      header.getByRole("button", { name: "New play", exact: true }),
+    ).toBeVisible();
+    await expect(
+      header.getByRole("textbox", { name: "Play name" }),
+    ).toHaveCount(0);
+    const name = await playNameField(page);
     const originalName = await name.inputValue();
+    await closePlayName(page);
     const renamed = `A long play name stays on the row at ${viewport.width}`;
     const check = async () => {
       const rect = (await header.boundingBox())!;
@@ -38,14 +54,17 @@ test("keeps one row through portrait, destinations and rotation", async ({
       }
     };
     await check();
-    await name.fill(renamed);
-    await name.press("Enter");
+    await (await playNameField(page)).fill(renamed);
+    await (await playNameField(page)).press("Enter");
+    await closePlayName(page);
     await check();
     await expect(await headerCommand(page, "Undo")).toBeEnabled();
     await (await headerCommand(page, "Undo")).click();
-    await expect(name).toHaveValue(originalName);
+    await expect(await playNameField(page)).toHaveValue(originalName);
+    await closePlayName(page);
     await (await headerCommand(page, "Redo")).click();
-    await expect(name).toHaveValue(renamed);
+    await expect(await playNameField(page)).toHaveValue(renamed);
+    await closePlayName(page);
     await (await headerCommand(page, "Play type")).click();
     await expect(
       page.getByRole("group", { name: "Play classification" }),

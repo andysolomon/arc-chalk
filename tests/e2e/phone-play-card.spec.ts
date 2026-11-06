@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { chooseWorkspaceView, expect, test } from "./fixtures";
+import { chooseWorkspaceView, expect, playNameField, test } from "./fixtures";
 
 /**
  * A Play's card on a phone: a tap on a Play in the open book raises its card
@@ -96,9 +96,7 @@ for (const viewport of VIEWPORTS) {
       });
 
       await open.tap();
-      await expect(
-        page.getByRole("textbox", { name: "Play name" }),
-      ).toHaveValue("Four Verticals");
+      await expect(await playNameField(page)).toHaveValue("Four Verticals");
     });
   });
 }

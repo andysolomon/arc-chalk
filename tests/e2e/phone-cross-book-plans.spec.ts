@@ -1,6 +1,12 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { chooseWorkspaceView, expect, test } from "./fixtures";
+import {
+  chooseWorkspaceView,
+  closePlayName,
+  expect,
+  playNameField,
+  test,
+} from "./fixtures";
 
 /**
  * A Game Plan calls a Play from another book on a phone (ADR 0067, issue
@@ -68,9 +74,10 @@ test.describe(`cross-book game plans on a phone at ${VIEWPORT.width}×${VIEWPORT
     await newName.press("Enter");
     await expect(page.locator(".book-title strong")).toHaveText(OTHER);
     await gotoView(page, "Editor");
-    const playName = page.getByRole("textbox", { name: "Play name" });
+    const playName = await playNameField(page);
     await playName.fill("Goal Line Power");
     await playName.press("Enter");
+    await closePlayName(page);
     // The phone's header folds the save state into one button; its label
     // says when the device has the Play.
     await expect(page.locator("button.save-state")).toHaveAttribute(

@@ -1,6 +1,12 @@
 import { type Page, test as blankTest } from "@playwright/test";
 
-import { expect, headerCommand, test } from "./fixtures";
+import {
+  closePlayName,
+  expect,
+  headerCommand,
+  playNameField,
+  test,
+} from "./fixtures";
 
 /**
  * The editor on a phone (issues #98 and #99): the status bar's controls stay
@@ -393,14 +399,19 @@ for (const viewport of WORKSPACES) {
         header.getByRole("button", { name: "Save", exact: true }),
         viewport,
       );
-      const nameBox = await insideViewport(
-        page,
+      // The row leaves the play's name to the drawer and keeps New play as
+      // a plus beside More.
+      await expect(
         header.getByRole("textbox", { name: "Play name" }),
+      ).toHaveCount(0);
+      const newBox = await insideViewport(
+        page,
+        header.getByRole("button", { name: "New play", exact: true }),
         viewport,
       );
-      expect(nameBox.width).toBeGreaterThanOrEqual(96);
-      expect(Math.abs(nameBox.y - tabsBox.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(saveBox.y - nameBox.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(newBox.y - tabsBox.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(saveBox.y - newBox.y)).toBeLessThanOrEqual(1);
+      expect(moreBox.x).toBeGreaterThan(newBox.x);
       expect(saveBox.x).toBeGreaterThan(moreBox.x);
       for (const command of ["Undo", "Redo", "Play type"] as const) {
         await insideViewport(
@@ -423,17 +434,25 @@ for (const viewport of WORKSPACES) {
         viewport,
       );
 
-      // The two new plays and Present ride in the More menu (ADR 0053).
+      // The plus opens the two new plays; Present rides in More (ADR 0053).
+      await header.getByRole("button", { name: "New play", exact: true }).tap();
+      const start = page.getByRole("group", { name: "New play" });
+      for (const name of [/^New offensive play/, /^New defensive play/]) {
+        await insideViewport(
+          page,
+          start.getByRole("button", { name }),
+          viewport,
+        );
+      }
+      await page.keyboard.press("Escape");
+      await expect(start).toHaveCount(0);
       await page
         .getByRole("button", { name: "More actions", exact: true })
         .tap();
       const more = page.locator(".more-panel");
       await expect(
-        more.getByRole("button", { name: /^New offensive play/ }),
-      ).toBeVisible();
-      await expect(
-        more.getByRole("button", { name: /^New defensive play/ }),
-      ).toBeVisible();
+        more.getByRole("button", { name: /^New (offensive|defensive) play/ }),
+      ).toHaveCount(0);
       await expect(
         more.getByRole("button", { name: /^Present/ }),
       ).toBeVisible();
@@ -478,21 +497,24 @@ for (const viewport of WORKSPACES) {
       // The pick was the errand: the drawer puts itself away.
       await expect(drawer).toHaveCount(0);
 
-      // A draft name survives the sheet coming and going and the phone
-      // turning over. Its head opens it full; Field puts it back.
-      const name = page.getByRole("textbox", { name: "Play name" });
-      await name.fill("Phone draft");
+      // A name typed in the drawer survives the sheet coming and going and
+      // the phone turning over. The sheet's head opens it full; Field puts
+      // it back.
+      await (await playNameField(page)).fill("Phone draft");
+      await closePlayName(page);
       await page.getByRole("button", { name: "Show all assignments" }).tap();
       await expect(sheet).toHaveAttribute("data-sheet", "full");
       await page.getByRole("button", { name: "Show the field" }).tap();
       await expect(sheet).toHaveAttribute("data-sheet", "peek");
-      await expect(name).toHaveValue("Phone draft");
+      await expect(await playNameField(page)).toHaveValue("Phone draft");
+      await closePlayName(page);
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
       await page.setViewportSize({
         width: viewport.height,
         height: viewport.width,
       });
-      await expect(name).toHaveValue("Phone draft");
+      await expect(await playNameField(page)).toHaveValue("Phone draft");
+      await closePlayName(page);
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
       await insideViewport(
         page,
@@ -505,7 +527,6 @@ for (const viewport of WORKSPACES) {
         width: viewport.width,
         height: viewport.height,
       });
-      await name.press("Enter");
       await expectSavedOnThisDevice(page);
 
       // A line by taps: the man, Draw in his inspector sheet, two breaks,
@@ -551,8 +572,10 @@ for (const viewport of WORKSPACES) {
       await page.reload();
       await waitForPhoneWorkspace(page);
       await expect(
-        page.getByRole("textbox", { name: "Play name" }),
-      ).toHaveValue("Phone draft", { timeout: 30_000 });
+        page.getByRole("img", { name: "Phone draft football play" }),
+      ).toBeVisible({ timeout: 30_000 });
+      await expect(await playNameField(page)).toHaveValue("Phone draft");
+      await closePlayName(page);
       await expect(page.getByText("Read only", { exact: true })).toHaveCount(0);
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
       await expect(page.locator("[data-scene-path]")).toHaveCount(routes + 1);
@@ -843,7 +866,7 @@ test.describe("phone workspace at 400×496", () => {
     );
     await insideViewport(
       page,
-      page.getByRole("textbox", { name: "Play name" }),
+      page.getByRole("button", { name: "New play", exact: true }),
       viewport,
     );
     // The save state is there from the first frame (#97).
@@ -872,9 +895,8 @@ blankTest.describe("first launch on a phone at 390×844", () => {
         if (message.type() === "error") failures.push(message.text());
       });
       await enterEditor(page);
-      await expect(
-        page.getByRole("textbox", { name: "Play name" }),
-      ).toHaveValue("Untitled play");
+      await expect(await playNameField(page)).toHaveValue("Untitled play");
+      await closePlayName(page);
       await expect(page.locator("[data-scene-player]")).toHaveCount(0);
 
       await page.getByRole("button", { name: "Open the sidebar" }).tap();
@@ -888,9 +910,10 @@ blankTest.describe("first launch on a phone at 390×844", () => {
         page.getByRole("navigation", { name: "Sidebar" }),
       ).toHaveCount(0);
 
-      const name = page.getByRole("textbox", { name: "Play name" });
+      const name = await playNameField(page);
       await name.fill("First play on a phone");
       await name.press("Enter");
+      await closePlayName(page);
       await expectSavedOnThisDevice(page);
 
       const symbol = page
@@ -919,8 +942,12 @@ blankTest.describe("first launch on a phone at 390×844", () => {
       await page.reload();
       await waitForPhoneWorkspace(page);
       await expect(
-        page.getByRole("textbox", { name: "Play name" }),
-      ).toHaveValue("First play on a phone", { timeout: 30_000 });
+        page.getByRole("img", { name: "First play on a phone football play" }),
+      ).toBeVisible({ timeout: 30_000 });
+      await expect(await playNameField(page)).toHaveValue(
+        "First play on a phone",
+      );
+      await closePlayName(page);
       await expect(page.locator("[data-scene-player]")).toHaveCount(11);
       await expect(page.locator("[data-scene-path]")).toHaveCount(1);
       await expectSavedOnThisDevice(page);

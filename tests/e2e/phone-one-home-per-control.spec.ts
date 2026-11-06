@@ -6,10 +6,10 @@ import {
 } from "./fixtures";
 
 /**
- * ADR 0074 on a phone. The header sheds New play, Present, Help and Print &
- * export (ADR 0057), so each of them still needs exactly one home: More
- * carries New play and Present, and the drawer's foot carries Print &
- * export, Settings and Help as icons. The Playbooks pages have no drawer,
+ * ADR 0074 on a phone. The header keeps New play as a plus and sheds
+ * Present, Help and Print & export (ADR 0057), so each of them still needs
+ * exactly one home: More carries Present, and the drawer's foot carries
+ * Print & export, Settings and Help as icons. The Playbooks pages have no drawer,
  * so their header carries Help and Settings where More stood. The test ends
  * on a screenshot of the drawer at a fixed 390×844.
  */
@@ -22,18 +22,28 @@ test("a phone reaches each control from one place", async ({
   await expect(page.locator("header.topbar.phone-topbar")).toBeVisible();
   const banner = page.getByRole("banner");
 
+  // The plus carries New play's two choices.
+  await banner.getByRole("button", { name: "New play", exact: true }).tap();
+  const start = page.getByRole("group", { name: "New play" });
+  for (const name of [/^New offensive play/, /^New defensive play/]) {
+    await expect(start.getByRole("button", { name })).toBeVisible();
+  }
+  await banner.getByRole("button", { name: "New play", exact: true }).tap();
+  await expect(start).toHaveCount(0);
+
   // More carries what the phone header has no room for, and nothing that
   // lives elsewhere.
   await banner.getByRole("button", { name: "More actions" }).tap();
   const more = page.locator(".more-panel");
+  await expect(more.getByRole("button", { name: /^Present/ })).toBeVisible();
   for (const name of [
     /^New offensive play/,
     /^New defensive play/,
-    /^Present/,
+    /^Settings/,
+    /^Account/,
+    /^Game plans/,
+    /^Backup/,
   ]) {
-    await expect(more.getByRole("button", { name })).toBeVisible();
-  }
-  for (const name of [/^Settings/, /^Account/, /^Game plans/, /^Backup/]) {
     await expect(more.getByRole("button", { name })).toHaveCount(0);
   }
   await banner.getByRole("button", { name: "More actions" }).tap();

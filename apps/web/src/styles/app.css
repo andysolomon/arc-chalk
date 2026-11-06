@@ -7179,9 +7179,18 @@ button.library-dot.target.small {
 .topbar.phone-topbar > .reset-positions,
 .topbar.phone-topbar > .present,
 .topbar.phone-topbar > .menu-help,
-.topbar.phone-topbar > .menu-export,
-.topbar.phone-topbar > .top-spacer {
+.topbar.phone-topbar > .menu-export {
   display: none;
+}
+/* New play keeps the row as a plus; its two choices drop from it. */
+.topbar.phone-topbar > .menu-new {
+  order: 4;
+  display: block;
+}
+.topbar.phone-topbar .menu-new > .new-play {
+  width: 44px;
+  height: 44px;
+  padding: 0;
 }
 /* A finger has no hover: a tapped control must not stay lit, and a press
    shows while the finger is down instead. */
@@ -7229,25 +7238,11 @@ button.library-dot.target.small {
   padding: 0;
   font-size: 20px;
 }
-.topbar.phone-topbar > .play-name {
-  order: 3;
-  width: auto;
-  min-width: 0;
-  height: 44px;
-  flex: 1 1 0;
-  padding: 0 6px;
-  font-size: 16px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-}
-.topbar.phone-topbar > .play-name:hover {
-  background: transparent;
-}
-.topbar.phone-topbar > .play-name:focus {
-  background: var(--paper);
-}
+/* The play's name lives in the drawer, so from the pill on the commands
+   stand at the row's end. */
 .topbar.phone-topbar > .classify-menu {
   order: 3;
+  margin-left: auto;
   position: static;
   min-width: 44px;
   max-width: 112px;
@@ -7256,41 +7251,39 @@ button.library-dot.target.small {
 .topbar.phone-topbar .play-type-name {
   display: none;
 }
-/* Offense or defense, named over the play name where the pill has no room:
-   a zero-width item whose words hang over the name's top, so the row gives
-   up nothing to say it. */
+/* Offense or defense, named where the pill has no room. */
 .topbar.phone-topbar > .play-unit {
   display: none;
 }
 @media (max-width: 667px) {
+  /* The one item that gives: a browser that draws the row wider cuts the
+     word short rather than pushing Save off the glass. */
   .topbar.phone-topbar > .play-unit {
     order: 3;
     display: flex;
-    width: 0;
-    height: 44px;
-    align-items: flex-start;
+    min-width: 0;
+    flex: 0 1 auto;
+    align-items: center;
     gap: 5px;
-    margin-right: -10px;
-    padding: 6px 0 0 6px;
+    padding: 0 2px;
     color: var(--unit-accent);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.06em;
-    line-height: 12px;
     text-transform: uppercase;
     white-space: nowrap;
-    pointer-events: none;
   }
   .topbar.phone-topbar > .play-unit i {
     width: 6px;
     height: 6px;
     flex: none;
-    margin-top: 3px;
     border-radius: 50%;
     background: var(--unit-accent);
   }
-  .topbar.phone-topbar > .play-name.with-unit {
-    padding-top: 14px;
+  .topbar.phone-topbar > .play-unit > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 @media (max-width: 374px) {
@@ -7438,11 +7431,14 @@ button.library-dot.target.small {
       width: 80px;
     }
   }
+  /* Its panel still hangs from it, but it gives the row neither width nor
+     a gap. */
   .topbar.phone-topbar > .classify-menu {
     min-width: 0;
     width: 0;
     max-width: 0;
     flex: none;
+    margin-right: -4px;
   }
   .phone-overflow-actions {
     display: flex;
@@ -7450,15 +7446,28 @@ button.library-dot.target.small {
     gap: 4px;
   }
 }
-/* Below 400 px the pair would squeeze the play name under 96 px, so it
-   moves to More; one home either way. */
-@media (max-width: 399px) {
+/* The narrowest phones close the row's gaps up a little; the boxes keep
+   their 44 px. */
+@media (max-width: 374px) {
+  .topbar.phone-topbar {
+    gap: 2px;
+  }
+  .topbar.phone-topbar > .classify-menu {
+    margin-right: -2px;
+  }
+  .topbar.phone-topbar > .play-unit {
+    padding: 0;
+  }
+}
+/* Below 436 px the row — sidebar, view, unit, plus, More and Save — has no
+   room for the pair, so it moves to More; one home either way. */
+@media (max-width: 435px) {
   .topbar.phone-topbar > .undo,
   .topbar.phone-topbar > .redo {
     display: none;
   }
 }
-@media (min-width: 400px) {
+@media (min-width: 436px) {
   .phone-overflow-actions > .overflow-undo,
   .phone-overflow-actions > .overflow-redo {
     display: none;
@@ -8590,6 +8599,22 @@ button.shell-quiet:hover {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+/* A phone drawer's first line: the play's name, a field like the header's. */
+.sidebar-name > .play-name {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+.sidebar-name > .play-name:hover {
+  background: transparent;
+}
+.sidebar-name > .play-name:focus {
+  background: var(--paper);
 }
 .sidebar-row-wrap {
   position: relative;
