@@ -7256,10 +7256,13 @@ button.library-dot.target.small {
   display: none;
 }
 @media (max-width: 667px) {
+  /* The one item that gives: a browser that draws the row wider cuts the
+     word short rather than pushing Save off the glass. */
   .topbar.phone-topbar > .play-unit {
     order: 3;
     display: flex;
-    flex: none;
+    min-width: 0;
+    flex: 0 1 auto;
     align-items: center;
     gap: 5px;
     padding: 0 2px;
@@ -7276,6 +7279,11 @@ button.library-dot.target.small {
     flex: none;
     border-radius: 50%;
     background: var(--unit-accent);
+  }
+  .topbar.phone-topbar > .play-unit > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 @media (max-width: 374px) {
@@ -7436,6 +7444,19 @@ button.library-dot.target.small {
     display: flex;
     flex-direction: column;
     gap: 4px;
+  }
+}
+/* The narrowest phones close the row's gaps up a little; the boxes keep
+   their 44 px. */
+@media (max-width: 374px) {
+  .topbar.phone-topbar {
+    gap: 2px;
+  }
+  .topbar.phone-topbar > .classify-menu {
+    margin-right: -2px;
+  }
+  .topbar.phone-topbar > .play-unit {
+    padding: 0;
   }
 }
 /* Below 436 px the row — sidebar, view, unit, plus, More and Save — has no

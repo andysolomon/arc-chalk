@@ -9928,7 +9928,7 @@ function Header({
           {phone ? (
             <span className="play-unit" data-unit={unit}>
               <i />
-              {unitName(unit)}
+              <span>{unitName(unit)}</span>
             </span>
           ) : (
             <PlayNameInput
