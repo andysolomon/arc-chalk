@@ -123,6 +123,8 @@ const loadProductionShell = async (page: Page): Promise<void> => {
     indexedDB.deleteDatabase("chalk-production-beta");
     try {
       sessionStorage.setItem("chalk.seedStarter", "1");
+      // The goldens are the everyday shell, not Thanksgiving week (ADR 0082).
+      sessionStorage.setItem("chalk.season", "none");
     } catch {
       // Query string below still opts in.
     }

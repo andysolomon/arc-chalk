@@ -2,13 +2,17 @@ import { test as base, expect, type Page } from "@playwright/test";
 
 /**
  * Interaction and parity shells still exercise the Stick family. Product boot
- * is blank; these fixtures opt into the starter seed before the runtime opens.
+ * is blank; these fixtures opt into the starter seed before the runtime opens,
+ * and pin the season off.
  */
 export const test = base.extend({
   page: async ({ page }, use) => {
     await page.addInitScript(() => {
       try {
         sessionStorage.setItem("chalk.seedStarter", "1");
+        // Thanksgiving week tints the shell (ADR 0082); pin it off so a run
+        // in late November checks the same colours as any other day.
+        sessionStorage.setItem("chalk.season", "none");
       } catch {
         // Without session storage the seeded URL below still works.
       }

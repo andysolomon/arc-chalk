@@ -8,7 +8,7 @@ import {
   type PageKindId,
   type TypePresetId,
 } from "@chalk/render";
-import type { ThemePreference } from "../app/theme";
+import { currentSeason, seasonEnds, type ThemePreference } from "../app/theme";
 import { agoStamp } from "./ago-stamp";
 
 const themeChoices: readonly {
@@ -325,6 +325,18 @@ export function SettingsOverlay({
                   field and the print preview stay on white paper, the way they
                   print.
                 </p>
+                {currentSeason() === "thanksgiving" ? (
+                  <p className="settings-season">
+                    Happy Thanksgiving. Autumn colors are on in light and dark
+                    through{" "}
+                    {seasonEnds(new Date()).toLocaleDateString(undefined, {
+                      day: "numeric",
+                      month: "long",
+                      weekday: "long",
+                    })}
+                    .
+                  </p>
+                ) : null}
               </section>
             ) : null}
             {current.id === "account" ? (
