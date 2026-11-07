@@ -119,6 +119,62 @@
   --amber: #f5b300;
   --orange-text: #ff8a3d;
 }
+/* Thanksgiving week (ADR 0082). `data-season` is set before the first paint
+   by the inline script in index.html and kept by src/app/theme.ts. It warms
+   the shell's ramp toward parchment and roast, and turns the accent from blue
+   to pumpkin; the field, its minimap and the print sheet redeclare the light
+   tokens, so they stay on white paper. Status and Unit colours keep their
+   meaning and their value. */
+:root[data-season="thanksgiving"] {
+  --paper: #fffdf8;
+  --canvas: #faf6ee;
+  --raised: #f5efe4;
+  --wash: #f1eadd;
+  --hover: #e9e0d0;
+  --desk: #e6dccb;
+  --rule: #d6c9b4;
+  --disabled: #cbbda6;
+  --faint: #b5a68e;
+  --muted: #8f7f68;
+  --muted-strong: #76664f;
+  --ink-soft: #4e4032;
+  --ink-hover: #3a2e23;
+  --ink: #1f1710;
+  --ink-press: #000;
+  --on-ink: #fffdf8;
+  --shade: 40 24 10;
+  --frost: rgba(255, 253, 248, 0.92);
+  /* Pumpkin as a ground keeps white text, like the blue it stands in for. */
+  --blue: #b4510e;
+  --blue-text: #b4510e;
+  --blue-strong: #8f3f0a;
+  --selected-tint: #fbeee2;
+  --selected-line: #f2cfae;
+}
+:root[data-theme="dark"][data-season="thanksgiving"] {
+  --paper: #1c1712;
+  --canvas: #14100c;
+  --raised: #231d17;
+  --wash: #29221b;
+  --hover: #322a21;
+  --desk: #0d0a07;
+  --rule: #4a3f33;
+  --disabled: #5a4e40;
+  --faint: #716453;
+  --muted: #978773;
+  --muted-strong: #ab9b85;
+  --ink-soft: #c2b39e;
+  --ink-hover: #dccfbd;
+  --ink: #f1e9dc;
+  --ink-press: #fff8ee;
+  --on-ink: #14100c;
+  --shade: 255 245 230;
+  --frost: rgba(28, 23, 18, 0.92);
+  --blue-text: #f0a35c;
+  --blue-strong: #f6bd85;
+  --selected-tint: #33200f;
+  --selected-line: #6b3a14;
+}
 [data-unit="offense"] {
   --unit-accent: var(--unit-offense);
   --unit-tint: var(--unit-offense-tint);
@@ -9610,6 +9666,9 @@ button.shell-quiet:hover {
   color: var(--muted-strong);
   font-size: 11px;
   line-height: 15px;
+}
+.settings-section p.settings-season {
+  color: var(--blue-text);
 }
 .settings-field {
   display: grid;

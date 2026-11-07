@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 /**
- * Light or dark (ADR 0061). The Coach picks one, or leaves it to the device.
+ * Light or dark (ADR 0061), and the season that tints both (ADR 0082). The Coach picks one, or leaves it to the device.
  * The choice belongs to this device, not to a Playbook, so it lives in local
  * storage, where the inline script in index.html can read it before the
  * first paint. That script and this module share the key and the rule.
@@ -38,9 +38,63 @@ export function resolveTheme(preference: ThemePreference): Theme {
   return systemPrefersDark() ? "dark" : "light";
 }
 
-function applyTheme(): void {
-  document.documentElement.dataset.theme = resolveTheme(readThemePreference());
+/**
+ * A season the shell dresses for (ADR 0082). Only Thanksgiving week for now:
+ * from the Monday before the fourth Thursday of November through the Sunday
+ * after it, by the device's own calendar. The inline script in index.html
+ * runs the same rule before the first paint, so keep the two in step.
+ */
+export type Season = "none" | "thanksgiving";
+
+/**
+ * Tests pin the season here so a run in late November paints like any other
+ * day; a Coach's device never sets it.
+ */
+export const SEASON_SESSION_KEY = "chalk.season";
+
+/** The fourth Thursday of November in `year`, as a day of the month. */
+function thanksgivingDay(year: number): number {
+  const firstWeekday = new Date(year, 10, 1).getDay();
+  const firstThursday = 1 + ((4 - firstWeekday + 7) % 7);
+  return firstThursday + 21;
 }
+
+export function seasonOn(date: Date): Season {
+  if (date.getMonth() !== 10) return "none";
+  const thursday = thanksgivingDay(date.getFullYear());
+  const day = date.getDate();
+  return day >= thursday - 3 && day <= thursday + 3 ? "thanksgiving" : "none";
+}
+
+/** The last day of the season in progress, for the Appearance note. */
+export function seasonEnds(date: Date): Date {
+  return new Date(
+    date.getFullYear(),
+    10,
+    thanksgivingDay(date.getFullYear()) + 3,
+  );
+}
+
+export function currentSeason(): Season {
+  try {
+    const pinned = globalThis.sessionStorage.getItem(SEASON_SESSION_KEY);
+    if (pinned === "none" || pinned === "thanksgiving") return pinned;
+  } catch {
+    // No session storage: the calendar decides.
+  }
+  return seasonOn(new Date());
+}
+
+function applyTheme(): void {
+  const root = document.documentElement;
+  root.dataset.theme = resolveTheme(readThemePreference());
+  const season = currentSeason();
+  if (season === "none") delete root.dataset.season;
+  else root.dataset.season = season;
+}
+
+/** How often an open Chalk looks at the calendar, so the week starts and ends on its own. */
+const SEASON_CHECK_MS = 15 * 60 * 1000;
 
 /** Saves the choice on this device and repaints every open view of it. */
 export function saveThemePreference(preference: ThemePreference): void {
@@ -75,11 +129,21 @@ function subscribe(onChange: () => void): () => void {
 /**
  * Keeps the page's theme in step with the choice: a pick in Settings, a pick
  * in another tab, or the device turning dark at sunset while the choice is
- * "system".
+ * "system". It also starts and ends a season as the calendar turns.
  */
 export function followTheme(): () => void {
   applyTheme();
-  return subscribe(applyTheme);
+  const unsubscribe = subscribe(applyTheme);
+  const onVisible = () => {
+    if (document.visibilityState === "visible") applyTheme();
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  const timer = window.setInterval(applyTheme, SEASON_CHECK_MS);
+  return () => {
+    unsubscribe();
+    document.removeEventListener("visibilitychange", onVisible);
+    window.clearInterval(timer);
+  };
 }
 
 /** The Appearance setting's value and its setter. */

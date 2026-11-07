@@ -15,8 +15,8 @@
     <title>Chalk</title>
     <script>
       // Light or dark before the first paint, so a dark shell never flashes
-      // white (ADR 0061). src/app/theme.ts owns the choice; keep the key and
-      // the rule in step with it.
+      // white (ADR 0061). src/app/theme.ts owns the choice and the season;
+      // keep the keys and the rules in step with it.
       (function () {
         var choice;
         try {
@@ -30,6 +30,27 @@
             !!window.matchMedia &&
             window.matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.dataset.theme = dark ? "dark" : "light";
+        // Thanksgiving week tints the shell (ADR 0082): the Monday before the
+        // fourth Thursday of November through the Sunday after it.
+        var season = null;
+        try {
+          season = sessionStorage.getItem("chalk.season");
+        } catch (error) {
+          season = null;
+        }
+        if (season !== "none" && season !== "thanksgiving") {
+          var now = new Date();
+          var first = new Date(now.getFullYear(), 10, 1).getDay();
+          var thursday = 1 + ((4 - first + 7) % 7) + 21;
+          var day = now.getDate();
+          season =
+            now.getMonth() === 10 && day >= thursday - 3 && day <= thursday + 3
+              ? "thanksgiving"
+              : "none";
+        }
+        if (season === "thanksgiving") {
+          document.documentElement.dataset.season = season;
+        }
       })();
     </script>
   </head>
