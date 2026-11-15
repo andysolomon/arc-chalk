@@ -8,7 +8,8 @@ import type { ReactNode } from "react";
  * the row on a desktop, or a page inside the drawer on a phone. The header's
  * tabs are the navigation, so the sidebar repeats none of them. Its foot is a
  * row of icons — Settings and Help, and Print & export in a phone's drawer,
- * whose header has no room for it.
+ * whose header has no room for it. On a desktop the drawing tools head it, so
+ * the workspace has one left column rather than a rail beside a sidebar.
  */
 export type SidebarGlyph =
   | "formation"
@@ -222,6 +223,7 @@ export function PlaySidebar({
   open,
   status,
   thisPlay,
+  tools,
 }: {
   /** A phone's left drawer rather than a docked column. */
   drawer?: boolean;
@@ -241,6 +243,11 @@ export function PlaySidebar({
   /** The phone drawer's last word: the save state. */
   status?: ReactNode;
   thisPlay: readonly SidebarRowSpec[];
+  /**
+   * The drawing tools, at the head of a docked sidebar: a desktop has one
+   * left column, and folding it leaves the tools standing as a narrow rail.
+   */
+  tools?: ReactNode;
 }) {
   const rows = [...thisPlay, ...(fold?.open ? fold.rows : []), ...footer];
   const page = drawer
@@ -257,7 +264,7 @@ export function PlaySidebar({
       spec={spec}
     />
   );
-  return (
+  const sidebar = (
     <nav
       aria-label="Sidebar"
       className={`play-sidebar${drawer ? " sidebar-drawer" : ""}`}
@@ -350,5 +357,19 @@ export function PlaySidebar({
         </>
       )}
     </nav>
+  );
+  if (!tools) return sidebar;
+  // One column: the tools are their own landmark at its head, so the
+  // sidebar's rows keep names of their own.
+  return (
+    <div className="sidebar-column">
+      <div className="sidebar-group sidebar-tools-group">
+        <div aria-hidden="true" className="sidebar-heading">
+          Tools
+        </div>
+        {tools}
+      </div>
+      {sidebar}
+    </div>
   );
 }

@@ -77,12 +77,12 @@
 }
 /* The dark theme (ADR 0061). `data-theme` is set before the first paint by
    /theme-boot.js and kept by the Appearance setting; the share page never
-   sets it, so it keeps its own dark shell. The field on screen — the editor's
-   and the game-day reader's, with the editor's minimap — takes the same ramp
-   unless the Coach keeps it on paper (ADR 0083); the print preview never does. */
+   sets it, so it keeps its own dark shell. The field on screen — the editor's,
+   with its minimap — takes the same ramp unless the Coach keeps it on paper
+   (ADR 0083); the print preview never does. */
 :root[data-theme="dark"],
 :root[data-theme="dark"]:not([data-field="paper"])
-  :is(.field-wrap, .reader-field)
+  .field-wrap
   :is(.field-diagram, .minimap) {
   color-scheme: dark;
   --paper: #181818;
@@ -187,10 +187,7 @@
    places, so a solid man stays legible, and every palette colour brightens just
    enough to hold against the dark. `:where` keeps these below the selection
    rules. A colour added to @chalk/render needs its partner here. */
-:where(
-    :root[data-theme="dark"]:not([data-field="paper"])
-      :is(.field-wrap, .reader-field)
-  )
+:where(:root[data-theme="dark"]:not([data-field="paper"]) .field-wrap)
   :is(.field-diagram, .minimap) {
   --field-ground: var(--paper);
   --field-ink: var(--ink);
@@ -7986,6 +7983,68 @@ button.shell-quiet:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+/* A desktop's one left column: the drawing tools at its head, the sidebar
+   under them. The column carries the sidebar's width and edge. */
+.sidebar-column {
+  position: relative;
+  z-index: 4;
+  width: 236px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--paper);
+  box-shadow: 1px 0 rgb(var(--shade) / 0.06);
+}
+.sidebar-column > .play-sidebar {
+  width: auto;
+  min-height: 0;
+  flex: 1;
+  padding-top: 0;
+  box-shadow: none;
+}
+.sidebar-tools-group {
+  padding: 8px 10px 0;
+}
+/* The rail's buttons laid in rows — the pointer pair and what goes on the
+   field, then the note and what comes off it, with the trash at the end. */
+.sidebar-column .tool-rail.sidebar-tools {
+  z-index: auto;
+  width: auto;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 2px;
+  padding: 0 4px 4px;
+  background: transparent;
+  box-shadow: none;
+}
+.sidebar-tools > button {
+  width: 34px;
+  height: 34px;
+}
+.sidebar-tools .rail-pointer {
+  flex-direction: row;
+}
+.sidebar-tools .rail-pointer > button {
+  width: 32px;
+  height: 32px;
+}
+.sidebar-tools .rail-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+}
+.sidebar-tools .rail-spacer {
+  flex: 1 0 0;
+}
+@media (pointer: coarse) {
+  .sidebar-tools > button,
+  .sidebar-tools .rail-pointer > button {
+    width: 44px;
+    height: 44px;
+  }
 }
 .sidebar-heading {
   padding: 12px 8px 4px;
