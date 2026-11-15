@@ -5,15 +5,18 @@ import { expect, openBlankEditor, test } from "./fixtures";
 /**
  * A desktop has one left column. The drawing tools head the sidebar, rather
  * than standing in a rail beside it; folding the sidebar (its ‹, or ⌥3)
- * leaves the tools as a narrow rail whose › opens the sidebar again. Neither
- * state shows a second column or a stub beside the first. The open column
- * and the folded rail are the artifacts.
+ * leaves one narrow rail: the tools, then the sidebar's rows and foot as
+ * icons that still open their controls, then a › that opens the sidebar
+ * again. Neither state shows a second column or a stub beside the first. The
+ * open column and the folded rail, with a control open, are the artifacts.
  */
 
 const tools = (page: Page) =>
   page.getByRole("navigation", { name: "Drawing tools" });
 const sidebar = (page: Page) =>
-  page.getByRole("navigation", { name: "Sidebar" });
+  page.getByRole("navigation", { name: "Sidebar", exact: true });
+const folded = (page: Page) =>
+  page.getByRole("navigation", { name: "Folded sidebar" });
 
 async function box(locator: Locator) {
   const rect = await locator.boundingBox();
@@ -61,23 +64,63 @@ test("the tools head the sidebar, and folding it leaves them as a rail", async (
 
   await column.screenshot({ path: testInfo.outputPath("left-column.png") });
 
-  // Folded: the sidebar goes, the tools stay as the one narrow rail.
+  // Folded: the sidebar's rows go, and one narrow rail stays — the tools,
+  // then every sidebar control as an icon under them.
   await sidebar(page).getByRole("button", { name: "Hide the sidebar" }).click();
   await expect(sidebar(page)).toBeHidden();
   await expect(tools(page)).toBeVisible();
+  await expect(folded(page)).toBeVisible();
   await expect(page.locator(".sidebar-stub, .rail-stub")).toHaveCount(0);
-  const rail = await box(tools(page));
+  const railColumn = page.locator(".sidebar-rail-column");
+  const rail = await box(railColumn);
   expect(rail.width).toBeLessThan(80);
   expect((await box(page.locator(".editor-stage"))).x).toBeCloseTo(
     rail.x + rail.width,
     0,
   );
-  await tools(page).screenshot({
+  const toolsInRail = await box(tools(page));
+  const iconsInRail = await box(folded(page));
+  expect(toolsInRail.y + toolsInRail.height).toBeLessThanOrEqual(
+    iconsInRail.y + 0.5,
+  );
+  for (const name of [
+    /^Formation/,
+    /^Ball on/,
+    /^Show on field/,
+    /^Library/,
+    "Settings",
+    "Help",
+  ]) {
+    await expect(folded(page).getByRole("button", { name })).toBeVisible();
+  }
+
+  // The icons still work: Show on field opens its control beside the rail,
+  // and a layer hidden there shows in the icon's name.
+  await folded(page)
+    .getByRole("button", { name: "Show on field, All shown" })
+    .click();
+  const layers = folded(page).getByRole("group", { name: "Show on field" });
+  await expect(layers).toBeVisible();
+  expect((await box(layers)).x).toBeGreaterThanOrEqual(rail.x + rail.width);
+  await layers.locator(".layer-toggles > button").first().click();
+  await expect(
+    folded(page).getByRole("button", { name: /^Show on field, \d+ of \d+$/ }),
+  ).toBeVisible();
+  await page.screenshot({
+    clip: { x: 0, y: rail.y, width: 400, height: rail.height },
     path: testInfo.outputPath("folded-rail.png"),
   });
 
+  // A tap on the field puts the control away; Help opens from the foot.
+  await page.locator(".editor-stage").click({ position: { x: 600, y: 300 } });
+  await expect(layers).toBeHidden();
+  await folded(page).getByRole("button", { name: "Help" }).click();
+  await expect(folded(page).getByRole("group", { name: "Help" })).toBeVisible();
+  await folded(page).getByRole("button", { name: "Help" }).click();
+
   // Its › opens the sidebar again, with the tools back at its head.
-  await tools(page).getByRole("button", { name: "Show the sidebar" }).click();
+  await folded(page).getByRole("button", { name: "Show the sidebar" }).click();
+  await expect(folded(page)).toBeHidden();
   await expect(sidebar(page)).toBeVisible();
   await expect(page.locator(".sidebar-column")).toHaveCount(1);
 
