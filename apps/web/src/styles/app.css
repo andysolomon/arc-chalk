@@ -8054,6 +8054,86 @@ button.shell-quiet:hover {
     height: 44px;
   }
 }
+/* The sidebar folded (⌥3): one narrow rail, the tools at its head and the
+   sidebar's rows and foot as icons under them. Each icon's control opens
+   beside it, as a row's does in the open sidebar. */
+.sidebar-rail-column {
+  position: relative;
+  z-index: 4;
+  width: 56px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--canvas);
+  box-shadow: 1px 0 0 rgb(var(--shade) / 0.06);
+}
+.sidebar-rail-column > .tool-rail {
+  z-index: auto;
+  width: auto;
+  flex: none;
+  gap: 2px;
+  padding: 10px 0 0;
+  background: transparent;
+  box-shadow: none;
+}
+.sidebar-rail-column > .tool-rail > button,
+.sidebar-rail-column > .tool-rail .rail-pointer > button {
+  width: 36px;
+  height: 36px;
+}
+/* The trash ends the tools here, rather than the rail. */
+.sidebar-rail-column > .tool-rail .rail-spacer {
+  display: none;
+}
+.sidebar-rail {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 0 8px;
+}
+.sidebar-rail-item {
+  position: relative;
+}
+/* Past the rail's edge, so it lies on the field beside the rail. */
+.sidebar-rail-item .sidebar-popover {
+  left: calc(100% + 20px);
+}
+.sidebar-rail-item[data-row="library"] .sidebar-popover {
+  width: 320px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.sidebar-expand {
+  width: 32px;
+  height: 22px;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sidebar-expand:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+@media (pointer: coarse) {
+  .sidebar-rail-column {
+    width: 60px;
+  }
+  .sidebar-rail-column > .tool-rail > button,
+  .sidebar-rail-column > .tool-rail .rail-pointer > button,
+  .sidebar-expand {
+    width: 44px;
+    height: 44px;
+  }
+}
 .sidebar-heading {
   padding: 12px 8px 4px;
   color: var(--muted);
