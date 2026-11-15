@@ -16,7 +16,7 @@ import {
   helpTutorialRange,
   paletteCommands,
   positionGroups,
-  saveItems,
+  versionItems,
   shortcutRows,
   type ActionMap,
   newPlayEntries,
@@ -612,14 +612,17 @@ function ExportPanel({
   );
 }
 
-export function SaveMenu({
+/**
+ * Every edit is saved as it is made, so the header offers versions rather
+ * than a Save that would only pretend durability is manual (ADR 0084).
+ */
+export function VersionsMenu({
   actions,
   children,
   onDismiss,
   onSnapshot,
   onToggle,
   open,
-  saveLabel,
 }: {
   actions: ActionMap;
   /** The versions this Play already has, listed under the menu. */
@@ -628,32 +631,31 @@ export function SaveMenu({
   onSnapshot: (label: string) => void;
   onToggle: () => void;
   open: boolean;
-  saveLabel: string;
 }) {
   return (
-    <div className="menu menu-save">
+    <div className="menu menu-versions">
       <button
         aria-expanded={open}
-        className={`save${saveLabel === "Saved" ? " saved" : ""}`}
+        className={`versions${open ? " open" : ""}`}
         onClick={onToggle}
         type="button"
       >
-        {saveLabel}
+        Versions
       </button>
       {open ? (
-        <SavePanel
+        <VersionsPanel
           actions={actions}
           onDismiss={onDismiss}
           onSnapshot={onSnapshot}
         >
           {children}
-        </SavePanel>
+        </VersionsPanel>
       ) : null}
     </div>
   );
 }
 
-function SavePanel({
+function VersionsPanel({
   actions,
   children,
   onDismiss,
@@ -673,7 +675,7 @@ function SavePanel({
   };
 
   return (
-    <div className="menu-panel save-panel">
+    <div className="menu-panel versions-panel">
       {naming ? (
         <form
           className="snapshot-form"
@@ -715,7 +717,7 @@ function SavePanel({
         </form>
       ) : (
         <>
-          {saveItems.map((entry) => (
+          {versionItems.map((entry) => (
             <MenuItem
               actions={actions}
               entry={entry}

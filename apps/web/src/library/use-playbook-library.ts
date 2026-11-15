@@ -76,7 +76,6 @@ export function usePlaybookLibrary(
   const [pickIds, setPickIds] = useState<readonly string[]>([]);
   const [variationOpen, setVariationOpen] = useState(false);
   const [variationDraft, setVariationDraft] = useState("");
-  const [savedFlash, setSavedFlash] = useState(false);
   const [report, setReport] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [offer, setOffer] = useState<BroadcastOffer>();
@@ -135,13 +134,6 @@ export function usePlaybookLibrary(
     },
     [editorStore, library, refresh],
   );
-
-  const savePlay = useCallback(() => {
-    void editorStore.commitPlayName();
-    setSavedFlash(true);
-    window.setTimeout(() => setSavedFlash(false), 1_200);
-    void refresh();
-  }, [editorStore, refresh]);
 
   const startVariation = useCallback(() => {
     setVariationDraft(
@@ -431,7 +423,6 @@ export function usePlaybookLibrary(
     pickIds,
     variationOpen,
     variationDraft,
-    savedFlash,
     report,
     busy,
     offer,
@@ -442,7 +433,6 @@ export function usePlaybookLibrary(
     familySize: familyMembers.length,
     refresh,
     loadPlay,
-    savePlay,
     startVariation,
     cancelVariation,
     commitVariation,

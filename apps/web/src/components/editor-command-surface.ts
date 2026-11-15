@@ -82,7 +82,6 @@ export type ActionId =
   | "clearDefense"
   | "clearText"
   | "clearField"
-  | "savePlay"
   | "newVariation"
   | "group"
   | "ungroup"
@@ -328,13 +327,12 @@ export const positionGroups: readonly MenuEntry[] = [
   { id: "positionDefense", label: "Defense" },
 ];
 
-export const saveItems: readonly MenuEntry[] = [
-  {
-    id: "savePlay",
-    label: "Save",
-    shortcut: "⌘S",
-    title: "Update the play you have open",
-  },
+/**
+ * The header's Versions menu (ADR 0084). Every edit is already saved, so it
+ * offers only what makes a new thing: a variant in the library or a named
+ * state in History.
+ */
+export const versionItems: readonly MenuEntry[] = [
   {
     id: "saveAsVariant",
     label: "Save as variant",
@@ -483,7 +481,6 @@ export function paletteCommands(
     { id: "clearDefense", label: "Clear defense" },
     { id: "clearText", label: "Clear text" },
     { id: "clearField", label: "Clear the whole field" },
-    { id: "savePlay", label: "Save play" },
     { id: "newVariation", label: "New variation" },
     { id: "gamePlans", label: "Game plans" },
     { id: "playbooks", label: "Playbooks" },
@@ -540,7 +537,7 @@ export const shortcutRows: readonly (readonly [string, string])[] = [
   ["Command palette", "⌘K"],
   ["This panel", "?"],
   ["Undo / redo", "⌘Z / ⇧⌘Z"],
-  ["Save · variant · snapshot", "⌘S"],
+  ["Versions · variant · snapshot", "⌘S"],
   ["Duplicate", "⌘D"],
   ["Select all", "⌘A"],
   ["Fit field", "⌘0"],

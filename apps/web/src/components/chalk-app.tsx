@@ -321,7 +321,7 @@ import {
   HelpMenu,
   MoreMenu,
   NewPlayMenu,
-  SaveMenu,
+  VersionsMenu,
   ShortcutReference,
   type WristbandPicker,
 } from "./editor-overlays";
@@ -383,7 +383,7 @@ type View = "Editor" | "Playbooks" | "Tips" | "Demo" | "Present" | "Print";
 type Menu =
   | "more"
   | "export"
-  | "save"
+  | "versions"
   | "help"
   | "classify"
   | "layers"
@@ -5890,12 +5890,6 @@ export function ChalkApp({
     ...Object.fromEntries(
       demoTours.map((tour) => [`demo:${tour.id}`, () => openTour(tour.id)]),
     ),
-    // Chalk saves continuously (ADR 0012); an explicit Save flushes whatever
-    // the Coach is still typing rather than pretending durability is manual.
-    savePlay: () => {
-      playbook.savePlay();
-      setOpenMenu(null);
-    },
     saveAsVariant: () => {
       playbook.startVariation();
       setOpenMenu(null);
@@ -6219,7 +6213,7 @@ export function ChalkApp({
       if (meta && key === "s") {
         event.preventDefault();
         setOverlay(null);
-        setOpenMenu((current) => (current === "save" ? null : "save"));
+        setOpenMenu((current) => (current === "versions" ? null : "versions"));
         return;
       }
       if (meta && key === "z" && !typing) {
@@ -7343,7 +7337,6 @@ export function ChalkApp({
       onVariationDraft={playbook.setVariationDraft}
       pickIds={playbook.pickIds}
       report={playbook.report}
-      savedFlash={playbook.savedFlash}
       scope={playbook.scope}
       snapshot={playbook.snapshot}
       storedOpen={playbook.storedOpen}
@@ -9891,7 +9884,7 @@ function Header({
   onCloseMenu: () => void;
   onClassify: () => void;
   onCreateVersion: (label: string) => void;
-  onMenu: (menu: "more" | "export" | "save" | "help" | "new") => void;
+  onMenu: (menu: "more" | "export" | "versions" | "help" | "new") => void;
   onRedo: () => void;
   onResetPositions: () => void;
   onRestoreVersion: (revisionId: string) => void;
@@ -10130,13 +10123,12 @@ function Header({
             recent={recentOutputs}
             wristband={wristband}
           />
-          <SaveMenu
+          <VersionsMenu
             actions={actions}
             onDismiss={onCloseMenu}
             onSnapshot={onCreateVersion}
-            onToggle={() => onMenu("save")}
-            open={openMenu === "save"}
-            saveLabel="Save"
+            onToggle={() => onMenu("versions")}
+            open={openMenu === "versions"}
           >
             {versions.length > 0 ? (
               <ul className="snapshot-list">
@@ -10153,7 +10145,7 @@ function Header({
                 ))}
               </ul>
             ) : null}
-          </SaveMenu>
+          </VersionsMenu>
         </>
       )}
     </header>

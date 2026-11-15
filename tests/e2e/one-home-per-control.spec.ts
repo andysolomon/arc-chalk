@@ -85,7 +85,7 @@ test("the editor puts each control in one place", async ({
     await expect(button.locator("svg")).toHaveCount(1);
     await expect(button).toHaveText("");
   }
-  for (const name of ["New play", "Print & export", "Save"]) {
+  for (const name of ["New play", "Print & export", "Versions"]) {
     await expect(
       banner(page).getByRole("button", { name, exact: true }),
     ).toBeVisible();

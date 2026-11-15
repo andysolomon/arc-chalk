@@ -598,7 +598,10 @@ test("names a version and restores it after a reload", async ({ page }) => {
   const playName = page.getByRole("textbox", { name: "Play name" });
   const saved = page.getByRole("button", { name: "Saved on this device" });
 
-  await page.getByRole("banner").getByRole("button", { name: "Save" }).click();
+  await page
+    .getByRole("banner")
+    .getByRole("button", { name: "Versions", exact: true })
+    .click();
   await page.getByRole("button", { name: "Snapshot" }).click();
   await page
     .getByRole("textbox", { name: "Snapshot name" })
@@ -629,7 +632,10 @@ test("names a version and restores it after a reload", async ({ page }) => {
   );
 
   // The named version outlived the session it was created in.
-  await page.getByRole("banner").getByRole("button", { name: "Save" }).click();
+  await page
+    .getByRole("banner")
+    .getByRole("button", { name: "Versions", exact: true })
+    .click();
   await expect(page.getByText("Install week")).toBeVisible();
   await page.getByRole("button", { name: "Restore" }).click();
 
@@ -744,7 +750,6 @@ test("keeps undo and redo inside the Play after saving it and starting a new one
   const playName = page.getByRole("textbox", { name: "Play name" });
   const undo = page.getByRole("button", { name: "Undo" });
   const redo = page.getByRole("button", { name: "Redo" });
-  const header = page.getByRole("banner");
 
   await playName.fill("Mesh — Alert");
   await playName.press("Enter");
@@ -753,8 +758,6 @@ test("keeps undo and redo inside the Play after saving it and starting a new one
   ).toBeVisible();
   await expect(undo).toHaveAttribute("title", "Undo Rename Play");
 
-  await header.getByRole("button", { name: "Save", exact: true }).click();
-  await page.getByRole("button", { name: /^Save ⌘S/ }).click();
   await startNewPlay(page, "offensive");
   await expect(playName).toHaveValue("Untitled play");
 

@@ -108,8 +108,10 @@ test.describe("iPad portrait overflow actions", () => {
         page.getByRole("region", { name: "Print & export" }),
       ).toBeVisible();
       await page.keyboard.press("Escape");
-      await header.getByRole("button", { name: "Save", exact: true }).click();
-      await expect(page.locator(".menu-save .menu-panel")).toBeVisible();
+      await header
+        .getByRole("button", { name: "Versions", exact: true })
+        .click();
+      await expect(page.locator(".menu-versions .menu-panel")).toBeVisible();
       await page.keyboard.press("Escape");
       await openMore();
       await more

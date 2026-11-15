@@ -61,10 +61,23 @@ import { expect, test, type Page } from "@playwright/test";
  * reference moved 51,887 → 53,388 and stays inside its own; Present and
  * Print did not move, and Demo moved 10 px.
  */
+/**
+ * Raised on 2026-11-14 under ADR 0084 (product decision: the header's Save
+ * becomes Versions). Every edit already saves, so the filled black Save the
+ * original draws is now a quiet Versions menu, and the menu loses its Save
+ * row. Every state that draws the header moves. Measured on one Linux
+ * machine, branch against main: Editor 32,812 → 34,222 px; More 33,670 →
+ * 35,047; Export 34,050 → 35,510; Versions 32,960 → 35,040; palette 33,347 →
+ * 34,730; shortcuts 53,349 → 54,734. Each raised ratchet below is that
+ * branch measurement. Formations 32,624 → 34,016 and Defenses 26,573 →
+ * 27,965 stay inside their own; Present did not move, Demo moved 6 px, and
+ * Print measured lower.
+ */
 const parityGap: Readonly<Record<string, number>> = {
   // 2.3022% (31,825 px) with the sidebar, from 1.6526% (22,846 px).
   // Raised 0.0231 → 0.024 under ADR 0079 (33,129 px with Select and Hand).
-  editor: 0.024,
+  // Raised 0.024 → 0.0248 under ADR 0084 (34,222 px, Versions for Save).
+  editor: 0.0248,
   // 8.9932% (124,322 px), from 17.96% (248,333 px). The remaining Present
   // gap is the animation scrubber and the "1 / 5 · STICK — THUNDER"
   // variation line, both waiting on later phases.
@@ -78,11 +91,12 @@ const parityGap: Readonly<Record<string, number>> = {
   // the first clicks before Pause, and the 1.3% Player shift.
   demo: 0.0205,
   // Each raised under ADR 0079 to its branch measurement with Select and Hand.
-  moreMenu: 0.0247, // 34,116 px, from 2.3956% (33,117 px)
-  exportMenu: 0.0249, // 34,407 px, from 2.3901% (33,041 px)
-  saveMenu: 0.0242, // 33,397 px, from 2.3131% (31,976 px)
-  commandPalette: 0.0249, // 34,368 px, from 2.3933% (33,085 px)
-  shortcuts: 0.039, // 3.8926% (53,811 px), from 2.4176% (33,420 px)
+  // Raised again under ADR 0084 to its branch measurement with Versions.
+  moreMenu: 0.0254, // 35,047 px, from 0.0247 (34,116 px)
+  exportMenu: 0.0257, // 35,510 px, from 0.0249 (34,407 px)
+  versionsMenu: 0.0254, // 35,040 px, from 0.0242 (33,397 px) as Save
+  commandPalette: 0.0252, // 34,730 px, from 0.0249 (34,368 px)
+  shortcuts: 0.0396, // 54,734 px, from 0.039 (53,811 px)
   // Raised 317 px with the field-aspect slice: more of the Play shows around
   // the panel. Card name-row and thumbnail-dot arithmetic now match the
   // original; any remaining gap is the Play behind the panel.
@@ -255,7 +269,8 @@ test.describe("production editor overlays against the canonical original", () =>
     );
   });
 
-  test("Save and version menu matches the original", async ({ page }) => {
+  // The original's Save menu, now Versions without its Save row (ADR 0084).
+  test("Versions menu matches the original's Save menu", async ({ page }) => {
     await page.keyboard.press("Control+s");
     await expect(
       page.getByRole("button", { name: "Save as variant", exact: true }),
@@ -266,7 +281,7 @@ test.describe("production editor overlays against the canonical original", () =>
       {
         animations: "disabled",
         caret: "hide",
-        maxDiffPixelRatio: allowedGap("saveMenu"),
+        maxDiffPixelRatio: allowedGap("versionsMenu"),
       },
     );
   });

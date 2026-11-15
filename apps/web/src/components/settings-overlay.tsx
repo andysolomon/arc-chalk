@@ -266,7 +266,7 @@ export function SettingsOverlay({
                   </div>
                 ) : (
                   <p className="history-empty">
-                    Nothing saved back yet. Name a Snapshot from Save when you
+                    Nothing named yet. Take a Snapshot from Versions when you
                     want a state you can come back to.
                   </p>
                 )}

@@ -28,7 +28,6 @@ export function LibraryPanel({
   onVariationDraft,
   pickIds,
   report,
-  savedFlash,
   scope,
   snapshot,
   storedOpen,
@@ -51,7 +50,6 @@ export function LibraryPanel({
   onVariationDraft: (value: string) => void;
   pickIds: readonly string[];
   report?: string;
-  savedFlash: boolean;
   scope: LibraryEditScope;
   snapshot: LibrarySnapshot;
   storedOpen: Readonly<Record<string, boolean>>;
@@ -100,9 +98,6 @@ export function LibraryPanel({
           {snapshot.members.length ? ` · ${snapshot.members.length}` : ""}
         </span>
         <span>
-          {/* The sidebar Save duplicated the header's Save menu; the play saves
-              continuously and the header names a version (issue #64). */}
-          {savedFlash ? <span className="library-saved">Saved</span> : null}
           <button
             className="link-button"
             onClick={onStartVariation}
@@ -207,7 +202,7 @@ export function LibraryPanel({
           ))}
         </div>
       ) : (
-        <p>No saved plays yet. Name the play in the header and press Save.</p>
+        <p>No plays yet. A play saves itself as you draw it.</p>
       )}
       <button className="library-browse" onClick={onBrowse} type="button">
         Browse Playbook
