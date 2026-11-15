@@ -13,9 +13,13 @@ PR open, merged), confirm it and move on.
 
 - Default branch `main`. Squash merges; the PR title becomes the commit on main
   with ` (#N)` appended.
-- CI is `.github/workflows/merge.yml` ("Merge Gate"), required on every PR to
-  main: **Quality** (format, lint, boundaries, Vitest, build), **Browser 1/4 –
-  4/4** (Playwright e2e, Chromium and WebKit), **Parity and PWA**.
+- Branch protection requires the PR branch to be **up to date with main**, and
+  GitHub auto-merge is **disabled** for the repo (`gh pr merge --auto` fails).
+  Merges happen by hand, after green, on an up-to-date branch.
+- CI is `.github/workflows/merge.yml` ("Merge Gate"), run on every PR to main:
+  **Quality** (format, lint, boundaries, Vitest, build), **Browser 1/4 – 4/4**
+  (Playwright e2e, Chromium and WebKit), **Parity and PWA**, rolled up into
+  the one required check, **Merge Gate**. Wait for all of them anyway.
 - Deploy is `.github/workflows/release.yml` ("Release"), on every push to main.
   semantic-release reads the squashed commit. `feat`, `fix`, `perf` and
   breaking changes cut a version tag, and then the **Deploy production** job
@@ -86,6 +90,11 @@ one; otherwise `gh pr checks <N> --watch --fail-fast`.
   if it is genuinely flaky.
 - **Green:** `gh pr merge <N> --squash --delete-branch`. Record the merge
   commit: `gh pr view <N> --json mergeCommit -q .mergeCommit.oid`.
+- **"Head branch is not up to date with the base branch":** main moved while
+  CI ran. `git fetch origin && git rebase origin/main && git push
+--force-with-lease`, then wait for the new run and try again. Other agents
+  merge often, so expect this; merge promptly once green to keep the window
+  short.
 
 ## 6. Deploy
 
