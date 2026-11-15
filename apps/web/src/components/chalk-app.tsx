@@ -1620,16 +1620,30 @@ function CoverRow({
 function LineRow({
   line,
   onApplyPreset,
+  onHoverLine,
   onRemoveLine,
   onSelectLine,
 }: {
   line: PlayerLine;
   onApplyPreset: (pathId: string, presetKey: string) => void;
+  /** Lights the line on the field while a mouse is over its row. */
+  onHoverLine: (pathId: string, hovering: boolean) => void;
   onRemoveLine: (pathId: string) => void;
   onSelectLine: (pathId: string) => void;
 }) {
+  // Opening the line or deleting it takes the row away under the pointer,
+  // and no pointerleave comes after it — the light goes with the row.
+  useEffect(() => () => onHoverLine(line.id, false), [line.id, onHoverLine]);
   return (
-    <div className="line-row">
+    <div
+      className="line-row"
+      onPointerEnter={(event) => {
+        // A finger's tap is a choice, not a look: only a pointer that can
+        // hover lights the line.
+        if (event.pointerType !== "touch") onHoverLine(line.id, true);
+      }}
+      onPointerLeave={() => onHoverLine(line.id, false)}
+    >
       <button
         aria-label={`Edit ${line.name}`}
         className="line-open"
@@ -1714,6 +1728,7 @@ function PlayerInspector({
   onApplyPreset,
   onAppearance,
   onCover,
+  onHoverLine,
   onDeselect,
   onDraw,
   onFlip,
@@ -1759,6 +1774,8 @@ function PlayerInspector({
   onAddMotion: (key: string) => void;
   onApplyPreset: (pathId: string, presetKey: string) => void;
   onAppearance: (appearance: PlayerAppearance) => void;
+  /** Lights one of his lines on the field while its row is hovered. */
+  onHoverLine: (pathId: string, hovering: boolean) => void;
   onDeselect: () => void;
   onFlip: () => void;
   onQuickCall: (presetKey: string, kind: "route" | "line") => void;
@@ -1851,6 +1868,7 @@ function PlayerInspector({
                   key={line.id}
                   line={line}
                   onApplyPreset={onApplyPreset}
+                  onHoverLine={onHoverLine}
                   onRemoveLine={onRemoveLine}
                   onSelectLine={onSelectLine}
                 />
@@ -1886,6 +1904,7 @@ function PlayerInspector({
               key={line.id}
               line={line}
               onApplyPreset={onApplyPreset}
+              onHoverLine={onHoverLine}
               onRemoveLine={onRemoveLine}
               onSelectLine={onSelectLine}
             />
@@ -3137,6 +3156,13 @@ export function ChalkApp({
   const drawingMode: FieldDrawingMode = freeDraw ? "free" : "breaks";
   const [interaction, setInteraction] = useState(idleFieldInteraction);
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string>();
+  // The line whose row in a man's panel the mouse is over, lit on the field.
+  const [hoveredLineId, setHoveredLineId] = useState<string>();
+  const hoverLine = useCallback((pathId: string, hovering: boolean) => {
+    setHoveredLineId((current) =>
+      hovering ? pathId : current === pathId ? undefined : current,
+    );
+  }, []);
   // Pointer events can outpace React's render loop; the ref is the machine's
   // authoritative model so no event ever reduces against a stale one.
   const interactionRef = useRef<FieldInteractionModel>(interaction);
@@ -8587,6 +8613,7 @@ export function ChalkApp({
                   store={liveStore}
                 />
               }
+              highlightedPathId={hoveredLineId}
               routeDotPlayerId={routeDotPlayerId}
               routeDotPrecise={precisePointer}
               routeDotZoom={camera.width > 0 ? fieldWidthPx / camera.width : 1}
@@ -8847,6 +8874,7 @@ export function ChalkApp({
                   scopeBadge={playbook.scopeBadge}
                   lines={playerLines(selectedPlayer)}
                   onApplyPreset={runLinePreset}
+                  onHoverLine={hoverLine}
                   onAddMotion={(key) => {
                     putInspectorAway();
                     runPanelCommand(

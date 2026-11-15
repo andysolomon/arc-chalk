@@ -133,6 +133,7 @@ export function FieldDiagram({
   reveal,
   scene = stickThunderScene,
   selection,
+  highlightedPathId,
   overlay,
   livePreviewRef,
   routeDotPlayerId,
@@ -153,6 +154,8 @@ export function FieldDiagram({
   scene?: SvgRenderScene;
   /** Keys like "player:q" — absent means a non-interactive rendering. */
   selection?: ReadonlySet<string>;
+  /** A line lit because its row in the panel is under the mouse. */
+  highlightedPathId?: string;
   overlay?: React.ReactNode;
   /**
    * Live pointer preview applied after React commits, so a save
@@ -413,26 +416,45 @@ export function FieldDiagram({
               role="img"
             >
               <title>{path.ariaLabel}</title>
-              {selected("path", path.id)
+              {path.id === highlightedPathId
                 ? [
                     ...path.strokes,
                     ...path.branches.flatMap((b) => b.strokes),
                   ].map((stroke) => (
                     <path
                       d={stroke.d}
+                      data-highlighted-path={path.id}
                       data-print-chrome=""
-                      data-selected-path={path.id}
                       fill="none"
-                      key={`sel-${stroke.id}`}
-                      opacity="0.18"
+                      key={`hover-${stroke.id}`}
+                      opacity="0.45"
                       pointerEvents="none"
                       stroke={SELECTION_BLUE}
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth="8.5"
+                      strokeWidth="11"
                     />
                   ))
-                : null}
+                : selected("path", path.id)
+                  ? [
+                      ...path.strokes,
+                      ...path.branches.flatMap((b) => b.strokes),
+                    ].map((stroke) => (
+                      <path
+                        d={stroke.d}
+                        data-print-chrome=""
+                        data-selected-path={path.id}
+                        fill="none"
+                        key={`sel-${stroke.id}`}
+                        opacity="0.18"
+                        pointerEvents="none"
+                        stroke={SELECTION_BLUE}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="8.5"
+                      />
+                    ))
+                  : null}
               {path.coverageArea ? (
                 <g data-scene-coverage={path.coverageArea.id} opacity={shown}>
                   <ellipse
