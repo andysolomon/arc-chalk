@@ -48,8 +48,8 @@ export interface LifecycleSnapshot {
   readonly install: InstallState;
   /**
    * The shell is cached on this device, so it opens without a connection.
-   * This says nothing about a game plan's plays and images — Game Day checks
-   * those against the device itself.
+   * This says nothing about whether a game plan's plays and images are on
+   * this device.
    */
   readonly offlineReady: boolean;
   /**

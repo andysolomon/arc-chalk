@@ -14,7 +14,7 @@ import {
  * its own and a Play with the starter's name. Add plays offers this book by
  * default and every book on request, each row from another book labelled
  * with it; a Play already in the plan is reported as before; Prepare freezes
- * the Play from the other book; the call sheet and Game Day read it; a
+ * the Play from the other book; the call sheet reads it; a
  * reload finds it all, with the scope remembered on the device; and the Play
  * deleted from its book is reported missing and carried on the next Prepare.
  * The test ends with a screenshot of the plan.
@@ -61,7 +61,7 @@ const openPlans = async (page: Page) => {
 test("calls plays from another book, prepares them, and reports one deleted later", async ({
   page,
 }, testInfo) => {
-  // Two books, a plan, a packet, a reload, Game Day and a deletion: one
+  // Two books, a plan, a packet, a reload and a deletion: one
   // story, longer than the default allows.
   test.setTimeout(180_000);
   await openSeededEditor(page);
@@ -234,18 +234,6 @@ test("calls plays from another book, prepares them, and reports one deleted late
       .getByRole("button", { name: "All my playbooks" }),
   ).toHaveAttribute("aria-pressed", "true");
   await again.keyboard.press("Escape");
-
-  // Game Day reads the packet with the other book's call in it.
-  await gotoView(again, "Game Day");
-  const reader = again.getByRole("main", { name: "Game Day" });
-  await reader.getByRole("button", { name: /Week 3/ }).click();
-  await expect(reader.getByText(/Ready offline · 3 calls/)).toBeVisible();
-  await expect(
-    reader
-      .getByRole("navigation", { name: "Calls" })
-      .getByRole("button", { name: /^3 Goal Line Power/ }),
-  ).toBeVisible();
-  await expect(reader.locator(".reader-notice")).toHaveCount(0);
 
   // The Play deleted from its own book: the plan says so, the call keeps
   // the name its packet froze, and the next Prepare carries it forward.

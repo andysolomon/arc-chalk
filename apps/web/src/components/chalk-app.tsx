@@ -274,7 +274,6 @@ import { canSwitchPlay, createUntitledPlay } from "../library/library-actions";
 import { FormationsPage } from "../library/formations-page";
 import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
 import { GamePlansWorkspace } from "../library/game-plans-workspace";
-import { GameDayView } from "../library/game-day-view";
 import { defaultOutputSpec, type OutputSpec } from "../output/output-spec";
 import { bookDefaultOrder, bookPlaysInOrder } from "../output/book-order";
 import { OutputWorkspace } from "../output/output-workspace";
@@ -372,12 +371,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 export { FieldDiagram };
 
 /**
- * Where the Coach can be. Editor, Playbooks and Game Day are the three
- * destinations in the header (issue #65); Demo lives under Help, Present is
- * an action, and Print is the preview behind Print & export.
+ * Where the Coach can be. Editor and Playbooks are the destinations in the
+ * header (issue #65); Tips opens from Defensive adjustments, Demo lives
+ * under Help, Present is an action, and Print is the preview behind
+ * Print & export.
  */
-type View =
-  "Editor" | "Playbooks" | "GameDay" | "Tips" | "Demo" | "Present" | "Print";
+type View = "Editor" | "Playbooks" | "Tips" | "Demo" | "Present" | "Print";
 type Menu =
   | "more"
   | "export"
@@ -402,13 +401,11 @@ type Overlay =
   | null;
 type Tool = ToolId;
 
-/** The three destinations in the header (issue #65). */
+/** The destinations in the header (issue #65). */
 const destinations: readonly { readonly view: View; readonly label: string }[] =
   [
     { view: "Editor", label: "Editor" },
     { view: "Playbooks", label: "Playbooks" },
-    { view: "GameDay", label: "Game Day" },
-    { view: "Tips", label: "Tips" },
   ];
 
 /**
@@ -5434,26 +5431,14 @@ export function ChalkApp({
     (view: View): void => {
       // The Playbooks header has no name field, so a name still being typed
       // is kept before the field goes (it commits on blur in the editor).
-      if (view === "Playbooks" || view === "Tips" || view === "GameDay") {
+      if (view === "Playbooks" || view === "Tips") {
         void editorStore.commitPlayName().catch(() => undefined);
       }
       setActiveView(view);
       setOpenMenu(null);
       setOverlay(null);
-      if (chromeLoadedRef.current) {
-        const wasGameDay = chromeRef.current.gameDay === true;
-        if (view === "GameDay" || wasGameDay) {
-          const { gameDay: _was, ...rest } = chromeRef.current;
-          void _was;
-          const next: ChromeState =
-            view === "GameDay" ? { ...rest, gameDay: true } : rest;
-          chromeRef.current = next;
-          setChrome(next);
-          void runtime.library.saveChrome(next).catch(() => undefined);
-        }
-      }
     },
-    [editorStore, runtime.library],
+    [editorStore],
   );
   /** Help's tutorials open Demo on the tour named (issue #65). */
   const openTour = useCallback(
@@ -5858,7 +5843,6 @@ export function ChalkApp({
       openBookPage("plays");
       goToView("Playbooks");
     },
-    gameDay: () => goToView("GameDay"),
     demo: () => openTour("tools"),
     ...Object.fromEntries(
       demoTours.map((tour) => [`demo:${tour.id}`, () => openTour(tour.id)]),
@@ -6099,11 +6083,7 @@ export function ChalkApp({
         // Arrows and space belong to the tour; editor shortcuts stay off.
         return;
       }
-      if (
-        activeView === "Playbooks" ||
-        activeView === "GameDay" ||
-        activeView === "Tips"
-      ) {
+      if (activeView === "Playbooks" || activeView === "Tips") {
         // The destinations carry their own keys; the field's shortcuts would
         // draw on a Play nobody is looking at. Escape comes back to it, and
         // the palette still opens.
@@ -6445,8 +6425,6 @@ export function ChalkApp({
       // A drawer starts closed so the field has the width; the stub, ⌥1
       // and Layers bring it out.
       setInspectorOpen(state.inspectorOpen && !compactRef.current);
-      // A device left on Game Day comes back to it (issue #67).
-      if (state.gameDay) setActiveView("GameDay");
       setRailOpen(state.railOpen);
       setSidebarOpen((state.sidebarOpen ?? true) && !compactRef.current);
       setFreeDraw(state.freeDraw === true);
@@ -6800,16 +6778,6 @@ export function ChalkApp({
    * the rail keeps the original's footprint; the Aa control that asks is a
    * tap away, and the answer is remembered per device.
    */
-
-  /** Whether an image a prepared Play references is on this device. */
-  const hasImage = useCallback(
-    (hash: string) =>
-      runtime.getImage(hash).then(
-        (image) => image !== undefined,
-        () => false,
-      ),
-    [runtime],
-  );
   /**
    * What Print & export reads: every stored play with the open one standing
    * in for its copy, so the sheet shows what is on the field (issue #69).
@@ -6866,7 +6834,7 @@ export function ChalkApp({
   }));
   /**
    * Overlays any destination can open: Settings, from the sidebar's foot in
-   * the editor and from the header's end on the Playbooks and Game Day pages
+   * the editor and from the header's end on the Playbooks and Tips pages
    * (ADR 0074); the shortcut reference, from Help; the Conflict Inbox, from
    * Settings' Account tab.
    */
@@ -7415,7 +7383,7 @@ export function ChalkApp({
       ),
     },
   ];
-  const sidebar = (
+  const sidebar = (tools?: ReactNode) => (
     <PlaySidebar
       drawer={sidebarFloats}
       fold={{
@@ -7455,6 +7423,7 @@ export function ChalkApp({
         ) : undefined
       }
       thisPlay={sidebarThisPlay}
+      tools={tools}
     />
   );
 
@@ -8153,25 +8122,156 @@ export function ChalkApp({
     );
   }
 
-  if (activeView === "GameDay") {
-    return (
-      <div className="chalk-shell view-game-day">
-        {header}
-        <GameDayView
-          everyPlay={everyPlay}
-          hasImage={hasImage}
-          library={runtime.library}
-          onOpenPlaybooks={() => {
-            openBookPage("plans");
-            goToView("Playbooks");
-          }}
-          snapshot={playbook.snapshot}
-        />
-        {overlay === "palette" ? paletteOverlay : null}
-        {sharedOverlays}
-      </div>
-    );
-  }
+  /**
+   * The drawing tools. On a desktop they head the one left column, the
+   * sidebar, and stand alone as a narrow rail when it folds (⌥3); a tablet's
+   * sidebar is a drawer, so its tools keep a rail of their own, and a phone's
+   * are the row along the field's foot.
+   */
+  const toolsInSidebar = !sidebarFloats;
+  const railTools = (
+    <>
+      {/* How the pointer meets the field (ADR 0079), then what goes on
+          the field, then what comes off it, then the selection (ADR
+          0077). Each is one press from a blank canvas: the set, the
+          other unit under it, a note. A phone's row has no room for
+          the pointer pair, so there it floats over the field. */}
+      {phoneWorkspace ? null : (
+        <>
+          {pointerPair}
+          <span aria-hidden="true" className="rail-divider" />
+        </>
+      )}
+      <button
+        // The set for an offensive play, the call for a defensive one:
+        // the same browser the sidebar's Formation row opens.
+        aria-label={railSetName}
+        className="rail-formation"
+        onClick={defensePlay ? openDefenses : openFormations}
+        title={railSetName}
+        type="button"
+      >
+        <ChalkToolbarIcon glyph="formation" />
+      </button>
+      {shadowCount === 0 ? (
+        // Nobody to show yet: the button puts the other unit on, in
+        // the browser for its side, and is a toggle once it is there.
+        <button
+          aria-label={railShadowAddName}
+          className="rail-shadow rail-shadow-add"
+          onClick={defensePlay ? openFormations : openDefenses}
+          title={railShadowAddName}
+          type="button"
+        >
+          <ChalkToolbarIcon glyph="shadow-add" />
+        </button>
+      ) : (
+        <button
+          // The other unit under the play, shown or hidden (ADR 0053).
+          // Pressed means it is on the field; it stays in the play
+          // either way.
+          aria-label={`${shadowLayerName} — H`}
+          aria-pressed={shadowOnField}
+          className="rail-shadow"
+          onClick={toggleShadow}
+          title={`${shadowLayerName} on / off — H`}
+          type="button"
+        >
+          <ChalkToolbarIcon glyph="shadow-toggle" />
+        </button>
+      )}
+      <button
+        aria-label={railCallName}
+        className="rail-call"
+        disabled={!railCallReady}
+        onClick={() => openPresets(railCallGroup)}
+        title={
+          railCallReady
+            ? railCallName
+            : defensePlay
+              ? "Put the defense on first — a coverage is called for the men who drop"
+              : "Put a formation on first — a concept is drawn for the men in the set"
+        }
+        type="button"
+      >
+        <RailIcon glyph="concept" />
+      </button>
+      {tools.map((tool) => (
+        // Text is the one tool left here (ADR 0052): a note goes on
+        // the grass, so it needs a tool; a line goes on a man, so it
+        // starts from him. A second press puts the tool down again.
+        <button
+          className={activeTool === tool.id ? "active" : ""}
+          key={tool.id}
+          onClick={() =>
+            selectTool(activeTool === tool.id ? "select" : tool.id)
+          }
+          title={`${tool.label} — ${tool.shortcut}`}
+          aria-label={`${tool.label} — ${tool.shortcut}`}
+          aria-pressed={activeTool === tool.id}
+        >
+          {tool.id === "text" ? (
+            <ChalkToolbarIcon glyph="add-text" />
+          ) : (
+            <RailIcon glyph={tool.id} />
+          )}
+        </button>
+      ))}
+      {phoneWorkspace && interaction.drawing ? (
+        // A route on a phone ends here; there is no Enter key and a
+        // double tap is not a thing a Coach should have to know. It
+        // says "route" for every kind of line, as the phone specs do.
+        <button
+          aria-label="Finish the route — ⏎"
+          className="rail-finish"
+          onClick={() => dispatchField({ type: "finish-drawing" })}
+          title="Finish the route — ⏎"
+          type="button"
+        >
+          <ChalkToolbarIcon glyph="finish-route" />
+        </button>
+      ) : null}
+      <span aria-hidden="true" className="rail-divider" />
+      <button
+        // Every line off the field at once — routes, motions, blocks,
+        // drops and blitzes — with the men left standing, so the next
+        // concept is drawn from the same formation. Nothing to wipe
+        // leaves it disabled; ⌘Z brings the lines back.
+        aria-label="Clear every line"
+        className="rail-clear"
+        disabled={!erasures.lines}
+        onClick={clearAction("lines")}
+        title="Clear every route, block and drop — the men stay where they are"
+        type="button"
+      >
+        <ChalkToolbarIcon glyph="clear-lines" />
+      </button>
+      <button
+        // Every man off the field, on both sides, with his lines; the
+        // notes stay. The canvas is blank for the next set, and ⌘Z
+        // puts them all back.
+        aria-label="Clear every player"
+        className="rail-clear rail-clear-players"
+        disabled={!erasures.players}
+        onClick={clearAction("players")}
+        title="Clear every player — his routes go with him, notes stay"
+        type="button"
+      >
+        <ChalkToolbarIcon glyph="clear-players" />
+      </button>
+      <span className="rail-spacer" />
+      <button
+        aria-label="Delete selection — ⌫"
+        className="rail-trash"
+        disabled={interaction.selection.length === 0 && !interaction.drawing}
+        onClick={() => dispatchField({ type: "delete" })}
+        title="Delete selection — ⌫"
+        type="button"
+      >
+        <ChalkToolbarIcon glyph="delete-selection" />
+      </button>
+    </>
+  );
 
   return (
     <div className={`chalk-shell${phoneWorkspace ? " phone-workspace" : ""}`}>
@@ -8188,9 +8288,18 @@ export function ChalkApp({
                 type="button"
               />
             ) : null}
-            {sidebar}
+            {sidebar(
+              toolsInSidebar && railOpen ? (
+                <nav
+                  aria-label="Drawing tools"
+                  className="tool-rail sidebar-tools"
+                >
+                  {railTools}
+                </nav>
+              ) : undefined,
+            )}
           </>
-        ) : phoneWorkspace ? null : (
+        ) : phoneWorkspace || (toolsInSidebar && railOpen) ? null : (
           <button
             className="sidebar-stub"
             onClick={() => setSidebarOpen(true)}
@@ -8200,159 +8309,33 @@ export function ChalkApp({
             Sidebar
           </button>
         )}
-        {railOpen ? (
+        {toolsInSidebar && sidebarOpen ? null : railOpen ? (
           <nav className="tool-rail" aria-label="Drawing tools">
-            {/* How the pointer meets the field (ADR 0079), then what goes on
-                the field, then what comes off it, then the selection (ADR
-                0077). Each is one press from a blank canvas: the set, the
-                other unit under it, a note. A phone's row has no room for
-                the pointer pair, so there it floats over the field. */}
-            {phoneWorkspace ? null : (
-              <>
-                {pointerPair}
-                <span aria-hidden="true" className="rail-divider" />
-              </>
-            )}
-            <button
-              // The set for an offensive play, the call for a defensive one:
-              // the same browser the sidebar's Formation row opens.
-              aria-label={railSetName}
-              className="rail-formation"
-              onClick={defensePlay ? openDefenses : openFormations}
-              title={railSetName}
-              type="button"
-            >
-              <ChalkToolbarIcon glyph="formation" />
-            </button>
-            {shadowCount === 0 ? (
-              // Nobody to show yet: the button puts the other unit on, in
-              // the browser for its side, and is a toggle once it is there.
+            {railTools}
+            {toolsInSidebar ? (
+              // The sidebar folded to its tools: this opens it again.
               <button
-                aria-label={railShadowAddName}
-                className="rail-shadow rail-shadow-add"
-                onClick={defensePlay ? openFormations : openDefenses}
-                title={railShadowAddName}
+                aria-label="Show the sidebar"
+                className="rail-collapse"
+                onClick={() => setSidebarOpen(true)}
+                title="Show the sidebar — ⌥3"
                 type="button"
               >
-                <ChalkToolbarIcon glyph="shadow-add" />
+                ›
               </button>
             ) : (
               <button
-                // The other unit under the play, shown or hidden (ADR 0053).
-                // Pressed means it is on the field; it stays in the play
-                // either way.
-                aria-label={`${shadowLayerName} — H`}
-                aria-pressed={shadowOnField}
-                className="rail-shadow"
-                onClick={toggleShadow}
-                title={`${shadowLayerName} on / off — H`}
+                aria-label="Hide the tools"
+                className="rail-collapse"
+                onClick={() => setRailOpen(false)}
+                title="Hide the tools — ⌥2"
                 type="button"
               >
-                <ChalkToolbarIcon glyph="shadow-toggle" />
+                ‹
               </button>
             )}
-            <button
-              aria-label={railCallName}
-              className="rail-call"
-              disabled={!railCallReady}
-              onClick={() => openPresets(railCallGroup)}
-              title={
-                railCallReady
-                  ? railCallName
-                  : defensePlay
-                    ? "Put the defense on first — a coverage is called for the men who drop"
-                    : "Put a formation on first — a concept is drawn for the men in the set"
-              }
-              type="button"
-            >
-              <RailIcon glyph="concept" />
-            </button>
-            {tools.map((tool) => (
-              // Text is the one tool left here (ADR 0052): a note goes on
-              // the grass, so it needs a tool; a line goes on a man, so it
-              // starts from him. A second press puts the tool down again.
-              <button
-                className={activeTool === tool.id ? "active" : ""}
-                key={tool.id}
-                onClick={() =>
-                  selectTool(activeTool === tool.id ? "select" : tool.id)
-                }
-                title={`${tool.label} — ${tool.shortcut}`}
-                aria-label={`${tool.label} — ${tool.shortcut}`}
-                aria-pressed={activeTool === tool.id}
-              >
-                {tool.id === "text" ? (
-                  <ChalkToolbarIcon glyph="add-text" />
-                ) : (
-                  <RailIcon glyph={tool.id} />
-                )}
-              </button>
-            ))}
-            {phoneWorkspace && interaction.drawing ? (
-              // A route on a phone ends here; there is no Enter key and a
-              // double tap is not a thing a Coach should have to know. It
-              // says "route" for every kind of line, as the phone specs do.
-              <button
-                aria-label="Finish the route — ⏎"
-                className="rail-finish"
-                onClick={() => dispatchField({ type: "finish-drawing" })}
-                title="Finish the route — ⏎"
-                type="button"
-              >
-                <ChalkToolbarIcon glyph="finish-route" />
-              </button>
-            ) : null}
-            <span aria-hidden="true" className="rail-divider" />
-            <button
-              // Every line off the field at once — routes, motions, blocks,
-              // drops and blitzes — with the men left standing, so the next
-              // concept is drawn from the same formation. Nothing to wipe
-              // leaves it disabled; ⌘Z brings the lines back.
-              aria-label="Clear every line"
-              className="rail-clear"
-              disabled={!erasures.lines}
-              onClick={clearAction("lines")}
-              title="Clear every route, block and drop — the men stay where they are"
-              type="button"
-            >
-              <ChalkToolbarIcon glyph="clear-lines" />
-            </button>
-            <button
-              // Every man off the field, on both sides, with his lines; the
-              // notes stay. The canvas is blank for the next set, and ⌘Z
-              // puts them all back.
-              aria-label="Clear every player"
-              className="rail-clear rail-clear-players"
-              disabled={!erasures.players}
-              onClick={clearAction("players")}
-              title="Clear every player — his routes go with him, notes stay"
-              type="button"
-            >
-              <ChalkToolbarIcon glyph="clear-players" />
-            </button>
-            <span className="rail-spacer" />
-            <button
-              aria-label="Delete selection — ⌫"
-              className="rail-trash"
-              disabled={
-                interaction.selection.length === 0 && !interaction.drawing
-              }
-              onClick={() => dispatchField({ type: "delete" })}
-              title="Delete selection — ⌫"
-              type="button"
-            >
-              <ChalkToolbarIcon glyph="delete-selection" />
-            </button>
-            <button
-              className="rail-collapse"
-              aria-label="Hide the tools"
-              onClick={() => setRailOpen(false)}
-              title="Hide the tools — ⌥2"
-            >
-              ‹
-            </button>
           </nav>
-        ) : (
+        ) : toolsInSidebar ? null : (
           <button
             className="rail-stub"
             onClick={() => setRailOpen(true)}
@@ -9838,10 +9821,7 @@ function Header({
   );
   return (
     <header className={phone ? "topbar phone-topbar" : "topbar"}>
-      {phone &&
-      activeView !== "Playbooks" &&
-      activeView !== "GameDay" &&
-      activeView !== "Tips" ? (
+      {phone && activeView !== "Playbooks" && activeView !== "Tips" ? (
         <button
           aria-label="Open the sidebar"
           className="sidebar-open"
@@ -9863,9 +9843,7 @@ function Header({
           onChange={(event) => onView(event.target.value as View)}
         >
           {!destinations.some(({ view }) => view === activeView) ? (
-            <option value={activeView}>
-              {activeView === "GameDay" ? "Game Day" : activeView}
-            </option>
+            <option value={activeView}>{activeView}</option>
           ) : null}
           {destinations.map(({ view, label }) => (
             <option key={view} value={view}>
@@ -9893,12 +9871,9 @@ function Header({
           <span className="demo-title">{DEMO_HEADER_TITLE}</span>
           <span className="demo-play-name">{demoPlayName}</span>
         </>
-      ) : activeView === "Playbooks" ||
-        activeView === "GameDay" ||
-        activeView === "Tips" ? (
-        // The Playbook is managed here, and a prepared plan is read here
-        // (issue #163) — not the open Play: its name, type, undo and save
-        // belong to the editor and wait there.
+      ) : activeView === "Playbooks" || activeView === "Tips" ? (
+        // The Playbook is managed here — not the open Play: its name, type,
+        // undo and save belong to the editor and wait there.
         // Neither page has the sidebar, so the two icons at its foot stand
         // at the header's end instead (ADR 0074). More's actions are all
         // about a field these pages do not show.

@@ -8,9 +8,15 @@ test("phone tips and defensive controls stay reachable at narrow widths", async 
 }, info) => {
   await page.goto("/");
   await addDefense(page);
+  // Tips opens from Defensive adjustments, in the expanded sheet.
   await page
-    .getByRole("combobox", { name: "Workspace view", exact: true })
-    .selectOption("Tips");
+    .getByRole("button", { name: "Show all assignments", exact: true })
+    .tap();
+  await (
+    await openDefense(page)
+  )
+    .getByRole("button", { name: "Defensive tips", exact: true })
+    .tap();
   await expect(
     page.getByRole("heading", { name: "Defensive tips", exact: true }),
   ).toBeVisible();

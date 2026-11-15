@@ -34,10 +34,9 @@ export type ActionId =
   | "newDefensivePlay"
   /** The Playbooks workspace — Game Plans (issue #66). */
   | "gamePlans"
-  /** The three destinations in the header: Editor, Playbooks, Game Day (issue #65). */
+  /** Destinations in the header: Editor and Playbooks (issue #65). */
   | "editor"
   | "playbooks"
-  | "gameDay"
   /** Demo and its tours live under Help (issue #65). */
   | "demo"
   | `demo:${DemoTourId}`
@@ -488,7 +487,6 @@ export function paletteCommands(
     { id: "newVariation", label: "New variation" },
     { id: "gamePlans", label: "Game plans" },
     { id: "playbooks", label: "Playbooks" },
-    { id: "gameDay", label: "Game Day" },
     { id: "demo", label: "Demo — guided tour" },
     { id: "group", label: "Group", shortcut: "⌘G" },
     { id: "ungroup", label: "Ungroup", shortcut: "⇧⌘G" },
