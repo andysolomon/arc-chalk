@@ -1204,6 +1204,49 @@ test("picks an alternate back out from the choice off its end", async ({
   });
 });
 
+test("sends each choice off the end a different way, three at most", async ({
+  page,
+}, testInfo) => {
+  await openEditor(page);
+
+  const onSegment = await fieldPoint(page, 262, 405);
+  await page.mouse.click(onSegment.x, onSegment.y);
+  const addChoice = page.getByRole("button", { name: "+ Choice at the end" });
+  for (let index = 0; index < 3; index += 1) {
+    await addChoice.click();
+    await expect(
+      page.locator(`[data-scene-path="rx-branch-${index}"]`),
+    ).toHaveCount(1);
+  }
+
+  // Each fork leaves the end of the stem on its own heading: no two choices
+  // draw over one another.
+  const headings: number[] = [];
+  for (let index = 0; index < 3; index += 1) {
+    const d = await page
+      .locator(`[data-scene-path="rx-branch-${index}"]`)
+      .getAttribute("d");
+    const numbers = d!.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    const [x0, y0] = numbers;
+    const [x1, y1] = numbers.slice(-2);
+    headings.push(Math.atan2(y1! - y0!, x1! - x0!));
+  }
+  for (let a = 0; a < headings.length; a += 1) {
+    for (let b = a + 1; b < headings.length; b += 1) {
+      const gap = Math.abs(headings[a]! - headings[b]!) % (2 * Math.PI);
+      expect(Math.min(gap, 2 * Math.PI - gap)).toBeGreaterThan(Math.PI / 6);
+    }
+  }
+
+  // Three is all one break takes.
+  await expect(addChoice).toBeDisabled();
+  await expect(page.locator('[data-scene-path="rx-branch-3"]')).toHaveCount(0);
+
+  await field(page).screenshot({
+    path: testInfo.outputPath("three-choices-off-the-end.png"),
+  });
+});
+
 test("turns every line a man has the other way, in one step", async ({
   page,
 }) => {

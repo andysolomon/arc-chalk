@@ -1136,6 +1136,43 @@ export function addAlternateRouteCommand(
  */
 const CHOICE_TURN_RADIANS = Math.PI / 2.6;
 const CHOICE_MIN_LENGTH_PX = 70;
+/** A break reads three ways at most; a fourth is a different route. */
+export const MAX_ROUTE_CHOICES_PER_BREAK = 3;
+/** Two lines leaving a break closer than this look like one. */
+const CHOICE_CLEARANCE_RADIANS = Math.PI / 6;
+
+/** Which break a choice forks at: the one picked, or the end of the line. */
+export function routeChoiceBreak(
+  path: Pick<MovementPath, "points">,
+  fromIndex?: number,
+): number {
+  const last = path.points.length - 1;
+  return Math.max(0, Math.min(last, fromIndex ?? last));
+}
+
+/** How many choices already fork at that break. */
+export function routeChoicesAt(
+  path: Pick<MovementPath, "points" | "branches">,
+  fromIndex?: number,
+): number {
+  const from = routeChoiceBreak(path, fromIndex);
+  return path.branches.filter((branch) => branch.fromIndex === from).length;
+}
+
+export function canAddRouteChoice(
+  path: Pick<MovementPath, "points" | "branches">,
+  fromIndex?: number,
+): boolean {
+  return (
+    path.points.length >= 2 &&
+    routeChoicesAt(path, fromIndex) < MAX_ROUTE_CHOICES_PER_BREAK
+  );
+}
+
+function angularGap(a: number, b: number): number {
+  const d = Math.abs(a - b) % (2 * Math.PI);
+  return d > Math.PI ? 2 * Math.PI - d : d;
+}
 
 /**
  * A choice forks the same stem at the break the Coach picked: one release,
@@ -1149,6 +1186,10 @@ const CHOICE_MIN_LENGTH_PX = 70;
  * way whatever the route was doing. Here the leg that reaches the break
  * stands in for the one that would leave it, so a fork off the end continues
  * the line it grew from.
+ *
+ * Every choice at a break reads a different way: the first turns one side,
+ * the second the other, the third runs straight on — always skipping a way
+ * the route itself or an earlier choice already goes. A break takes three.
  */
 export function addRouteChoiceCommand(
   document: PlayDocument,
@@ -1156,9 +1197,9 @@ export function addRouteChoiceCommand(
   fromIndex?: number,
 ): PlayCommand | undefined {
   const path = document.paths.find(({ id }) => id === pathId);
-  if (!path || path.points.length < 2) return undefined;
+  if (!path || !canAddRouteChoice(path, fromIndex)) return undefined;
   const last = path.points.length - 1;
-  const from = Math.max(0, Math.min(last, fromIndex ?? last));
+  const from = routeChoiceBreak(path, fromIndex);
   const anchor = yardsToLegacyCanvas(path.points[from]!);
   const leg = yardsToLegacyCanvas(
     path.points[from + 1] ?? path.points[from - 1]!,
@@ -1167,20 +1208,63 @@ export function addRouteChoiceCommand(
   const reversed = from === last;
   const dx = (leg.x - anchor.x) * (reversed ? -1 : 1);
   const dy = (leg.y - anchor.y) * (reversed ? -1 : 1);
-  const angle = Math.atan2(dy, dx) + CHOICE_TURN_RADIANS;
+  const base = Math.atan2(dy, dx);
   const length = Math.max(CHOICE_MIN_LENGTH_PX, Math.hypot(dx, dy));
+
+  // Every way already leaving the break: the route in and out of it, and
+  // each choice already forking there.
+  const directionTo = (point: Coordinate) => {
+    const to = yardsToLegacyCanvas(point);
+    return to.x === anchor.x && to.y === anchor.y
+      ? undefined
+      : Math.atan2(to.y - anchor.y, to.x - anchor.x);
+  };
+  const taken = [
+    path.points[from - 1],
+    path.points[from + 1],
+    ...path.branches
+      .filter((branch) => branch.fromIndex === from)
+      .map((branch) => branch.points[0]),
+  ].flatMap((point) => {
+    const direction = point ? directionTo(point) : undefined;
+    return direction === undefined ? [] : [direction];
+  });
+  // Measured on where the tip actually lands: one held inside a sideline
+  // can swing round onto a way that is already taken.
+  const tipAt = (angle: number) =>
+    insideSidelines(
+      document,
+      legacyCanvasToYards({
+        x: anchor.x + Math.cos(angle) * length,
+        y: anchor.y + Math.sin(angle) * length,
+      }),
+    );
+  const clearance = (tip: Coordinate) => {
+    const direction = directionTo(tip);
+    if (direction === undefined) return 0;
+    return Math.min(
+      Math.PI,
+      ...taken.map((other) => angularGap(direction, other)),
+    );
+  };
+  const tips = [
+    base + CHOICE_TURN_RADIANS,
+    base - CHOICE_TURN_RADIANS,
+    base,
+    base + Math.PI - CHOICE_TURN_RADIANS,
+    base - Math.PI + CHOICE_TURN_RADIANS,
+  ].map(tipAt);
+  const tip =
+    tips.find(
+      (candidate) => clearance(candidate) >= CHOICE_CLEARANCE_RADIANS,
+    ) ??
+    tips.reduce((best, candidate) =>
+      clearance(candidate) > clearance(best) ? candidate : best,
+    );
 
   const branch: PathBranch = {
     fromIndex: from,
-    points: [
-      insideSidelines(
-        document,
-        legacyCanvasToYards({
-          x: anchor.x + Math.cos(angle) * length,
-          y: anchor.y + Math.sin(angle) * length,
-        }),
-      ),
-    ],
+    points: [tip],
     style: { line: "dashed", ending: "arrow", color: "ink" },
   };
   return {
