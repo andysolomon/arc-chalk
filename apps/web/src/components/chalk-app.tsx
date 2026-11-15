@@ -6386,7 +6386,7 @@ export function ChalkApp({
       const target = event.target instanceof Element ? event.target : null;
       if (
         target?.closest(
-          ".inspector, .inspector-stub, .overlay, .menu-panel, .context-backdrop, .toast, .play-sidebar, .sidebar-scrim, .quick-tray",
+          ".inspector, .inspector-stub, .overlay, .menu-panel, .context-backdrop, .toast, .play-sidebar, .sidebar-rail, .sidebar-scrim, .quick-tray",
         )
       ) {
         return;
@@ -6408,7 +6408,7 @@ export function ChalkApp({
       const target = event.target instanceof Element ? event.target : null;
       if (
         target?.closest(
-          ".play-sidebar, .sidebar-open, .sidebar-stub, .overlay, .menu-panel, .context-backdrop, .toast",
+          ".play-sidebar, .sidebar-rail, .sidebar-open, .sidebar-stub, .overlay, .menu-panel, .context-backdrop, .toast",
         )
       ) {
         return;
@@ -7450,9 +7450,11 @@ export function ChalkApp({
       ),
     },
   ];
-  const sidebar = (tools?: ReactNode) => (
+  const sidebar = (tools: ReactNode, folded: boolean) => (
     <PlaySidebar
       drawer={sidebarFloats}
+      folded={folded}
+      onExpand={() => setSidebarOpen(true)}
       fold={{
         label: "View & library",
         open: chrome.open[sidebarFoldKey] === true,
@@ -8191,11 +8193,13 @@ export function ChalkApp({
 
   /**
    * The drawing tools. On a desktop they head the one left column, the
-   * sidebar, and stand alone as a narrow rail when it folds (⌥3); a tablet's
+   * sidebar, and head a narrow rail beside its icons when it folds (⌥3); a tablet's
    * sidebar is a drawer, so its tools keep a rail of their own, and a phone's
    * are the row along the field's foot.
    */
   const toolsInSidebar = !sidebarFloats;
+  /** Folded (⌥3) with the tools out: the rail of tools and sidebar icons. */
+  const sidebarFolded = toolsInSidebar && !sidebarOpen && railOpen;
   const railTools = (
     <>
       {/* How the pointer meets the field (ADR 0079), then what goes on
@@ -8345,28 +8349,31 @@ export function ChalkApp({
       {header}
       <div className="workspace">
         {quickTray}
-        {sidebarOpen ? (
+        {sidebarOpen && sidebarFloats ? (
+          <button
+            aria-label="Close the sidebar"
+            className="sidebar-scrim"
+            onClick={() => setSidebarOpen(false)}
+            type="button"
+          />
+        ) : null}
+        {sidebarOpen || sidebarFolded ? (
+          // Folded on a desktop, it stays one narrow rail of the tools and
+          // the sidebar's own icons, each still one press from its control.
           <>
-            {sidebarFloats ? (
-              <button
-                aria-label="Close the sidebar"
-                className="sidebar-scrim"
-                onClick={() => setSidebarOpen(false)}
-                type="button"
-              />
-            ) : null}
             {sidebar(
               toolsInSidebar && railOpen ? (
                 <nav
                   aria-label="Drawing tools"
-                  className="tool-rail sidebar-tools"
+                  className={`tool-rail${sidebarFolded ? "" : " sidebar-tools"}`}
                 >
                   {railTools}
                 </nav>
               ) : undefined,
+              sidebarFolded,
             )}
           </>
-        ) : phoneWorkspace || (toolsInSidebar && railOpen) ? null : (
+        ) : phoneWorkspace ? null : (
           <button
             className="sidebar-stub"
             onClick={() => setSidebarOpen(true)}
@@ -8376,33 +8383,20 @@ export function ChalkApp({
             Sidebar
           </button>
         )}
-        {toolsInSidebar && sidebarOpen ? null : railOpen ? (
+        {toolsInSidebar ? null : railOpen ? (
           <nav className="tool-rail" aria-label="Drawing tools">
             {railTools}
-            {toolsInSidebar ? (
-              // The sidebar folded to its tools: this opens it again.
-              <button
-                aria-label="Show the sidebar"
-                className="rail-collapse"
-                onClick={() => setSidebarOpen(true)}
-                title="Show the sidebar — ⌥3"
-                type="button"
-              >
-                ›
-              </button>
-            ) : (
-              <button
-                aria-label="Hide the tools"
-                className="rail-collapse"
-                onClick={() => setRailOpen(false)}
-                title="Hide the tools — ⌥2"
-                type="button"
-              >
-                ‹
-              </button>
-            )}
+            <button
+              aria-label="Hide the tools"
+              className="rail-collapse"
+              onClick={() => setRailOpen(false)}
+              title="Hide the tools — ⌥2"
+              type="button"
+            >
+              ‹
+            </button>
           </nav>
-        ) : toolsInSidebar ? null : (
+        ) : (
           <button
             className="rail-stub"
             onClick={() => setRailOpen(true)}
