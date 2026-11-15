@@ -5,8 +5,8 @@ import { expect, openSeededEditor, openSettings, test } from "./fixtures";
 /**
  * Thanksgiving week (ADR 0082): from the Monday before the fourth Thursday of
  * November through the Sunday after it, the shell turns to autumn colours in
- * light and in dark, and turns back on its own. The field stays on white
- * paper. The clock and the time zone are pinned, so each run paints the same
+ * light and in dark, and turns back on its own. The field keeps its
+ * everyday colours: white paper in light, the plain dark field in dark. The clock and the time zone are pinned, so each run paints the same
  * week; the first test ends with screenshots of the autumn shell, light and
  * dark.
  */
@@ -37,7 +37,7 @@ const fieldPaper = (page: Page) =>
     .first()
     .evaluate((node) => getComputedStyle(node).fill);
 
-test("Thanksgiving Day wears autumn colours in light and dark, around a white field", async ({
+test("Thanksgiving Day wears autumn colours in light and dark, around an everyday field", async ({
   page,
 }, testInfo) => {
   await page.clock.install({ time: new Date("2026-11-26T10:00:00-06:00") });
@@ -60,13 +60,13 @@ test("Thanksgiving Day wears autumn colours in light and dark, around a white fi
     path: testInfo.outputPath("thanksgiving-light.png"),
   });
 
-  // Dark keeps the season: a warm dark shell, still a white field.
+  // Dark keeps the season: a warm dark shell around the plain dark field.
   await page.emulateMedia({ colorScheme: "dark" });
   await expect
     .poll(() => background(page, ".chalk-shell"))
     .toBe("rgb(20, 16, 12)");
   expect(await season(page)).toBe("thanksgiving");
-  expect(await fieldPaper(page)).toBe("rgb(255, 255, 255)");
+  expect(await fieldPaper(page)).toBe("rgb(24, 24, 24)");
   await page.screenshot({
     path: testInfo.outputPath("thanksgiving-dark.png"),
   });

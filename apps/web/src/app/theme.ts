@@ -11,11 +11,21 @@ export type Theme = "light" | "dark";
 
 export const THEME_STORAGE_KEY = "chalk.theme";
 
+/**
+ * The field under a dark shell (ADR 0083): dark with the shell, or kept on
+ * white paper the way it prints. Under a light shell the field is paper
+ * either way. Like the theme, it belongs to this device.
+ */
+export type FieldPreference = "theme" | "paper";
+
+export const FIELD_STORAGE_KEY = "chalk.field";
+
 const CHANGE_EVENT = "chalk-theme-change";
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 /** The choice when this browser refuses storage: it holds until the page closes. */
 let unsaved: ThemePreference = "system";
+let unsavedField: FieldPreference = "theme";
 
 function parse(value: string | null): ThemePreference {
   return value === "light" || value === "dark" ? value : "system";
@@ -26,6 +36,16 @@ export function readThemePreference(): ThemePreference {
     return parse(globalThis.localStorage.getItem(THEME_STORAGE_KEY));
   } catch {
     return unsaved;
+  }
+}
+
+export function readFieldPreference(): FieldPreference {
+  try {
+    return globalThis.localStorage.getItem(FIELD_STORAGE_KEY) === "paper"
+      ? "paper"
+      : "theme";
+  } catch {
+    return unsavedField;
   }
 }
 
@@ -88,6 +108,8 @@ export function currentSeason(): Season {
 function applyTheme(): void {
   const root = document.documentElement;
   root.dataset.theme = resolveTheme(readThemePreference());
+  if (readFieldPreference() === "paper") root.dataset.field = "paper";
+  else delete root.dataset.field;
   const season = currentSeason();
   if (season === "none") delete root.dataset.season;
   else root.dataset.season = season;
@@ -111,10 +133,31 @@ export function saveThemePreference(preference: ThemePreference): void {
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
+/** Saves the field's choice on this device and repaints every open view of it. */
+export function saveFieldPreference(preference: FieldPreference): void {
+  unsavedField = preference;
+  try {
+    if (preference === "theme") {
+      globalThis.localStorage.removeItem(FIELD_STORAGE_KEY);
+    } else {
+      globalThis.localStorage.setItem(FIELD_STORAGE_KEY, preference);
+    }
+  } catch {
+    // Private browsing: `unsavedField` carries the choice instead.
+  }
+  window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
 function subscribe(onChange: () => void): () => void {
   const media = globalThis.matchMedia?.(DARK_QUERY);
   const onStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === THEME_STORAGE_KEY) onChange();
+    if (
+      event.key === null ||
+      event.key === THEME_STORAGE_KEY ||
+      event.key === FIELD_STORAGE_KEY
+    ) {
+      onChange();
+    }
   };
   window.addEventListener(CHANGE_EVENT, onChange);
   window.addEventListener("storage", onStorage);
@@ -158,6 +201,23 @@ export function useThemePreference(): readonly [
   );
   const choose = useCallback(
     (next: ThemePreference) => saveThemePreference(next),
+    [],
+  );
+  return [preference, choose] as const;
+}
+
+/** The Appearance setting for the field under a dark shell, and its setter. */
+export function useFieldPreference(): readonly [
+  FieldPreference,
+  (preference: FieldPreference) => void,
+] {
+  const preference = useSyncExternalStore(
+    subscribe,
+    readFieldPreference,
+    () => "theme" as const,
+  );
+  const choose = useCallback(
+    (next: FieldPreference) => saveFieldPreference(next),
     [],
   );
   return [preference, choose] as const;

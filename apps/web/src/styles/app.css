@@ -77,8 +77,13 @@
 }
 /* The dark theme (ADR 0061). `data-theme` is set before the first paint by
    /theme-boot.js and kept by the Appearance setting; the share page never
-   sets it, so it keeps its own dark shell. */
-:root[data-theme="dark"] {
+   sets it, so it keeps its own dark shell. The field on screen — the editor's
+   and the game-day reader's, with the editor's minimap — takes the same ramp
+   unless the Coach keeps it on paper (ADR 0083); the print preview never does. */
+:root[data-theme="dark"],
+:root[data-theme="dark"]:not([data-field="paper"])
+  :is(.field-wrap, .reader-field)
+  :is(.field-diagram, .minimap) {
   color-scheme: dark;
   --paper: #181818;
   --canvas: #111;
@@ -174,6 +179,132 @@
   --blue-strong: #f6bd85;
   --selected-tint: #33200f;
   --selected-line: #6b3a14;
+}
+/* The dark field (ADR 0083). The scene builder writes its colours into the
+   SVG's attributes, because exports render the same markup and must print on
+   paper. On screen, CSS outranks a presentation attribute, so each colour the
+   builder uses is swapped here for its dark-ground partner: paper and ink trade
+   places, so a solid man stays legible, and every palette colour brightens just
+   enough to hold against the dark. `:where` keeps these below the selection
+   rules. A colour added to @chalk/render needs its partner here. */
+:where(
+    :root[data-theme="dark"]:not([data-field="paper"])
+      :is(.field-wrap, .reader-field)
+  )
+  :is(.field-diagram, .minimap) {
+  --field-ground: var(--paper);
+  --field-ink: var(--ink);
+  --field-blue: var(--blue-text);
+  --field-red: #ff6369;
+  --field-green: #5dc26f;
+  --field-orange: #ff8a3d;
+  --field-gray: #a3a3a3;
+  --field-ink-soft: var(--ink-soft);
+  --field-call: #6ea8ec;
+  --field-deep: #6f8cff;
+  --field-curl: #b48cff;
+  --field-hook: #b8c94a;
+  --field-flat: #3cc9d3;
+  --field-spy: #d99a50;
+
+  & .field-paper {
+    fill: var(--field-ground);
+    stroke: var(--rule);
+  }
+  & .red-note {
+    fill: var(--field-ground);
+  }
+  /* A yellow sticky stays yellow, so its words stay dark. */
+  & .field-annotations .yellow-text {
+    fill: #171717;
+  }
+  & [fill="#fff" i],
+  & [fill="#ffffff" i] {
+    fill: var(--field-ground);
+  }
+  & [stroke="#fff" i],
+  & [stroke="#ffffff" i] {
+    stroke: var(--field-ground);
+  }
+  & [fill="#171717" i] {
+    fill: var(--field-ink);
+  }
+  & [stroke="#171717" i] {
+    stroke: var(--field-ink);
+  }
+  & [fill="#0072f5" i] {
+    fill: var(--field-blue);
+  }
+  & [stroke="#0072f5" i] {
+    stroke: var(--field-blue);
+  }
+  & [fill="#e5484d" i] {
+    fill: var(--field-red);
+  }
+  & [stroke="#e5484d" i] {
+    stroke: var(--field-red);
+  }
+  & [fill="#398e4a" i] {
+    fill: var(--field-green);
+  }
+  & [stroke="#398e4a" i] {
+    stroke: var(--field-green);
+  }
+  & [fill="#c2540a" i] {
+    fill: var(--field-orange);
+  }
+  & [stroke="#c2540a" i] {
+    stroke: var(--field-orange);
+  }
+  & [fill="#8f8f8f" i] {
+    fill: var(--field-gray);
+  }
+  & [stroke="#8f8f8f" i] {
+    stroke: var(--field-gray);
+  }
+  & [fill="#4d4d4d" i] {
+    fill: var(--field-ink-soft);
+  }
+  & [fill="#3267a8" i] {
+    fill: var(--field-call);
+  }
+  & [fill="#1d3fd8" i] {
+    fill: var(--field-deep);
+  }
+  & [stroke="#1d3fd8" i] {
+    stroke: var(--field-deep);
+  }
+  & [fill="#8b3fe0" i] {
+    fill: var(--field-curl);
+  }
+  & [stroke="#8b3fe0" i] {
+    stroke: var(--field-curl);
+  }
+  & [fill="#7c8c1e" i] {
+    fill: var(--field-hook);
+  }
+  & [stroke="#7c8c1e" i] {
+    stroke: var(--field-hook);
+  }
+  & [fill="#00909b" i] {
+    fill: var(--field-flat);
+  }
+  & [stroke="#00909b" i] {
+    stroke: var(--field-flat);
+  }
+  & [fill="#9a5a16" i] {
+    fill: var(--field-spy);
+  }
+  & [stroke="#9a5a16" i] {
+    stroke: var(--field-spy);
+  }
+  /* The minimap's scrimmage line and its defenders. */
+  & [stroke="#d4d4d4" i] {
+    stroke: var(--rule);
+  }
+  & [fill="#a1a1a1" i] {
+    fill: var(--muted);
+  }
 }
 [data-unit="offense"] {
   --unit-accent: var(--unit-offense);

@@ -260,7 +260,7 @@ import {
   type ChalkRuntime,
   type ChromeState,
 } from "../app/editor-runtime";
-import { useThemePreference } from "../app/theme";
+import { useFieldPreference, useThemePreference } from "../app/theme";
 import {
   FieldProfileSection,
   NewProfileForm,
@@ -3099,6 +3099,7 @@ export function ChalkApp({
   const [sheetSnap, setSheetSnap] = useState<"peek" | "full">("peek");
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("field");
   const [themePreference, setThemePreference] = useThemePreference();
+  const [fieldPreference, setFieldPreference] = useFieldPreference();
   /**
    * How the Coach left the chrome on this device — panels, unfolded
    * inspector sections, starred and recent presets (issue #64). Loaded once;
@@ -6870,9 +6871,11 @@ export function ChalkApp({
               ? `Signed in · ${syncSnapshot.status}`
               : "Local only"
           }
+          field={fieldPreference}
           fieldProfile={settingsFieldProfile}
           fieldProfileName={editor.document.fieldProfile.name}
           onClose={() => setOverlay(null)}
+          onField={setFieldPreference}
           onTab={setSettingsTab}
           onTheme={setThemePreference}
           tab={settingsTab}
