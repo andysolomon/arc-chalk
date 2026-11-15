@@ -2,18 +2,48 @@ import { motionCallByKey, motionCalls, type MotionAtSnap } from "@chalk/domain";
 import { ROUTE_COACHING_LIMITS } from "@chalk/editor";
 
 /**
+ * A panel's back arrow. It steps back to the panel the Coach came from — a
+ * man's, when he went from it to one of his lines — and to the play when he
+ * came from nowhere. Esc always goes to the play.
+ */
+export function BackButton({
+  label,
+  onBack,
+}: {
+  /** Where it goes, when that is a panel: "H", "H's route". */
+  label?: string | undefined;
+  onBack: () => void;
+}) {
+  const name = label ? `Back to ${label}` : "Back to the play";
+  return (
+    <button
+      aria-label={name}
+      className="back-button"
+      onClick={onBack}
+      title={label ? name : `${name} — esc`}
+      type="button"
+    >
+      ←
+    </button>
+  );
+}
+
+/**
  * The head of a line's panel (ADR 0080): whose line it is and what it is —
  * Z, Motion — and nothing else. How it is drawn and how many breaks it has
  * are on the field; a piece of it the Coach narrowed to is the one thing
  * worth saying beside it.
  */
 export function LineHeading({
+  backLabel,
   onDeselect,
   owner,
   scope,
   scopeBadge,
   title,
 }: {
+  /** Where the back arrow goes: the panel before this one, or the play. */
+  backLabel?: string | undefined;
   onDeselect: () => void;
   /** The letter of the man whose line it is. */
   owner?: string | undefined;
@@ -29,15 +59,7 @@ export function LineHeading({
       className="section-heading label-heading route-heading"
       role="group"
     >
-      <button
-        aria-label="Back to the play"
-        className="back-button"
-        onClick={onDeselect}
-        title="Back to the play — esc"
-        type="button"
-      >
-        ←
-      </button>
+      <BackButton label={backLabel} onBack={onDeselect} />
       {owner ? (
         <span aria-hidden="true" className="player-chip">
           {owner}
@@ -60,6 +82,7 @@ export function LineHeading({
 export function MotionInspector({
   assignment,
   atSnap,
+  backLabel,
   bare = false,
   note,
   onAssignment,
@@ -80,6 +103,7 @@ export function MotionInspector({
    */
   assignment: string;
   atSnap: MotionAtSnap;
+  backLabel?: string | undefined;
   /** Without its own heading — the phone sheet's head names it instead. */
   bare?: boolean;
   note: string;
@@ -101,6 +125,7 @@ export function MotionInspector({
     <div className="label-inspector route-inspector motion-inspector">
       {bare ? null : (
         <LineHeading
+          backLabel={backLabel}
           onDeselect={onDeselect}
           owner={ownerLetter}
           scopeBadge={scopeBadge}

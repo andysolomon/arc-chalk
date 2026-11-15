@@ -96,9 +96,9 @@ test("keeps a name the Coach typed, and says so", async ({ page }) => {
     page.getByRole("img", { name: "H route: Sit vs zone" }),
   ).toHaveCount(1);
 
-  await inspector(page)
-    .getByRole("button", { name: "Back to the play" })
-    .click();
+  // Back to H's panel first, the way the Coach came, then to the roster.
+  await inspector(page).getByRole("button", { name: "Back to H" }).click();
+  await backToRoster(page);
   await inspector(page)
     .getByRole("button", { name: "H: Sit vs zone — Slot" })
     .click();
@@ -131,7 +131,8 @@ test("takes a deleted route's name off the roster and the count", async ({
   );
 
   // Deleted from his panel with the × on its row.
-  await roster.getByRole("button", { name: "Back to the play" }).click();
+  await roster.getByRole("button", { name: "Back to H" }).click();
+  await backToRoster(page);
   await roster.getByRole("button", { name: "H: BUBBLE — Back" }).click();
   await roster.getByRole("button", { name: "Delete Route" }).click();
   await expect(roster.getByText(/^No route yet/)).toBeVisible();
