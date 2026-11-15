@@ -128,8 +128,8 @@ for (const [label, viewport] of VIEWPORTS) {
         }
       }
       for (const name of viewport.width < 1024
-        ? ["Save"]
-        : ["Present", "Print & export", "Save"]) {
+        ? ["Versions"]
+        : ["Present", "Print & export", "Versions"]) {
         const rect = await box(
           page.getByRole("banner").getByRole("button", { name, exact: true }),
         );

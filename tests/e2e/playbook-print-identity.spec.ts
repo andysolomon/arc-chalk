@@ -66,12 +66,10 @@ async function makePlay(
   const picker = page.getByRole("dialog", { name: "Concepts and line calls" });
   await picker.getByRole("button", { name: play.call }).first().click();
   await expect(picker).toBeHidden();
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "Save", exact: true })
-    .click();
-  await page.getByRole("button", { name: /^Save ⌘S/ }).click();
-  await expect(page.getByRole("button", { name: /^Save ⌘S/ })).toBeHidden();
+  // The play saves itself; wait for the write rather than a Save (ADR 0084).
+  await expect(
+    page.getByRole("button", { name: "Saved on this device" }),
+  ).toBeVisible();
 }
 
 /** Opens Print & export on the whole book as a binder, and returns the preview. */
