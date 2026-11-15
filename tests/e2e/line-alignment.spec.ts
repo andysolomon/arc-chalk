@@ -7,7 +7,8 @@ import { expect, openSeededEditor, test } from "./fixtures";
  * back out lands the split his guards keep, measured where the Coach can see
  * it; a receiver brought up on the line outside the tight end covers him,
  * and the call says who is covered by whom until he steps back off; a fifth
- * back is called illegal until a man goes back on; and ⌘ or Ctrl held
+ * back is called illegal until a man goes back on; the call's fix makes the
+ * set legal in the fewest moves, and Undo takes it back; and ⌘ or Ctrl held
  * through a drag puts a man exactly where the pointer does.
  *
  * Positions are read in the frame the field is drawn in — 448 is the line
@@ -207,6 +208,70 @@ test("calls a covered receiver and a fifth back as the line changes", async ({
   await page
     .locator(".field-wrap")
     .screenshot({ path: testInfo.outputPath("seven-on-the-line.png") });
+});
+
+test("fixes an illegal formation from the call, and undoes the fix", async ({
+  page,
+}, testInfo) => {
+  await openSeededEditor(page);
+  const status = page.locator("[data-line-status]");
+  const fix = page.locator("[data-line-fix]");
+  const toast = page.locator(".toast");
+  await expect(status).toHaveText("LINE 7 · BACKS 4");
+
+  // Z up on the line covers Y. The call offers the fix once he is put
+  // down, not while he is moving, and says what it will do: Y steps a yard off,
+  // which leaves Z the end man and Y a wing.
+  const z = await manAt(page, "z");
+  const y = await manAt(page, "y");
+  await pickUp(page, "z", { x: z.x - 4, y: LINE_Y + 3 });
+  await expect(chip(page)).toHaveAttribute("data-line-count", "illegal");
+  await expect(fix).toHaveCount(0);
+  await putDown(page);
+  await expect(chip(page)).toHaveAttribute("data-line-faults", "covered");
+  await expect(fix).toContainText("Fix formation");
+  await expect(fix).toContainText("Y steps off the line");
+  await page
+    .locator(".field-wrap")
+    .screenshot({ path: testInfo.outputPath("fix-offered.png") });
+
+  await fix.click();
+  await expect(chip(page)).toHaveCount(0);
+  await expect(status).toHaveText("LINE 7 · BACKS 4");
+  await expect(status).toHaveAttribute("data-line-status", "legal");
+  expect(await manAt(page, "y")).toEqual({ x: y.x, y: OFF_THE_LINE_Y });
+  expect((await manAt(page, "z")).y).toBe(LINE_Y);
+  await expect(toast).toContainText("Formation fixed — Y steps off the line");
+
+  // The toast's Undo puts Y back on the line, covered, and the fix is
+  // offered again.
+  await toast.getByRole("button", { name: "Undo" }).click();
+  expect((await manAt(page, "y")).y).toBe(y.y);
+  await expect(chip(page)).toHaveAttribute("data-line-faults", "covered");
+  await fix.click();
+  expect((await manAt(page, "y")).y).toBe(OFF_THE_LINE_Y);
+  await expect(chip(page)).toHaveCount(0);
+
+  // X off the line too is a fifth back. X, a step off, is called back up:
+  // not F, the wider back behind him, and not Y, who would only be covered
+  // again.
+  const x = await manAt(page, "x");
+  await pickUp(page, "x", { x: x.x - 4, y: OFF_THE_LINE_Y + 3 });
+  await putDown(page);
+  expect((await manAt(page, "x")).y).toBe(OFF_THE_LINE_Y);
+  await expect(chip(page)).toHaveAttribute(
+    "data-line-faults",
+    "too-many-backs",
+  );
+  await expect(fix).toContainText("X steps up on the line");
+  await fix.click();
+  expect((await manAt(page, "x")).y).toBe(LINE_Y);
+  expect((await manAt(page, "y")).y).toBe(OFF_THE_LINE_Y);
+  await expect(chip(page)).toHaveCount(0);
+  await expect(status).toHaveText("LINE 7 · BACKS 4");
+  await page
+    .locator(".field-wrap")
+    .screenshot({ path: testInfo.outputPath("formation-fixed.png") });
 });
 
 test("places a man exactly where the pointer does with ⌘ or Ctrl held", async ({

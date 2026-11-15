@@ -30,8 +30,11 @@ import {
   frontCallOf,
   frontJobsOf,
   frontMenOf,
+  isAcrossTheLine,
+  isLineLetter,
   isLineman,
   isOnTheLine,
+  OFF_THE_LINE_YARDS,
   MAX_BACKS,
   MIN_ON_THE_LINE,
   PLAYERS_PER_SIDE,
@@ -2959,6 +2962,133 @@ export function arrangementFault(
     }
   }
   return undefined;
+}
+
+/** What fixing an illegal formation would do: the command, and the moves in words. */
+export interface FormationFix {
+  readonly command: PlayCommand;
+  /** "Y and Z step off the line", "X steps up on the line". */
+  readonly summary: string;
+}
+
+/**
+ * The fewest moves that make an illegal formation legal (ADR 0084), each
+ * one up or down the field so no man changes his split:
+ *
+ * 1. a man of the offense past the ball comes back to the line;
+ * 2. a covered man steps a yard off the line, where the shipped sets stand
+ *    their slots (ADR 0081);
+ * 3. while there are more than four backs, the lettered back nearest the
+ *    line who stands outside an end who is a lineman steps up on the line
+ *    and becomes the end — the man a step off, not the wide back behind him.
+ *
+ * Each man's lines travel with him, as they do when he is dragged. There is
+ * no fix for a twelfth man — which one goes is the Coach's call — nor when
+ * the moves would still leave a fault or stand one man on another, so a fix
+ * offered always lands a legal set.
+ */
+export function formationFix(document: PlayDocument): FormationFix | undefined {
+  const start = scrimmageLine(document.players);
+  if (!start || start.legal || isAcrossTheLine(start.depthYards)) {
+    return undefined;
+  }
+  if (start.faults.some(({ kind }) => kind === "too-many-men")) {
+    return undefined;
+  }
+  const lineDepth = start.depthYards;
+  const depthOf = new Map(
+    document.players.map(({ id, position }) => [id, position.depthYards]),
+  );
+  const placed = () =>
+    document.players.map((player) => ({
+      ...player,
+      position: { ...player.position, depthYards: depthOf.get(player.id)! },
+    }));
+  const reread = () => scrimmageLine(placed());
+  const back = new Set<string>();
+  const off = new Set<string>();
+  const up = new Set<string>();
+
+  for (const id of start.acrossTheLine) {
+    depthOf.set(id, lineDepth);
+    back.add(id);
+  }
+
+  for (const { id } of reread()?.covered ?? []) {
+    depthOf.set(id, Math.min(depthOf.get(id)!, lineDepth - OFF_THE_LINE_YARDS));
+    back.delete(id);
+    off.add(id);
+  }
+
+  const byId = new Map(document.players.map((player) => [player.id, player]));
+  const lettered = (id: string) => {
+    const letter = byId.get(id)?.label.trim().toUpperCase() ?? "";
+    return letter !== "" && !isLineLetter(letter);
+  };
+  const passer = (id: string) =>
+    ["Q", "QB"].includes(byId.get(id)?.label.trim().toUpperCase() ?? "");
+  const lateral = (id: string) => byId.get(id)!.position.lateralYards;
+  for (let line = reread(); line && line.backs.length > MAX_BACKS;) {
+    const [leftEnd, rightEnd] = [line.onTheLine[0], line.onTheLine.at(-1)];
+    const outside = (id: string) =>
+      (leftEnd !== undefined &&
+        !lettered(leftEnd) &&
+        lateral(id) < lateral(leftEnd)) ||
+      (rightEnd !== undefined &&
+        !lettered(rightEnd) &&
+        lateral(id) > lateral(rightEnd));
+    const ball = ballLateralYards(document.players);
+    const nearest = line.backs
+      .filter((id) => lettered(id) && !passer(id) && !off.has(id))
+      .filter(outside)
+      .sort(
+        (left, right) =>
+          depthOf.get(right)! - depthOf.get(left)! ||
+          Math.abs(lateral(right) - ball) - Math.abs(lateral(left) - ball),
+      )[0];
+    if (!nearest) break;
+    depthOf.set(nearest, lineDepth);
+    up.add(nearest);
+    line = reread();
+  }
+
+  const after = placed();
+  if (!scrimmageLine(after)?.legal) return undefined;
+  if (arrangementFault(document.players, after)) return undefined;
+
+  const moves = new Map<string, Coordinate>();
+  for (const player of document.players) {
+    const by = depthOf.get(player.id)! - player.position.depthYards;
+    if (Math.abs(by) > 1e-9) {
+      moves.set(player.id, { lateralYards: 0, depthYards: by });
+    }
+  }
+  const command = diffPlayDocuments(
+    document,
+    translatedDocument(document, moves),
+    "Fix formation",
+  );
+  if (command.commands.length === 0) return undefined;
+
+  const spots = lineSpots(document.players);
+  const name = (id: string) =>
+    byId.get(id)?.label.trim() || spots.get(id) || "a man";
+  const listed = (ids: ReadonlySet<string>) => {
+    const names = [...ids]
+      .sort((left, right) => lateral(left) - lateral(right))
+      .map(name);
+    return names.length <= 1
+      ? (names[0] ?? "")
+      : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  };
+  const said = (ids: ReadonlySet<string>, one: string, many: string) =>
+    ids.size === 0 ? [] : [`${listed(ids)} ${ids.size === 1 ? one : many}`];
+  const summary = [
+    ...said(back, "comes back to the line", "come back to the line"),
+    ...said(off, "steps off the line", "step off the line"),
+    ...said(up, "steps up on the line", "step up on the line"),
+  ].join(" · ");
+  return { command, summary };
 }
 
 /** The Play with the men given moved by the amounts given, and their lines with them. */

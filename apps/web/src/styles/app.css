@@ -124,7 +124,7 @@
   --amber: #f5b300;
   --orange-text: #ff8a3d;
 }
-/* Thanksgiving week (ADR 0082). `data-season` is set before the first paint
+/* Thanksgiving week (ADR 0083). `data-season` is set before the first paint
    by the inline script in index.html and kept by src/app/theme.ts. It warms
    the shell's ramp toward parchment and roast, and turns the accent from blue
    to pumpkin; the field, its minimap and the print sheet redeclare the light
@@ -2227,6 +2227,36 @@ button.play-type.open {
   background: var(--error-tint);
   box-shadow: 0 0 0 1px var(--error);
   color: var(--error);
+}
+/* The fix is the one part of the call that takes a press (ADR 0084). */
+.line-count-fix {
+  display: grid;
+  gap: 1px;
+  justify-items: start;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--error);
+  color: var(--paper);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  pointer-events: auto;
+}
+.line-count-fix span {
+  font-weight: 600;
+}
+.line-count-fix small {
+  font-size: 10.5px;
+  opacity: 0.9;
+}
+.line-count-fix:hover {
+  filter: brightness(1.08);
+}
+.line-count-fix:focus-visible {
+  outline: 2px solid var(--error);
+  outline-offset: 2px;
 }
 /* A stage wider than the field letterboxes it with grass either side; the
    count keeps to the left band rather than reaching over the field. */
@@ -6925,10 +6955,14 @@ button.library-dot.target.small {
   scrollbar-width: none;
   box-shadow: 0 -1px 0 rgb(var(--shade) / 0.06);
 }
+/* The row carries Select and Hand as well as the tools (ADR 0085): on a
+   narrow phone its buttons give up a little width, never height, so the
+   trash at the far end stays on the glass. */
 .phone-workspace .tool-rail > button {
-  width: 44px;
+  width: auto;
+  min-width: 32px;
   height: 44px;
-  flex: none;
+  flex: 0 1 44px;
   grid-template-columns: none;
   justify-items: center;
   column-gap: 0;
@@ -6937,23 +6971,17 @@ button.library-dot.target.small {
 .phone-workspace .tool-rail .rail-collapse {
   display: none;
 }
-/* A phone's tool row is full, so the pair floats by the field's lower left
-   (ADR 0079): in the letterbox just under the field when upright, in the
-   corner when held sideways. */
-.phone-workspace .field-pointer {
-  position: absolute;
-  bottom: 60px;
-  left: max(10px, env(safe-area-inset-left));
-  z-index: 3;
+/* Select and Hand lead a phone's row, side by side in their well. */
+.phone-workspace .tool-rail .rail-pointer {
+  flex: 0 1 auto;
   flex-direction: row;
-  background: var(--paper);
-  box-shadow:
-    0 0 0 1px rgb(var(--shade) / 0.1),
-    0 4px 14px rgba(0, 0, 0, 0.08);
+  min-width: 0;
 }
-.phone-workspace .field-pointer > button {
+.phone-workspace .tool-rail .rail-pointer > button {
   width: 44px;
-  height: 44px;
+  min-width: 32px;
+  height: 40px;
+  flex: 0 1 44px;
 }
 .phone-workspace .tool-rail .rail-divider {
   width: 1px;
@@ -7108,21 +7136,15 @@ button.library-dot.target.small {
   .phone-workspace .field-wrap > .toast {
     bottom: 84px;
   }
-  /* The pair and the map tuck in just under the field's lower corners,
-     wherever the letterbox puts that edge: the fitted field is centred in
-     this box at min(31cqw, 50cqh) either side of the middle (see
-     .field-diagram). A fixed offset sat them on the field once Safari's
-     bars took their share of the height. Neither drops behind the sheet's
-     44 px peek, and while the count on the line is up they stand above it
-     — on a short glass, over the field's edge until it goes. */
-  .phone-workspace .field-wrap > .field-pointer {
-    bottom: max(52px, calc(50cqh - min(31cqw, 50cqh) - 56px));
-  }
+  /* The map tucks in just under the field's lower right corner, wherever
+     the letterbox puts that edge: the fitted field is centred in this box
+     at min(31cqw, 50cqh) either side of the middle (see .field-diagram). A
+     fixed offset sat it on the field once Safari's bars took their share of
+     the height. It never drops behind the sheet's 44 px peek, and while the
+     count on the line is up it stands above it — on a short glass, over the
+     field's edge until it goes. */
   .phone-workspace .field-wrap > .minimap {
     bottom: max(52px, calc(50cqh - min(31cqw, 50cqh) - 90px));
-  }
-  .phone-workspace .field-wrap:has(> .line-count) > .field-pointer {
-    bottom: max(102px, calc(50cqh - min(31cqw, 50cqh) - 56px));
   }
   .phone-workspace .field-wrap:has(> .line-count) > .minimap {
     bottom: max(102px, calc(50cqh - min(31cqw, 50cqh) - 90px));
