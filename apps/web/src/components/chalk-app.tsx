@@ -2071,6 +2071,7 @@ function PlayerInspector({
             </button>
           ))}
         </div>
+        <span className="field-label">Color</span>
         <div className="color-row">
           {routeColorChoices.map((color) => (
             <button

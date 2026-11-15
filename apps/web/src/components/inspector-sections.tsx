@@ -54,7 +54,11 @@ export function Disclosure({
           </span>
         ) : null}
       </div>
-      {open ? <div id={bodyId}>{children}</div> : null}
+      {open ? (
+        <div className="disclosure-body" id={bodyId}>
+          {children}
+        </div>
+      ) : null}
     </section>
   );
 }
