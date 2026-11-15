@@ -7830,6 +7830,21 @@ export function ChalkApp({
       );
     };
 
+    /**
+     * Names a Play from the Playbooks page. The Play in the editor is named
+     * through the editor, as its name field would, so undo takes it back.
+     */
+    const renamePlay = async (playId: string, name: string): Promise<void> => {
+      const named = name.trim();
+      if (!named) return;
+      if (editorStore.getSnapshot().document.id === playId) {
+        await editorStore.applyCommand({ kind: "set-play-name", name: named });
+      } else {
+        await runtime.renamePlay(playId, named);
+      }
+      await playbook.refresh();
+    };
+
     /** Saves the open book's install order, which its exports read in. */
     const reorderBook = async (order: readonly string[]): Promise<void> => {
       const book = await runtime.library.getPlaybook();
@@ -8057,6 +8072,7 @@ export function ChalkApp({
                     onDelete={(playId) => playbook.removePlay(playId, true)}
                     onOpen={openPlay}
                     onRemember={playbook.rememberBrowser}
+                    onRename={renamePlay}
                     onReorder={(order) => void reorderBook(order)}
                     onStartPlay={startPlay}
                     onTransfer={(playId, target, mode) =>
@@ -8147,6 +8163,7 @@ export function ChalkApp({
               onDelete={(playId) => playbook.removePlay(playId, true)}
               onOpen={openPlay}
               onRemember={playbook.rememberBrowser}
+              onRename={renamePlay}
               onTransfer={(playId, target, mode) =>
                 void transferPlay(playId, target, mode)
               }

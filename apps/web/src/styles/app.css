@@ -3737,6 +3737,11 @@ button.library-dot.target.small {
   font-weight: 600;
   line-height: 1.2;
 }
+.play-card-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
 .play-card-title .playbook-card-type {
   font-size: 13px;
   white-space: normal;
@@ -4352,7 +4357,9 @@ button.library-dot.target.small {
   background: var(--hover);
   color: var(--ink);
 }
-.play-sheet .shelf-rename input {
+.play-sheet .shelf-rename input,
+.play-sheet .play-rename input,
+.play-card .play-rename input {
   height: 40px;
   font-size: 16px;
 }
@@ -6381,6 +6388,10 @@ button.library-dot.target.small {
   }
   .play-card-title strong {
     font-size: 18px;
+  }
+  .play-card-rename {
+    height: 36px;
+    padding: 0 10px;
   }
   .play-card-art {
     max-height: none;
