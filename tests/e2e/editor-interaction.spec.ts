@@ -661,6 +661,50 @@ test("edits a route through its handles", async ({ page }) => {
   );
 });
 
+test("Backspace on a picked break removes the break, not the route", async ({
+  page,
+}, testInfo) => {
+  await openEditor(page);
+  const route = page.locator('[data-scene-path="rz"]');
+  const straight = (await route.getAttribute("d"))!;
+
+  // Pick Z's route, then double-click its stem to put a break in it.
+  const zStem = await fieldPoint(page, 886, 374);
+  await page.mouse.click(zStem.x, zStem.y);
+  await expect(page.locator("[data-node-handle]")).toHaveCount(2);
+  await page.mouse.dblclick(zStem.x, zStem.y);
+  await expect(page.locator("[data-node-handle]")).toHaveCount(3);
+
+  // Press the new break, then Backspace: the break goes, the route stays.
+  const middle = (await page.locator('[data-node-handle="1"]').boundingBox())!;
+  await page.mouse.click(
+    middle.x + middle.width / 2,
+    middle.y + middle.height / 2,
+  );
+  await page.keyboard.press("Backspace");
+  await expect(route).toHaveCount(1);
+  await expect(page.locator("[data-node-handle]")).toHaveCount(2);
+  await expect(route).toHaveAttribute("d", straight);
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Remove route break");
+
+  // Pressing again walks back to the start, which stays: a route is never
+  // what Backspace takes while one of its breaks is picked.
+  await page.keyboard.press("Backspace");
+  await expect(route).toHaveCount(1);
+  await expect(page.locator("[data-node-handle]")).toHaveCount(2);
+  await expect(undo).toHaveAttribute("title", "Undo Remove route break");
+
+  // Undo puts the break back where it was.
+  await undo.click();
+  await expect(page.locator("[data-node-handle]")).toHaveCount(3);
+
+  await page
+    .locator("svg.field-diagram")
+    .first()
+    .screenshot({ path: testInfo.outputPath("route-break-restored.png") });
+});
+
 test("bends a segment with its curve handle", async ({ page }) => {
   await openEditor(page);
 

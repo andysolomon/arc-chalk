@@ -48,7 +48,15 @@ export type FieldInteractionEvent =
   | { readonly type: "pointer-up"; readonly input: FieldPointerInput }
   | { readonly type: "pointer-cancel" }
   | { readonly type: "escape" }
-  | { readonly type: "delete" }
+  | {
+      readonly type: "delete";
+      /**
+       * Take the whole selection even when a break of the selected route is
+       * picked — the route's own Delete button. Backspace leaves it unset,
+       * so a picked break is what goes.
+       */
+      readonly whole?: boolean;
+    }
   | { readonly type: "select-all" }
   | {
       readonly type: "nudge";
