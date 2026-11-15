@@ -151,11 +151,15 @@ function pointerDown(
         ...model,
         selection: picked,
         // Picking something new starts it whole: the line and break the
-        // Coach was working on belonged to what he just left.
+        // Coach was working on belonged to what he just left. A choice is
+        // the exception — pressing one picks that choice straight away,
+        // since it is its own line rather than a piece of the route's stem.
+        // Only on its own, though: in a group the press takes the group.
         ...(already
           ? {}
           : {
-              selectedBranchIndex: undefined,
+              selectedBranchIndex:
+                picked.length === 1 ? found?.branchIndex : undefined,
               selectedSegmentIndex: undefined,
               selectedNodeIndex: undefined,
             }),
@@ -427,11 +431,21 @@ function pointerUp(
           },
         };
       }
-      if (
-        path &&
-        model.selectedBranchIndex === undefined &&
-        path.points.length > 2
-      ) {
+      // Narrowed onto a branch, a click on the main line goes back to that
+      // line, whole — the same place a first click on the route starts.
+      // Without this the branch held on, and the stem it forked from (an
+      // alternate with a choice off its end, say) could not be picked again.
+      if (model.selectedBranchIndex !== undefined) {
+        return {
+          model: {
+            ...withGesture(model, { kind: "idle" }),
+            selectedBranchIndex: undefined,
+            selectedSegmentIndex: undefined,
+            selectedNodeIndex: undefined,
+          },
+        };
+      }
+      if (path && path.points.length > 2) {
         return {
           model: {
             ...withGesture(model, { kind: "idle" }),
