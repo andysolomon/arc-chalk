@@ -70,7 +70,7 @@ test("keeps one row through portrait, destinations and rotation", async ({
       page.getByRole("group", { name: "Play classification" }),
     ).toBeVisible();
     await page.keyboard.press("Escape");
-    for (const view of ["Playbooks", "Game Day", "Editor"] as const) {
+    for (const view of ["Playbooks", "Editor"] as const) {
       await chooseWorkspaceView(page, view);
       await check();
     }

@@ -81,9 +81,7 @@ for (const [label, viewport] of VIEWPORTS) {
       ).toBe(true);
       await noHorizontalOverflow(page);
       const nav = page.getByRole("navigation", { name: "Workspace views" });
-      for (const name of viewport.width < 668
-        ? []
-        : ["Editor", "Playbooks", "Game Day"]) {
+      for (const name of viewport.width < 668 ? [] : ["Editor", "Playbooks"]) {
         const tab = nav.getByRole("button", { name, exact: true });
         await expect(tab).toBeVisible();
         const rect = await box(tab);

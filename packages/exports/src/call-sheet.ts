@@ -19,7 +19,7 @@ import { unitBadgeHtml } from "./unit-badge";
  * A coordinator's call sheet, configured rather than assumed (issue #70):
  * which sections print, in what order and with what accent, which columns
  * stand beside the code and the name, how dense, and on one side or two.
- * Every call wears the same stable code the wristband and Game Day use.
+ * Every call wears the same stable code the wristband uses.
  */
 export type CallSheetTemplateId = "oc" | "dc";
 
@@ -473,7 +473,7 @@ export function configuredCallSheetHtml(
           sides.length > 1 ? `<br>Side ${side} of ${sides.length}` : ""
         }</div></div>` +
         `<div class="wrap${notes ? " notes" : ""}"><div class="cols">${columns}</div>${notes}</div>` +
-        `<div class="foot"><span>${count} · codes as on the wristband and Game Day</span><span>${escapeHtml(revision.id)}</span></div>` +
+        `<div class="foot"><span>${count} · codes as on the wristband</span><span>${escapeHtml(revision.id)}</span></div>` +
         "</div>"
       );
     })

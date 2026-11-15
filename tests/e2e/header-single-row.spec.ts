@@ -48,7 +48,7 @@ for (const touch of [false, true]) {
         await page.screenshot({
           path: info.outputPath("editor-single-row.png"),
         });
-        for (const view of ["Playbooks", "Game Day", "Editor"]) {
+        for (const view of ["Playbooks", "Editor"]) {
           await header.getByRole("button", { name: view, exact: true }).click();
           await check();
         }

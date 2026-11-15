@@ -175,7 +175,7 @@ export async function closeNewPlayBrowser(
 /** Switch destinations through tabs or the narrow header's view picker. */
 export async function chooseWorkspaceView(
   page: Page,
-  label: "Editor" | "Playbooks" | "Game Day",
+  label: "Editor" | "Playbooks",
 ) {
   const nav = page.getByRole("navigation", { name: "Workspace views" });
   const picker = nav.getByRole("combobox", { name: "Workspace view" });
