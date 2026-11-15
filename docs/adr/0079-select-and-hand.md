@@ -59,6 +59,10 @@ behind the peek. The count on the line keeps its place above the peek; while
 it is up the pair and the map stand above it, over the field's edge on a
 short glass until it goes.
 
+_Superseded on a phone by ADR 0085:_ the pair now leads the phone's tool
+row, whose buttons narrow to make room, and nothing of it floats over the
+field.
+
 **Keys.** V is Select, as it was. Hand has no letter of its own — H is the
 shadow's (ADR 0053), and held space is already the keyboard's Hand. The
 palette lists _Hand tool_ beside _Select tool_ and _Text tool_.
