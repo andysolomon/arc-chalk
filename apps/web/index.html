@@ -30,6 +30,15 @@
             !!window.matchMedia &&
             window.matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.dataset.theme = dark ? "dark" : "light";
+        // The field goes dark with the shell unless it is kept on paper
+        // (ADR 0083).
+        try {
+          if (localStorage.getItem("chalk.field") === "paper") {
+            document.documentElement.dataset.field = "paper";
+          }
+        } catch (error) {
+          // No storage: the field follows the theme.
+        }
         // Thanksgiving week tints the shell (ADR 0082): the Monday before the
         // fourth Thursday of November through the Sunday after it.
         var season = null;

@@ -57,3 +57,5 @@ their colours from CSS classes instead of SVG attributes.
 
 A dark, chalkboard-style field on screen. The thumbnail cache already keys on a theme,
 but the field and its exports would need their own palette and their own review.
+ADR 0083 has since decided this for the screen: the field goes dark with the shell
+unless the Coach keeps it on paper. Exports and the print sheet stay on paper.
