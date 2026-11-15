@@ -122,10 +122,7 @@ export function LifecycleNotices({
       ) : null}
       {snapshot.offlineReady && !offlineReadyQuiet(snapshot) ? (
         <div className="notice offline-ready" role="status">
-          <span>
-            Chalk itself is ready to open without a connection. Whether a game
-            plan's plays and images are on this device is checked in Game Day.
-          </span>
+          <span>Chalk itself is ready to open without a connection.</span>
           <button onClick={lifecycle.dismissOfflineReady} type="button">
             Dismiss
           </button>
@@ -164,7 +161,7 @@ export function LifecycleIndicator({
         <span
           className="shell-quiet"
           data-shell-status="offline-ready"
-          title="Chalk itself opens without a connection. Game Day checks each prepared plan's plays and images on this device."
+          title="Chalk itself opens without a connection."
         >
           <i aria-hidden="true" />
           offline ready

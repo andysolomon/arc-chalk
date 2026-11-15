@@ -40,7 +40,7 @@ const noRootOverflow = (page: Page) =>
     )
     .toBeLessThanOrEqual(0);
 
-const gotoView = (page: Page, name: "Editor" | "Playbooks" | "Game Day") =>
+const gotoView = (page: Page, name: "Editor" | "Playbooks") =>
   chooseWorkspaceView(page, name);
 
 /** The shelf, from the open book's bar on the Playbooks page. */
