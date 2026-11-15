@@ -1305,6 +1305,67 @@ export function removeRouteChoiceCommand(
 }
 
 /**
+ * Takes one break off a route, the way Backspace does on a picked node. The
+ * legs either side of it join into one straight leg, and a choice that forked
+ * from it forks from the break before instead. The main line's start stays —
+ * it is where the man begins — and so does the last leg of a line, so a
+ * break is never what takes the whole route away; that is the route's own
+ * Delete. A branch down to its one break gives up the choice instead.
+ */
+export function removeRouteBreakCommand(
+  document: PlayDocument,
+  pathId: string,
+  pointIndex: number,
+  branchIndex?: number,
+): PlayCommand | undefined {
+  const path = document.paths.find(({ id }) => id === pathId);
+  if (!path) return undefined;
+  if (branchIndex !== undefined) {
+    const branch = path.branches[branchIndex];
+    if (!branch || !branch.points[pointIndex]) return undefined;
+    if (branch.points.length === 1) {
+      return removeRouteChoiceCommand(document, pathId, branchIndex);
+    }
+  } else if (pointIndex < 1 || pointIndex >= path.points.length) {
+    return undefined;
+  } else if (path.points.length <= 2) {
+    return undefined;
+  }
+  const line = lineOfPath(path, branchIndex);
+  const points = line.filter((_, index) => index !== pointIndex);
+  const joined = points[pointIndex];
+  if (joined?.control !== undefined) {
+    // The bend belonged to the leg that ran into the removed break; the
+    // joined leg starts straight rather than keeping a curve drawn for
+    // somewhere else.
+    const straight = { ...joined };
+    delete straight.control;
+    points[pointIndex] = straight;
+  }
+  const edited = replaceLine(path, branchIndex, points);
+  return {
+    kind: "batch",
+    label: "Remove route break",
+    commands: [
+      {
+        kind: "update-path",
+        path:
+          branchIndex === undefined
+            ? {
+                ...edited,
+                branches: edited.branches.map((branch) =>
+                  branch.fromIndex >= pointIndex
+                    ? { ...branch, fromIndex: branch.fromIndex - 1 }
+                    : branch,
+                ),
+              }
+            : edited,
+      },
+    ],
+  };
+}
+
+/**
  * Reflects a point, and whatever bend it carries, about a line running
  * downfield. Nothing is rounded on the way through, the way the domain's own
  * mirror leaves the arithmetic exact: turning a line twice has to give back
