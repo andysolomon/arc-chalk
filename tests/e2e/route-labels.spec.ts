@@ -247,7 +247,7 @@ test("a route's words stack beside it, stay on the paper, print the same, and le
   await expect(page.locator(".toast")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("route-words-light.png") });
 
-  // The same field under a dark shell: the paper stays white and the words
+  // The same field under a dark shell: the field goes dark and the words
   // stay where they were.
   await page.emulateMedia({ colorScheme: "dark" });
   await expect.poll(() => theme(page)).toBe("dark");

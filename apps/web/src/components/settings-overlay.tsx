@@ -8,7 +8,12 @@ import {
   type PageKindId,
   type TypePresetId,
 } from "@chalk/render";
-import { currentSeason, seasonEnds, type ThemePreference } from "../app/theme";
+import {
+  currentSeason,
+  seasonEnds,
+  type FieldPreference,
+  type ThemePreference,
+} from "../app/theme";
 import { agoStamp } from "./ago-stamp";
 
 const themeChoices: readonly {
@@ -18,6 +23,14 @@ const themeChoices: readonly {
   { id: "system", name: "System" },
   { id: "light", name: "Light" },
   { id: "dark", name: "Dark" },
+];
+
+const fieldChoices: readonly {
+  readonly id: FieldPreference;
+  readonly name: string;
+}[] = [
+  { id: "theme", name: "Match theme" },
+  { id: "paper", name: "Paper" },
 ];
 
 /**
@@ -39,9 +52,11 @@ export type SettingsTab =
 export function SettingsOverlay({
   account,
   accountSummary,
+  field,
   fieldProfile,
   fieldProfileName,
   onClose,
+  onField,
   onPageKind,
   onRestoreVersion,
   onTab,
@@ -63,9 +78,12 @@ export function SettingsOverlay({
   account?: React.ReactNode;
   /** One line about the account: "Local only", "Signed in". */
   accountSummary: string;
+  /** Under a dark shell: a dark field, or the field kept on paper (ADR 0083). */
+  field: FieldPreference;
   fieldProfile?: React.ReactNode;
   fieldProfileName: string;
   onClose: () => void;
+  onField: (field: FieldPreference) => void;
   onPageKind: (kind: PageKindId) => void;
   onRestoreVersion: (revisionId: string) => void;
   onTab: (tab: SettingsTab) => void;
@@ -320,10 +338,27 @@ export function SettingsOverlay({
                     ))}
                   </div>
                 </div>
+                <div className="settings-field">
+                  <span className="settings-field-label">Field</span>
+                  <div aria-label="Field" className="segments" role="group">
+                    {fieldChoices.map((choice) => (
+                      <button
+                        aria-pressed={field === choice.id}
+                        className={field === choice.id ? "active" : undefined}
+                        key={choice.id}
+                        onClick={() => onField(choice.id)}
+                        type="button"
+                      >
+                        {choice.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <p>
-                  System follows this device&rsquo;s light or dark setting. The
-                  field and the print preview stay on white paper, the way they
-                  print.
+                  System follows this device&rsquo;s light or dark setting. In
+                  dark, the field goes dark with it unless you keep it on paper.
+                  The print preview and exports always stay on white paper, the
+                  way they print.
                 </p>
                 {currentSeason() === "thanksgiving" ? (
                   <p className="settings-season">

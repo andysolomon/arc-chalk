@@ -5,7 +5,8 @@ import { expect, openSeededEditor, openSettings, test } from "./fixtures";
 /**
  * Light and dark (ADR 0061): Settings → Appearance picks the theme, the
  * choice is this device's and outlives the tab, and System follows the
- * device as it changes. The field stays on white paper either way. Each test
+ * device as it changes. The field goes dark with the shell unless the Coach
+ * keeps it on paper (ADR 0083); the print preview stays on paper. Each test
  * ends with a screenshot of the shell it left dark.
  */
 
@@ -24,13 +25,20 @@ const fieldPaper = (page: Page) =>
     .first()
     .evaluate((node) => getComputedStyle(node).fill);
 
+/** The stroke of the first ink route on the seeded Play. */
+const lineColor = (page: Page) =>
+  page
+    .locator('.field-diagram [data-scene-path][stroke="#171717"]')
+    .first()
+    .evaluate((node) => getComputedStyle(node).stroke);
+
 const openAppearance = async (page: Page) => {
   const settings = await openSettings(page);
   await settings.getByRole("tab", { name: "Appearance" }).click();
   return settings;
 };
 
-test("Dark turns the shell dark, keeps the field on paper, and is remembered", async ({
+test("Dark turns the shell and the field dark, and is remembered", async ({
   context,
   page,
 }, testInfo) => {
@@ -58,8 +66,9 @@ test("Dark turns the shell dark, keeps the field on paper, and is remembered", a
   );
   await settings.getByRole("button", { name: "Close" }).click();
 
-  // The field is what prints: white paper under a dark shell.
-  expect(await fieldPaper(page)).toBe("rgb(255, 255, 255)");
+  // The field goes dark with the shell: paper and ink trade places.
+  expect(await fieldPaper(page)).toBe("rgb(24, 24, 24)");
+  expect(await lineColor(page)).toBe("rgb(237, 237, 237)");
 
   // Another tab on this device opens dark, before the Coach touches anything.
   const other = await context.newPage();
@@ -85,6 +94,55 @@ test("Dark turns the shell dark, keeps the field on paper, and is remembered", a
   await other.close();
 
   await page.screenshot({ path: testInfo.outputPath("editor-dark.png") });
+});
+
+test("Paper keeps the field white under a dark shell, on every tab", async ({
+  context,
+  page,
+}, testInfo) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await openSeededEditor(page);
+  expect(await theme(page)).toBe("dark");
+  expect(await fieldPaper(page)).toBe("rgb(24, 24, 24)");
+
+  const settings = await openAppearance(page);
+  const field = settings.getByRole("group", { name: "Field" });
+  await expect(
+    field.getByRole("button", { name: "Match theme" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await field.getByRole("button", { name: "Paper" }).click();
+  await expect(field.getByRole("button", { name: "Paper" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await settings.getByRole("button", { name: "Close" }).click();
+  expect(await fieldPaper(page)).toBe("rgb(255, 255, 255)");
+  expect(await lineColor(page)).toBe("rgb(23, 23, 23)");
+  expect(await background(page, ".chalk-shell")).toBe("rgb(17, 17, 17)");
+
+  // Another tab opens with the field on paper before the first paint.
+  const other = await context.newPage();
+  await other.emulateMedia({ colorScheme: "dark" });
+  await other.goto("/");
+  expect(
+    await other.evaluate(() => document.documentElement.dataset.field),
+  ).toBe("paper");
+  await expect(
+    other.getByRole("img", { name: "Stick — Thunder football play" }),
+  ).toBeVisible({ timeout: 30_000 });
+  expect(await fieldPaper(other)).toBe("rgb(255, 255, 255)");
+
+  // Match theme picked there darkens the first tab's field too.
+  const there = await openAppearance(other);
+  await there
+    .getByRole("group", { name: "Field" })
+    .getByRole("button", { name: "Match theme" })
+    .click();
+  await expect.poll(() => fieldPaper(page)).toBe("rgb(24, 24, 24)");
+  await other.close();
+
+  await page.evaluate(async () => document.fonts.ready);
+  await page.screenshot({ path: testInfo.outputPath("editor-dark-field.png") });
 });
 
 test("System follows the device from light to dark and back", async ({

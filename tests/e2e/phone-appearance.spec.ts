@@ -1,14 +1,14 @@
 import { expect, openSeededEditor, test } from "./fixtures";
 
 /**
- * Dark on a phone (ADR 0061): Settings is a page with pill tabs, and
- * Appearance is one of them. Picking Dark turns the header, the tools and
- * the assignments sheet dark around a field that stays white paper. The test
- * ends with a screenshot of the editor in the dark.
+ * Dark on a phone (ADR 0061, ADR 0083): Settings is a page with pill tabs,
+ * and Appearance is one of them. Picking Dark turns the header, the tools,
+ * the assignments sheet and the field dark. The test ends with a screenshot
+ * of the editor in the dark.
  */
 test.use({ viewport: { width: 390, height: 844 } });
 
-test("picks Dark from the Settings page and keeps the field on paper", async ({
+test("picks Dark from the Settings page and the field goes dark with it", async ({
   page,
 }, testInfo) => {
   await page.emulateMedia({ colorScheme: "light" });
@@ -39,7 +39,7 @@ test("picks Dark from the Settings page and keeps the field on paper", async ({
   expect(await color("header.topbar", "backgroundColor")).toBe(
     "rgb(17, 17, 17)",
   );
-  expect(await color(".field-paper", "fill")).toBe("rgb(255, 255, 255)");
+  expect(await color(".field-paper", "fill")).toBe("rgb(24, 24, 24)");
 
   await page.screenshot({ path: testInfo.outputPath("phone-editor-dark.png") });
 });
