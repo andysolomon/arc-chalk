@@ -10,6 +10,7 @@ import {
   clampMoveToField,
   expandSelectionToGroups,
   movePreview,
+  removeRouteBreakCommand,
 } from "./commands";
 import {
   buildMirrorCommand,
@@ -581,6 +582,43 @@ export function fieldInteraction(
         return { model: clearDrawing(model) };
       }
       if (model.selection.length === 0) return { model };
+      const picked = model.selection[0];
+      if (
+        !event.whole &&
+        model.selection.length === 1 &&
+        picked?.kind === "path" &&
+        model.selectedNodeIndex !== undefined
+      ) {
+        // A picked break is what Backspace takes, not the route around it.
+        // The break before it is picked next, so pressing again keeps
+        // walking the route back, the way it does while drawing.
+        const pointIndex = model.selectedNodeIndex;
+        const branchIndex = model.selectedBranchIndex;
+        const path = context.document.paths.find(({ id }) => id === picked.id);
+        const choiceGone =
+          branchIndex !== undefined &&
+          path?.branches[branchIndex]?.points.length === 1;
+        const command = removeRouteBreakCommand(
+          context.document,
+          picked.id,
+          pointIndex,
+          branchIndex,
+        );
+        if (!command) return { model };
+        return {
+          model: {
+            ...model,
+            ...(choiceGone
+              ? { selectedBranchIndex: undefined, selectedNodeIndex: undefined }
+              : {
+                  selectedNodeIndex:
+                    pointIndex > 0 ? pointIndex - 1 : undefined,
+                }),
+            selectedSegmentIndex: undefined,
+          },
+          command,
+        };
+      }
       const command = buildDeleteCommand(context.document, model.selection);
       return {
         model: withSelection(model, []),

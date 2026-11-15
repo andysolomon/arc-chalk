@@ -8707,7 +8707,9 @@ export function ChalkApp({
                       ),
                     );
                   }}
-                  onDelete={() => dispatchField({ type: "delete" })}
+                  onDelete={() =>
+                    dispatchField({ type: "delete", whole: true })
+                  }
                   backLabel={backLabel}
                   onDeselect={stepBack}
                   onNote={(value) =>
@@ -8777,7 +8779,9 @@ export function ChalkApp({
                       draft?.field === field ? undefined : draft,
                     );
                   }}
-                  onDelete={() => dispatchField({ type: "delete" })}
+                  onDelete={() =>
+                    dispatchField({ type: "delete", whole: true })
+                  }
                   backLabel={backLabel}
                   onDeselect={stepBack}
                   onFlip={() =>
