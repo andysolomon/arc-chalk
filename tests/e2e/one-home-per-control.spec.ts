@@ -92,7 +92,7 @@ test("the editor puts each control in one place", async ({
   }
 
   // The sidebar is this play's: no destinations, no Play type, no outputs.
-  for (const name of [/^Plays/, /^Game plans/, /^Game Day/, /^Type of play/]) {
+  for (const name of [/^Plays/, /^Game plans/, /^Type of play/]) {
     await expect(sidebar(page).getByRole("button", { name })).toHaveCount(0);
   }
   await expect(
@@ -188,13 +188,13 @@ test("the editor puts each control in one place", async ({
   });
 });
 
-test("the Playbooks and Game Day pages carry Help and Settings at the header's end", async ({
+test("the Playbooks page carries Help and Settings at the header's end", async ({
   page,
 }, testInfo) => {
   await openStarter(page);
   const views = page.getByRole("navigation", { name: "Workspace views" });
 
-  for (const view of ["Playbooks", "Game Day"]) {
+  for (const view of ["Playbooks"]) {
     await views.getByRole("button", { name: view, exact: true }).click();
     await expect(
       banner(page).getByRole("button", { name: "More actions" }),

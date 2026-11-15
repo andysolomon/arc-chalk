@@ -274,7 +274,6 @@ import { canSwitchPlay, createUntitledPlay } from "../library/library-actions";
 import { FormationsPage } from "../library/formations-page";
 import type { PlaySearchProjection, PlaybookSummary } from "@chalk/local-db";
 import { GamePlansWorkspace } from "../library/game-plans-workspace";
-import { GameDayView } from "../library/game-day-view";
 import { defaultOutputSpec, type OutputSpec } from "../output/output-spec";
 import { bookDefaultOrder, bookPlaysInOrder } from "../output/book-order";
 import { OutputWorkspace } from "../output/output-workspace";
@@ -372,12 +371,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 export { FieldDiagram };
 
 /**
- * Where the Coach can be. Editor, Playbooks and Game Day are the three
- * destinations in the header (issue #65); Demo lives under Help, Present is
- * an action, and Print is the preview behind Print & export.
+ * Where the Coach can be. Editor and Playbooks are the destinations in the
+ * header (issue #65); Tips opens from Defensive adjustments, Demo lives
+ * under Help, Present is an action, and Print is the preview behind
+ * Print & export.
  */
-type View =
-  "Editor" | "Playbooks" | "GameDay" | "Tips" | "Demo" | "Present" | "Print";
+type View = "Editor" | "Playbooks" | "Tips" | "Demo" | "Present" | "Print";
 type Menu =
   | "more"
   | "export"
@@ -402,13 +401,11 @@ type Overlay =
   | null;
 type Tool = ToolId;
 
-/** The three destinations in the header (issue #65). */
+/** The destinations in the header (issue #65). */
 const destinations: readonly { readonly view: View; readonly label: string }[] =
   [
     { view: "Editor", label: "Editor" },
     { view: "Playbooks", label: "Playbooks" },
-    { view: "GameDay", label: "Game Day" },
-    { view: "Tips", label: "Tips" },
   ];
 
 /**
@@ -5433,26 +5430,14 @@ export function ChalkApp({
     (view: View): void => {
       // The Playbooks header has no name field, so a name still being typed
       // is kept before the field goes (it commits on blur in the editor).
-      if (view === "Playbooks" || view === "Tips" || view === "GameDay") {
+      if (view === "Playbooks" || view === "Tips") {
         void editorStore.commitPlayName().catch(() => undefined);
       }
       setActiveView(view);
       setOpenMenu(null);
       setOverlay(null);
-      if (chromeLoadedRef.current) {
-        const wasGameDay = chromeRef.current.gameDay === true;
-        if (view === "GameDay" || wasGameDay) {
-          const { gameDay: _was, ...rest } = chromeRef.current;
-          void _was;
-          const next: ChromeState =
-            view === "GameDay" ? { ...rest, gameDay: true } : rest;
-          chromeRef.current = next;
-          setChrome(next);
-          void runtime.library.saveChrome(next).catch(() => undefined);
-        }
-      }
     },
-    [editorStore, runtime.library],
+    [editorStore],
   );
   /** Help's tutorials open Demo on the tour named (issue #65). */
   const openTour = useCallback(
@@ -5857,7 +5842,6 @@ export function ChalkApp({
       openBookPage("plays");
       goToView("Playbooks");
     },
-    gameDay: () => goToView("GameDay"),
     demo: () => openTour("tools"),
     ...Object.fromEntries(
       demoTours.map((tour) => [`demo:${tour.id}`, () => openTour(tour.id)]),
@@ -6098,11 +6082,7 @@ export function ChalkApp({
         // Arrows and space belong to the tour; editor shortcuts stay off.
         return;
       }
-      if (
-        activeView === "Playbooks" ||
-        activeView === "GameDay" ||
-        activeView === "Tips"
-      ) {
+      if (activeView === "Playbooks" || activeView === "Tips") {
         // The destinations carry their own keys; the field's shortcuts would
         // draw on a Play nobody is looking at. Escape comes back to it, and
         // the palette still opens.
@@ -6444,8 +6424,6 @@ export function ChalkApp({
       // A drawer starts closed so the field has the width; the stub, ⌥1
       // and Layers bring it out.
       setInspectorOpen(state.inspectorOpen && !compactRef.current);
-      // A device left on Game Day comes back to it (issue #67).
-      if (state.gameDay) setActiveView("GameDay");
       setRailOpen(state.railOpen);
       setSidebarOpen((state.sidebarOpen ?? true) && !compactRef.current);
       setFreeDraw(state.freeDraw === true);
@@ -6799,16 +6777,6 @@ export function ChalkApp({
    * the rail keeps the original's footprint; the Aa control that asks is a
    * tap away, and the answer is remembered per device.
    */
-
-  /** Whether an image a prepared Play references is on this device. */
-  const hasImage = useCallback(
-    (hash: string) =>
-      runtime.getImage(hash).then(
-        (image) => image !== undefined,
-        () => false,
-      ),
-    [runtime],
-  );
   /**
    * What Print & export reads: every stored play with the open one standing
    * in for its copy, so the sheet shows what is on the field (issue #69).
@@ -6865,7 +6833,7 @@ export function ChalkApp({
   }));
   /**
    * Overlays any destination can open: Settings, from the sidebar's foot in
-   * the editor and from the header's end on the Playbooks and Game Day pages
+   * the editor and from the header's end on the Playbooks and Tips pages
    * (ADR 0074); the shortcut reference, from Help; the Conflict Inbox, from
    * Settings' Account tab.
    */
@@ -8146,26 +8114,6 @@ export function ChalkApp({
             goToView("Editor");
             setDefenseAdjustmentScope([]);
           }}
-        />
-        {overlay === "palette" ? paletteOverlay : null}
-        {sharedOverlays}
-      </div>
-    );
-  }
-
-  if (activeView === "GameDay") {
-    return (
-      <div className="chalk-shell view-game-day">
-        {header}
-        <GameDayView
-          everyPlay={everyPlay}
-          hasImage={hasImage}
-          library={runtime.library}
-          onOpenPlaybooks={() => {
-            openBookPage("plans");
-            goToView("Playbooks");
-          }}
-          snapshot={playbook.snapshot}
         />
         {overlay === "palette" ? paletteOverlay : null}
         {sharedOverlays}
@@ -9872,10 +9820,7 @@ function Header({
   );
   return (
     <header className={phone ? "topbar phone-topbar" : "topbar"}>
-      {phone &&
-      activeView !== "Playbooks" &&
-      activeView !== "GameDay" &&
-      activeView !== "Tips" ? (
+      {phone && activeView !== "Playbooks" && activeView !== "Tips" ? (
         <button
           aria-label="Open the sidebar"
           className="sidebar-open"
@@ -9897,9 +9842,7 @@ function Header({
           onChange={(event) => onView(event.target.value as View)}
         >
           {!destinations.some(({ view }) => view === activeView) ? (
-            <option value={activeView}>
-              {activeView === "GameDay" ? "Game Day" : activeView}
-            </option>
+            <option value={activeView}>{activeView}</option>
           ) : null}
           {destinations.map(({ view, label }) => (
             <option key={view} value={view}>
@@ -9927,12 +9870,9 @@ function Header({
           <span className="demo-title">{DEMO_HEADER_TITLE}</span>
           <span className="demo-play-name">{demoPlayName}</span>
         </>
-      ) : activeView === "Playbooks" ||
-        activeView === "GameDay" ||
-        activeView === "Tips" ? (
-        // The Playbook is managed here, and a prepared plan is read here
-        // (issue #163) — not the open Play: its name, type, undo and save
-        // belong to the editor and wait there.
+      ) : activeView === "Playbooks" || activeView === "Tips" ? (
+        // The Playbook is managed here — not the open Play: its name, type,
+        // undo and save belong to the editor and wait there.
         // Neither page has the sidebar, so the two icons at its foot stand
         // at the header's end instead (ADR 0074). More's actions are all
         // about a field these pages do not show.

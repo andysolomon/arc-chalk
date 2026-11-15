@@ -347,9 +347,10 @@ test("Tips searches and applies a complete defensive setup as one undoable edit"
   await page.goto("/");
   await addDefense(page);
   const before = await savedPlay(page);
-  await page
-    .getByRole("navigation", { name: "Workspace views" })
-    .getByRole("button", { name: "Tips", exact: true })
+  await (
+    await openDefense(page)
+  )
+    .getByRole("button", { name: "Defensive tips", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Defensive tips", exact: true }),
@@ -380,9 +381,10 @@ test("Tips searches and applies a complete defensive setup as one undoable edit"
   await expect
     .poll(async () => (await savedPlay(page)).paths)
     .toEqual(before.paths);
-  await page
-    .getByRole("navigation", { name: "Workspace views" })
-    .getByRole("button", { name: "Tips", exact: true })
+  await (
+    await openDefense(page)
+  )
+    .getByRole("button", { name: "Defensive tips", exact: true })
     .click();
   await page.screenshot({ path: info.outputPath("defensive-tips.png") });
 });

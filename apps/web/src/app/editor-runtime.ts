@@ -56,13 +56,6 @@ import {
   type OutputPreset,
   type WristbandConfig,
 } from "@chalk/exports";
-
-import {
-  GAME_DAY_KEY,
-  defaultGameDayState,
-  readGameDayState,
-  type GameDayState,
-} from "../library/game-day-state";
 import { createShareCloud, type ShareCloudPort } from "../share/convex-share";
 
 const DATABASE_NAME = "chalk-production-beta";
@@ -150,12 +143,6 @@ export interface ChromeState {
    */
   readonly railLabels?: boolean;
   /**
-   * Whether the Coach left Chalk on Game Day (issue #67). A sideline device
-   * that restarts — offline, after a background — opens on the plan he was
-   * reading rather than on the editor.
-   */
-  readonly gameDay?: boolean;
-  /**
    * Whether a line by hand is traced with the pointer held down rather than
    * clicked break by break. How this Coach draws on this device, so it is
    * remembered here rather than with any Play.
@@ -208,7 +195,6 @@ export function readChromeState(value: unknown): ChromeState {
     ...(typeof record.railLabels === "boolean"
       ? { railLabels: record.railLabels }
       : {}),
-    ...(record.gameDay === true ? { gameDay: true } : {}),
     ...(record.freeDraw === true ? { freeDraw: true } : {}),
     open,
     favoritePresets: readIds(record.favoritePresets),
@@ -248,9 +234,6 @@ export interface ChalkLibrary {
   saveBrowserState(state: LibraryBrowserState): Promise<void>;
   loadChrome(): Promise<ChromeState>;
   saveChrome(state: ChromeState): Promise<void>;
-  /** Where the Game Day reader was and what the coordinator wrote there (issue #67). */
-  loadGameDay(): Promise<GameDayState>;
-  saveGameDay(state: GameDayState): Promise<void>;
   /**
    * Where a plan's Add plays picker looks: its own book, or every book on
    * the shelf. How this Coach gathers a plan on this device — kept beside
@@ -562,7 +545,6 @@ export function createMemoryLibrary(
   let disclosure: Record<string, boolean> = {};
   let browser: LibraryBrowserState = { scrollTop: 0, query: "" };
   let chrome: ChromeState = defaultChromeState;
-  let gameDay: GameDayState = defaultGameDayState;
   let pickScope: PlayPickScope = "book";
   let outputPresets: readonly OutputPreset[] = [];
   let callSheets: Record<string, CallSheetConfig> = {};
@@ -658,13 +640,6 @@ export function createMemoryLibrary(
     },
     saveChrome(state) {
       chrome = state;
-      return Promise.resolve();
-    },
-    loadGameDay() {
-      return Promise.resolve(gameDay);
-    },
-    saveGameDay(state) {
-      gameDay = state;
       return Promise.resolve();
     },
     loadPlanPickScope() {
@@ -975,14 +950,6 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
     },
     async saveChrome(state) {
       await rememberJson(CHROME_KEY, state);
-    },
-    async loadGameDay() {
-      return readGameDayState(
-        (await repository.getPreference(GAME_DAY_KEY))?.value,
-      );
-    },
-    async saveGameDay(state) {
-      await rememberJson(GAME_DAY_KEY, state);
     },
     async loadPlanPickScope() {
       return readPlanPickScope(
