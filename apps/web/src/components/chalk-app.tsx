@@ -339,7 +339,7 @@ import {
   type ToolId,
 } from "./tool-labels";
 import { FieldMinimap } from "./field-minimap";
-import { LineHeading, MotionInspector } from "./motion-inspector";
+import { BackButton, LineHeading, MotionInspector } from "./motion-inspector";
 import { LineCountChip, SnapGuideMark } from "./alignment-guides";
 import { lineFaultWords, lineStatusWords } from "./line-count";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
@@ -1146,6 +1146,7 @@ const labelColorChoices: ReadonlyArray<TextLabel["color"]> = [
  * every parity golden captures.
  */
 function LabelInspector({
+  backLabel,
   bare = false,
   label,
   onAppearance,
@@ -1157,6 +1158,8 @@ function LabelInspector({
   text,
   textInputRef,
 }: {
+  /** Where the back arrow goes: the panel before this one, or the play. */
+  backLabel?: string | undefined;
   /** Without its own heading — the phone sheet's head names it instead. */
   bare?: boolean;
   label: TextLabel;
@@ -1175,15 +1178,7 @@ function LabelInspector({
     <div className="label-inspector">
       {bare ? null : (
         <div className="section-heading label-heading">
-          <button
-            aria-label="Back to the play"
-            className="back-button"
-            onClick={onDeselect}
-            title="Back to the play — esc"
-            type="button"
-          >
-            ←
-          </button>
+          <BackButton label={backLabel} onBack={onDeselect} />
           <span>Text</span>
         </div>
       )}
@@ -1705,6 +1700,7 @@ interface PlayerLine {
 function PlayerInspector({
   activePresets,
   assignmentCalls,
+  backLabel,
   bare = false,
   coverage,
   freeDraw,
@@ -1738,6 +1734,8 @@ function PlayerInspector({
   activePresets: ReadonlySet<string>;
   /** What a defender can be given, in the order he is offered it. */
   assignmentCalls: readonly { readonly key: string; readonly name: string }[];
+  /** Where the back arrow goes: the panel before this one, or the play. */
+  backLabel?: string | undefined;
   /** Without its own heading — the phone sheet's head names him instead. */
   bare?: boolean;
   /** Whom his man call follows, while he is in man (ADR 0060). */
@@ -1810,15 +1808,7 @@ function PlayerInspector({
     <div className="label-inspector player-inspector">
       {bare ? null : (
         <div className="section-heading label-heading player-heading">
-          <button
-            aria-label="Back to the play"
-            className="back-button"
-            onClick={onDeselect}
-            title="Back to the play — esc"
-            type="button"
-          >
-            ←
-          </button>
+          <BackButton label={backLabel} onBack={onDeselect} />
           <span aria-hidden="true" className="player-chip">
             {mark ?? letter}
           </span>
@@ -2107,6 +2097,7 @@ function PlayerInspector({
  * it runs fold away under Appearance and Advanced (issue #64).
  */
 function RouteInspector({
+  backLabel,
   bare = false,
   branchIndex,
   coaching,
@@ -2133,6 +2124,8 @@ function RouteInspector({
   segmentIndex,
   timing,
 }: {
+  /** Where the back arrow goes: the panel before this one, or the play. */
+  backLabel?: string | undefined;
   /** Without its own heading — the phone sheet's head names it instead. */
   bare?: boolean;
   branchIndex?: number;
@@ -2225,6 +2218,7 @@ function RouteInspector({
     <div className="label-inspector route-inspector">
       {bare ? null : (
         <LineHeading
+          backLabel={backLabel}
           onDeselect={onDeselect}
           owner={ownerLetter}
           scope={scope}
@@ -2450,6 +2444,17 @@ function RouteInspector({
       </Disclosure>
     </div>
   );
+}
+
+/** How many panels back the back arrow remembers. */
+const PANEL_TRAIL_LIMIT = 20;
+
+/** The same one thing on the field, or nothing either time. */
+function sameFieldItem(
+  a: FieldItemRef | undefined,
+  b: FieldItemRef | undefined,
+): boolean {
+  return a?.kind === b?.kind && a?.id === b?.id;
 }
 
 /** What one Reset button would put a side of the ball back in. */
@@ -7096,6 +7101,69 @@ export function ChalkApp({
       : selectedLabel
         ? { kind: "label" }
         : undefined;
+  /**
+   * The panels the Coach came through to reach this one. Going from a man
+   * to one of his lines, the line's back arrow goes back to the man, not all
+   * the way to the roster. Anything but one thing picked — nothing, or a
+   * group — starts the trail over.
+   */
+  const [panelTrail, setPanelTrail] = useState<{
+    readonly current: FieldItemRef | undefined;
+    readonly back: readonly FieldItemRef[];
+  }>({ current: undefined, back: [] });
+  const onlyPick =
+    interaction.selection.length === 1 ? interaction.selection[0] : undefined;
+  if (!sameFieldItem(panelTrail.current, onlyPick)) {
+    setPanelTrail({
+      current: onlyPick,
+      back:
+        onlyPick && panelTrail.current
+          ? [...panelTrail.back, panelTrail.current].slice(-PANEL_TRAIL_LIMIT)
+          : [],
+    });
+  }
+  const stillThere = ({ kind, id }: FieldItemRef): boolean =>
+    kind === "player"
+      ? editor.document.players.some((man) => man.id === id)
+      : kind === "path"
+        ? editor.document.paths.some((path) => path.id === id)
+        : editor.document.labels.some((label) => label.id === id);
+  let backIndex = panelTrail.back.length - 1;
+  while (backIndex >= 0 && !stillThere(panelTrail.back[backIndex]!)) {
+    backIndex -= 1;
+  }
+  const backPick = panelTrail.back[backIndex];
+  /** What the back arrow says it goes to, or nothing for the play. */
+  const backLabel = ((): string | undefined => {
+    if (!backPick) return undefined;
+    const markOf = (playerId: string) => {
+      const row = roster.rows.find(({ player }) => player.id === playerId);
+      return row?.mark || row?.player.label.trim() || "the player";
+    };
+    if (backPick.kind === "player") return markOf(backPick.id);
+    if (backPick.kind === "label") return "the note";
+    const path = editor.document.paths.find(({ id }) => id === backPick.id);
+    return path
+      ? `${markOf(path.playerId)}'s ${lineKindWord(path).toLowerCase()}`
+      : undefined;
+  })();
+  /** A panel's back arrow: the panel before it, or the play. */
+  const stepBack = (): void => {
+    if (!backPick) {
+      dispatchField({ type: "escape" });
+      return;
+    }
+    setPanelTrail({
+      current: backPick,
+      back: panelTrail.back.slice(0, backIndex),
+    });
+    focusInteraction({
+      selection: [backPick],
+      selectedBranchIndex: undefined,
+      selectedSegmentIndex: undefined,
+      selectedNodeIndex: undefined,
+    });
+  };
   /** A row of the roster is the man on the field: the same pick. */
   const selectRosterPlayer = (playerId: string) => {
     if (activeTool === "text") selectTool("select");
@@ -8584,7 +8652,8 @@ export function ChalkApp({
                     );
                   }}
                   onDelete={() => dispatchField({ type: "delete" })}
-                  onDeselect={() => dispatchField({ type: "escape" })}
+                  backLabel={backLabel}
+                  onDeselect={stepBack}
                   onNote={(value) =>
                     editRouteCoaching(selectedPath.id, "coachingNote", value)
                   }
@@ -8653,7 +8722,8 @@ export function ChalkApp({
                     );
                   }}
                   onDelete={() => dispatchField({ type: "delete" })}
-                  onDeselect={() => dispatchField({ type: "escape" })}
+                  backLabel={backLabel}
+                  onDeselect={stepBack}
                   onFlip={() =>
                     runLabelCommand(
                       flipRouteCommand(editor.document, selectedPath.id),
@@ -8791,7 +8861,8 @@ export function ChalkApp({
                     );
                   }}
                   freeDraw={freeDraw}
-                  onDeselect={() => dispatchField({ type: "escape" })}
+                  backLabel={backLabel}
+                  onDeselect={stepBack}
                   onDraw={(kind) => startDrawingFrom(selectedPlayer.id, kind)}
                   onFreeDraw={setFreeDrawing}
                   onFlip={() =>
@@ -8868,7 +8939,8 @@ export function ChalkApp({
                     );
                   }}
                   onDelete={() => dispatchField({ type: "delete" })}
-                  onDeselect={() => dispatchField({ type: "escape" })}
+                  backLabel={backLabel}
+                  onDeselect={stepBack}
                   onRole={(role) => {
                     putInspectorAway();
                     runLabelCommand(
