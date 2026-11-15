@@ -6438,25 +6438,35 @@ export function ChalkApp({
     return () => globalThis.removeEventListener("pointerdown", onPointerDown);
   }, [inspectorOpen, inspectorFloats, phoneWorkspace, sheetSnap]);
 
-  // The sidebar's drawer goes away on a tap past it too; on a desktop only
-  // its popover does.
+  // The sidebar's drawer goes away on a tap past it too. On a desktop its
+  // popover goes on a press anywhere past the popover — the field, the
+  // tools, the header, the rest of the sidebar — but not on the row that
+  // opened it, which toggles it itself. It listens in the capture phase so a
+  // handle on the field that keeps its press to itself still lets it go.
   useEffect(() => {
     const drawer = sidebarFloats && sidebarOpen;
     if (!drawer && sidebarPopover === null) return;
+    const kept = ".overlay, .menu-panel, .context-backdrop, .toast";
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
+      if (drawer) {
+        if (target?.closest(`.play-sidebar, ${kept}`)) return;
+        setSidebarPopover(null);
+        setSidebarOpen(false);
+        return;
+      }
       if (
         target?.closest(
-          ".play-sidebar, .sidebar-rail, .sidebar-open, .sidebar-stub, .overlay, .menu-panel, .context-backdrop, .toast",
+          `.sidebar-popover, .sidebar-row.active, .sidebar-foot-icon.active, .sidebar-open, .sidebar-stub, ${kept}`,
         )
       ) {
         return;
       }
       setSidebarPopover(null);
-      if (drawer) setSidebarOpen(false);
     };
-    globalThis.addEventListener("pointerdown", onPointerDown);
-    return () => globalThis.removeEventListener("pointerdown", onPointerDown);
+    globalThis.addEventListener("pointerdown", onPointerDown, true);
+    return () =>
+      globalThis.removeEventListener("pointerdown", onPointerDown, true);
   }, [sidebarFloats, sidebarOpen, sidebarPopover]);
 
   useEffect(() => {
