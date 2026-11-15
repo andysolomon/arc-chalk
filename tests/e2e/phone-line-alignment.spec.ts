@@ -9,7 +9,8 @@ import { expect, test } from "./fixtures";
  * able to put Z up on the line — where he covers Y, and the call says so —
  * and back a step off it, and have him stay there. Taking X off too leaves
  * five backs, and the call that the formation is illegal has to be on the
- * glass, clear of the assignments sheet, until X goes back on. The phone
+ * glass, clear of the assignments sheet, with a fix a tap puts X back on
+ * with. The phone
  * with the call showing is the run's artifact.
  */
 
@@ -176,8 +177,10 @@ for (const viewport of VIEWPORTS) {
         path: testInfo.outputPath(`illegal-formation-${viewport.name}.png`),
       });
 
-      const offX = await manAt(page, "x");
-      await fingerCarry(page, "x", { x: offX.x, y: LINE_Y + 2 });
+      // The call's fix is a tap on the glass, and puts X back on the line.
+      const fix = chip.locator("[data-line-fix]");
+      await expect(fix).toContainText("X steps up on the line");
+      await fix.tap();
       expect((await manAt(page, "x")).y).toBe(LINE_Y);
       await expect(chip).toHaveCount(0);
     });

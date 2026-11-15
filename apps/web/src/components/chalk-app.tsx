@@ -114,6 +114,7 @@ import {
   defensiveAdjustmentCommand,
   addDepthLabelCommand,
   alignPlayersCommand,
+  formationFix,
   cameraForBounds,
   cameraZoom,
   type FrameBounds,
@@ -124,6 +125,8 @@ import {
   zoomCamera,
   type Camera,
   addRouteChoiceCommand,
+  canAddRouteChoice,
+  MAX_ROUTE_CHOICES_PER_BREAK,
   applyConceptCommand,
   applyDefensiveCallCommand,
   applyFormationCommand,
@@ -2321,7 +2324,16 @@ function RouteInspector({
       />
       <div className="help-row">
         {isRoute ? (
-          <button onClick={onAddChoice} type="button">
+          <button
+            disabled={!canAddRouteChoice(path, forkAt)}
+            onClick={onAddChoice}
+            title={
+              canAddRouteChoice(path, forkAt)
+                ? undefined
+                : `${MAX_ROUTE_CHOICES_PER_BREAK} choices is the most one break takes`
+            }
+            type="button"
+          >
             + Choice at {nodeName}
           </button>
         ) : null}
@@ -6640,6 +6652,24 @@ export function ChalkApp({
       ? scrimmageLine(editor.document.players)
       : undefined;
   const lineStatus = lineStatusWords(lineCount);
+  // The fewest moves that make an illegal set legal, offered in the call
+  // itself (ADR 0084); undefined when the set is legal or has no clean fix.
+  const lineFix = ((): { summary: string; apply: () => void } | undefined => {
+    if (!lineCount || lineCount.legal) return undefined;
+    const fix = formationFix(editor.document);
+    if (!fix) return undefined;
+    return {
+      summary: fix.summary,
+      apply: () => {
+        void editorStore
+          .applyCommand(fix.command)
+          .then(() =>
+            setToast({ name: "Formation fixed", text: `— ${fix.summary}` }),
+          )
+          .catch(() => undefined);
+      },
+    };
+  })();
   /** The shadow by the other unit's name, as the rail and the layers call it. */
   const shadowLayerName =
     editor.document.unit === "defense" ? "Shadow offense" : "Shadow defense";
@@ -7549,17 +7579,13 @@ export function ChalkApp({
       : undefined;
   /**
    * Select and Hand (ADR 0079): the head of the rail on a desktop or a
-   * tablet, a pill over the field's lower left on a phone, whose tool row is
-   * full. Select picks and moves, and its drag on the grass boxes in a
+   * tablet, and the start of the tool row on a phone (ADR 0085), where the
+   * row's buttons narrow to make room. Select picks and moves, and its drag on the grass boxes in a
    * group; Hand moves the field from anywhere. Pressing the one that is on
    * leaves it on.
    */
   const pointerPair = (
-    <div
-      aria-label="Pointer"
-      className={`rail-pointer${phoneWorkspace ? " field-pointer" : ""}`}
-      role="group"
-    >
+    <div aria-label="Pointer" className="rail-pointer" role="group">
       {pointerTools.map((tool) => (
         <button
           aria-label={tool.name}
@@ -8249,13 +8275,11 @@ export function ChalkApp({
       {/* How the pointer meets the field (ADR 0079), then what goes on
           the field, then what comes off it, then the selection (ADR
           0077). Each is one press from a blank canvas: the set, the
-          other unit under it, a note. A phone's row has no room for
-          the pointer pair, so there it floats over the field. */}
+          other unit under it, a note. On a phone the pair leads the
+          row in its own well, so it needs no rule after it (ADR 0085). */}
+      {pointerPair}
       {phoneWorkspace ? null : (
-        <>
-          {pointerPair}
-          <span aria-hidden="true" className="rail-divider" />
-        </>
+        <span aria-hidden="true" className="rail-divider" />
       )}
       <button
         // The set for an offensive play, the call for a defensive one:
@@ -8630,7 +8654,6 @@ export function ChalkApp({
             <p aria-live="polite" className="visually-hidden">
               {activeItemName}
             </p>
-            {phoneWorkspace ? pointerPair : null}
             <FieldMinimap
               camera={camera}
               frame={EDITOR_FRAME}
@@ -8639,6 +8662,7 @@ export function ChalkApp({
             />
             <LineCountChip
               document={editor.document}
+              fix={lineFix}
               offenseShown={editor.document.unit !== "defense" || shadowOnField}
               store={liveStore}
             />

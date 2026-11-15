@@ -30,8 +30,11 @@ import {
   frontCallOf,
   frontJobsOf,
   frontMenOf,
+  isAcrossTheLine,
+  isLineLetter,
   isLineman,
   isOnTheLine,
+  OFF_THE_LINE_YARDS,
   MAX_BACKS,
   MIN_ON_THE_LINE,
   PLAYERS_PER_SIDE,
@@ -1136,6 +1139,43 @@ export function addAlternateRouteCommand(
  */
 const CHOICE_TURN_RADIANS = Math.PI / 2.6;
 const CHOICE_MIN_LENGTH_PX = 70;
+/** A break reads three ways at most; a fourth is a different route. */
+export const MAX_ROUTE_CHOICES_PER_BREAK = 3;
+/** Two lines leaving a break closer than this look like one. */
+const CHOICE_CLEARANCE_RADIANS = Math.PI / 6;
+
+/** Which break a choice forks at: the one picked, or the end of the line. */
+export function routeChoiceBreak(
+  path: Pick<MovementPath, "points">,
+  fromIndex?: number,
+): number {
+  const last = path.points.length - 1;
+  return Math.max(0, Math.min(last, fromIndex ?? last));
+}
+
+/** How many choices already fork at that break. */
+export function routeChoicesAt(
+  path: Pick<MovementPath, "points" | "branches">,
+  fromIndex?: number,
+): number {
+  const from = routeChoiceBreak(path, fromIndex);
+  return path.branches.filter((branch) => branch.fromIndex === from).length;
+}
+
+export function canAddRouteChoice(
+  path: Pick<MovementPath, "points" | "branches">,
+  fromIndex?: number,
+): boolean {
+  return (
+    path.points.length >= 2 &&
+    routeChoicesAt(path, fromIndex) < MAX_ROUTE_CHOICES_PER_BREAK
+  );
+}
+
+function angularGap(a: number, b: number): number {
+  const d = Math.abs(a - b) % (2 * Math.PI);
+  return d > Math.PI ? 2 * Math.PI - d : d;
+}
 
 /**
  * A choice forks the same stem at the break the Coach picked: one release,
@@ -1149,6 +1189,10 @@ const CHOICE_MIN_LENGTH_PX = 70;
  * way whatever the route was doing. Here the leg that reaches the break
  * stands in for the one that would leave it, so a fork off the end continues
  * the line it grew from.
+ *
+ * Every choice at a break reads a different way: the first turns one side,
+ * the second the other, the third runs straight on — always skipping a way
+ * the route itself or an earlier choice already goes. A break takes three.
  */
 export function addRouteChoiceCommand(
   document: PlayDocument,
@@ -1156,9 +1200,9 @@ export function addRouteChoiceCommand(
   fromIndex?: number,
 ): PlayCommand | undefined {
   const path = document.paths.find(({ id }) => id === pathId);
-  if (!path || path.points.length < 2) return undefined;
+  if (!path || !canAddRouteChoice(path, fromIndex)) return undefined;
   const last = path.points.length - 1;
-  const from = Math.max(0, Math.min(last, fromIndex ?? last));
+  const from = routeChoiceBreak(path, fromIndex);
   const anchor = yardsToLegacyCanvas(path.points[from]!);
   const leg = yardsToLegacyCanvas(
     path.points[from + 1] ?? path.points[from - 1]!,
@@ -1167,20 +1211,63 @@ export function addRouteChoiceCommand(
   const reversed = from === last;
   const dx = (leg.x - anchor.x) * (reversed ? -1 : 1);
   const dy = (leg.y - anchor.y) * (reversed ? -1 : 1);
-  const angle = Math.atan2(dy, dx) + CHOICE_TURN_RADIANS;
+  const base = Math.atan2(dy, dx);
   const length = Math.max(CHOICE_MIN_LENGTH_PX, Math.hypot(dx, dy));
+
+  // Every way already leaving the break: the route in and out of it, and
+  // each choice already forking there.
+  const directionTo = (point: Coordinate) => {
+    const to = yardsToLegacyCanvas(point);
+    return to.x === anchor.x && to.y === anchor.y
+      ? undefined
+      : Math.atan2(to.y - anchor.y, to.x - anchor.x);
+  };
+  const taken = [
+    path.points[from - 1],
+    path.points[from + 1],
+    ...path.branches
+      .filter((branch) => branch.fromIndex === from)
+      .map((branch) => branch.points[0]),
+  ].flatMap((point) => {
+    const direction = point ? directionTo(point) : undefined;
+    return direction === undefined ? [] : [direction];
+  });
+  // Measured on where the tip actually lands: one held inside a sideline
+  // can swing round onto a way that is already taken.
+  const tipAt = (angle: number) =>
+    insideSidelines(
+      document,
+      legacyCanvasToYards({
+        x: anchor.x + Math.cos(angle) * length,
+        y: anchor.y + Math.sin(angle) * length,
+      }),
+    );
+  const clearance = (tip: Coordinate) => {
+    const direction = directionTo(tip);
+    if (direction === undefined) return 0;
+    return Math.min(
+      Math.PI,
+      ...taken.map((other) => angularGap(direction, other)),
+    );
+  };
+  const tips = [
+    base + CHOICE_TURN_RADIANS,
+    base - CHOICE_TURN_RADIANS,
+    base,
+    base + Math.PI - CHOICE_TURN_RADIANS,
+    base - Math.PI + CHOICE_TURN_RADIANS,
+  ].map(tipAt);
+  const tip =
+    tips.find(
+      (candidate) => clearance(candidate) >= CHOICE_CLEARANCE_RADIANS,
+    ) ??
+    tips.reduce((best, candidate) =>
+      clearance(candidate) > clearance(best) ? candidate : best,
+    );
 
   const branch: PathBranch = {
     fromIndex: from,
-    points: [
-      insideSidelines(
-        document,
-        legacyCanvasToYards({
-          x: anchor.x + Math.cos(angle) * length,
-          y: anchor.y + Math.sin(angle) * length,
-        }),
-      ),
-    ],
+    points: [tip],
     style: { line: "dashed", ending: "arrow", color: "ink" },
   };
   return {
@@ -2875,6 +2962,133 @@ export function arrangementFault(
     }
   }
   return undefined;
+}
+
+/** What fixing an illegal formation would do: the command, and the moves in words. */
+export interface FormationFix {
+  readonly command: PlayCommand;
+  /** "Y and Z step off the line", "X steps up on the line". */
+  readonly summary: string;
+}
+
+/**
+ * The fewest moves that make an illegal formation legal (ADR 0084), each
+ * one up or down the field so no man changes his split:
+ *
+ * 1. a man of the offense past the ball comes back to the line;
+ * 2. a covered man steps a yard off the line, where the shipped sets stand
+ *    their slots (ADR 0081);
+ * 3. while there are more than four backs, the lettered back nearest the
+ *    line who stands outside an end who is a lineman steps up on the line
+ *    and becomes the end — the man a step off, not the wide back behind him.
+ *
+ * Each man's lines travel with him, as they do when he is dragged. There is
+ * no fix for a twelfth man — which one goes is the Coach's call — nor when
+ * the moves would still leave a fault or stand one man on another, so a fix
+ * offered always lands a legal set.
+ */
+export function formationFix(document: PlayDocument): FormationFix | undefined {
+  const start = scrimmageLine(document.players);
+  if (!start || start.legal || isAcrossTheLine(start.depthYards)) {
+    return undefined;
+  }
+  if (start.faults.some(({ kind }) => kind === "too-many-men")) {
+    return undefined;
+  }
+  const lineDepth = start.depthYards;
+  const depthOf = new Map(
+    document.players.map(({ id, position }) => [id, position.depthYards]),
+  );
+  const placed = () =>
+    document.players.map((player) => ({
+      ...player,
+      position: { ...player.position, depthYards: depthOf.get(player.id)! },
+    }));
+  const reread = () => scrimmageLine(placed());
+  const back = new Set<string>();
+  const off = new Set<string>();
+  const up = new Set<string>();
+
+  for (const id of start.acrossTheLine) {
+    depthOf.set(id, lineDepth);
+    back.add(id);
+  }
+
+  for (const { id } of reread()?.covered ?? []) {
+    depthOf.set(id, Math.min(depthOf.get(id)!, lineDepth - OFF_THE_LINE_YARDS));
+    back.delete(id);
+    off.add(id);
+  }
+
+  const byId = new Map(document.players.map((player) => [player.id, player]));
+  const lettered = (id: string) => {
+    const letter = byId.get(id)?.label.trim().toUpperCase() ?? "";
+    return letter !== "" && !isLineLetter(letter);
+  };
+  const passer = (id: string) =>
+    ["Q", "QB"].includes(byId.get(id)?.label.trim().toUpperCase() ?? "");
+  const lateral = (id: string) => byId.get(id)!.position.lateralYards;
+  for (let line = reread(); line && line.backs.length > MAX_BACKS;) {
+    const [leftEnd, rightEnd] = [line.onTheLine[0], line.onTheLine.at(-1)];
+    const outside = (id: string) =>
+      (leftEnd !== undefined &&
+        !lettered(leftEnd) &&
+        lateral(id) < lateral(leftEnd)) ||
+      (rightEnd !== undefined &&
+        !lettered(rightEnd) &&
+        lateral(id) > lateral(rightEnd));
+    const ball = ballLateralYards(document.players);
+    const nearest = line.backs
+      .filter((id) => lettered(id) && !passer(id) && !off.has(id))
+      .filter(outside)
+      .sort(
+        (left, right) =>
+          depthOf.get(right)! - depthOf.get(left)! ||
+          Math.abs(lateral(right) - ball) - Math.abs(lateral(left) - ball),
+      )[0];
+    if (!nearest) break;
+    depthOf.set(nearest, lineDepth);
+    up.add(nearest);
+    line = reread();
+  }
+
+  const after = placed();
+  if (!scrimmageLine(after)?.legal) return undefined;
+  if (arrangementFault(document.players, after)) return undefined;
+
+  const moves = new Map<string, Coordinate>();
+  for (const player of document.players) {
+    const by = depthOf.get(player.id)! - player.position.depthYards;
+    if (Math.abs(by) > 1e-9) {
+      moves.set(player.id, { lateralYards: 0, depthYards: by });
+    }
+  }
+  const command = diffPlayDocuments(
+    document,
+    translatedDocument(document, moves),
+    "Fix formation",
+  );
+  if (command.commands.length === 0) return undefined;
+
+  const spots = lineSpots(document.players);
+  const name = (id: string) =>
+    byId.get(id)?.label.trim() || spots.get(id) || "a man";
+  const listed = (ids: ReadonlySet<string>) => {
+    const names = [...ids]
+      .sort((left, right) => lateral(left) - lateral(right))
+      .map(name);
+    return names.length <= 1
+      ? (names[0] ?? "")
+      : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  };
+  const said = (ids: ReadonlySet<string>, one: string, many: string) =>
+    ids.size === 0 ? [] : [`${listed(ids)} ${ids.size === 1 ? one : many}`];
+  const summary = [
+    ...said(back, "comes back to the line", "come back to the line"),
+    ...said(off, "steps off the line", "step off the line"),
+    ...said(up, "steps up on the line", "step up on the line"),
+  ].join(" · ");
+  return { command, summary };
 }
 
 /** The Play with the men given moved by the amounts given, and their lines with them. */
