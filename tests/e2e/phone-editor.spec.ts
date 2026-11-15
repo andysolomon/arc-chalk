@@ -377,7 +377,7 @@ for (const viewport of WORKSPACES) {
         expect(box.width).toBeGreaterThanOrEqual(44);
         expect(box.height).toBeGreaterThanOrEqual(44);
       }
-      for (const name of ["Save", "More actions"]) {
+      for (const name of ["Versions", "More actions"]) {
         await insideViewport(
           page,
           header.getByRole("button", { name, exact: true }),
@@ -394,9 +394,9 @@ for (const viewport of WORKSPACES) {
         header.getByRole("button", { name: "More actions", exact: true }),
         viewport,
       );
-      const saveBox = await insideViewport(
+      const versionsBox = await insideViewport(
         page,
-        header.getByRole("button", { name: "Save", exact: true }),
+        header.getByRole("button", { name: "Versions", exact: true }),
         viewport,
       );
       // The row leaves the play's name to the drawer and keeps New play as
@@ -410,9 +410,9 @@ for (const viewport of WORKSPACES) {
         viewport,
       );
       expect(Math.abs(newBox.y - tabsBox.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(saveBox.y - newBox.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(versionsBox.y - newBox.y)).toBeLessThanOrEqual(1);
       expect(moreBox.x).toBeGreaterThan(newBox.x);
-      expect(saveBox.x).toBeGreaterThan(moreBox.x);
+      expect(versionsBox.x).toBeGreaterThan(moreBox.x);
       for (const command of ["Undo", "Redo", "Play type"] as const) {
         await insideViewport(
           page,
@@ -520,7 +520,7 @@ for (const viewport of WORKSPACES) {
         page,
         page
           .locator("header.topbar")
-          .getByRole("button", { name: "Save", exact: true }),
+          .getByRole("button", { name: "Versions", exact: true }),
         { width: viewport.height, height: viewport.width },
       );
       await page.setViewportSize({

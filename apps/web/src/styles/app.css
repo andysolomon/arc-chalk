@@ -600,7 +600,7 @@ button.play-type.open {
   cursor: pointer;
 }
 .topbar > button:not(:disabled):hover,
-.menu > button:not(.save):hover,
+.menu > button:hover,
 .menu > button.open {
   background: var(--hover);
   color: var(--ink);
@@ -619,18 +619,6 @@ button.play-type.open {
   padding: 0 9px;
   font-size: 15px;
   line-height: 1;
-}
-.menu > .save {
-  padding: 0 12px;
-  background: var(--ink);
-  color: var(--on-ink);
-  font-weight: 500;
-}
-.menu > .save:hover {
-  background: var(--ink-hover);
-}
-.menu > .save.saved {
-  background: var(--green);
 }
 
 /* Menu and overlay metrics are the original's own numbers (ADR 0039). */
@@ -665,7 +653,7 @@ button.play-type.open {
   max-height: 74vh;
   overflow: auto;
 }
-.save-panel {
+.versions-panel {
   width: 214px;
 }
 /* Clear… is a page of the More menu (issue #65); the panel widens to give the
@@ -802,7 +790,7 @@ button.play-type.open {
   text-align: left;
   cursor: pointer;
 }
-.save-panel .menu-item {
+.versions-panel .menu-item {
   height: 34px;
 }
 .menu-item:not(:disabled):hover {
@@ -1304,8 +1292,23 @@ button.play-type.open {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 4px 14px;
+  padding: 4px 4px 4px 10px;
   border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 12.5px;
+}
+.snapshot-list button {
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  cursor: pointer;
+}
+.snapshot-list button:hover {
+  background: var(--wash);
+  color: var(--ink);
 }
 .menu-entry {
   display: flex;
@@ -2750,10 +2753,6 @@ button.play-type.open {
 }
 .preset-star.on {
   color: var(--amber);
-}
-.library-saved {
-  color: var(--green-text);
-  font-size: 11px;
 }
 /* A destructive control shows itself when the row is under the pointer or
    holds focus, not all the time (issue #64). */
@@ -6609,12 +6608,12 @@ button.library-dot.target.small {
   -webkit-tap-highlight-color: transparent;
 }
 .topbar.phone-topbar > button:not(:disabled):hover,
-.topbar.phone-topbar .menu > button:not(.save):hover {
+.topbar.phone-topbar .menu > button:hover {
   background: transparent;
 }
 .topbar.phone-topbar > button:not(:disabled):active,
-.topbar.phone-topbar .menu > button:not(.save, .play-type):active,
-.topbar.phone-topbar .menu > button.open:not(.save, .play-type) {
+.topbar.phone-topbar .menu > button:not(.play-type):active,
+.topbar.phone-topbar .menu > button.open:not(.play-type) {
   background: var(--hover);
   color: var(--ink);
 }
@@ -6753,32 +6752,12 @@ button.library-dot.target.small {
 .topbar.phone-topbar > .redo {
   margin-left: -4px;
 }
-.topbar.phone-topbar > .menu-save {
+.topbar.phone-topbar > .menu-versions {
   order: 5;
 }
-.topbar.phone-topbar .menu-save > .save,
-.topbar.phone-topbar .menu-save > .save:hover,
-.topbar.phone-topbar .menu-save > .save.saved {
-  position: relative;
-  isolation: isolate;
-  padding: 0 12px;
-  background: transparent;
+.topbar.phone-topbar .menu-versions > .versions {
+  padding: 0 10px;
   font-size: 13px;
-}
-.topbar.phone-topbar .menu-save > .save::before {
-  position: absolute;
-  z-index: -1;
-  inset: 6px 0;
-  border-radius: 6px;
-  background: var(--ink);
-  content: "";
-}
-.topbar.phone-topbar .menu-save > .save:active::before,
-.topbar.phone-topbar .menu-save > .save.open::before {
-  background: var(--ink-hover);
-}
-.topbar.phone-topbar .menu-save > .save.saved::before {
-  background: var(--green);
 }
 /* A 44 px button's panel opens beneath it, not over its lower edge. */
 .topbar.phone-topbar .menu > .menu-panel {

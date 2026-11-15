@@ -34,7 +34,7 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 | ------------------ | ------------------------------------------------------------------ |
 | More menu          | `screenshots/original-editor-more-menu-desktop-1440x960.png`       |
 | Export menu        | `screenshots/original-editor-export-menu-desktop-1440x960.png`     |
-| Save/version menu  | `screenshots/original-editor-save-menu-desktop-1440x960.png`       |
+| Save/version menu  | `screenshots/original-editor-save-menu-desktop-1440x960.png` (production: Versions, ADR 0084) |
 | Command palette    | `screenshots/original-editor-command-palette-desktop-1440x960.png` |
 | Keyboard shortcuts | `screenshots/original-editor-shortcuts-desktop-1440x960.png`       |
 | Formation browser  | `screenshots/original-editor-formations-desktop-1440x960.png`      |
@@ -46,6 +46,7 @@ The ordinary `bun run check` path verifies the goldens and never updates them.
 
 | State                          | Gap measured                                                                                                                        | Date                                                |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Header Save → Versions         | Editor / More / Export / Versions / Palette / Shortcuts 34,222 / 35,047 / 35,510 / 35,040 / 34,730 / 54,734 px Linux, from 32,812 / 33,670 / 34,050 / 32,960 / 33,347 / 53,349 on `main`; those six ratchets raised to the branch measurement. Formations / Defenses 34,016 / 27,965 inside theirs; Present unchanged, Demo +6 px, Print lower | 2026-11-14 (ADR 0084)                               |
 | Editor                         | 30,754 px Linux, from 32,435 on `main` same machine — fewer sidebar rows, Help gone from the header, four words drawn as icons      | 2026-09-30 (ADR 0074 one home)                      |
 | More / Export / Save / Palette | 31,735 / 31,970 / 30,902 / 31,406 px Linux, from 33,726 / 33,651 / 32,583 / 33,012 on `main`; all under ratchet                     | 2026-09-30 (ADR 0074)                               |
 | Shortcuts and both browsers    | Shortcuts / Formations / Defenses 52,154 / 31,621 / 25,554 px Linux, from 53,772 / 33,262 / 27,195 on `main`; all under ratchet                             | 2026-09-30 (ADR 0074)                               |
@@ -115,7 +116,7 @@ Pixel diffs show _where_ production disagrees with the original but not _why_. T
 Closed so far:
 
 - The header carried `Versions` and `Backup` controls the original does not have. Versions now live in the Save menu as the original's `Snapshot`, and Backup — an approved production extension under the rule above — lives inside the More menu instead of adding a header control.
-- The header Save button reads `Save` as the original's does, and the save acknowledgement moved to the end of the status bar where the original shows it. Present mode hides it with the rest of the authoring chrome.
+- The save acknowledgement sits at the end of the status bar where the original shows it. Present mode hides it with the rest of the authoring chrome. The header button that read `Save` as the original's does is now `Versions`, a scoped exception under ADR 0084: every edit already saves, so a Save button only pretended durability was manual.
 - Inspector body copy for Concept and Defense is no longer truncated.
 - History in the inspector lists the Coach's named snapshots — the same versions Save already keeps — instead of the original's 90-second autosave ring. Restoring is the existing undoable restore. The original empty copy about states landing every 90 seconds is not reproduced.
 - Present is a full-window field on `#171717` with the play name, `← → variations`, and `esc` back. Type scales 1.25× on top of the current preset. Print is the letter-landscape sheet with title, category, field, "Print this", and `letter landscape · half-inch margins · {type} type`. Export → Print the field is that same print.
