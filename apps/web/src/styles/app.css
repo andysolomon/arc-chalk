@@ -3395,8 +3395,16 @@ button.play-type.open {
   min-width: 0;
   padding: 14px 0 0;
 }
+/* An open section's body stacks its controls the way the panel itself does
+   — label, then row, then the next label — or the swatches sit flush under
+   the Fill segments and the labels run inline. */
 .label-inspector .disclosure > div {
   min-width: 0;
+}
+.label-inspector .disclosure-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .hint {
   display: inline;
