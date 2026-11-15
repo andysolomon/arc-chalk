@@ -124,6 +124,8 @@ import {
   zoomCamera,
   type Camera,
   addRouteChoiceCommand,
+  canAddRouteChoice,
+  MAX_ROUTE_CHOICES_PER_BREAK,
   applyConceptCommand,
   applyDefensiveCallCommand,
   applyFormationCommand,
@@ -2302,7 +2304,16 @@ function RouteInspector({
       />
       <div className="help-row">
         {isRoute ? (
-          <button onClick={onAddChoice} type="button">
+          <button
+            disabled={!canAddRouteChoice(path, forkAt)}
+            onClick={onAddChoice}
+            title={
+              canAddRouteChoice(path, forkAt)
+                ? undefined
+                : `${MAX_ROUTE_CHOICES_PER_BREAK} choices is the most one break takes`
+            }
+            type="button"
+          >
             + Choice at {nodeName}
           </button>
         ) : null}
