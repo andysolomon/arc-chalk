@@ -44,6 +44,7 @@ import {
   playCardRowHeightFor,
 } from "./grid-columns";
 import { PlayCard, PlayMeta } from "./play-card";
+import { PlaybookNameForm } from "./playbooks-shelf";
 import {
   createPlaySearchClient,
   projectionsForHits,
@@ -120,6 +121,7 @@ export function PlaybookBrowser({
   onOpen,
   onOpenGamePlans,
   onRemember,
+  onRename,
   onReorder,
   onStartPlay,
   onTransfer,
@@ -167,6 +169,8 @@ export function PlaybookBrowser({
   /** The Playbooks workspace (issue #66), reached from the library it curates. */
   onOpenGamePlans?: () => void;
   onRemember: (state: LibraryBrowserState) => void;
+  /** Names a Play anew; offered on the page only. */
+  onRename?: (playId: string, name: string) => Promise<void>;
   /**
    * Saves the book's install order (issue #166). Offered on a book's own
    * page, where Sort reads Install order and a Play is dragged into place.
@@ -555,7 +559,11 @@ export function PlaybookBrowser({
   const cardIndex = shown.findIndex((member) => member.playId === cardFor);
   const cardMember = cardIndex < 0 ? undefined : shown[cardIndex];
   const offersActions = (member: PlaySearchProjection) =>
-    embedded && ((onDelete !== undefined && deletable(member)) || onTransfer);
+    embedded &&
+    ((onDelete !== undefined && deletable(member)) ||
+      onTransfer !== undefined ||
+      onRename !== undefined);
+  const rename = embedded ? onRename : undefined;
   const showCard = (playId: string) => {
     setFocusedPlayId(playId);
     setCardFor(playId);
@@ -1022,6 +1030,9 @@ export function PlaybookBrowser({
             setCardFor(undefined);
             open(cardMember.playId);
           }}
+          onRename={
+            rename ? (name) => rename(cardMember.playId, name) : undefined
+          }
           onStep={(step) => {
             const next = shown[cardIndex + step];
             if (next) showCard(next.playId);
@@ -1063,6 +1074,14 @@ export function PlaybookBrowser({
             setActionsFor(undefined);
             open(actionsMember.playId);
           }}
+          onRename={
+            rename
+              ? async (name) => {
+                  await rename(actionsMember.playId, name);
+                  setActionsFor(undefined);
+                }
+              : undefined
+          }
           onStep={
             reordering
               ? (step) => stepPlay(actionsMember.playId, step)
@@ -1241,7 +1260,7 @@ function PlayItem({
           aria-label={`Actions for ${member.name}`}
           className="playbook-more"
           onClick={onActions}
-          title="Open, copy, move or delete"
+          title="Open, rename, copy, move or delete"
           type="button"
         >
           <svg aria-hidden="true" viewBox="0 0 16 16">
@@ -1270,6 +1289,7 @@ function PlayActions({
   onClose,
   onDelete,
   onOpen,
+  onRename,
   onStep,
   onTransfer,
   place,
@@ -1283,12 +1303,15 @@ function PlayActions({
   /** Offered only for a Play of the open book. */
   onDelete?: () => void;
   onOpen: () => void;
+  onRename?: (name: string) => Promise<void>;
   /** Offered while the book reads in install order. */
   onStep?: (step: -1 | 1) => void;
   onTransfer: (playbookId: string, mode: "copy" | "move") => void;
   place?: { readonly first: boolean; readonly last: boolean };
 }) {
-  const [step, setStep] = useState<"menu" | "delete" | "copy" | "move">("menu");
+  const [step, setStep] = useState<
+    "menu" | "rename" | "delete" | "copy" | "move"
+  >("menu");
   return (
     <div className="play-sheet-backdrop" onClick={onClose} role="presentation">
       <div
@@ -1330,7 +1353,18 @@ function PlayActions({
             <PlayMeta member={member} />
           )}
         </div>
-        {step === "delete" && onDelete ? (
+        {step === "rename" && onRename ? (
+          <PlaybookNameForm
+            autoFocus
+            className="play-rename"
+            initial={member.name}
+            label="Play name"
+            onCancel={() => setStep("menu")}
+            onSave={onRename}
+            placeholder="Name this play…"
+            taken={[]}
+          />
+        ) : step === "delete" && onDelete ? (
           <div className="play-sheet-actions">
             <button
               autoFocus
@@ -1373,6 +1407,11 @@ function PlayActions({
             <button autoFocus onClick={onOpen} type="button">
               {current ? "Back to the editor" : "Open in editor"}
             </button>
+            {onRename ? (
+              <button onClick={() => setStep("rename")} type="button">
+                Rename…
+              </button>
+            ) : null}
             {destinations.length > 0 ? (
               <>
                 <button onClick={() => setStep("copy")} type="button">
