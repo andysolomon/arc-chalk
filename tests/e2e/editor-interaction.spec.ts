@@ -1111,6 +1111,142 @@ test("forks a stem into a choice and takes it away again", async ({ page }) => {
   await expect(remove).toBeHidden();
 });
 
+test("picks a choice out with one click, then the stem it forks from", async ({
+  page,
+}, testInfo) => {
+  await openEditor(page);
+  await expect(page.locator('[data-scene-path="rz-branch-0"]')).toHaveCount(1);
+  const remove = page.getByRole("button", { name: "Remove this choice" });
+
+  // Nothing is selected; one click on Z's choice takes that choice alone,
+  // not his whole route first.
+  const onBranch = await fieldPoint(page, 899, 208);
+  await page.mouse.click(onBranch.x, onBranch.y);
+  await expect(page.locator('[data-line-highlight="branch"]')).toHaveCount(1);
+  await expect(page.locator("[data-node-handle]")).toHaveCount(1);
+  await expect(remove).toBeVisible();
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+  // A click on his stem goes back to the route, whole.
+  await page.waitForTimeout(600);
+  const onStem = await fieldPoint(page, 886, 374);
+  await page.mouse.click(onStem.x, onStem.y);
+  await expect(page.locator("[data-line-highlight]")).toHaveCount(0);
+  await expect(remove).toBeHidden();
+
+  // And the choice again, straight from there.
+  await page.waitForTimeout(600);
+  await page.mouse.click(onBranch.x, onBranch.y);
+  await expect(page.locator('[data-line-highlight="branch"]')).toHaveCount(1);
+  await expect(remove).toBeVisible();
+
+  await page.screenshot({
+    path: testInfo.outputPath("choice-picked-on-its-own.png"),
+  });
+});
+
+test("picks an alternate back out from the choice off its end", async ({
+  page,
+}, testInfo) => {
+  await openEditor(page);
+  const pathIds = () =>
+    page
+      .locator("[data-scene-path]")
+      .evaluateAll((paths) =>
+        paths.map((path) => path.getAttribute("data-scene-path")!),
+      );
+  const before = await pathIds();
+
+  const x = await playerCenter(page, "x");
+  await page.mouse.click(x.x, x.y);
+  await page.getByRole("button", { name: "+ Alternate route" }).click();
+  await expect(
+    page.locator(".label-heading").getByText("Alternate 1", { exact: true }),
+  ).toBeVisible();
+  const alternateId = (await pathIds()).find((id) => !before.includes(id))!;
+
+  // A choice off the end of the alternate, which narrows the Coach onto it.
+  await page.getByRole("button", { name: "+ Choice at" }).click();
+  await expect(
+    page.locator(`[data-scene-path="${alternateId}-branch-0"]`),
+  ).toHaveCount(1);
+  const remove = page.getByRole("button", { name: "Remove this choice" });
+  await expect(remove).toBeVisible();
+  await expect(page.locator('[data-line-highlight="branch"]')).toHaveCount(1);
+
+  // Halfway along the alternate's first leg, well clear of the fork.
+  const d = await page
+    .locator(`[data-scene-path="${alternateId}"]`)
+    .getAttribute("d");
+  const [x0, y0, x1, y1] = (d ?? "").match(/-?[\d.]+/g)!.map(Number) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  const onAlternate = await fieldPoint(page, (x0 + x1) / 2, (y0 + y1) / 2);
+  await page.mouse.click(onAlternate.x, onAlternate.y);
+
+  // The alternate is back in hand, whole: the choice lets go of the Coach.
+  await expect(remove).toBeHidden();
+  await expect(page.locator("[data-line-highlight]")).toHaveCount(0);
+  await expect(
+    page.locator(".label-heading").getByText("Alternate 1", { exact: true }),
+  ).toBeVisible();
+  // Picking out a line edits nothing; the last step is still the choice.
+  await expect(page.getByRole("button", { name: "Undo" })).toHaveAttribute(
+    "title",
+    "Undo Add choice",
+  );
+
+  await page.screenshot({
+    path: testInfo.outputPath("alternate-picked-back-from-choice.png"),
+  });
+});
+
+test("sends each choice off the end a different way, three at most", async ({
+  page,
+}, testInfo) => {
+  await openEditor(page);
+
+  const onSegment = await fieldPoint(page, 262, 405);
+  await page.mouse.click(onSegment.x, onSegment.y);
+  const addChoice = page.getByRole("button", { name: "+ Choice at the end" });
+  for (let index = 0; index < 3; index += 1) {
+    await addChoice.click();
+    await expect(
+      page.locator(`[data-scene-path="rx-branch-${index}"]`),
+    ).toHaveCount(1);
+  }
+
+  // Each fork leaves the end of the stem on its own heading: no two choices
+  // draw over one another.
+  const headings: number[] = [];
+  for (let index = 0; index < 3; index += 1) {
+    const d = await page
+      .locator(`[data-scene-path="rx-branch-${index}"]`)
+      .getAttribute("d");
+    const numbers = d!.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    const [x0, y0] = numbers;
+    const [x1, y1] = numbers.slice(-2);
+    headings.push(Math.atan2(y1! - y0!, x1! - x0!));
+  }
+  for (let a = 0; a < headings.length; a += 1) {
+    for (let b = a + 1; b < headings.length; b += 1) {
+      const gap = Math.abs(headings[a]! - headings[b]!) % (2 * Math.PI);
+      expect(Math.min(gap, 2 * Math.PI - gap)).toBeGreaterThan(Math.PI / 6);
+    }
+  }
+
+  // Three is all one break takes.
+  await expect(addChoice).toBeDisabled();
+  await expect(page.locator('[data-scene-path="rx-branch-3"]')).toHaveCount(0);
+
+  await field(page).screenshot({
+    path: testInfo.outputPath("three-choices-off-the-end.png"),
+  });
+});
+
 test("turns every line a man has the other way, in one step", async ({
   page,
 }) => {

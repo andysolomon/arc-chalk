@@ -9,7 +9,8 @@ import type { ReactNode } from "react";
  * tabs are the navigation, so the sidebar repeats none of them. Its foot is a
  * row of icons — Settings and Help, and Print & export in a phone's drawer,
  * whose header has no room for it. On a desktop the drawing tools head it, so
- * the workspace has one left column rather than a rail beside a sidebar.
+ * the workspace has one left column rather than a rail beside a sidebar, and
+ * folding it leaves a narrow rail of the tools and the sidebar's own icons.
  */
 export type SidebarGlyph =
   | "formation"
@@ -215,10 +216,12 @@ export interface SidebarFold {
 export function PlaySidebar({
   drawer = false,
   fold,
+  folded = false,
   footer,
   name,
   onClose,
   onCollapse,
+  onExpand,
   onOpen,
   open,
   status,
@@ -229,6 +232,11 @@ export function PlaySidebar({
   drawer?: boolean;
   /** Rows tucked under a heading that opens and closes, remembered per device. */
   fold?: SidebarFold;
+  /**
+   * A docked sidebar folded (⌥3) to a narrow rail: the tools, then each row
+   * and foot icon as an icon alone, then the › that opens it again.
+   */
+  folded?: boolean;
   /** The icons at the foot. */
   footer: readonly SidebarRowSpec[];
   /** The play's name, heading This play where the header has no room for it. */
@@ -237,6 +245,8 @@ export function PlaySidebar({
   onClose?: () => void;
   /** Folds the docked sidebar (⌥3). */
   onCollapse?: () => void;
+  /** Opens the folded sidebar again (⌥3). */
+  onExpand?: () => void;
   onOpen: (id: string | null) => void;
   /** Which row's control is open, if one is. */
   open: string | null;
@@ -358,6 +368,60 @@ export function PlaySidebar({
       )}
     </nav>
   );
+  if (folded) {
+    // Folded to a narrow rail: every row and every foot icon stays, drawn as
+    // an icon whose control opens beside it, so nothing the sidebar does is
+    // lost to the fold. The fold's rows stand with the rest, since the rail
+    // has no heading to open them under.
+    const railIcon = (spec: SidebarRowSpec, foot: boolean) => {
+      const shown = open === spec.id && spec.detail !== undefined;
+      const named: SidebarRowSpec = {
+        ...spec,
+        name:
+          spec.name ??
+          (spec.value ? `${spec.label}, ${spec.value}` : spec.label),
+        title: spec.value
+          ? `${spec.label}: ${spec.value}`
+          : (spec.title ?? spec.label),
+      };
+      return (
+        <div className="sidebar-rail-item" data-row={spec.id} key={spec.id}>
+          <FooterIcon onOpen={onOpen} open={shown} spec={named} />
+          {shown ? (
+            <div
+              aria-label={spec.label}
+              className={`sidebar-popover${foot ? " sidebar-foot-popover" : ""}`}
+              role="group"
+            >
+              {spec.detail}
+            </div>
+          ) : null}
+        </div>
+      );
+    };
+    return (
+      <div className="sidebar-rail-column">
+        {tools}
+        <nav aria-label="Folded sidebar" className="sidebar-rail">
+          {tools ? <span aria-hidden="true" className="rail-divider" /> : null}
+          {[...thisPlay, ...(fold?.rows ?? [])].map((spec) =>
+            railIcon(spec, false),
+          )}
+          <span className="sidebar-spacer" />
+          {footer.map((spec) => railIcon(spec, true))}
+          <button
+            aria-label="Show the sidebar"
+            className="sidebar-expand"
+            onClick={onExpand}
+            title="Show the sidebar — ⌥3"
+            type="button"
+          >
+            ›
+          </button>
+        </nav>
+      </div>
+    );
+  }
   if (!tools) return sidebar;
   // One column: the tools are their own landmark at its head, so the
   // sidebar's rows keep names of their own.

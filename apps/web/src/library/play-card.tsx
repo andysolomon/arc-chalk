@@ -12,6 +12,7 @@ import type { ChalkLibrary } from "../app/editor-runtime";
 import { playFrame } from "../components/export-diagram";
 import { FieldDiagram } from "../components/field-diagram";
 import { UnitBadge } from "../components/unit-badge";
+import { PlaybookNameForm } from "./playbooks-shelf";
 
 export function PlayMeta({
   member,
@@ -69,6 +70,7 @@ export function PlayCard({
   onActions,
   onClose,
   onOpen,
+  onRename,
   onStep,
   place,
   presentation = defaultPresentation,
@@ -81,6 +83,8 @@ export function PlayCard({
   onActions?: () => void;
   onClose: () => void;
   onOpen: () => void;
+  /** Names the Play anew, where the page offers it. */
+  onRename?: (name: string) => Promise<void>;
   onStep: (step: -1 | 1) => void;
   /** Where this Play is among those showing, one-based. */
   place: { readonly index: number; readonly total: number };
@@ -108,6 +112,9 @@ export function PlayCard({
   }, [key, library, member.playId]);
   const play = loaded?.key === key ? loaded.play : undefined;
   const waiting = loaded?.key !== key;
+  const [renaming, setRenaming] = useState<string>();
+  // The field closes when the arrows walk on to another Play.
+  const renamingThis = renaming === member.playId;
   const first = place.index <= 1;
   const last = place.index >= place.total;
 
@@ -127,6 +134,8 @@ export function PlayCard({
             onClose();
             return;
           }
+          // The arrows move the caret while the name is being typed.
+          if (event.target instanceof HTMLInputElement) return;
           const step =
             event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
           if (step === 0 || (step < 0 ? first : last)) return;
@@ -137,7 +146,35 @@ export function PlayCard({
       >
         <div className="play-card-head">
           <div className="play-card-title">
-            <strong>{member.name}</strong>
+            {renamingThis && onRename ? (
+              <PlaybookNameForm
+                autoFocus
+                className="play-rename"
+                initial={member.name}
+                label="Play name"
+                onCancel={() => setRenaming(undefined)}
+                onSave={async (name) => {
+                  await onRename(name);
+                  setRenaming(undefined);
+                }}
+                placeholder="Name this play…"
+                taken={[]}
+              />
+            ) : (
+              <div className="play-card-name">
+                <strong>{member.name}</strong>
+                {onRename ? (
+                  <button
+                    aria-label={`Rename ${member.name}`}
+                    className="book-rename-open play-card-rename"
+                    onClick={() => setRenaming(member.playId)}
+                    type="button"
+                  >
+                    Rename
+                  </button>
+                ) : null}
+              </div>
+            )}
             <PlayMeta member={member} set={set} />
           </div>
           <button
@@ -187,7 +224,7 @@ export function PlayCard({
             <button
               className="play-card-more"
               onClick={onActions}
-              title="Copy, move or delete"
+              title="Rename, copy, move or delete"
               type="button"
             >
               More…

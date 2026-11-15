@@ -374,7 +374,9 @@ for (const viewport of WORKSPACES) {
         const tool = tools.nth(index);
         if (!(await tool.isVisible())) continue;
         const box = await insideViewport(page, tool, viewport);
-        expect(box.width).toBeGreaterThanOrEqual(44);
+        // A finger tall; the row narrows its buttons to carry Select and
+        // Hand as well (ADR 0085), never below 32 px.
+        expect(box.width).toBeGreaterThanOrEqual(32);
         expect(box.height).toBeGreaterThanOrEqual(44);
       }
       for (const name of ["Versions", "More actions"]) {

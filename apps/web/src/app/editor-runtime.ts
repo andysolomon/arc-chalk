@@ -352,6 +352,12 @@ export interface ChalkRuntime {
   copyPlayTo(playId: string, playbookId: string): Promise<StoredPlay>;
   /** Copies a Play into another book and puts the original in the Trash. */
   movePlayTo(playId: string, playbookId: string): Promise<StoredPlay>;
+  /**
+   * Names a Play that is not open in the editor, in whichever book it is
+   * kept. The Play in the editor is named through its store, so its undo
+   * history and save state stay its own.
+   */
+  renamePlay(playId: string, name: string): Promise<void>;
   /** Fires after a local commit so background sync can drain. */
   subscribeLocalEdit(listener: () => void): () => void;
   /** Keeps a set the Coach named, so it is there the next time he opens Chalk. */
@@ -1085,6 +1091,20 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
       const copy = await copyPlay(playId, target);
       await repository.movePlayToTrash(playId);
       return copy;
+    },
+    async renamePlay(playId, name) {
+      const stored = await repository.getPlay(playId);
+      if (!stored || stored.deletedAtMs !== undefined) {
+        throw new Error(`There is no Play ${playId} on this device.`);
+      }
+      const named = name.trim();
+      if (!named || named === stored.document.name) return;
+      await repository.commitPlay({
+        play: { ...stored.document, name: named },
+        expectedDocumentHash: stored.documentHash,
+        mutation: { id: createStableId("mutation") },
+      });
+      for (const listener of localEditListeners) listener();
     },
     async saveCoachFormation(formation) {
       await repository.saveFormation(formation);

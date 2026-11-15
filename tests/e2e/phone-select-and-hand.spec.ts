@@ -3,14 +3,16 @@ import { type Page } from "@playwright/test";
 import { expect, openSeededEditor, test } from "./fixtures";
 
 /**
- * Select and Hand on a phone (ADR 0079). The tool row under the field is
- * full, so the pair floats just under the field's lower left, clear of the
- * field itself, the sheet's peek and the map — at the full glass and at the
- * height Safari leaves once its bars are drawn. The field opens on Select, and one finger dragged across
+ * Select and Hand on a phone (ADR 0079, ADR 0085). The pair leads the tool
+ * row under the field, with the row's other buttons, so nothing of it floats
+ * over the field or under the count on the line; the row narrows its
+ * buttons to keep the trash on the glass at every width — at the full glass
+ * and at the height Safari leaves once its bars are drawn. The field opens
+ * on Select, and one finger dragged across
  * open grass draws a box that picks up every man in it — the only way a
  * phone has to pick several at once. Hand turns the same finger into the
  * field's: it moves the view from anywhere, a man included, and leaves the
- * selection and the Play as they were. Both buttons are a finger's 44 px and
+ * selection and the Play as they were. Both buttons are a finger tall and
  * on the glass at every width the phone specs walk. The field with the line
  * picked out, moved under the Hand, is the run's artifact.
  */
@@ -128,38 +130,39 @@ for (const viewport of VIEWPORTS) {
       await openSeededEditor(page);
       await expect(page.locator(".chalk-shell.phone-workspace")).toBeVisible();
       const tools = page.getByRole("navigation", { name: "Drawing tools" });
-      const pointer = page.getByRole("group", { name: "Pointer" });
+      const pointer = tools.getByRole("group", { name: "Pointer" });
       const select = pointer.getByRole("button", {
         name: "Select — V",
         exact: true,
       });
       const hand = pointer.getByRole("button", { name: "Hand", exact: true });
 
-      // The pair is the field's, not the tool row's: the row keeps its six
-      // and the trash at its far end stays on the glass.
+      // The pair leads the tool row, and the trash at the row's far end
+      // stays on the glass: the row narrows its buttons rather than scroll.
+      await expect(page.getByRole("group", { name: "Pointer" })).toHaveCount(1);
       await expect(pointer).toHaveCount(1);
-      await expect(tools.getByRole("group", { name: "Pointer" })).toHaveCount(
-        0,
-      );
+      const row = (await tools.boundingBox())!;
       const trash = (await tools
         .getByRole("button", { name: "Delete selection — ⌫" })
         .boundingBox())!;
       expect(trash.x + trash.width).toBeLessThanOrEqual(viewport.width);
-      // Each is a finger's 44 px, on the glass, under the field and above
-      // the sheet's peek, and clear of the map in the other corner.
-      const peek = (await page.locator('[data-sheet="peek"]').boundingBox())!;
+      expect(
+        await tools.evaluate((nav) => nav.scrollWidth - nav.clientWidth),
+      ).toBeLessThanOrEqual(0);
+      // Each is a finger tall and wide enough to hit, inside the row and
+      // ahead of every other tool, and none of it lies over the field.
       const drawn = (await field(page).boundingBox())!;
+      const formation = (await tools.locator(".rail-formation").boundingBox())!;
       for (const button of [select, hand]) {
         const box = (await button.boundingBox())!;
-        expect(box.height).toBeGreaterThanOrEqual(44);
-        expect(box.width).toBeGreaterThanOrEqual(44);
+        expect(box.height).toBeGreaterThanOrEqual(40);
+        expect(box.width).toBeGreaterThanOrEqual(32);
         expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(formation.x);
+        expect(box.y).toBeGreaterThanOrEqual(row.y);
+        expect(box.y + box.height).toBeLessThanOrEqual(row.y + row.height);
         expect(box.y).toBeGreaterThanOrEqual(drawn.y + drawn.height);
-        expect(box.y + box.height).toBeLessThanOrEqual(peek.y);
       }
-      const pill = (await pointer.boundingBox())!;
-      const map = (await page.locator(".minimap").boundingBox())!;
-      expect(pill.x + pill.width).toBeLessThan(map.x);
       await expect(select).toHaveAttribute("aria-pressed", "true");
       await expect(hand).toHaveAttribute("aria-pressed", "false");
 

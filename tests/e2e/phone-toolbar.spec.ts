@@ -3,10 +3,11 @@ import { type Page } from "@playwright/test";
 import { expect, openBlankEditor, test } from "./fixtures";
 
 /**
- * The tool rail on a phone (ADR 0077): the row under the field carries the
- * Formation button, the shadow, the concept (ADR 0078), Text, Clear every
- * line, Clear every player and the trash, each a finger's 44 px and all of
- * them on the glass at 390 px. A new play from More opens on the Formations browser; the rail
+ * The tool rail on a phone (ADR 0077, ADR 0085): the row under the field
+ * carries Select and Hand, the Formation button, the shadow, the concept
+ * (ADR 0078), Text, Clear every line, Clear every player and the trash, each
+ * a finger's 44 px tall, at least 32 px wide, and all of them on the glass
+ * at 390 px. A new play from More opens on the Formations browser; the rail
  * adds a shadow defense, takes every man off, and puts a set back on. The
  * field with the last set on it is the run's artifact.
  */
@@ -104,7 +105,7 @@ test("the phone's tool row puts men on and takes them off", async ({
   await page.touchscreen.tap(start.x + 40, start.y - 40);
   const finish = tools.getByRole("button", { name: "Finish the route — ⏎" });
   const box = (await finish.boundingBox())!;
-  expect(box.width).toBeGreaterThanOrEqual(44);
+  expect(box.width).toBeGreaterThanOrEqual(32);
   expect(box.height).toBeGreaterThanOrEqual(44);
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(390);

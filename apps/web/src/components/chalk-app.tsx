@@ -114,6 +114,7 @@ import {
   defensiveAdjustmentCommand,
   addDepthLabelCommand,
   alignPlayersCommand,
+  formationFix,
   cameraForBounds,
   cameraZoom,
   type FrameBounds,
@@ -124,6 +125,8 @@ import {
   zoomCamera,
   type Camera,
   addRouteChoiceCommand,
+  canAddRouteChoice,
+  MAX_ROUTE_CHOICES_PER_BREAK,
   applyConceptCommand,
   applyDefensiveCallCommand,
   applyFormationCommand,
@@ -339,7 +342,7 @@ import {
   type ToolId,
 } from "./tool-labels";
 import { FieldMinimap } from "./field-minimap";
-import { LineHeading, MotionInspector } from "./motion-inspector";
+import { BackButton, LineHeading, MotionInspector } from "./motion-inspector";
 import { LineCountChip, SnapGuideMark } from "./alignment-guides";
 import { lineFaultWords, lineStatusWords } from "./line-count";
 import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
@@ -1146,6 +1149,7 @@ const labelColorChoices: ReadonlyArray<TextLabel["color"]> = [
  * every parity golden captures.
  */
 function LabelInspector({
+  backLabel,
   bare = false,
   label,
   onAppearance,
@@ -1157,6 +1161,8 @@ function LabelInspector({
   text,
   textInputRef,
 }: {
+  /** Where the back arrow goes: the panel before this one, or the play. */
+  backLabel?: string | undefined;
   /** Without its own heading — the phone sheet's head names it instead. */
   bare?: boolean;
   label: TextLabel;
@@ -1175,15 +1181,7 @@ function LabelInspector({
     <div className="label-inspector">
       {bare ? null : (
         <div className="section-heading label-heading">
-          <button
-            aria-label="Back to the play"
-            className="back-button"
-            onClick={onDeselect}
-            title="Back to the play — esc"
-            type="button"
-          >
-            ←
-          </button>
+          <BackButton label={backLabel} onBack={onDeselect} />
           <span>Text</span>
         </div>
       )}
@@ -1705,6 +1703,7 @@ interface PlayerLine {
 function PlayerInspector({
   activePresets,
   assignmentCalls,
+  backLabel,
   bare = false,
   coverage,
   freeDraw,
@@ -1738,6 +1737,8 @@ function PlayerInspector({
   activePresets: ReadonlySet<string>;
   /** What a defender can be given, in the order he is offered it. */
   assignmentCalls: readonly { readonly key: string; readonly name: string }[];
+  /** Where the back arrow goes: the panel before this one, or the play. */
+  backLabel?: string | undefined;
   /** Without its own heading — the phone sheet's head names him instead. */
   bare?: boolean;
   /** Whom his man call follows, while he is in man (ADR 0060). */
@@ -1810,15 +1811,7 @@ function PlayerInspector({
     <div className="label-inspector player-inspector">
       {bare ? null : (
         <div className="section-heading label-heading player-heading">
-          <button
-            aria-label="Back to the play"
-            className="back-button"
-            onClick={onDeselect}
-            title="Back to the play — esc"
-            type="button"
-          >
-            ←
-          </button>
+          <BackButton label={backLabel} onBack={onDeselect} />
           <span aria-hidden="true" className="player-chip">
             {mark ?? letter}
           </span>
@@ -2081,6 +2074,7 @@ function PlayerInspector({
             </button>
           ))}
         </div>
+        <span className="field-label">Color</span>
         <div className="color-row">
           {routeColorChoices.map((color) => (
             <button
@@ -2107,6 +2101,7 @@ function PlayerInspector({
  * it runs fold away under Appearance and Advanced (issue #64).
  */
 function RouteInspector({
+  backLabel,
   bare = false,
   branchIndex,
   coaching,
@@ -2133,6 +2128,8 @@ function RouteInspector({
   segmentIndex,
   timing,
 }: {
+  /** Where the back arrow goes: the panel before this one, or the play. */
+  backLabel?: string | undefined;
   /** Without its own heading — the phone sheet's head names it instead. */
   bare?: boolean;
   branchIndex?: number;
@@ -2225,6 +2222,7 @@ function RouteInspector({
     <div className="label-inspector route-inspector">
       {bare ? null : (
         <LineHeading
+          backLabel={backLabel}
           onDeselect={onDeselect}
           owner={ownerLetter}
           scope={scope}
@@ -2307,7 +2305,16 @@ function RouteInspector({
       />
       <div className="help-row">
         {isRoute ? (
-          <button onClick={onAddChoice} type="button">
+          <button
+            disabled={!canAddRouteChoice(path, forkAt)}
+            onClick={onAddChoice}
+            title={
+              canAddRouteChoice(path, forkAt)
+                ? undefined
+                : `${MAX_ROUTE_CHOICES_PER_BREAK} choices is the most one break takes`
+            }
+            type="button"
+          >
             + Choice at {nodeName}
           </button>
         ) : null}
@@ -2450,6 +2457,17 @@ function RouteInspector({
       </Disclosure>
     </div>
   );
+}
+
+/** How many panels back the back arrow remembers. */
+const PANEL_TRAIL_LIMIT = 20;
+
+/** The same one thing on the field, or nothing either time. */
+function sameFieldItem(
+  a: FieldItemRef | undefined,
+  b: FieldItemRef | undefined,
+): boolean {
+  return a?.kind === b?.kind && a?.id === b?.id;
 }
 
 /** What one Reset button would put a side of the ball back in. */
@@ -6375,7 +6393,7 @@ export function ChalkApp({
       const target = event.target instanceof Element ? event.target : null;
       if (
         target?.closest(
-          ".inspector, .inspector-stub, .overlay, .menu-panel, .context-backdrop, .toast, .play-sidebar, .sidebar-scrim, .quick-tray",
+          ".inspector, .inspector-stub, .overlay, .menu-panel, .context-backdrop, .toast, .play-sidebar, .sidebar-rail, .sidebar-scrim, .quick-tray",
         )
       ) {
         return;
@@ -6397,7 +6415,7 @@ export function ChalkApp({
       const target = event.target instanceof Element ? event.target : null;
       if (
         target?.closest(
-          ".play-sidebar, .sidebar-open, .sidebar-stub, .overlay, .menu-panel, .context-backdrop, .toast",
+          ".play-sidebar, .sidebar-rail, .sidebar-open, .sidebar-stub, .overlay, .menu-panel, .context-backdrop, .toast",
         )
       ) {
         return;
@@ -6602,6 +6620,24 @@ export function ChalkApp({
       ? scrimmageLine(editor.document.players)
       : undefined;
   const lineStatus = lineStatusWords(lineCount);
+  // The fewest moves that make an illegal set legal, offered in the call
+  // itself (ADR 0084); undefined when the set is legal or has no clean fix.
+  const lineFix = ((): { summary: string; apply: () => void } | undefined => {
+    if (!lineCount || lineCount.legal) return undefined;
+    const fix = formationFix(editor.document);
+    if (!fix) return undefined;
+    return {
+      summary: fix.summary,
+      apply: () => {
+        void editorStore
+          .applyCommand(fix.command)
+          .then(() =>
+            setToast({ name: "Formation fixed", text: `— ${fix.summary}` }),
+          )
+          .catch(() => undefined);
+      },
+    };
+  })();
   /** The shadow by the other unit's name, as the rail and the layers call it. */
   const shadowLayerName =
     editor.document.unit === "defense" ? "Shadow offense" : "Shadow defense";
@@ -7090,6 +7126,69 @@ export function ChalkApp({
       : selectedLabel
         ? { kind: "label" }
         : undefined;
+  /**
+   * The panels the Coach came through to reach this one. Going from a man
+   * to one of his lines, the line's back arrow goes back to the man, not all
+   * the way to the roster. Anything but one thing picked — nothing, or a
+   * group — starts the trail over.
+   */
+  const [panelTrail, setPanelTrail] = useState<{
+    readonly current: FieldItemRef | undefined;
+    readonly back: readonly FieldItemRef[];
+  }>({ current: undefined, back: [] });
+  const onlyPick =
+    interaction.selection.length === 1 ? interaction.selection[0] : undefined;
+  if (!sameFieldItem(panelTrail.current, onlyPick)) {
+    setPanelTrail({
+      current: onlyPick,
+      back:
+        onlyPick && panelTrail.current
+          ? [...panelTrail.back, panelTrail.current].slice(-PANEL_TRAIL_LIMIT)
+          : [],
+    });
+  }
+  const stillThere = ({ kind, id }: FieldItemRef): boolean =>
+    kind === "player"
+      ? editor.document.players.some((man) => man.id === id)
+      : kind === "path"
+        ? editor.document.paths.some((path) => path.id === id)
+        : editor.document.labels.some((label) => label.id === id);
+  let backIndex = panelTrail.back.length - 1;
+  while (backIndex >= 0 && !stillThere(panelTrail.back[backIndex]!)) {
+    backIndex -= 1;
+  }
+  const backPick = panelTrail.back[backIndex];
+  /** What the back arrow says it goes to, or nothing for the play. */
+  const backLabel = ((): string | undefined => {
+    if (!backPick) return undefined;
+    const markOf = (playerId: string) => {
+      const row = roster.rows.find(({ player }) => player.id === playerId);
+      return row?.mark || row?.player.label.trim() || "the player";
+    };
+    if (backPick.kind === "player") return markOf(backPick.id);
+    if (backPick.kind === "label") return "the note";
+    const path = editor.document.paths.find(({ id }) => id === backPick.id);
+    return path
+      ? `${markOf(path.playerId)}'s ${lineKindWord(path).toLowerCase()}`
+      : undefined;
+  })();
+  /** A panel's back arrow: the panel before it, or the play. */
+  const stepBack = (): void => {
+    if (!backPick) {
+      dispatchField({ type: "escape" });
+      return;
+    }
+    setPanelTrail({
+      current: backPick,
+      back: panelTrail.back.slice(0, backIndex),
+    });
+    focusInteraction({
+      selection: [backPick],
+      selectedBranchIndex: undefined,
+      selectedSegmentIndex: undefined,
+      selectedNodeIndex: undefined,
+    });
+  };
   /** A row of the roster is the man on the field: the same pick. */
   const selectRosterPlayer = (playerId: string) => {
     if (activeTool === "text") selectTool("select");
@@ -7375,9 +7474,11 @@ export function ChalkApp({
       ),
     },
   ];
-  const sidebar = (tools?: ReactNode) => (
+  const sidebar = (tools: ReactNode, folded: boolean) => (
     <PlaySidebar
       drawer={sidebarFloats}
+      folded={folded}
+      onExpand={() => setSidebarOpen(true)}
       fold={{
         label: "View & library",
         open: chrome.open[sidebarFoldKey] === true,
@@ -7445,17 +7546,13 @@ export function ChalkApp({
       : undefined;
   /**
    * Select and Hand (ADR 0079): the head of the rail on a desktop or a
-   * tablet, a pill over the field's lower left on a phone, whose tool row is
-   * full. Select picks and moves, and its drag on the grass boxes in a
+   * tablet, and the start of the tool row on a phone (ADR 0085), where the
+   * row's buttons narrow to make room. Select picks and moves, and its drag on the grass boxes in a
    * group; Hand moves the field from anywhere. Pressing the one that is on
    * leaves it on.
    */
   const pointerPair = (
-    <div
-      aria-label="Pointer"
-      className={`rail-pointer${phoneWorkspace ? " field-pointer" : ""}`}
-      role="group"
-    >
+    <div aria-label="Pointer" className="rail-pointer" role="group">
       {pointerTools.map((tool) => (
         <button
           aria-label={tool.name}
@@ -7726,6 +7823,21 @@ export function ChalkApp({
       );
     };
 
+    /**
+     * Names a Play from the Playbooks page. The Play in the editor is named
+     * through the editor, as its name field would, so undo takes it back.
+     */
+    const renamePlay = async (playId: string, name: string): Promise<void> => {
+      const named = name.trim();
+      if (!named) return;
+      if (editorStore.getSnapshot().document.id === playId) {
+        await editorStore.applyCommand({ kind: "set-play-name", name: named });
+      } else {
+        await runtime.renamePlay(playId, named);
+      }
+      await playbook.refresh();
+    };
+
     /** Saves the open book's install order, which its exports read in. */
     const reorderBook = async (order: readonly string[]): Promise<void> => {
       const book = await runtime.library.getPlaybook();
@@ -7953,6 +8065,7 @@ export function ChalkApp({
                     onDelete={(playId) => playbook.removePlay(playId, true)}
                     onOpen={openPlay}
                     onRemember={playbook.rememberBrowser}
+                    onRename={renamePlay}
                     onReorder={(order) => void reorderBook(order)}
                     onStartPlay={startPlay}
                     onTransfer={(playId, target, mode) =>
@@ -8043,6 +8156,7 @@ export function ChalkApp({
               onDelete={(playId) => playbook.removePlay(playId, true)}
               onOpen={openPlay}
               onRemember={playbook.rememberBrowser}
+              onRename={renamePlay}
               onTransfer={(playId, target, mode) =>
                 void transferPlay(playId, target, mode)
               }
@@ -8116,23 +8230,23 @@ export function ChalkApp({
 
   /**
    * The drawing tools. On a desktop they head the one left column, the
-   * sidebar, and stand alone as a narrow rail when it folds (⌥3); a tablet's
+   * sidebar, and head a narrow rail beside its icons when it folds (⌥3); a tablet's
    * sidebar is a drawer, so its tools keep a rail of their own, and a phone's
    * are the row along the field's foot.
    */
   const toolsInSidebar = !sidebarFloats;
+  /** Folded (⌥3) with the tools out: the rail of tools and sidebar icons. */
+  const sidebarFolded = toolsInSidebar && !sidebarOpen && railOpen;
   const railTools = (
     <>
       {/* How the pointer meets the field (ADR 0079), then what goes on
           the field, then what comes off it, then the selection (ADR
           0077). Each is one press from a blank canvas: the set, the
-          other unit under it, a note. A phone's row has no room for
-          the pointer pair, so there it floats over the field. */}
+          other unit under it, a note. On a phone the pair leads the
+          row in its own well, so it needs no rule after it (ADR 0085). */}
+      {pointerPair}
       {phoneWorkspace ? null : (
-        <>
-          {pointerPair}
-          <span aria-hidden="true" className="rail-divider" />
-        </>
+        <span aria-hidden="true" className="rail-divider" />
       )}
       <button
         // The set for an offensive play, the call for a defensive one:
@@ -8270,28 +8384,31 @@ export function ChalkApp({
       {header}
       <div className="workspace">
         {quickTray}
-        {sidebarOpen ? (
+        {sidebarOpen && sidebarFloats ? (
+          <button
+            aria-label="Close the sidebar"
+            className="sidebar-scrim"
+            onClick={() => setSidebarOpen(false)}
+            type="button"
+          />
+        ) : null}
+        {sidebarOpen || sidebarFolded ? (
+          // Folded on a desktop, it stays one narrow rail of the tools and
+          // the sidebar's own icons, each still one press from its control.
           <>
-            {sidebarFloats ? (
-              <button
-                aria-label="Close the sidebar"
-                className="sidebar-scrim"
-                onClick={() => setSidebarOpen(false)}
-                type="button"
-              />
-            ) : null}
             {sidebar(
               toolsInSidebar && railOpen ? (
                 <nav
                   aria-label="Drawing tools"
-                  className="tool-rail sidebar-tools"
+                  className={`tool-rail${sidebarFolded ? "" : " sidebar-tools"}`}
                 >
                   {railTools}
                 </nav>
               ) : undefined,
+              sidebarFolded,
             )}
           </>
-        ) : phoneWorkspace || (toolsInSidebar && railOpen) ? null : (
+        ) : phoneWorkspace ? null : (
           <button
             className="sidebar-stub"
             onClick={() => setSidebarOpen(true)}
@@ -8301,33 +8418,20 @@ export function ChalkApp({
             Sidebar
           </button>
         )}
-        {toolsInSidebar && sidebarOpen ? null : railOpen ? (
+        {toolsInSidebar ? null : railOpen ? (
           <nav className="tool-rail" aria-label="Drawing tools">
             {railTools}
-            {toolsInSidebar ? (
-              // The sidebar folded to its tools: this opens it again.
-              <button
-                aria-label="Show the sidebar"
-                className="rail-collapse"
-                onClick={() => setSidebarOpen(true)}
-                title="Show the sidebar — ⌥3"
-                type="button"
-              >
-                ›
-              </button>
-            ) : (
-              <button
-                aria-label="Hide the tools"
-                className="rail-collapse"
-                onClick={() => setRailOpen(false)}
-                title="Hide the tools — ⌥2"
-                type="button"
-              >
-                ‹
-              </button>
-            )}
+            <button
+              aria-label="Hide the tools"
+              className="rail-collapse"
+              onClick={() => setRailOpen(false)}
+              title="Hide the tools — ⌥2"
+              type="button"
+            >
+              ‹
+            </button>
           </nav>
-        ) : toolsInSidebar ? null : (
+        ) : (
           <button
             className="rail-stub"
             onClick={() => setRailOpen(true)}
@@ -8516,7 +8620,6 @@ export function ChalkApp({
             <p aria-live="polite" className="visually-hidden">
               {activeItemName}
             </p>
-            {phoneWorkspace ? pointerPair : null}
             <FieldMinimap
               camera={camera}
               frame={EDITOR_FRAME}
@@ -8525,6 +8628,7 @@ export function ChalkApp({
             />
             <LineCountChip
               document={editor.document}
+              fix={lineFix}
               offenseShown={editor.document.unit !== "defense" || shadowOnField}
               store={liveStore}
             />
@@ -8577,7 +8681,8 @@ export function ChalkApp({
                     );
                   }}
                   onDelete={() => dispatchField({ type: "delete" })}
-                  onDeselect={() => dispatchField({ type: "escape" })}
+                  backLabel={backLabel}
+                  onDeselect={stepBack}
                   onNote={(value) =>
                     editRouteCoaching(selectedPath.id, "coachingNote", value)
                   }
@@ -8646,7 +8751,8 @@ export function ChalkApp({
                     );
                   }}
                   onDelete={() => dispatchField({ type: "delete" })}
-                  onDeselect={() => dispatchField({ type: "escape" })}
+                  backLabel={backLabel}
+                  onDeselect={stepBack}
                   onFlip={() =>
                     runLabelCommand(
                       flipRouteCommand(editor.document, selectedPath.id),
@@ -8784,7 +8890,8 @@ export function ChalkApp({
                     );
                   }}
                   freeDraw={freeDraw}
-                  onDeselect={() => dispatchField({ type: "escape" })}
+                  backLabel={backLabel}
+                  onDeselect={stepBack}
                   onDraw={(kind) => startDrawingFrom(selectedPlayer.id, kind)}
                   onFreeDraw={setFreeDrawing}
                   onFlip={() =>
@@ -8861,7 +8968,8 @@ export function ChalkApp({
                     );
                   }}
                   onDelete={() => dispatchField({ type: "delete" })}
-                  onDeselect={() => dispatchField({ type: "escape" })}
+                  backLabel={backLabel}
+                  onDeselect={stepBack}
                   onRole={(role) => {
                     putInspectorAway();
                     runLabelCommand(

@@ -228,15 +228,19 @@ function countWords(line: ScrimmageLine): string {
  * offense is being moved, so the Coach sees a receiver come off the line as
  * he drags him, and stays while the formation is illegal — a fifth back, a
  * twelfth man, a man over the ball, a covered receiver — with each fault on
- * its own line (ADR 0081). A legal set at rest says nothing over the field;
- * the status bar carries its count.
+ * its own line (ADR 0081). At rest it offers the fewest moves that would
+ * make the set legal, when there are such moves (ADR 0084). A legal set at
+ * rest says nothing over the field; the status bar carries its count.
  */
 export function LineCountChip({
   document,
+  fix,
   offenseShown,
   store,
 }: {
   document: PlayDocument;
+  /** The moves that would make the set legal, offered at rest (ADR 0084). */
+  fix?: { readonly summary: string; readonly apply: () => void };
   offenseShown: boolean;
   store: {
     readonly subscribe: (listener: () => void) => () => void;
@@ -274,6 +278,17 @@ export function LineCountChip({
       {lineFaultWords(line, document.players).map((words) => (
         <span key={words}>{words}</span>
       ))}
+      {fix && !movingOffense && !line.legal ? (
+        <button
+          className="line-count-fix"
+          data-line-fix=""
+          onClick={fix.apply}
+          type="button"
+        >
+          <span>Fix formation</span>
+          <small>{fix.summary}</small>
+        </button>
+      ) : null}
     </div>
   );
 }

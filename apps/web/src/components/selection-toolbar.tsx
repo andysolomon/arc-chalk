@@ -36,9 +36,15 @@ export function SelectionToolbar({
   const selectedDefenders = document.players.filter(
     (man) => ids.includes(man.id) && man.unit === "defense",
   );
+  const group = sharedGroup(document, selection);
   // The bar is a group's: two men or more. One man, a lone defender too, is
-  // worked from his own panel, whose Defensive adjustments open on him.
-  if (ids.length < 2 || selection.some(({ kind }) => kind !== "player"))
+  // worked from his own panel, whose Defensive adjustments open on him. A
+  // Group tied with its lines still gets the bar, so the Coach can see why
+  // one click picked all of it and untie it from there.
+  if (
+    !group &&
+    (ids.length < 2 || selection.some(({ kind }) => kind !== "player"))
+  )
     return null;
   const men = document.players.filter(({ id }) => ids.includes(id));
   const options = selectionAssignmentOptions(document, ids);
@@ -72,8 +78,15 @@ export function SelectionToolbar({
     >
       <span className="selection-toolbar-heading">
         {designation?.name ??
-          `${men.length} ${men.length === 1 ? "player" : "players"} selected`}
+          (group
+            ? groupHeading(selection)
+            : `${men.length} ${men.length === 1 ? "player" : "players"} selected`)}
       </span>
+      {group && !designation ? (
+        <button type="button" onClick={() => onCommand(ungroup)}>
+          Ungroup
+        </button>
+      ) : null}
       {selectedDefenders.length > 0 && onAdjustDefense ? (
         <button
           type="button"
@@ -282,6 +295,44 @@ export function SelectionToolbar({
       ) : null}
     </div>
   );
+}
+
+/**
+ * The one Group the whole selection is, if it is one. A click on any member
+ * picks every member, so without saying so the bar would leave the Coach
+ * wondering why one man brought the other ten with him.
+ */
+function sharedGroup(
+  document: PlayDocument,
+  selection: readonly FieldItemRef[],
+): string | undefined {
+  if (selection.length < 2) return undefined;
+  const groupOf = (item: FieldItemRef): string | undefined =>
+    (item.kind === "player"
+      ? document.players.find(({ id }) => id === item.id)
+      : item.kind === "path"
+        ? document.paths.find(({ id }) => id === item.id)
+        : document.labels.find(({ id }) => id === item.id)
+    )?.group;
+  const first = groupOf(selection[0]!);
+  if (!first) return undefined;
+  return selection.every((item) => groupOf(item) === first) ? first : undefined;
+}
+
+function groupHeading(selection: readonly FieldItemRef[]): string {
+  const count = (kind: FieldItemRef["kind"]) =>
+    selection.filter((item) => item.kind === kind).length;
+  const parts = [
+    [count("player"), "player", "players"],
+    [count("path"), "line", "lines"],
+    [count("label"), "note", "notes"],
+  ] as const;
+  return [
+    "Group",
+    ...parts
+      .filter(([n]) => n > 0)
+      .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`),
+  ].join(" · ");
 }
 
 interface ArrangeItem {
