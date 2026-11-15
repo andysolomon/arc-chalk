@@ -8779,6 +8779,68 @@ button.shell-quiet:hover {
   flex-direction: column;
   gap: 2px;
 }
+/* A desktop's one left column: the drawing tools at its head, the sidebar
+   under them. The column carries the sidebar's width and edge. */
+.sidebar-column {
+  position: relative;
+  z-index: 4;
+  width: 236px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--paper);
+  box-shadow: 1px 0 rgb(var(--shade) / 0.06);
+}
+.sidebar-column > .play-sidebar {
+  width: auto;
+  min-height: 0;
+  flex: 1;
+  padding-top: 0;
+  box-shadow: none;
+}
+.sidebar-tools-group {
+  padding: 8px 10px 0;
+}
+/* The rail's buttons laid in rows — the pointer pair and what goes on the
+   field, then the note and what comes off it, with the trash at the end. */
+.sidebar-column .tool-rail.sidebar-tools {
+  z-index: auto;
+  width: auto;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 2px;
+  padding: 0 4px 4px;
+  background: transparent;
+  box-shadow: none;
+}
+.sidebar-tools > button {
+  width: 34px;
+  height: 34px;
+}
+.sidebar-tools .rail-pointer {
+  flex-direction: row;
+}
+.sidebar-tools .rail-pointer > button {
+  width: 32px;
+  height: 32px;
+}
+.sidebar-tools .rail-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+}
+.sidebar-tools .rail-spacer {
+  flex: 1 0 0;
+}
+@media (pointer: coarse) {
+  .sidebar-tools > button,
+  .sidebar-tools .rail-pointer > button {
+    width: 44px;
+    height: 44px;
+  }
+}
 .sidebar-heading {
   padding: 12px 8px 4px;
   color: var(--muted);
