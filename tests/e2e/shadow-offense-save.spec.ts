@@ -138,16 +138,17 @@ test("keeps a defensive play's shadow offense through a save and a reload", asyn
   // The offense here is the look to draw the call against, not the play.
   await putOnOffense(page, "Gun Doubles Right");
 
-  // With receivers on the field, each man in man has one to take: the
-  // corners the wide men, the nickel the slot, the safety the tight end, a
-  // backer the back — and the other backer, with nobody left, free.
+  // With receivers on the field, each man in man has one to take on his
+  // own side of the ball (#196): the corners the wide men, the safety the
+  // tight end, the Mike the back, the Will the slot across from him — and
+  // the nickel, with nobody left on his side, free.
   const matched = [
     "$ man on Y",
     "C man on X",
     "C man on Z",
     "M man on F",
-    "N man on H",
-    "W man",
+    "N man",
+    "W man on H",
   ];
   await expect.poll(() => manCalls(page)).toEqual(matched);
 
