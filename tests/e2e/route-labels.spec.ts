@@ -181,6 +181,8 @@ async function coach(
   if (words.choice) {
     await panel.getByRole("button", { name: /^\+ Choice at/ }).click();
   }
+  // Back through his panel, the way the Coach came, to the roster.
+  await panel.getByRole("button", { name: /^Back to (?!the play)/ }).click();
   await panel.getByRole("button", { name: "Back to the play" }).click();
 }
 
