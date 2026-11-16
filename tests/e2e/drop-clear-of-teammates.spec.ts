@@ -61,13 +61,26 @@ const rounded = (men: readonly Mark[]) =>
     y: Math.round(y * 100) / 100,
   }));
 
-/** Where a man is on screen, in page pixels. */
+/**
+ * Where a man is on screen, in page pixels: his frame position carried
+ * through the field's viewBox to its box on the page, the way the other
+ * field specs aim, since mobile WebKit's screen matrix cannot be trusted.
+ */
 async function onScreen(page: Page, id: string) {
-  return page.locator(`[data-scene-player="${id}"]`).evaluate((node) => {
-    const matrix = (node as SVGGraphicsElement).getScreenCTM()!;
-    const at = new DOMPoint(0, 0).matrixTransform(matrix);
-    return { x: at.x, y: at.y };
-  });
+  const field = page.locator("svg.field-diagram").first();
+  const box = await field.boundingBox();
+  if (!box) throw new Error("The field is not on screen.");
+  const [viewX, viewY, viewWidth, viewHeight] = (
+    (await field.getAttribute("viewBox")) ?? "0 0 1000 620"
+  )
+    .split(" ")
+    .map(Number) as [number, number, number, number];
+  const man = (await everyone(page)).find((mark) => mark.id === id);
+  if (!man) throw new Error(`${id} is not on the field.`);
+  return {
+    x: box.x + ((man.x - viewX) / viewWidth) * box.width,
+    y: box.y + ((man.y - viewY) / viewHeight) * box.height,
+  };
 }
 
 /** Presses on one man and carries him onto another, still held. */
@@ -93,15 +106,22 @@ test("a man dropped on a teammate settles beside him", async ({
   expect(overlapping(await everyone(page))).toEqual([]);
 
   // Held over the left tackle, H is already drawn beside him.
+  // The drag is painted on the next frame, which WebKit can take a moment
+  // to reach, so the held field is read once it has caught up.
   await holdOver(page, "h", "ol0");
+  await expect
+    .poll(async () => apart(await everyone(page), "h", "ol0"))
+    .toBeLessThan(TOUCHING + 2);
   const held = await everyone(page);
   expect(overlapping(held)).toEqual([]);
   expect(apart(held, "h", "ol0")).toBeLessThan(TOUCHING + 2);
 
   // Let go, he stays where the drag showed him.
   await page.mouse.up();
+  await expect
+    .poll(async () => rounded(await everyone(page)))
+    .toEqual(rounded(held));
   const dropped = await everyone(page);
-  expect(rounded(dropped)).toEqual(rounded(held));
   expect(overlapping(dropped)).toEqual([]);
   await expect(page.locator('[data-scene-player="h"]')).toBeVisible();
   await page.keyboard.press("Escape");
@@ -128,7 +148,8 @@ test("a man dropped on a teammate settles beside him", async ({
     { steps: 4 },
   );
   await page.mouse.up();
-  const wedged = await everyone(page);
-  expect(overlapping(wedged)).toEqual([]);
-  expect(apart(wedged, "h", "q")).toBeLessThan(TOUCHING * 2);
+  await expect
+    .poll(async () => apart(await everyone(page), "h", "q"))
+    .toBeLessThan(TOUCHING * 2);
+  expect(overlapping(await everyone(page))).toEqual([]);
 });
