@@ -1193,6 +1193,7 @@ function angularGap(a: number, b: number): number {
  * Every choice at a break reads a different way: the first turns one side,
  * the second the other, the third runs straight on — always skipping a way
  * the route itself or an earlier choice already goes. A break takes three.
+ * Whichever ways those are, the ones heading upfield are tried first.
  */
 export function addRouteChoiceCommand(
   document: PlayDocument,
@@ -1250,13 +1251,22 @@ export function addRouteChoiceCommand(
       ...taken.map((other) => angularGap(direction, other)),
     );
   };
-  const tips = [
+  // A choice heads upfield unless nothing upfield is free: the ways that
+  // climb go first, each side keeping the order above, so a route that
+  // turns back toward the line — a hitch, a comeback — forks away from it.
+  const ways = [
     base + CHOICE_TURN_RADIANS,
     base - CHOICE_TURN_RADIANS,
     base,
     base + Math.PI - CHOICE_TURN_RADIANS,
     base - Math.PI + CHOICE_TURN_RADIANS,
   ].map(tipAt);
+  const upfield = (tip: Coordinate) =>
+    tip.depthYards > path.points[from]!.depthYards;
+  const tips = [
+    ...ways.filter(upfield),
+    ...ways.filter((tip) => !upfield(tip)),
+  ];
   const tip =
     tips.find(
       (candidate) => clearance(candidate) >= CHOICE_CLEARANCE_RADIANS,
