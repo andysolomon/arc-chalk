@@ -155,7 +155,7 @@ test("lists sets and calls on the Formations page and finds the plays in a set",
   ).toBeVisible();
   const offenseCards = formations.locator(".formation-card[data-unit=offense]");
   const defenseCards = formations.locator(".formation-card[data-unit=defense]");
-  await expect(offenseCards).toHaveCount(18);
+  await expect(offenseCards).toHaveCount(20);
   expect(await defenseCards.count()).toBeGreaterThan(5);
 
   // Under Defense the axes are the front and the coverage; Package steps aside.
@@ -181,7 +181,7 @@ test("lists sets and calls on the Formations page and finds the plays in a set",
   await expect(packages.getByRole("option", { name: /^3 WR/ })).toBeVisible();
   await packages.getByRole("option", { name: /^2 TE/ }).click();
   for (const card of await offenseCards.all()) {
-    await expect(card.locator(".browser-chip")).toContainText("12");
+    await expect(card.locator(".browser-chip")).toContainText("· 2 TE ·");
   }
   await formations.getByRole("button", { name: "Clear" }).click();
   await page.screenshot({
