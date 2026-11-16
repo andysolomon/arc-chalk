@@ -50,6 +50,21 @@ async function toClient(
   };
 }
 
+/**
+ * The part of the field's frame on screen. Drags are measured in it, not in
+ * client pixels, because each device draws the frame at its own scale.
+ */
+async function visibleFrame(
+  page: Page,
+): Promise<{ top: number; bottom: number }> {
+  const [, viewY, , viewHeight] = (
+    (await field(page).getAttribute("viewBox")) ?? "0 0 1000 620"
+  )
+    .split(" ")
+    .map(Number) as [number, number, number, number];
+  return { top: viewY, bottom: viewY + viewHeight };
+}
+
 async function lineOfScrimmageY(page: Page): Promise<number> {
   return Number(
     await page.locator("line.line-of-scrimmage").first().getAttribute("y1"),
@@ -61,14 +76,22 @@ test("a man dragged at the defense stops at the line while the drag is still goi
 }, testInfo) => {
   await openEditor(page);
   const line = await lineOfScrimmageY(page);
+  const frame = await visibleFrame(page);
   const before = await playerAt(page, "x");
   const start = await toClient(page, before);
+  // Well past the line, and still on screen.
+  const deep = Math.max(frame.top + 20, line - 150);
+  const halfway = await toClient(page, {
+    x: before.x + 30,
+    y: (before.y + deep) / 2,
+  });
+  const end = await toClient(page, { x: before.x + 60, y: deep });
 
   // Drag X a long way downfield and a little to the right, holding the press.
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
-  await page.mouse.move(start.x + 30, start.y - 120, { steps: 6 });
-  await page.mouse.move(start.x + 60, start.y - 260, { steps: 6 });
+  await page.mouse.move(halfway.x, halfway.y, { steps: 6 });
+  await page.mouse.move(end.x, end.y, { steps: 6 });
 
   const held = await playerAt(page, "x");
   // Mid-drag he is still on his side of the ball. The field draws downfield
@@ -100,12 +123,17 @@ test("a man already behind the line still comes back freely", async ({
   page,
 }) => {
   await openEditor(page);
+  const frame = await visibleFrame(page);
   const before = await playerAt(page, "x");
   const start = await toClient(page, before);
+  const end = await toClient(page, {
+    x: before.x,
+    y: Math.min(frame.bottom - 20, before.y + 60),
+  });
 
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
-  await page.mouse.move(start.x, start.y + 60, { steps: 6 });
+  await page.mouse.move(end.x, end.y, { steps: 6 });
   const mid = await playerAt(page, "x");
   await page.mouse.up();
 
