@@ -7,7 +7,7 @@ import {
 import {
   buildDeleteCommand,
   buildMoveCommand,
-  clampMoveToField,
+  holdMove,
   expandSelectionToGroups,
   movePreview,
   removeRouteBreakCommand,
@@ -674,7 +674,7 @@ export function fieldInteraction(
       const command = buildMoveCommand(
         context.document,
         model.selection,
-        clampMoveToField(
+        holdMove(
           context,
           model.selection,
           coordinate(event.lateralYards, event.depthYards),
