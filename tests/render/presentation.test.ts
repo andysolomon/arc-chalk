@@ -44,13 +44,19 @@ const coached = applyPlayCommand(stickThunderPlay, {
 const presented = (play: typeof stickThunderPlay, presentation: Presentation) =>
   buildSvgRenderScene(buildRenderScene(play, { presentation }));
 
+/** Every family on: the Notes layer starts off the field. */
+const allLayers: Presentation = {
+  ...defaultPresentation,
+  layers: { ...defaultPresentation.layers, notes: true },
+};
+
 describe("type presets", () => {
   it("drops conversions and notes under Player type while Coach still draws them", () => {
-    const coach = presented(coached, defaultPresentation).paths.find(
+    const coach = presented(coached, allLayers).paths.find(
       ({ id }) => id === "rx",
     )!.coaching!;
     const player = presented(coached, {
-      ...defaultPresentation,
+      ...allLayers,
       typePreset: "player",
     }).paths.find(({ id }) => id === "rx")!.coaching!;
 
@@ -152,8 +158,8 @@ describe("page kinds", () => {
 describe("annotation layers", () => {
   it("lets each family drop off the field without touching the others", () => {
     const hide = (layer: keyof Presentation["layers"]): Presentation => ({
-      ...defaultPresentation,
-      layers: { ...defaultPresentation.layers, [layer]: false },
+      ...allLayers,
+      layers: { ...allLayers.layers, [layer]: false },
     });
 
     const withoutReads = presented(coached, hide("reads")).paths.find(
@@ -173,11 +179,12 @@ describe("annotation layers", () => {
       "rx-conversion",
       "rx-note",
     ]);
-    expect(withoutAssigns.notes.map(({ id }) => id)).toEqual([
+    // A conversion rides on its Assignment's line, so it goes with it.
+    expect(withoutAssigns.notes.map(({ id }) => id)).toEqual(["rx-note"]);
+    expect(withoutNotes.notes.map(({ id }) => id)).toEqual([
+      "rx-assignment",
       "rx-conversion",
-      "rx-note",
     ]);
-    expect(withoutNotes.notes.map(({ id }) => id)).toEqual(["rx-assignment"]);
     expect(withoutText.labels).toEqual([]);
     expect(
       presented(stickThunderPlay, defaultPresentation).labels,

@@ -91,18 +91,4 @@ describe("what a route says about itself", () => {
     expect(readSide).not.toBe(0);
     expect(wordSide).not.toBe(0);
   });
-
-  it("stacks the words evenly away from the line", () => {
-    const coaching = buildSvgRenderScene(buildRenderScene(coached)).paths.find(
-      ({ id }) => id === "rx",
-    )!.coaching!;
-    const between = (first: number, second: number) =>
-      Math.hypot(
-        coaching.notes[second]!.text.x - coaching.notes[first]!.text.x,
-        coaching.notes[second]!.text.y - coaching.notes[first]!.text.y,
-      );
-
-    expect(between(0, 1)).toBeGreaterThan(0);
-    expect(between(0, 1)).toBeCloseTo(between(1, 2), 6);
-  });
 });

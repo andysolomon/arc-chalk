@@ -1033,7 +1033,9 @@ function endNormal(
  * stack up or down it — away from the line when the words sit over or under
  * it, down the page when they sit beside it — hang off their anchor away
  * from a vertical line so a long name never straddles a Go, and turn in from
- * the paper's edge rather than run past it.
+ * the paper's edge rather than run past it. The block reads top to bottom
+ * whichever way it grows, and a conversion that fits shares the
+ * Assignment's line.
  */
 function buildRouteCoaching(
   path: ScenePath,
@@ -1074,63 +1076,94 @@ function buildRouteCoaching(
           },
         };
 
-  const stack: {
+  interface Words {
     readonly kind: string;
     readonly value: string;
     readonly fill: string;
     readonly mono: boolean;
     readonly size: number;
     readonly track: number;
-  }[] = [];
-  if (path.assignment) {
-    stack.push({
-      kind: "assignment",
-      value: path.assignment.toUpperCase(),
-      fill: paint("#4D4D4D", type.flat),
-      mono: true,
-      size: type.label,
-      track: 0.7,
-    });
   }
-  if (path.conversion) {
-    stack.push({
-      kind: "conversion",
-      value: path.conversion,
-      fill: paint("#8F8F8F", type.flat),
-      mono: true,
-      size: noteSize,
-      track: 0,
-    });
+  const assignment: Words | undefined = path.assignment
+    ? {
+        kind: "assignment",
+        value: path.assignment.toUpperCase(),
+        fill: paint("#4D4D4D", type.flat),
+        mono: true,
+        size: type.label,
+        track: 0.7,
+      }
+    : undefined;
+  const conversion: Words | undefined = path.conversion
+    ? {
+        kind: "conversion",
+        value: path.conversion,
+        fill: paint("#8F8F8F", type.flat),
+        mono: true,
+        size: noteSize,
+        track: 0,
+      }
+    : undefined;
+  const note: Words | undefined = path.coachingNote
+    ? {
+        kind: "note",
+        value: path.coachingNote,
+        fill: paint("#8F8F8F", type.flat),
+        mono: false,
+        size: noteSize,
+        track: 0,
+      }
+    : undefined;
+
+  const fitted = (words: Words): Words => ({
+    ...words,
+    value: fitWordsOnField(words.value, words.size, words.track),
+  });
+  const widthOf = (words: Words): number =>
+    estimateTextWidth(words.value, words.size, words.track);
+
+  // A conversion is what the Assignment becomes against a coverage, so it
+  // reads on the Assignment's own line — STICK — vs man: fade — the way the
+  // install table sets it. One too long to share the line takes the line
+  // under it instead.
+  const rows: (readonly Words[])[] = [];
+  if (assignment && conversion) {
+    const name = fitted(assignment);
+    const tail = { ...conversion, value: `— ${conversion.value}` };
+    const shared =
+      name.value === assignment.value &&
+      widthOf(name) + estimateTextWidth(" ", tail.size) + widthOf(tail) <=
+        FIELD_WORDS_MAX_WIDTH;
+    if (shared) rows.push([name, tail]);
+    else rows.push([name], [fitted(conversion)]);
+  } else if (assignment) {
+    rows.push([fitted(assignment)]);
+  } else if (conversion) {
+    rows.push([fitted(conversion)]);
   }
-  if (path.coachingNote) {
-    stack.push({
-      kind: "note",
-      value: path.coachingNote,
-      fill: paint("#8F8F8F", type.flat),
-      mono: false,
-      size: noteSize,
-      track: 0,
-    });
-  }
+  if (note) rows.push([fitted(note)]);
 
   // The words' side of the line, and the anchor the block hangs off.
   const wx = -nx;
   const wy = -ny;
   const anchorX = tip.x + wx * NOTE_OFFSET;
   const anchorY = tip.y + wy * NOTE_OFFSET;
-  // Up the page when the words sit over the line, down it otherwise — which
-  // takes in beside it, where either way is clear of the line and down reads
-  // in order: Assignment, conversion, note.
-  const stackDown = wy > -0.01 ? 1 : -1;
+  // Over the line the block grows up the page from the anchor, otherwise
+  // down it — which takes in beside it, where either way is clear of the
+  // line. Either way it reads top to bottom: Assignment, conversion, note.
+  const stackDown = wy > -0.01;
   const anchor: NonNullable<SvgTextPrimitive["textAnchor"]> =
     wx <= -BESIDE ? "end" : wx >= BESIDE ? "start" : "middle";
 
-  const lines = stack.map((entry, index) => {
-    const value = fitWordsOnField(entry.value, entry.size, entry.track);
-    const width = estimateTextWidth(value, entry.size, entry.track);
+  const lines = rows.flatMap((row, index) => {
+    const y = stackDown
+      ? anchorY + index * noteStep
+      : anchorY - (rows.length - 1 - index) * noteStep;
+    const gap = row.length > 1 ? estimateTextWidth(" ", row[1]!.size) : 0;
+    const width = row.reduce((sum, words) => sum + widthOf(words), 0) + gap;
     let textAnchor = anchor;
     let x = anchorX;
-    const left =
+    let left =
       textAnchor === "start"
         ? x
         : textAnchor === "end"
@@ -1140,17 +1173,24 @@ function buildRouteCoaching(
     if (left < PAPER_MARGIN) {
       textAnchor = "start";
       x = PAPER_MARGIN;
+      left = PAPER_MARGIN;
     } else if (left + width > viewport.width - PAPER_MARGIN) {
       textAnchor = "end";
       x = viewport.width - PAPER_MARGIN;
+      left = x - width;
     }
-    return {
-      ...entry,
-      value,
-      x,
-      textAnchor,
-      y: anchorY + stackDown * index * noteStep,
-    };
+    if (row.length === 1) return [{ ...row[0]!, x, textAnchor, y }];
+    // A shared line is set from its left end, one run after the other.
+    const [first, second] = row as readonly [Words, Words];
+    return [
+      { ...first, x: left, textAnchor: "start" as const, y },
+      {
+        ...second,
+        x: left + widthOf(first) + gap,
+        textAnchor: "start" as const,
+        y,
+      },
+    ];
   });
   // The whole block stays on the paper, top and bottom.
   const top = Math.min(...lines.map((line) => line.y - line.size * 0.8));
@@ -1290,22 +1330,40 @@ function settleFieldWords(
         },
       });
     }
+    // Words set on one baseline are one line — an Assignment and the
+    // conversion sharing it — and slide, or go on a card, together.
+    const rows = new Map<number, (typeof draft.notes)[number][]>();
     for (const note of draft.notes) {
+      rows.set(note.text.y, [...(rows.get(note.text.y) ?? []), note]);
+    }
+    for (const row of rows.values()) {
+      const boxes = row.map((note) => textBox(note.text));
       slots.push({
-        priority: note.id.endsWith("-assignment")
-          ? 4
-          : note.id.endsWith("-conversion")
-            ? 3
-            : 2,
-        box: textBox(note.text),
+        priority: Math.max(
+          ...row.map((note) =>
+            note.id.endsWith("-assignment")
+              ? 4
+              : note.id.endsWith("-conversion")
+                ? 3
+                : 2,
+          ),
+        ),
+        box: {
+          x0: Math.min(...boxes.map((box) => box.x0)),
+          y0: Math.min(...boxes.map((box) => box.y0)),
+          x1: Math.max(...boxes.map((box) => box.x1)),
+          y1: Math.max(...boxes.map((box) => box.y1)),
+        },
         slide: { x: -normal.x, y: -normal.y },
         settle: (dx, dy, backed) => {
-          note.text = {
-            ...note.text,
-            x: note.text.x + dx,
-            y: note.text.y + dy,
-          };
-          if (backed) note.backing = whiteCard(textBox(note.text), 4);
+          for (const note of row) {
+            note.text = {
+              ...note.text,
+              x: note.text.x + dx,
+              y: note.text.y + dy,
+            };
+            if (backed) note.backing = whiteCard(textBox(note.text), 4);
+          }
         },
       });
     }

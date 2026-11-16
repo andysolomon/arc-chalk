@@ -49,7 +49,8 @@ const BLANK_CODE = "—";
 export const HANDOUT_DIAGRAM_OPTIONS: DiagramOptions = Object.freeze({
   typePreset: "print",
   pageKind: "full",
-  layers: defaultLayers,
+  // Every family, notes included, whatever the editor starts with.
+  layers: Object.freeze({ ...defaultLayers, notes: true }),
 });
 
 /** The wristband's cell, likewise complete. */

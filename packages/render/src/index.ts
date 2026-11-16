@@ -339,7 +339,9 @@ export function buildRenderScene(
           ...(coverageArea === undefined ? {} : { coverageArea }),
           ...(covers === undefined ? {} : { covers }),
           ...(layers.reads && readOrder !== undefined ? { readOrder } : {}),
-          ...(layers.notes && conversion !== undefined ? { conversion } : {}),
+          ...(layers.conversions && conversion !== undefined
+            ? { conversion }
+            : {}),
           ...(layers.notes && coachingNote !== undefined
             ? { coachingNote }
             : {}),

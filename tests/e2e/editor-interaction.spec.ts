@@ -1016,7 +1016,7 @@ test("says what a route is for, and prints it at the end of the line", async ({
     page.locator(".label-heading").getByText("Route", { exact: true }),
   ).toBeVisible();
 
-  // The read number and the Assignment print on the field.
+  // The read number, the Assignment and its conversion print on the field.
   // Each field is finished before the next is started, which is what typing
   // coalescing until the Coach leaves the field he is in actually describes —
   // and what a person does. Setting three boxes with no gap between them is a
@@ -1044,7 +1044,7 @@ test("says what a route is for, and prints it at the end of the line", async ({
   ).toHaveText("STICK", committed);
   await expect(
     page.locator('[data-scene-coaching="rx-conversion"]'),
-  ).toHaveText("vs man: fade", committed);
+  ).toHaveText("— vs man: fade", committed);
 
   // The words survive being read back, which is the whole promise: they ride
   // along with the route rather than living in the panel.
