@@ -11,6 +11,35 @@ import { useEffect, useMemo, useState } from "react";
 import type { LibrarySnapshot } from "../app/editor-runtime";
 import { membersToRows } from "./library-actions";
 
+/**
+ * The head of the Library's popover, after its title: how many plays the
+ * book holds, and the one action that makes another. The sidebar draws the
+ * title so the Library opens like every other row's control.
+ */
+export function LibraryAside({
+  count,
+  onStartVariation,
+}: {
+  count: number;
+  onStartVariation: () => void;
+}) {
+  return (
+    <>
+      {count ? <span className="sidebar-popover-count">{count}</span> : null}
+      <span className="sidebar-popover-actions">
+        <button
+          className="sidebar-popover-action"
+          onClick={onStartVariation}
+          title="Keep what is on the field as another version of this concept"
+          type="button"
+        >
+          + Variation
+        </button>
+      </span>
+    </>
+  );
+}
+
 export function LibraryPanel({
   currentPlayId,
   onBrowse,
@@ -22,7 +51,6 @@ export function LibraryPanel({
   onNoteCommit,
   onPush,
   onScope,
-  onStartVariation,
   onToggleOpen,
   onTogglePick,
   onVariationDraft,
@@ -44,7 +72,6 @@ export function LibraryPanel({
   onNoteCommit: (conceptId: string, notes: string, tags: string) => void;
   onPush: (conceptId: string) => void;
   onScope: (scope: LibraryEditScope) => void;
-  onStartVariation: () => void;
   onToggleOpen: (conceptId: string) => void;
   onTogglePick: (playId: string) => void;
   onVariationDraft: (value: string) => void;
@@ -91,47 +118,34 @@ export function LibraryPanel({
   }, [armedId]);
 
   return (
-    <section className="inspector-section library-panel">
-      <div className="section-heading library-heading">
-        <span>
-          Library
-          {snapshot.members.length ? ` · ${snapshot.members.length}` : ""}
-        </span>
-        <span>
-          <button
-            className="link-button"
-            onClick={onStartVariation}
-            title="Keep what is on the field as another version of this concept"
-            type="button"
-          >
-            + Variation
-          </button>
-        </span>
-      </div>
-      <div className="scope-line">
-        <span className="scope-label">Applies to</span>
-        <div className="segments scope">
-          <button
-            className={scope === "play" ? "active" : undefined}
-            onClick={() => onScope("play")}
-            type="button"
-          >
-            This play
-          </button>
-          <button
-            className={scope === "concept" ? "active" : undefined}
-            disabled={family.length < 2}
-            onClick={() => onScope("concept")}
-            title="Tap a dot in the list below to narrow it down"
-            type="button"
-          >
-            {family.length > 1
-              ? `All ${family.length} versions`
-              : "All versions"}
-          </button>
+    <section className="library-panel">
+      {/* The scope and the sentence that says what it means read as one. */}
+      <div className="library-scope">
+        <div className="scope-line">
+          <span className="scope-label">Applies to</span>
+          <div className="segments scope">
+            <button
+              className={scope === "play" ? "active" : undefined}
+              onClick={() => onScope("play")}
+              type="button"
+            >
+              This play
+            </button>
+            <button
+              className={scope === "concept" ? "active" : undefined}
+              disabled={family.length < 2}
+              onClick={() => onScope("concept")}
+              title="Tap a dot in the list below to narrow it down"
+              type="button"
+            >
+              {family.length > 1
+                ? `All ${family.length} versions`
+                : "All versions"}
+            </button>
+          </div>
         </div>
+        <p>{hint}</p>
       </div>
-      <p>{hint}</p>
       {report ? <p className="library-report">{report}</p> : null}
       {noteConcept ? (
         <NoteFields

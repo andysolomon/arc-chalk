@@ -268,7 +268,7 @@ import {
   FieldProfileSection,
   NewProfileForm,
 } from "../library/field-profile-section";
-import { LibraryPanel } from "../library/library-panel";
+import { LibraryAside, LibraryPanel } from "../library/library-panel";
 import { ScopeBar } from "../library/scope-bar";
 import { PlaybookBrowser } from "../library/playbook-browser";
 import { PlaybookNameForm, PlaybooksShelf } from "../library/playbooks-shelf";
@@ -7391,7 +7391,6 @@ export function ChalkApp({
       onNoteCommit={playbook.noteCommit}
       onPush={playbook.push}
       onScope={playbook.setScope}
-      onStartVariation={playbook.startVariation}
       onToggleOpen={playbook.toggleOpen}
       onTogglePick={playbook.togglePick}
       onVariationDraft={playbook.setVariationDraft}
@@ -7432,25 +7431,23 @@ export function ChalkApp({
       icon: "ball",
       label: "Ball on",
       value: ballSpotActions.find(({ on }) => on)?.name ?? "Middle",
+      aside: <Hint about="the formation">{formationHint}</Hint>,
       detail: (
-        <>
-          <div className="segments">
-            {ballSpotActions.map((spot) => (
-              <button
-                aria-pressed={spot.on}
-                className={spot.on ? "active" : undefined}
-                disabled={!spot.available}
-                key={spot.spot}
-                onClick={() => spotTheBall(spot.spot)}
-                title={spot.title}
-                type="button"
-              >
-                {spot.name}
-              </button>
-            ))}
-          </div>
-          <Hint about="the formation">{formationHint}</Hint>
-        </>
+        <div className="segments">
+          {ballSpotActions.map((spot) => (
+            <button
+              aria-pressed={spot.on}
+              className={spot.on ? "active" : undefined}
+              disabled={!spot.available}
+              key={spot.spot}
+              onClick={() => spotTheBall(spot.spot)}
+              title={spot.title}
+              type="button"
+            >
+              {spot.name}
+            </button>
+          ))}
+        </div>
       ),
     },
     {
@@ -7458,10 +7455,18 @@ export function ChalkApp({
       icon: "shadow",
       label: shadowName,
       value: shadowOnField ? shadowLook : "hidden",
+      aside: (
+        <Hint about="the shadow">
+          {defensePlay
+            ? "The offense here is a look to draw the call against, not the play. Hide it to read the call alone; it stays in the play, off the field."
+            : "The defense here is a look to draw against, not the play. Hide it to read the concept alone; it stays in the play, off the field."}
+        </Hint>
+      ),
       detail: (
         <>
+          {/* The popover's title names the shadow, so the switch needs no
+              label of its own. */}
           <div className="segment-row shadow-row">
-            <span>{shadowName}</span>
             <div className="segments">
               <button
                 aria-pressed={shadowOnField}
@@ -7495,11 +7500,6 @@ export function ChalkApp({
             }
             side={defensePlay ? "offense" : "defense"}
           />
-          <Hint about="the shadow">
-            {defensePlay
-              ? "The offense here is a look to draw the call against, not the play. Hide it to read the call alone; it stays in the play, off the field."
-              : "The defense here is a look to draw against, not the play. Hide it to read the concept alone; it stays in the play, off the field."}
-          </Hint>
         </>
       ),
     },
@@ -7524,6 +7524,12 @@ export function ChalkApp({
       icon: "library",
       label: "Library",
       value: librarySummary,
+      aside: (
+        <LibraryAside
+          count={playbook.snapshot.members.length}
+          onStartVariation={playbook.startVariation}
+        />
+      ),
       detail: libraryPanel,
     },
   ];

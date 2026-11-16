@@ -2913,39 +2913,50 @@ button.play-type.open {
 .wide-picker:hover {
   background: var(--raised);
 }
-.library-preview {
-  padding-bottom: 20px;
-}
-.library-heading {
+/* The Library: the scope and what it means, the tree, then the way to the
+   whole book — spaced as the popover around it spaces its parts. */
+.library-panel {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 12px;
 }
-.library-heading button {
-  height: 22px;
-  padding: 0 5px;
-  border: 0;
-  background: transparent;
-  font-size: 11px;
-  text-transform: none;
-  cursor: pointer;
-}
-.library-heading .link-button {
-  color: var(--blue-text);
+.library-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .scope-line {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 10px;
 }
 .scope-label {
   flex: none;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
-.segments.scope {
-  margin-bottom: 0;
+.library-inline,
+.library-note input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.library-inline:focus,
+.library-note input:focus {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--focus);
+}
+.library-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .segments.scope button:disabled {
   cursor: not-allowed;
@@ -3125,16 +3136,16 @@ button.library-dot.target.small {
   color: var(--muted);
   font-size: 10px;
 }
-.library-panel .library-heading {
-  margin-bottom: 10px;
+.library-panel .library-row span {
+  font-size: 11px;
 }
 .library-panel .library-row {
   justify-content: flex-start;
-  gap: 7px;
+  gap: 8px;
   height: 34px;
   min-height: 34px;
   margin-top: 0;
-  padding: 0 8px 0 3px;
+  padding: 0 8px 0 4px;
   border-radius: 6px;
   cursor: pointer;
 }
@@ -3156,11 +3167,13 @@ button.library-dot.target.small {
 }
 .library-caret {
   display: flex;
-  width: 16px;
+  width: 14px;
   height: 16px;
   flex: none;
   align-items: center;
   justify-content: center;
+  margin-right: -2px;
+  padding: 0;
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -3197,19 +3210,19 @@ button.library-dot.target.small {
   color: var(--blue-text);
 }
 .library-tag {
-  padding: 2px 4px;
-  border-radius: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
   background: var(--wash);
   color: var(--muted);
-  font-family: "Geist Mono", ui-monospace, Menlo, monospace;
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 16px;
   white-space: nowrap;
 }
 .library-count {
   min-width: 8px;
   color: var(--muted);
-  font-family: "Geist Mono", ui-monospace, Menlo, monospace;
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
   text-align: right;
 }
 .library-remove {
@@ -3219,32 +3232,37 @@ button.library-dot.target.small {
 .library-remove:hover {
   color: var(--red-text) !important;
 }
+/* The versions hang from a rule under their concept's caret, their dots and
+   names in the concept's columns. */
 .library-vars {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  margin-left: 11px;
-  padding-left: 7px;
+  margin-left: 10px;
+  padding-left: 4px;
   border-left: 1px solid var(--hover);
 }
 .library-panel .library-row.variation {
   height: 30px;
   min-height: 30px;
-  padding: 0 8px;
+  padding: 0 8px 0 9px;
 }
 .library-var-name {
   min-width: 0;
   flex: 1;
   overflow: hidden;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Rows reach a little past the column so their wash frames the words
+   rather than the words touching its edge. */
 .library-tree {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  margin: 0 -6px;
 }
 .library-report {
   color: var(--blue-text);
@@ -3273,14 +3291,15 @@ button.library-dot.target.small {
 }
 .library-browse {
   width: 100%;
-  height: 30px;
-  margin-top: 10px;
+  height: 32px;
   border: 0;
   border-radius: 6px;
   background: var(--wash);
   color: var(--ink);
   cursor: pointer;
+  font: inherit;
   font-size: 12px;
+  font-weight: 500;
 }
 .library-browse:hover {
   background: var(--hover);
@@ -5535,7 +5554,7 @@ button.library-dot.target.small {
   .status-controls > button:not(.save-state),
   .status-zoom button,
   .chip,
-  .library-heading button,
+  .sidebar-popover-action,
   .back-button {
     min-height: 32px;
   }
@@ -8299,6 +8318,8 @@ button.shell-quiet:hover {
   top: auto;
   bottom: 0;
   width: 236px;
+  gap: 0;
+  padding: 5px;
   max-height: calc(100vh - 72px);
   max-height: calc(100dvh - 72px);
   overflow-y: auto;
@@ -8317,18 +8338,21 @@ button.shell-quiet:hover {
 .sidebar-below .segment-row:empty {
   display: none;
 }
-/* A row's control, beside the row. */
+/* A row's control, beside the row. Every one opens the same way — its name
+   and what stands beside it, the control, then any words — on one 12 px
+   inset and one type scale: 13 px for names, 12 px for controls and words,
+   11 px for counts and tags. */
 .sidebar-popover {
   position: absolute;
   top: 0;
   left: calc(100% + 8px);
   z-index: 12;
-  width: 280px;
+  width: 288px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 8px;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
   background: var(--paper);
   box-shadow:
     0 0 0 1px rgb(var(--shade) / 0.08),
@@ -8339,6 +8363,59 @@ button.shell-quiet:hover {
   max-height: 70vh;
   overflow-y: auto;
 }
+.sidebar-popover-head {
+  min-height: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar-popover-title {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.sidebar-popover-count {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.sidebar-popover-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.sidebar-popover-action {
+  height: 24px;
+  margin-right: -6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--blue-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.sidebar-popover-action:hover {
+  background: var(--wash);
+}
+/* The ? closes the head; what it says opens on a line of its own under the
+   title rather than dangling under the control. */
+.sidebar-popover-head .hint {
+  display: contents;
+}
+.sidebar-popover-head .hint-toggle {
+  margin-left: auto;
+}
+.sidebar-popover-head .hint-body {
+  flex: 1 0 100%;
+  margin: 2px 0 0;
+}
+
 .sidebar-popover .menu-panel {
   position: static;
   width: auto;
@@ -8347,16 +8424,27 @@ button.shell-quiet:hover {
 }
 .sidebar-popover .segment-row {
   margin-top: 0;
+  font-size: 12px;
+}
+.sidebar-popover .segments button {
+  height: 26px;
+  font-size: 12px;
+}
+.sidebar-popover .wide-picker {
+  font-size: 13px;
+}
+.sidebar-popover .layer-toggles button {
+  height: 30px;
+  font-size: 12px;
 }
 .sidebar-popover p,
-.sidebar-popover .hint-body {
+.sidebar-popover .hint-body,
+.sidebar-page p,
+.sidebar-page .hint-body {
   margin: 0;
   color: var(--muted-strong);
-  font-size: 11px;
-  line-height: 15px;
-}
-.sidebar-popover .wide-picker + .segment-row {
-  margin-top: 4px;
+  font-size: 12px;
+  line-height: 17px;
 }
 /* The handle that brings the sidebar back, like the tools' stub. */
 .sidebar-stub {
@@ -8468,6 +8556,50 @@ button.shell-quiet:hover {
 .sidebar-page-title {
   font-size: 15px;
   font-weight: 600;
+}
+/* A page's aside sits in the drawer's head, before the close; what its ?
+   says opens on a line of its own under the head and pushes the page down,
+   rather than covering the control it explains. */
+.sidebar-drawer-head {
+  flex-wrap: wrap;
+  align-content: flex-start;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.sidebar-drawer-aside {
+  display: contents;
+  font-size: 15px;
+  font-weight: 400;
+}
+.sidebar-drawer-aside .sidebar-popover-actions,
+.sidebar-drawer-aside .hint-toggle {
+  margin-left: auto;
+}
+.sidebar-drawer-aside + .sidebar-close {
+  margin-left: 0;
+}
+.sidebar-drawer-aside .sidebar-popover-count {
+  display: none;
+}
+.sidebar-drawer-aside .sidebar-popover-action {
+  height: 44px;
+  margin-right: 0;
+  padding: 0 8px;
+  font-size: 15px;
+}
+.sidebar-drawer-aside .hint-toggle {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+}
+.sidebar-drawer-aside .hint-body {
+  order: 10;
+  margin: 0 0 8px;
+  padding: 0 4px 0 0;
+  color: var(--muted-strong);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
 }
 .sidebar-page {
   display: flex;

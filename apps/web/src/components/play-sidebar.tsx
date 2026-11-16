@@ -106,6 +106,12 @@ export interface SidebarRowSpec {
   readonly title?: string;
   /** The control the row opens — a popover on a desktop, a page in the drawer. */
   readonly detail?: ReactNode;
+  /**
+   * What stands at the head of that control, after its title: a count, an
+   * action, the ? that explains it. The title is the row's label, so every
+   * popover opens the same way — name, then controls, then words.
+   */
+  readonly aside?: ReactNode;
   /** Runs instead of opening a detail: a browser, a destination, a dialog. */
   readonly onOpen?: () => void;
   /** Sits under the row whether or not it is open. */
@@ -165,6 +171,10 @@ function Row({
       </button>
       {open && detailed ? (
         <div aria-label={spec.label} className="sidebar-popover" role="group">
+          <div className="sidebar-popover-head">
+            <span className="sidebar-popover-title">{spec.label}</span>
+            {spec.aside}
+          </div>
           {spec.detail}
         </div>
       ) : null}
@@ -294,6 +304,13 @@ export function PlaySidebar({
           )}
           {page ? (
             <span className="sidebar-page-title">{page.label}</span>
+          ) : null}
+          {/* A page's count, action and ? stand in the head beside its
+              title, as they do in a popover's. */}
+          {page?.aside ? (
+            <div className="sidebar-popover-head sidebar-drawer-aside">
+              {page.aside}
+            </div>
           ) : null}
           <button
             aria-label="Close the sidebar"
