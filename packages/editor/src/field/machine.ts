@@ -11,6 +11,7 @@ import {
   expandSelectionToGroups,
   movePreview,
   removeRouteBreakCommand,
+  removeRouteChoiceCommand,
 } from "./commands";
 import {
   buildMirrorCommand,
@@ -614,6 +615,31 @@ export function fieldInteraction(
                   selectedNodeIndex:
                     pointIndex > 0 ? pointIndex - 1 : undefined,
                 }),
+            selectedSegmentIndex: undefined,
+          },
+          command,
+        };
+      }
+      if (
+        !event.whole &&
+        model.selection.length === 1 &&
+        picked?.kind === "path" &&
+        model.selectedBranchIndex !== undefined
+      ) {
+        // Narrowed onto a choice, Backspace takes the choice, not the route
+        // it forks from. The route stays picked, whole, the way the panel's
+        // Remove this choice leaves it.
+        const command = removeRouteChoiceCommand(
+          context.document,
+          picked.id,
+          model.selectedBranchIndex,
+        );
+        if (!command) return { model };
+        return {
+          model: {
+            ...model,
+            selectedBranchIndex: undefined,
+            selectedNodeIndex: undefined,
             selectedSegmentIndex: undefined,
           },
           command,

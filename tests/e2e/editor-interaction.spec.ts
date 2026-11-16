@@ -1189,6 +1189,36 @@ test("picks a choice out with one click, then the stem it forks from", async ({
   });
 });
 
+test("Backspace on a picked choice removes the choice, not the route", async ({
+  page,
+}, testInfo) => {
+  await openEditor(page);
+  const route = page.locator('[data-scene-path="rz"]');
+  const choice = page.locator('[data-scene-path="rz-branch-0"]');
+  await expect(choice).toHaveCount(1);
+
+  // One click on Z's choice picks the choice alone; Backspace takes it.
+  const onBranch = await fieldPoint(page, 899, 208);
+  await page.mouse.click(onBranch.x, onBranch.y);
+  await expect(page.locator('[data-line-highlight="branch"]')).toHaveCount(1);
+  await page.keyboard.press("Backspace");
+  await expect(choice).toHaveCount(0);
+  await expect(route).toHaveCount(1);
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("title", "Undo Remove choice");
+
+  // The route stays picked, whole.
+  await expect(page.locator("[data-line-highlight]")).toHaveCount(0);
+  await expect(
+    page.locator(".label-heading").getByText("Route", { exact: true }),
+  ).toBeVisible();
+
+  await page
+    .locator("svg.field-diagram")
+    .first()
+    .screenshot({ path: testInfo.outputPath("choice-removed-route-kept.png") });
+});
+
 test("picks an alternate back out from the choice off its end", async ({
   page,
 }, testInfo) => {
