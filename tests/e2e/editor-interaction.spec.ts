@@ -1325,6 +1325,51 @@ test("sends each choice off the end a different way, three at most", async ({
   });
 });
 
+test("keeps every choice short and on the page, however long the leg", async ({
+  page,
+}, testInfo) => {
+  await openEditor(page);
+
+  // Stretch Z's stem into a long diagonal that ends at the top of the frame.
+  const zStem = await fieldPoint(page, 886, 374);
+  await page.mouse.click(zStem.x, zStem.y);
+  await expect(page.locator("[data-node-handle]")).toHaveCount(2);
+  const end = (await page.locator('[data-node-handle="1"]').boundingBox())!;
+  await drag(
+    page,
+    { x: end.x + end.width / 2, y: end.y + end.height / 2 },
+    await fieldPoint(page, 560, 20),
+  );
+
+  const addChoice = page.getByRole("button", { name: "+ Choice at the end" });
+  const before = await page.locator('[data-scene-path^="rz-branch-"]').count();
+  while (await addChoice.isEnabled()) await addChoice.click();
+  // Z already has one choice off the end; a break takes three.
+  const branches = page.locator('[data-scene-path^="rz-branch-"]');
+  await expect(branches).toHaveCount(3);
+  expect(before).toBeLessThan(3);
+
+  const [, , , viewHeight] = (await field(page).getAttribute("viewBox"))!
+    .split(" ")
+    .map(Number);
+  for (let index = before; index < 3; index += 1) {
+    const d = (await branches.nth(index).getAttribute("d"))!;
+    const numbers = d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    const [x0, y0] = numbers;
+    const [x1, y1] = numbers.slice(-2);
+    // A choice is a read at the break, not a second route: a few yards, never
+    // the whole length of the leg it forks from.
+    expect(Math.hypot(x1! - x0!, y1! - y0!)).toBeLessThanOrEqual(110);
+    // And it ends on the drawn frame, never past its top or bottom.
+    expect(y1!).toBeGreaterThanOrEqual(0);
+    expect(y1!).toBeLessThanOrEqual(viewHeight!);
+  }
+
+  await field(page).screenshot({
+    path: testInfo.outputPath("choices-off-a-long-leg.png"),
+  });
+});
+
 test("turns every line a man has the other way, in one step", async ({
   page,
 }) => {

@@ -8837,6 +8837,7 @@ export function ChalkApp({
                         editor.document,
                         selectedPath.id,
                         interaction.selectedNodeIndex,
+                        fieldDepthWindow(scene.viewport),
                       ),
                       {
                         // The Coach lands on the fork he just made, the way

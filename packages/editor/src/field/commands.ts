@@ -104,6 +104,7 @@ import {
   type SnapReference,
 } from "../smart-snapping";
 import {
+  clampToField,
   clampTranslationToField,
   coordinate,
   pathExtentPoints,
@@ -1312,10 +1313,13 @@ export function addAlternateRouteCommand(
 
 /**
  * The original's fork: a little over a quarter turn off the leg the break
- * runs along, and never shorter than 70 canvas pixels.
+ * runs along, and never shorter than 70 canvas pixels. It is never longer
+ * than 100 either: a choice is a read at the break, a few yards, and taking
+ * the full length of a long leg made it a second route.
  */
 const CHOICE_TURN_RADIANS = Math.PI / 2.6;
 const CHOICE_MIN_LENGTH_PX = 70;
+const CHOICE_MAX_LENGTH_PX = 100;
 /** A break reads three ways at most; a fourth is a different route. */
 export const MAX_ROUTE_CHOICES_PER_BREAK = 3;
 /** Two lines leaving a break closer than this look like one. */
@@ -1371,11 +1375,15 @@ function angularGap(a: number, b: number): number {
  * the second the other, the third runs straight on — always skipping a way
  * the route itself or an earlier choice already goes. A break takes three.
  * Whichever ways those are, the ones heading upfield are tried first.
+ *
+ * Its tip is held on the drawn frame, as any dragged break is, so a choice
+ * off a break near the top or bottom of the page cannot run off it.
  */
 export function addRouteChoiceCommand(
   document: PlayDocument,
   pathId: string,
   fromIndex?: number,
+  depthWindow?: FieldInteractionContext["depthWindow"],
 ): PlayCommand | undefined {
   const path = document.paths.find(({ id }) => id === pathId);
   if (!path || !canAddRouteChoice(path, fromIndex)) return undefined;
@@ -1394,7 +1402,10 @@ export function addRouteChoiceCommand(
   const dx = (leg.x - anchor.x) * (reversed ? -1 : 1);
   const dy = (leg.y - anchor.y) * (reversed ? -1 : 1);
   const base = Math.atan2(dy, dx);
-  const length = Math.max(CHOICE_MIN_LENGTH_PX, Math.hypot(dx, dy));
+  const length = Math.min(
+    CHOICE_MAX_LENGTH_PX,
+    Math.max(CHOICE_MIN_LENGTH_PX, Math.hypot(dx, dy)),
+  );
 
   // Every way already leaving the break: the route in and out of it, and
   // each choice already forking there.
@@ -1414,16 +1425,21 @@ export function addRouteChoiceCommand(
     const direction = point ? directionTo(point) : undefined;
     return direction === undefined ? [] : [direction];
   });
-  // Measured on where the tip actually lands: one held inside a sideline
-  // can swing round onto a way that is already taken.
+  // Measured on where the tip actually lands: one held inside a sideline or
+  // the frame can swing round onto a way that is already taken, or be cut
+  // down to a stub.
   const tipAt = (angle: number) =>
-    insideSidelines(
-      document,
+    clampToField(
       legacyCanvasToYards({
         x: anchor.x + Math.cos(angle) * length,
         y: anchor.y + Math.sin(angle) * length,
       }),
+      { document, ...(depthWindow ? { depthWindow } : {}) },
     );
+  const reach = (tip: Coordinate) => {
+    const to = yardsToLegacyCanvas(tip);
+    return Math.hypot(to.x - anchor.x, to.y - anchor.y);
+  };
   const clearance = (tip: Coordinate) => {
     const direction = directionTo(tip);
     if (direction === undefined) return 0;
@@ -1450,7 +1466,9 @@ export function addRouteChoiceCommand(
   ];
   const tip =
     tips.find(
-      (candidate) => clearance(candidate) >= CHOICE_CLEARANCE_RADIANS,
+      (candidate) =>
+        clearance(candidate) >= CHOICE_CLEARANCE_RADIANS &&
+        reach(candidate) >= CHOICE_MIN_LENGTH_PX / 2,
     ) ??
     tips.reduce((best, candidate) =>
       clearance(candidate) > clearance(best) ? candidate : best,
