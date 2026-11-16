@@ -65,6 +65,7 @@ import {
   stockConcepts,
   stockFormations,
   tackleBoxOf,
+  LEGACY_FIELD_GEOMETRY,
   legacyCanvasToYards,
   legacyDepthSpanToYards,
   legacyLateralSpanToYards,
@@ -454,6 +455,162 @@ export function clampMoveToField(
   );
 }
 
+/**
+ * Two of the drawn men's 13-pixel radii, in the frame the field is drawn in:
+ * nearer than this, one man's mark covers the other's.
+ */
+const OVERLAP_PIXELS = 26;
+
+/** How far clear a pushed man lands, so rounding never sets him back on. */
+const CLEARANCE_PIXELS = OVERLAP_PIXELS + 0.5;
+
+/**
+ * Nobody is dropped on a teammate: a move that would stand a moving man on a
+ * man of his own unit who stays put is pushed to the nearest spot where every
+ * mark is clear, so the Coach lets go and the man settles beside the one he
+ * landed on. Men across the ball are left alone — a defender head-up on a
+ * receiver is a press, not a mistake. The push keeps the man on the field and
+ * on his side of the ball; where no clear spot is near, the move stands.
+ */
+function pushOffTeammates(
+  context: FieldInteractionContext,
+  items: readonly FieldItemRef[],
+  translation: Coordinate,
+): Coordinate {
+  const movingIds = new Set(
+    items.filter(({ kind }) => kind === "player").map(({ id }) => id),
+  );
+  if (movingIds.size === 0) return translation;
+  const players = context.document.players;
+  const moving = players.filter(({ id }) => movingIds.has(id));
+  const defense = (man: Player) => man.unit === "defense";
+  // In translation space every moving man and teammate who stays put is a
+  // circle the move must end outside of: centred where the move would stand
+  // the one on the other, in canvas pixels, where the marks are round.
+  const toCanvas = (yards: Coordinate) => ({
+    x: yards.lateralYards * LEGACY_FIELD_GEOMETRY.lateralPixelsPerYard,
+    y: -yards.depthYards * LEGACY_FIELD_GEOMETRY.depthPixelsPerYard,
+  });
+  const toYards = (point: { x: number; y: number }) =>
+    coordinate(
+      legacyLateralSpanToYards(point.x),
+      -legacyDepthSpanToYards(point.y),
+    );
+  const circles: { x: number; y: number }[] = [];
+  for (const man of moving) {
+    const from = toCanvas(man.position);
+    for (const other of players) {
+      if (movingIds.has(other.id) || defense(other) !== defense(man)) continue;
+      const at = toCanvas(other.position);
+      circles.push({ x: at.x - from.x, y: at.y - from.y });
+    }
+  }
+  if (circles.length === 0) return translation;
+
+  const wanted = toCanvas(
+    coordinate(
+      translation.lateralYards,
+      holdDepthOnSideOfBall(moving, translation.depthYards),
+    ),
+  );
+  const clear = (point: { x: number; y: number }) =>
+    circles.every(
+      (circle) =>
+        Math.hypot(point.x - circle.x, point.y - circle.y) >=
+        OVERLAP_PIXELS - 1e-6,
+    );
+  if (clear(wanted)) return translation;
+
+  const allowed = (point: { x: number; y: number }) => {
+    if (!clear(point)) return false;
+    const yards = toYards(point);
+    const held = holdDepthOnSideOfBall(moving, yards.depthYards);
+    if (Math.abs(held - yards.depthYards) > 1e-6) return false;
+    const kept = clampMoveToField(context, items, yards);
+    return (
+      Math.abs(kept.lateralYards - yards.lateralYards) < 1e-6 &&
+      Math.abs(kept.depthYards - yards.depthYards) < 1e-6
+    );
+  };
+
+  // The nearest clear spot lies on the edge of a circle the drop is inside:
+  // straight out from its centre, level with the drop (so a man laid on the
+  // line stays on it), or where two circles cross when he is wedged between
+  // two men.
+  const candidates: { x: number; y: number }[] = [];
+  const r = CLEARANCE_PIXELS;
+  for (const circle of circles) {
+    const dx = wanted.x - circle.x;
+    const dy = wanted.y - circle.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance > 1e-9) {
+      candidates.push({
+        x: circle.x + (dx / distance) * r,
+        y: circle.y + (dy / distance) * r,
+      });
+    }
+    if (Math.abs(dy) < r) {
+      const half = Math.sqrt(r * r - dy * dy);
+      candidates.push({ x: circle.x - half, y: wanted.y });
+      candidates.push({ x: circle.x + half, y: wanted.y });
+    }
+  }
+  for (const [index, a] of circles.entries()) {
+    for (const b of circles.slice(index + 1)) {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 1e-9 || d >= 2 * r) continue;
+      const along = d / 2;
+      const across = Math.sqrt(r * r - along * along);
+      const mx = a.x + (dx / d) * along;
+      const my = a.y + (dy / d) * along;
+      candidates.push({ x: mx - (dy / d) * across, y: my + (dx / d) * across });
+      candidates.push({ x: mx + (dy / d) * across, y: my - (dx / d) * across });
+    }
+  }
+  const distanceFromWanted = (point: { x: number; y: number }) =>
+    Math.hypot(point.x - wanted.x, point.y - wanted.y);
+  let best: { x: number; y: number } | undefined;
+  for (const candidate of candidates) {
+    if (!allowed(candidate)) continue;
+    if (!best || distanceFromWanted(candidate) < distanceFromWanted(best)) {
+      best = candidate;
+    }
+  }
+  // Packed in too tight for any edge to be clear: walk out in rings.
+  for (let ring = r; !best && ring <= 8 * r; ring += r / 4) {
+    for (let step = 0; step < 48; step += 1) {
+      const angle = (step / 48) * Math.PI * 2;
+      const candidate = {
+        x: wanted.x + Math.cos(angle) * ring,
+        y: wanted.y + Math.sin(angle) * ring,
+      };
+      if (allowed(candidate)) {
+        best = candidate;
+        break;
+      }
+    }
+  }
+  return best ? toYards(best) : translation;
+}
+
+/**
+ * Every hold a move goes through, drag or keyboard nudge alike: the field
+ * first, then off any teammate the move would stand a man on.
+ */
+export function holdMove(
+  context: FieldInteractionContext,
+  items: readonly FieldItemRef[],
+  translation: Coordinate,
+): Coordinate {
+  return pushOffTeammates(
+    context,
+    items,
+    clampMoveToField(context, items, translation),
+  );
+}
+
 export interface MovePreview {
   readonly translation: Coordinate;
   readonly guides: readonly AxisSnapGuide[];
@@ -530,7 +687,7 @@ export function movePreview(
     point.depthYards - start.depthYards,
   );
   const held = (translation: Coordinate): Coordinate =>
-    clampMoveToField(context, items, translation);
+    holdMove(context, items, translation);
   const only = items.length === 1 ? items[0] : undefined;
   if (only?.kind !== "player") return { translation: held(raw), guides: [] };
   const player = context.document.players.find(({ id }) => id === only.id);
@@ -553,8 +710,9 @@ export function movePreview(
     result.point.depthYards - player.position.depthYards,
   );
   // The field holds him after the landmarks have claimed him, so a landmark
-  // past the sideline cannot pull him off it. A hold that moved him leaves
-  // the guides behind: they pointed at where he is no longer going.
+  // past the sideline cannot pull him off it, nor one under a teammate stand
+  // him there. A hold that moved him leaves the guides behind: they pointed
+  // at where he is no longer going.
   const translation = held(snapped);
   const stopped =
     translation.lateralYards !== snapped.lateralYards ||
@@ -2981,17 +3139,12 @@ export function alignPlayersCommand(
 }
 
 /**
- * Two of the drawn men's 13-pixel radii, in the frame the field is drawn in:
- * nearer than this, one man's mark covers the other's.
- */
-const OVERLAP_PIXELS = 26;
-
-/**
  * What a rearrangement may not do to a formation (ADR 0073, ADR 0081): leave
  * more than four backs, carry a man across the line of scrimmage, stand one
  * man on another, or cover a receiver. Only a fault the rearrangement brings about counts — a scout look
  * already drawn wrong is the Coach's to keep, and a drag may still stand any
- * formation he likes — so the men before are read against the men after,
+ * formation he likes short of one man on a teammate — so the men before are
+ * read against the men after,
  * and the first fault found is named.
  */
 export function arrangementFault(
