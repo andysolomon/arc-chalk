@@ -136,7 +136,7 @@ import {
   applyRoutePresetCommand,
   baseRouteOf,
   keptRouteName,
-  canDrawFrom,
+  canDrawLine,
   spotBallCommand,
   conceptIsOn,
   applyCoverageCallCommand,
@@ -1813,6 +1813,9 @@ function PlayerInspector({
         ? "No assignment yet. Pick a drop, a fake or a run below, or draw his path from here."
         : "No route yet. Pick one below, or draw one from here.";
   const drawChoices = drawChoicesFor(player);
+  // The quarterback is given one call: with a line already on him, a route
+  // drawn by hand would be a second one beside it (ADR 0086).
+  const hasCall = quarterback && lines.some(({ kind }) => kind === "route");
   const symbolName =
     playerSymbolChoices.find(({ symbol }) => symbol === player.symbol)?.name ??
     player.symbol;
@@ -1912,12 +1915,13 @@ function PlayerInspector({
           ))}
         </div>
       )}
-      {!defense && !lineman && assigned.length > 0 ? (
+      {runner && assigned.length > 0 ? (
         // Another call he could run goes with the ones he has, not at the
-        // foot of the panel under the quick calls.
+        // foot of the panel under the quick calls. The quarterback is given
+        // one call, not a tree to choose from, so he has none (ADR 0086).
         <div className="help-row alternate-row">
           <button className="alternate" onClick={onAddAlternate} type="button">
-            {quarterback ? "+ Alternate call" : "+ Alternate route"}
+            + Alternate route
           </button>
           <Hint about="alternates and choices">
             An <strong>alternate</strong> starts over at his stance: a different
@@ -1931,13 +1935,18 @@ function PlayerInspector({
         <span className="section-heading">Draw</span>
         {drawChoices.map((choice) => (
           <button
+            disabled={hasCall && choice.kind === "route"}
             key={choice.kind}
             onClick={() => onDraw(choice.kind)}
-            title={`Draw his ${choice.label.toLowerCase()} from his stance — ${choice.shortcut}, then ${
-              freeDraw
-                ? "draw it on the field with the pointer held down; lifting finishes"
-                : "click the field for each break, or drag from the end of the line to draw it by hand; Done or Enter finishes"
-            }`}
+            title={
+              hasCall && choice.kind === "route"
+                ? "He has his call — pick another below to replace it, or delete it to draw his own"
+                : `Draw his ${choice.label.toLowerCase()} from his stance — ${choice.shortcut}, then ${
+                    freeDraw
+                      ? "draw it on the field with the pointer held down; lifting finishes"
+                      : "click the field for each break, or drag from the end of the line to draw it by hand; Done or Enter finishes"
+                  }`
+            }
             type="button"
           >
             {choice.label}
@@ -2125,6 +2134,7 @@ function RouteInspector({
   bare = false,
   branchIndex,
   coaching,
+  forks = true,
   lineTitle,
   ownerLetter,
   scopeBadge,
@@ -2172,6 +2182,12 @@ function RouteInspector({
     readonly onApply: (presetKey: string) => void;
   };
   coaching: Readonly<Record<RouteCoachingField, string>>;
+  /**
+   * Whether a route of his can fork into a choice. A quarterback's line is
+   * his whole call — a drop, a boot, a handoff — not a stem he reads off
+   * (ADR 0086).
+   */
+  forks?: boolean;
   /** What the line is: Route, Alternate 1, Block, Man. */
   lineTitle?: string;
   /** Whose line it is. */
@@ -2251,6 +2267,7 @@ function RouteInspector({
   // reads receivers, not blocks or drops. One already written on a line that
   // was since retyped stays in view, so it can be cleared.
   const isRoute = path.kind === "route";
+  const forkable = isRoute && forks;
   const showRead = isRoute || coaching.readOrder !== "";
   const showConversion = isRoute || coaching.conversion !== "";
   const bent = line.some(({ control }) => control !== undefined);
@@ -2346,7 +2363,7 @@ function RouteInspector({
         value={coaching.coachingNote}
       />
       <div className="help-row">
-        {isRoute ? (
+        {forkable ? (
           <button
             disabled={!canAddRouteChoice(path, forkAt)}
             onClick={onAddChoice}
@@ -2373,7 +2390,7 @@ function RouteInspector({
             Straighten
           </button>
         ) : null}
-        {isRoute ? (
+        {forkable ? (
           <Hint about="choices">
             A <strong>choice</strong> forks this same stem at the break you
             picked — one release, then he reads. For a whole second line off his
@@ -4105,7 +4122,7 @@ export function ChalkApp({
       ? undefined
       : editor.document.players.find(({ id }) => id === routeDotCandidate);
   const routeDotPlayerId =
-    routeDotMan && canDrawFrom("route", routeDotMan)
+    routeDotMan && canDrawLine(editor.document, "route", routeDotMan)
       ? routeDotMan.id
       : undefined;
 
@@ -4344,7 +4361,9 @@ export function ChalkApp({
     const man = editorStore
       .getSnapshot()
       .document.players.find(({ id }) => id === playerId);
-    if (!man || !canDrawFrom(kind, man)) return;
+    if (!man || !canDrawLine(editorStore.getSnapshot().document, kind, man)) {
+      return;
+    }
     setActiveTool("select");
     // The field has to be there to draw on: a phone's sheet drops to its
     // peek, a tablet's drawer goes.
@@ -8792,6 +8811,10 @@ export function ChalkApp({
               ) : selectedPath ? (
                 <RouteInspector
                   bare={phoneWorkspace}
+                  forks={
+                    !selectedLineOwner ||
+                    !isQuarterback(editor.document, selectedLineOwner)
+                  }
                   lineTitle={selectedLineTitle}
                   ownerLetter={
                     selectedLineOwner?.label.trim() || selectedLineMark

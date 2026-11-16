@@ -498,9 +498,11 @@ test("puts the blue dot away when a click on the grass clears the field", async 
   page,
 }) => {
   await openEditor(page);
-  const start = await playerCenter(page, "q");
+  // A receiver, who can be given a second line: the quarterback has his one
+  // call once he has a line, and no dot to draw another (ADR 0086).
+  const start = await playerCenter(page, "z");
   await page.mouse.click(start.x, start.y);
-  const box = (await page.locator('[data-route-dot="q"]').boundingBox())!;
+  const box = (await page.locator('[data-route-dot="z"]').boundingBox())!;
   await drag(
     page,
     { x: box.x + box.width / 2, y: box.y + box.height / 2 },
@@ -520,7 +522,7 @@ test("puts the blue dot away when a click on the grass clears the field", async 
 
   // Hover still offers it: a pointer that comes back over him brings it.
   await page.mouse.move(start.x, start.y);
-  await expect(page.locator('[data-route-dot="q"]')).toHaveCount(1);
+  await expect(page.locator('[data-route-dot="z"]')).toHaveCount(1);
 });
 
 test("ends a route from Done over the field, without Enter or a double click (ADR 0054)", async ({
