@@ -4,7 +4,7 @@ import type { Formation, FormationSlot, PlayerSymbol } from "./schema";
 /**
  * The sets the original ships with, written in the canvas pixels it drew them
  * in so every number here can be read straight off the frozen specification,
- * and converted once on the axis each belongs to. Nine sets are described
+ * and converted once on the axis each belongs to. Ten sets are described
  * strong to the right; each one's left-handed twin is derived from it rather
  * than written out again, because a Coach who tightens one expects the other
  * to be the same set the other way.
@@ -14,7 +14,8 @@ import type { Formation, FormationSlot, PlayerSymbol } from "./schema";
  * man of each side on the line and stands the men inside him a yard under
  * it, at 460, so every shipped set is seven on the line and four backs with
  * its receivers eligible: the outside receivers in the gun sets, the tight
- * end and the split end in the I, both tight ends in Ace, the point in Bunch.
+ * end and the split end in the I, both tight ends in Ace and Goal Line, the
+ * point in Bunch.
  */
 
 interface LegacySlot {
@@ -192,12 +193,33 @@ const rightHandedSets: readonly LegacyFormation[] = [
       man(872, 452, "Z", "Z"),
     ],
   },
+  {
+    // Heavy for the last yard: the quarterback under center with the I
+    // behind him, a tight end on each end of the line, and the Z tucked in
+    // as a wing off the Y's outside hip rather than split wide.
+    key: "goal-line",
+    name: "Goal Line",
+    family: "goalline",
+    personnel: "22",
+    description: "22 · wing",
+    slots: [
+      man(500, 478, "Q", "QB"),
+      man(500, 526, "F", "RB"),
+      man(500, 566, "H", "H"),
+      man(382, 450, "U", "TE"),
+      man(618, 450, "Y", "TE"),
+      man(654, 470, "Z", "Z"),
+    ],
+  },
 ];
 
 /**
  * Reflecting a set is geometry for everyone but the men whose name says which
  * side they play: the X and the Z trade places, and so do the tackles and the
- * guards, because a left tackle reflected is a right tackle.
+ * guards, because a left tackle reflected is a right tackle. A man trades his
+ * name only when the set has someone to trade with — Goal Line's lone wing is
+ * the Z on either side, so putting the left set over the right one moves him
+ * across instead of leaving him for an X nobody has.
  */
 const SWAPPED: Readonly<Record<string, string>> = Object.freeze({
   X: "Z",
@@ -215,7 +237,12 @@ function toSlot(
   id: string,
   slot: LegacySlot,
   reflected: boolean,
+  names: ReadonlySet<string>,
 ): FormationSlot {
+  const swap = (name: string) => {
+    const other = SWAPPED[name];
+    return reflected && other && names.has(other) ? other : name;
+  };
   const position = legacyCanvasToYards({
     x: reflected ? 1000 - slot.x : slot.x,
     y: slot.y,
@@ -223,10 +250,10 @@ function toSlot(
   return {
     id,
     unit: "offense",
-    role: reflected ? (SWAPPED[slot.role] ?? slot.role) : slot.role,
+    role: swap(slot.role),
     position,
     symbol: slot.symbol ?? "circle",
-    label: reflected ? (SWAPPED[slot.label] ?? slot.label) : slot.label,
+    label: swap(slot.label),
     sublabel: "",
     fill: "none",
     color: "ink",
@@ -236,8 +263,10 @@ function toSlot(
 function build(set: LegacyFormation, hand: "right" | "left"): Formation {
   const id = formationId(set.key, hand);
   const reflected = hand === "left";
-  const slots = [...line, ...set.slots].map((slot, index) =>
-    toSlot(`${id}_s${index}`, slot, reflected),
+  const all = [...line, ...set.slots];
+  const names = new Set(all.flatMap(({ role, label }) => [role, label]));
+  const slots = all.map((slot, index) =>
+    toSlot(`${id}_s${index}`, slot, reflected, names),
   );
   return {
     schemaVersion: 1,
@@ -261,7 +290,7 @@ function build(set: LegacyFormation, hand: "right" | "left"): Formation {
 export const STOCK_PLAYBOOK_ID = "playbook_stock";
 
 /**
- * The eighteen sets, each right-handed one followed by its left-handed twin,
+ * The twenty sets, each right-handed one followed by its left-handed twin,
  * which is the order the original lists them and the order a call sheet
  * groups them in.
  */
@@ -287,5 +316,6 @@ export const formationFamilies: readonly {
   { key: "ace", shortName: "2 TE", name: "Two tight ends" },
   { key: "iform", shortName: "I-form", name: "Under center" },
   { key: "strong", shortName: "Strong", name: "Under center · offset" },
+  { key: "goalline", shortName: "Goal line", name: "Goal line · heavy" },
   { key: "custom", shortName: "Mine", name: "Saved by me" },
 ]);
