@@ -1,5 +1,6 @@
 import { type Page, type TestInfo } from "@playwright/test";
 import { expect, openSeededEditor, startNewPlay, test } from "./fixtures";
+import { assignmentButton } from "./defense-helpers";
 
 /**
  * The linebackers' call and the refills it sets off (ADR 0075, issue #190),
@@ -67,7 +68,11 @@ async function callUnit(page: Page, group: string, name: string) {
   await expect(picker).toBeHidden();
 }
 
-/** Gives one man his own call from Quick assignments, and goes back to the roster. */
+/**
+ * Gives one man his own call — from his Quick assignments, or from Other
+ * assignments when his position does not play it — and goes back to the
+ * roster.
+ */
 async function ownCall(page: Page, label: string, nth: number, call: string) {
   const men = page.locator(`[aria-label="${label} defense player"]`);
   const placed = await Promise.all(
@@ -83,11 +88,7 @@ async function ownCall(page: Page, label: string, nth: number, call: string) {
   const man = placed.sort((left, right) => left.x - right.x)[nth]!.man;
   await man.click({ force: true });
   await expect(page.locator(".player-heading")).toBeVisible();
-  await page
-    .locator(".section-heading", { hasText: "Quick assignments" })
-    .locator("xpath=following-sibling::div[1]")
-    .getByRole("button", { name: call, exact: true })
-    .click();
+  await (await assignmentButton(page, call)).click();
   await page.keyboard.press("Escape");
   await expect(page.locator(".roster")).toBeVisible();
 }

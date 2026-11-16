@@ -1,6 +1,33 @@
 import type { PlayDocument } from "@chalk/domain";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { closePlayName, expect, playNameField } from "./fixtures";
+/**
+ * The button for one of the picked defender's calls: among his Quick
+ * assignments when his position plays it, and otherwise under Other
+ * assignments, which is unfolded to reach it.
+ */
+export async function assignmentButton(
+  page: Page,
+  name: string,
+): Promise<Locator> {
+  const heading = page.locator(".section-heading", {
+    hasText: "Quick assignments",
+  });
+  await expect(heading).toBeVisible();
+  const own = heading
+    .locator("xpath=following-sibling::div[1]")
+    .getByRole("button", { name, exact: true });
+  if ((await own.count()) > 0) return own;
+  const fold = page.locator('[data-disclosure="player-other-assignments"]');
+  const toggle = fold.getByRole("button", { name: "Other assignments" });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+    await toggle.click();
+  }
+  return fold
+    .locator(".button-grid")
+    .getByRole("button", { name, exact: true });
+}
+
 export async function selectPlayers(page: Page, ids: readonly string[]) {
   await page.keyboard.press("Escape");
   for (const [index, id] of ids.entries()) {

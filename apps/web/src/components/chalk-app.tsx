@@ -57,6 +57,7 @@ import {
   legacyCanvasToYards,
   PRODUCT_NAME,
   blockPresets,
+  defensiveCallsOfferedTo,
   defensivePresetsFor,
   lineCallKeys,
   linePresetByKey,
@@ -1417,15 +1418,36 @@ const quarterbackRunCalls = quarterbackCalls.filter(
   ({ game }) => game === "run",
 );
 /**
- * What a defender can be given, in the order he is offered it: the front's
- * own calls first for a man on the line, then the gaps, then the drops
- * (issue #165). It depends on where he stands, so it is asked of the Play.
+ * Every call a defender's line can be redrawn as, his own position's first:
+ * the front's own calls first for a man on the line, then the gaps, then the
+ * drops (issue #165). It depends on where he stands, so it is asked of the
+ * Play.
  */
 const assignmentCallsFor = (
   play: PlayDocument,
   player: Player,
 ): readonly { readonly key: string; readonly name: string }[] =>
   defensivePresetsFor(play, player).map(({ key, name }) => ({ key, name }));
+/**
+ * What a defender is offered when he is the one picked out: the calls his
+ * own position plays, and — apart from them — the rest of the defense's. A
+ * Mike is offered a Mike's calls, not the safeties' deep zones beside them.
+ */
+const assignmentOfferFor = (
+  play: PlayDocument,
+  player: Player,
+): Readonly<
+  Record<
+    "own" | "other",
+    readonly { readonly key: string; readonly name: string }[]
+  >
+> => {
+  const { own, other } = defensiveCallsOfferedTo(play, player);
+  return {
+    own: own.map(({ key, name }) => ({ key, name })),
+    other: other.map(({ key, name }) => ({ key, name })),
+  };
+};
 
 /**
  * A catalogue as a grid of buttons, which is how the original offers one: the
@@ -1742,6 +1764,7 @@ function PlayerInspector({
   onTextCommitted,
   onToggle,
   open,
+  otherAssignmentCalls,
   pickingCover,
   player,
   quarterback,
@@ -1751,8 +1774,13 @@ function PlayerInspector({
 }: {
   /** Every call he is already running, so a button can say so. */
   activePresets: ReadonlySet<string>;
-  /** What a defender can be given, in the order he is offered it. */
+  /** What a defender's own position plays, in the order he is offered it. */
   assignmentCalls: readonly { readonly key: string; readonly name: string }[];
+  /** The rest of the defense's calls, folded away under his own. */
+  otherAssignmentCalls: readonly {
+    readonly key: string;
+    readonly name: string;
+  }[];
   /** Where the back arrow goes: the panel before this one, or the play. */
   backLabel?: string | undefined;
   /** Without its own heading — the phone sheet's head names him instead. */
@@ -1825,6 +1853,18 @@ function PlayerInspector({
   const letter = player.label.trim();
   const quickBlocksSummary = quickBackBlockCalls
     .slice(0, 4)
+    .map(({ name }) => name)
+    .join(" · ");
+  // Folded, the other positions' calls say the one he is running, so a
+  // corner sent through a gap still reads as sent; otherwise what is there.
+  const otherAssignmentsRunning = otherAssignmentCalls.filter(({ key }) =>
+    activePresets.has(key),
+  );
+  const otherAssignmentsSummary = (
+    otherAssignmentsRunning.length > 0
+      ? otherAssignmentsRunning
+      : otherAssignmentCalls.slice(0, 4)
+  )
     .map(({ name }) => name)
     .join(" · ");
 
@@ -2061,6 +2101,26 @@ function PlayerInspector({
           onPickCover={onPickCover}
           picking={pickingCover}
         />
+      ) : null}
+      {defense && otherAssignmentCalls.length > 0 ? (
+        // The panel is about the man picked out, so the grid above is what
+        // his position plays. The rest of the defense's calls are still his
+        // to be given, folded until the scheme asks for one.
+        <Disclosure
+          id="player-other-assignments"
+          onToggle={onToggle}
+          open={open["player-other-assignments"] ?? false}
+          summary={otherAssignmentsSummary}
+          title="Other assignments"
+        >
+          <QuickCallGrid
+            calls={otherAssignmentCalls}
+            hint="What the rest of the defense plays — his when the call asks for it, like a corner sent through a gap or a lineman dropped off the front."
+            kind="line"
+            onApply={onQuickCall}
+            running={activePresets}
+          />
+        </Disclosure>
       ) : null}
       {lineman && (
         <p>
@@ -7134,7 +7194,7 @@ export function ChalkApp({
         <QuickTray
           calls={
             defense
-              ? assignmentCallsFor(editor.document, selectedPlayer)
+              ? assignmentOfferFor(editor.document, selectedPlayer).own
               : lineman
                 ? quickBlockCalls
                 : routeCallsFor(editor.document, selectedPlayer)
@@ -7187,6 +7247,11 @@ export function ChalkApp({
   const selectedRosterRow = selectedPlayer
     ? roster.rows.find(({ player }) => player.id === selectedPlayer.id)
     : undefined;
+  /** A defender's own calls and the rest, for the panel that is about him. */
+  const selectedAssignmentOffer =
+    selectedPlayer?.unit === "defense"
+      ? assignmentOfferFor(editor.document, selectedPlayer)
+      : undefined;
   const selectedLineOwner = selectedPath
     ? editor.document.players.find(({ id }) => id === selectedPath.playerId)
     : undefined;
@@ -8982,10 +9047,8 @@ export function ChalkApp({
                   onToggle={toggleDisclosure}
                   open={chrome.open}
                   activePresets={playerPresets(selectedPlayer)}
-                  assignmentCalls={assignmentCallsFor(
-                    editor.document,
-                    selectedPlayer,
-                  )}
+                  assignmentCalls={selectedAssignmentOffer?.own ?? []}
+                  otherAssignmentCalls={selectedAssignmentOffer?.other ?? []}
                   scopeBadge={playbook.scopeBadge}
                   lines={playerLines(selectedPlayer)}
                   onApplyPreset={runLinePreset}

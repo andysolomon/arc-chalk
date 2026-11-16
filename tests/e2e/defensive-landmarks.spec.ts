@@ -1,5 +1,6 @@
 import { type Locator, type Page, type TestInfo } from "@playwright/test";
 import { expect, openSeededEditor, startNewPlay, test } from "./fixtures";
+import { assignmentButton } from "./defense-helpers";
 
 /**
  * Where a defense's calls land (issue #165, ADR 0064), checked the way a
@@ -55,12 +56,14 @@ async function spotOf(man: Locator): Promise<{ x: number; y: number }> {
   return { x: Number(x), y: Number(y) };
 }
 
-/** Selects a defender, then presses a call among his Quick assignments. */
+/**
+ * Selects a defender, then presses one of his calls: among his Quick
+ * assignments, or under Other assignments when his position does not play it.
+ */
 async function call(page: Page, man: Locator, name: string): Promise<void> {
   await man.click({ force: true });
   await expect(page.locator(".player-heading")).toBeVisible();
-  const grid = quickAssignments(page);
-  const button = grid.getByRole("button", { name, exact: true });
+  const button = await assignmentButton(page, name);
   await button.click();
   await expect(button).toHaveAttribute("aria-pressed", "true");
 }
