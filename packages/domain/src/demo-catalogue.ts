@@ -180,7 +180,7 @@ const toolsSteps: readonly DemoStep[] = [
       ["ctrl", "Square handle — bend the segment"],
       ["seg", "Click the line again to pick one segment"],
     ],
-    "Select a line and its handles appear: round ones move breaks, square ones bend the stretch into an arc. Hold S to snap cuts to 45°.",
+    "Select a line and its handles appear: round ones move breaks, square ones bend the stretch into an arc. Hold S to snap cuts to 10° steps.",
   ),
   step(
     "Endings",
@@ -367,7 +367,7 @@ const quickSteps: readonly DemoStep[] = [
     [
       ["a", "Slant — three steps, then in"],
       ["b", "Drag the break to change depth"],
-      ["c", "S keeps every cut at 45°"],
+      ["c", "S keeps every cut on a 10° step"],
     ],
     "H gets the Slant. A preset is a starting point — drag the round handle to set the depth you actually coach.",
   ),
@@ -673,7 +673,7 @@ const airSteps: readonly DemoStep[] = [
     "Route",
     [
       ["a", "Two crossers at the same depth"],
-      ["b", "S snaps the release to 45°"],
+      ["b", "S snaps the release to 10° steps"],
       ["c", "A yellow note names the concept"],
     ],
     "H and Y cross underneath. Draw one, then the other — the shared depth is what makes the rub work.",

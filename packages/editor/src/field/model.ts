@@ -234,7 +234,7 @@ export interface FieldDrawingState {
   readonly playerId: string;
   readonly mode: FieldDrawingMode;
   readonly points: readonly FieldDrawingPoint[];
-  /** The 45°-constrained preview endpoint the dashed line runs to. */
+  /** The 10°-constrained preview endpoint the dashed line runs to. */
   readonly cursor: Coordinate;
   /** Typed digits waiting to become the next break's exact depth. */
   readonly depthBuffer: string;

@@ -248,7 +248,7 @@ test("a break in the box lands in the gap it is aimed at", async ({
   await clickField(page, { x: 551, y: 412 });
   await page.keyboard.press("Enter");
 
-  // Midway between the right guard and the right tackle, not held to 45°
+  // Midway between the right guard and the right tackle, not held to 10° steps
   // off the last break and not on either of them.
   const bGap = (SPOT.rg.x + SPOT.rt.x) / 2;
   const pull = await lineFrom(page, SPOT.lg);
