@@ -1,5 +1,6 @@
 import { type Locator, type Page, type TestInfo } from "@playwright/test";
 import { expect, openSeededEditor, startNewPlay, test } from "./fixtures";
+import { assignmentButton } from "./defense-helpers";
 
 /**
  * The front's call (ADR 0075, issue #189), called the way a defensive line
@@ -185,18 +186,11 @@ async function yardAcross(page: Page): Promise<number> {
   return (Math.max(...xs) - Math.min(...xs)) / (160 / 3);
 }
 
-const quickAssignments = (page: Page) =>
-  page
-    .locator(".section-heading", { hasText: "Quick assignments" })
-    .locator("xpath=following-sibling::div[1]");
-
-/** Picks a man and presses one of his Quick assignments. */
+/** Picks a man and presses one of his calls, his own position's or not. */
 async function callOn(page: Page, man: Locator, name: string): Promise<void> {
   await man.click({ force: true });
   await expect(page.locator(".player-heading")).toBeVisible();
-  await quickAssignments(page)
-    .getByRole("button", { name, exact: true })
-    .click();
+  await (await assignmentButton(page, name)).click();
   await page.keyboard.press("Escape");
 }
 

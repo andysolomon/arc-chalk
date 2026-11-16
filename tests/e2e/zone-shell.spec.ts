@@ -1,5 +1,6 @@
 import { type Locator, type Page, type TestInfo } from "@playwright/test";
 import { expect, openSeededEditor, test } from "./fixtures";
+import { assignmentButton } from "./defense-helpers";
 
 /**
  * The zone shell (ADR 0059, ADR 0075), built the way a Coach builds one: a
@@ -47,8 +48,10 @@ async function defendersLettered(page: Page, label: string) {
 }
 
 /**
- * Selects a defender and presses a call in Quick assignments. Pressing the
- * call the defender already has takes it off, so the button reads unpressed.
+ * Selects a defender and presses one of his calls — among his Quick
+ * assignments, or under Other assignments when his position does not play
+ * it. Pressing the call the defender already has takes it off, so the button
+ * reads unpressed.
  */
 async function call(
   page: Page,
@@ -58,11 +61,8 @@ async function call(
 ): Promise<void> {
   await man.click({ force: true });
   await expect(page.locator(".player-heading")).toBeVisible();
-  // The Draw row names a Blitz too; the call is the one in Quick assignments.
-  const button = page
-    .locator(".section-heading", { hasText: "Quick assignments" })
-    .locator("xpath=following-sibling::div[1]")
-    .getByRole("button", { name, exact: true });
+  // The Draw row names a Blitz too; the call is the one among his calls.
+  const button = await assignmentButton(page, name);
   await button.click();
   await expect(button).toHaveAttribute("aria-pressed", String(pressed));
 }

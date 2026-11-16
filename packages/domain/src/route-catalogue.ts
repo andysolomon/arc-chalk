@@ -710,40 +710,52 @@ const offeredIn = (group: DefensivePresetGroup) =>
   );
 
 /**
- * The calls each man off the front is offered first, by what he plays: a
- * safety the deep halves, middle and quarters — or, rolled down into the box,
- * the underneath calls he plays from there — a corner man and his outside
- * third, a nickel man and the flat, a backer his hook, curl/flat and gaps.
+ * The calls each man off the front is offered as his own, by what he plays: a
+ * safety the deep halves, middle and quarters, and the curl/flat Cover 3
+ * rotates him down to — or, rolled down into the box, the underneath calls he
+ * plays from there — a corner man and his outside third, a nickel man and the
+ * flat, a backer his hook, curl/flat and gaps.
  */
 const offeredFirstTo: Readonly<
   Record<Exclude<DefenderKind, "lineman"> | "rolled", readonly string[]>
 > = Object.freeze({
-  safety: ["deep2", "mid3", "quarter", "deep3", "robber", "man"],
+  safety: ["deep2", "mid3", "quarter", "deep3", "robber", "curlflat", "man"],
   rolled: ["curlflat", "robber", "man", "hook"],
   corner: ["man", "deep3", "quarter", "curlflat", "deep2"],
   nickel: ["man", "curlflat", "hook", "quarter", "deep3"],
   backer: ["hook", "curlflat", "man", "spy", "agap", "bgap", "cgap", "dgap"],
 });
 
+/** What a defender is offered: his own position's calls, and everyone else's. */
+export interface DefensiveCallOffer {
+  /** The calls his position plays, in the order he is offered them. */
+  readonly own: readonly LinePreset[];
+  /**
+   * The rest of the defense's calls. They are his when the scheme asks for
+   * it — a corner sent through a gap, a backer dropped to the deep middle —
+   * but they are not what his position plays, so they are kept apart.
+   */
+  readonly other: readonly LinePreset[];
+}
+
 /**
- * The calls a defender is offered, in the order he is offered them. A man on
- * the front gets the front's own calls first — rush, contain, the slants and
- * the games — then the gaps, then the drops a zone blitz can send him to.
- * Everyone else gets the calls his position plays first, then
- * the rest of the coverage, then the gaps.
+ * The calls a defender is offered, his own apart from the rest. A man on the
+ * front has the front's calls — rush, contain, the slants and the games —
+ * and the gaps; the drops a zone blitz can send him to are the rest. Everyone
+ * else has the calls his position plays, and the rest is the other coverage
+ * and the gaps he is not usually sent through.
  */
-export function defensivePresetsFor(
+export function defensiveCallsOfferedTo(
   play: Pick<PlayDocument, "players" | "fieldProfile">,
   player: Pick<Player, "label" | "position">,
-): readonly LinePreset[] {
+): DefensiveCallOffer {
   const field = defensiveFieldOf(play);
   const kind = defenderKind(player, field.ballLateralYards);
   if (isOnDefensiveFront(player.position, field) || kind === "lineman") {
-    return [
-      ...offeredIn("front"),
-      ...offeredIn("pressure"),
-      ...offeredIn("coverage"),
-    ];
+    return {
+      own: [...offeredIn("front"), ...offeredIn("pressure")],
+      other: offeredIn("coverage"),
+    };
   }
   const first =
     offeredFirstTo[
@@ -751,11 +763,23 @@ export function defensivePresetsFor(
         ? "rolled"
         : kind
     ];
-  const rest = [...offeredIn("coverage"), ...offeredIn("pressure")];
-  return [
-    ...first.flatMap((key) => rest.filter((preset) => preset.key === key)),
-    ...rest.filter(({ key }) => !first.includes(key)),
-  ];
+  const all = [...offeredIn("coverage"), ...offeredIn("pressure")];
+  return {
+    own: first.flatMap((key) => all.filter((preset) => preset.key === key)),
+    other: all.filter(({ key }) => !first.includes(key)),
+  };
+}
+
+/**
+ * Every call a defender's line can be drawn as, his own position's first:
+ * what a line he already has can be redrawn as, whoever usually plays it.
+ */
+export function defensivePresetsFor(
+  play: Pick<PlayDocument, "players" | "fieldProfile">,
+  player: Pick<Player, "label" | "position">,
+): readonly LinePreset[] {
+  const { own, other } = defensiveCallsOfferedTo(play, player);
+  return [...own, ...other];
 }
 
 export const linePresetByKey = (key: string): LinePreset | undefined =>
