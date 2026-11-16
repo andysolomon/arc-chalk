@@ -229,7 +229,8 @@ export function shadowShown(
 /**
  * Layers the Coach toggled, with the type preset's own notes flag applied.
  * A conversion rides on its Assignment's line, so it shows with
- * Assignments; Notes is the coaching note alone. Player type hides both
+ * Assignments, as does a motion's note, the only words a motion has; Notes
+ * is every other line's coaching note. Player type hides both
  * even when their layers are on — the toggles still read on; the field
  * just does not draw them.
  */
