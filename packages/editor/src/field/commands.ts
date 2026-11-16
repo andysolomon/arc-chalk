@@ -230,6 +230,16 @@ function holdDepthOnSideOfBall(
   return held;
 }
 
+function holdOnSideOfBall(
+  players: readonly Player[],
+  translation: Coordinate,
+): Coordinate {
+  return coordinate(
+    translation.lateralYards,
+    holdDepthOnSideOfBall(players, translation.depthYards),
+  );
+}
+
 /**
  * One completed move — however many items it carried — becomes one batch.
  * Routes attached to a moving Player travel with him, the way the original
@@ -244,10 +254,7 @@ export function buildMoveCommand(
     items.filter(({ kind }) => kind === "player").map(({ id }) => id),
   );
   const moving = document.players.filter(({ id }) => playerIds.has(id));
-  const translation = coordinate(
-    requested.lateralYards,
-    holdDepthOnSideOfBall(moving, requested.depthYards),
-  );
+  const translation = holdOnSideOfBall(moving, requested);
   if (
     rounded(translation.lateralYards) === 0 &&
     rounded(translation.depthYards) === 0
@@ -427,19 +434,23 @@ function movingPoints(
 }
 
 /**
- * Cuts a move back to what keeps everything it carries on the field. A drag
- * and a keyboard nudge go through the same hold, so neither can put a man or
- * a route past the sideline or off the drawn frame.
+ * Cuts a move back to what keeps everything it carries on the field and on
+ * its own side of the ball. A drag and a keyboard nudge go through the same
+ * hold, so neither can put a man or a route past the sideline or off the
+ * drawn frame, and a dragged man stops at the line of scrimmage while the
+ * pointer is still moving rather than jumping back to it on release.
  */
 export function clampMoveToField(
   context: FieldInteractionContext,
   items: readonly FieldItemRef[],
   translation: Coordinate,
 ): Coordinate {
-  return clampTranslationToField(
-    movingPoints(context, items),
-    translation,
-    context,
+  const playerIds = new Set(
+    items.filter(({ kind }) => kind === "player").map(({ id }) => id),
+  );
+  return holdOnSideOfBall(
+    context.document.players.filter(({ id }) => playerIds.has(id)),
+    clampTranslationToField(movingPoints(context, items), translation, context),
   );
 }
 
