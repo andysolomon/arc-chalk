@@ -2145,6 +2145,7 @@ function RouteInspector({
   open,
   path,
   kinds,
+  quickCalls,
   segmentIndex,
   timing,
 }: {
@@ -2153,6 +2154,23 @@ function RouteInspector({
   /** Without its own heading — the phone sheet's head names it instead. */
   bare?: boolean;
   branchIndex?: number;
+  /**
+   * The calls off the tree this route can be redrawn as, the same grids his
+   * own panel offers: a route and its alternate are both his to shape, so a
+   * new alternate is given a call where it lands rather than through a
+   * dropdown back in his panel. Absent for a line that is not a route.
+   */
+  quickCalls?: {
+    readonly groups: readonly {
+      readonly heading: string;
+      readonly calls: readonly {
+        readonly key: string;
+        readonly name: string;
+      }[];
+      readonly columns?: 2 | 3;
+    }[];
+    readonly onApply: (presetKey: string) => void;
+  };
   coaching: Readonly<Record<RouteCoachingField, string>>;
   /** What the line is: Route, Alternate 1, Block, Man. */
   lineTitle?: string;
@@ -2370,6 +2388,24 @@ function RouteInspector({
           </button>
         </div>
       )}
+      {/*
+        A call redraws the whole stem, so it is offered while the whole line
+        is what is picked — not with a choice narrowed to, which it would
+        reshape out from under.
+      */}
+      {quickCalls && branchIndex === undefined
+        ? quickCalls.groups.map((group) => (
+            <QuickCallGrid
+              calls={group.calls}
+              columns={group.columns}
+              heading={group.heading}
+              key={group.heading}
+              kind="route"
+              onApply={(key) => quickCalls.onApply(key)}
+              running={new Set(path.preset === undefined ? [] : [path.preset])}
+            />
+          ))
+        : null}
       <Disclosure
         id="route-appearance"
         onToggle={onToggle}
@@ -8862,6 +8898,36 @@ export function ChalkApp({
                   segmentIndex={interaction.selectedSegmentIndex}
                   timing={routeTiming(selectedPath)}
                   kinds={lineKindChoices(editor.document, selectedPath)}
+                  quickCalls={
+                    selectedPath.kind === "route" && selectedLineOwner
+                      ? {
+                          // The quarterback is given his throws and runs, as
+                          // in his own panel; anyone else the route tree.
+                          groups: isQuarterback(
+                            editor.document,
+                            selectedLineOwner,
+                          )
+                            ? [
+                                {
+                                  heading: "Quick pass calls",
+                                  calls: quarterbackPassCalls,
+                                },
+                                {
+                                  heading: "Quick run calls",
+                                  calls: quarterbackRunCalls,
+                                },
+                              ]
+                            : [
+                                {
+                                  heading: "Quick routes",
+                                  calls: routePresetNames,
+                                  columns: 3,
+                                },
+                              ],
+                          onApply: (key) => runLinePreset(selectedPath.id, key),
+                        }
+                      : undefined
+                  }
                 />
               ) : selectedPlayer ? (
                 <PlayerInspector
