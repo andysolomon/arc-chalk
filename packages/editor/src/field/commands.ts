@@ -34,6 +34,7 @@ import {
   isLineLetter,
   isLineman,
   isOnTheLine,
+  isQuarterback,
   OFF_THE_LINE_YARDS,
   MAX_BACKS,
   MIN_ON_THE_LINE,
@@ -1210,7 +1211,8 @@ function insideSidelines(
  * pushed downfield — and it carries only that shape. The bends, the
  * per-segment styles and the endings of the line it came from are left
  * behind, because this is another call rather than a copy of that one. Only
- * a man who runs routes has one to add.
+ * a man who runs routes has one to add. The quarterback is given one call,
+ * not a tree to choose from, so he has none either (ADR 0086).
  */
 export function addAlternateRouteCommand(
   document: PlayDocument,
@@ -1218,7 +1220,13 @@ export function addAlternateRouteCommand(
   createId: () => string,
 ): PlayCommand | undefined {
   const player = document.players.find(({ id }) => id === playerId);
-  if (!player || !canRunLine(player, "route")) return undefined;
+  if (
+    !player ||
+    !canRunLine(player, "route") ||
+    isQuarterback(document, player)
+  ) {
+    return undefined;
+  }
   // Exactly where he is at the snap, not a rounding of it: the stem starts on
   // the man, or at the end of his motion when he goes in motion first.
   const stance = snapSpotOf(document, playerId);
@@ -1360,6 +1368,10 @@ export function addRouteChoiceCommand(
 ): PlayCommand | undefined {
   const path = document.paths.find(({ id }) => id === pathId);
   if (!path || !canAddRouteChoice(path, fromIndex)) return undefined;
+  // A drop, a boot or a handoff is his whole call: the quarterback does not
+  // run a stem and read off it, so his lines do not fork (ADR 0086).
+  const owner = document.players.find(({ id }) => id === path.playerId);
+  if (owner && isQuarterback(document, owner)) return undefined;
   const last = path.points.length - 1;
   const from = routeChoiceBreak(path, fromIndex);
   const anchor = yardsToLegacyCanvas(path.points[from]!);

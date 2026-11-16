@@ -318,3 +318,68 @@ test("from the gun a drop is shorter, and a read keeps away from the mesh", asyn
     path: testInfo.outputPath("gun-zone-read.png"),
   });
 });
+
+test("a quarterback has one call: no alternates, no second line by hand, no fork", async ({
+  page,
+}, testInfo) => {
+  await formation(page, "I-Form Right");
+  await pick(page, SPOT.qUnder);
+  const panel = inspector(page);
+  const alternate = panel.getByRole("button", { name: /^\+ Alternate/ });
+  const choice = panel.getByRole("button", { name: /^\+ Choice at/ });
+  const drawRoute = panel
+    .getByRole("group", { name: "Draw by hand" })
+    .getByRole("button", { name: /^Route/ });
+  const dot = page.locator("[data-route-dot]");
+  const preview = page.locator("[data-drawing-preview]");
+
+  // With nothing on him he can still draw his own path by hand.
+  await expect(drawRoute).toBeEnabled();
+  await expect(dot).toHaveCount(1);
+
+  // He is given one call, not a tree to choose from: with a drop on him
+  // there is no second call to add beside it …
+  await callButton(panel, "5-step drop").click();
+  await expect(
+    page.getByRole("img", { name: "Q route: 5-step drop" }),
+  ).toHaveCount(1);
+  await expect(alternate).toHaveCount(0);
+
+  // … nor one to draw beside it by hand: the button is off, the blue dot is
+  // gone, and R starts nothing.
+  await expect(drawRoute).toBeDisabled();
+  await expect(dot).toHaveCount(0);
+  await page.keyboard.press("r");
+  await expect(preview).toHaveCount(0);
+  // Motion is still his to draw.
+  await expect(
+    panel
+      .getByRole("group", { name: "Draw by hand" })
+      .getByRole("button", { name: /^Motion/ }),
+  ).toBeEnabled();
+
+  // … and his line is his whole call, so it has no stem to fork.
+  await panel.getByRole("button", { name: /^Edit Route/ }).click();
+  await expect(
+    panel.getByRole("textbox", { name: "Assignment" }),
+  ).toBeVisible();
+  await expect(choice).toHaveCount(0);
+  await expect(
+    panel.getByRole("button", { name: "About choices" }),
+  ).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "Flip" })).toBeVisible();
+
+  // A receiver still has both.
+  await pick(page, SPOT.xIForm);
+  await callButton(panel, "Slant").click();
+  await expect(alternate).toHaveText("+ Alternate route");
+  await panel.getByRole("button", { name: /^Edit Route/ }).click();
+  await expect(choice).toBeVisible();
+
+  // The quarterback still has the one line, and nothing dotted beside it.
+  await page.keyboard.press("Escape");
+  await lineFrom(page, SPOT.qUnder);
+  await field(page).screenshot({
+    path: testInfo.outputPath("quarterback-one-call.png"),
+  });
+});

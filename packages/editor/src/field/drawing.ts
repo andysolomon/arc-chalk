@@ -2,6 +2,7 @@ import {
   canRunLine,
   DEFAULT_ZONE_COVERAGE_RADII,
   inTackleBox,
+  isQuarterback,
   routeKindStyle,
   snapSpotOf,
   tackleBoxOf,
@@ -12,6 +13,7 @@ import {
   type PathStyle,
   type PlayCommand,
   type Player,
+  type PlayDocument,
 } from "@chalk/domain";
 
 import { snapPosition, snapRouteEndpoint } from "../smart-snapping";
@@ -441,6 +443,28 @@ export function canDrawFrom(
   return canRunLine(player, drawingKindFor(tool, player));
 }
 
+/**
+ * Whether this man can be given what the tool draws on this Play. On top of
+ * what he can run at all, the quarterback is given one call: with a line
+ * already on him, a route drawn by hand would be a second one beside it — a
+ * dotted alternate — which he is not offered (ADR 0086). Every way of
+ * starting or finishing a line by hand asks.
+ */
+export function canDrawLine(
+  document: Pick<PlayDocument, "players" | "paths">,
+  tool: FieldDrawingKind,
+  player: Pick<Player, "id" | "unit" | "label" | "position">,
+): boolean {
+  if (!canDrawFrom(tool, player)) return false;
+  if (drawingKindFor(tool, player) !== "route") return true;
+  return !(
+    isQuarterback(document, player) &&
+    document.paths.some(
+      ({ playerId, kind }) => playerId === player.id && kind === "route",
+    )
+  );
+}
+
 /** Abandons an in-progress route, leaving the committed Play untouched. */
 export function clearDrawing(
   model: FieldInteractionModel,
@@ -455,7 +479,9 @@ export function startDrawing(
   mode: FieldDrawingMode = "breaks",
 ): FieldInteractionModel | undefined {
   const player = context.document.players.find(({ id }) => id === playerId);
-  if (!player || !canDrawFrom(kind, player)) return undefined;
+  if (!player || !canDrawLine(context.document, kind, player)) {
+    return undefined;
+  }
   // A route is what he runs after the snap, so it sets out from where his
   // motion leaves him; everything else starts at his stance (issue #164).
   const from =
@@ -533,6 +559,14 @@ export function buildDrawCommand(
     },
   );
   if (points.length < 2) return undefined;
+  // Asked again at the finish: the Play may have changed under the line
+  // while it was being drawn, and a quarterback still gets only one call.
+  const owner = context.document.players.find(
+    ({ id }) => id === drawing.playerId,
+  );
+  if (owner && !canDrawLine(context.document, drawing.kind, owner)) {
+    return undefined;
+  }
 
   const sibling =
     drawing.kind === "route" &&
