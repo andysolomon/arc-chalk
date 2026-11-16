@@ -6,18 +6,21 @@ import { expect, openSeededEditor, openViewAndLibrary, test } from "./fixtures";
 
 /**
  * A route's words on the field (issue #158). X runs a Go named COMET
- * FADE-OUT, read 1, with a conversion and a coaching note; H runs a Curl
- * named COMET RETURN, read 3, with a choice and a note. The editor is
- * measured in light and dark, then the install page it prints. Then the
- * words come off: Show on field → Notes takes the conversion and the note
- * off the field, and the Print & export workflow's own Detail (ADR 0047)
- * takes them off the sheet, while the table keeps every word either way.
- * The field in both appearances, the sheet as printed and its HTML are the
- * run's artifacts.
+ * FADE-OUT, read 1, with a short conversion and a coaching note; H runs a
+ * Curl named COMET RETURN, read 3, with a long conversion, a choice and a
+ * note. A conversion short enough shares its Assignment's line; a long one
+ * takes the line under it. Notes start off the field, so the coaching
+ * notes show only once Show on field → Notes puts them there, and then
+ * every block reads top to bottom: Assignment, conversion, note. The
+ * editor is measured in light and dark, then the install page it prints,
+ * whose Coaching detail (ADR 0047) keeps the conversions and drops the
+ * notes, while the table keeps every word either way. The field in both
+ * appearances, the sheet as printed and its HTML are the run's artifacts.
  */
 test.use({ viewport: { width: 1440, height: 960 } });
 
-const CONVERSION = "Fade vs press; out vs cushion.";
+const CONVERSION = "vs press: fade";
+const H_CONVERSION = "Sit vs zone; break out vs man press.";
 const NOTE = "Win the release; stack him by 12 and look early.";
 const H_NOTE = "Sit down at 12 if the hook drops under.";
 
@@ -107,6 +110,17 @@ function expectWellPlaced(route: Route, where: string) {
   for (let index = 1; index < lines.length; index += 1) {
     const above = lines[index - 1]!;
     const below = lines[index]!;
+    // Words on one baseline are one line: the conversion follows its
+    // Assignment along it, clear of it.
+    if (below.y === above.y) {
+      const [left, right] =
+        above.box.x <= below.box.x ? [above, below] : [below, above];
+      expect(
+        left.box.x + left.box.width,
+        `${where}: ${right.id} runs into ${left.id} on their shared line`,
+      ).toBeLessThan(right.box.x);
+      continue;
+    }
     expect(
       below.y - above.y,
       `${where}: ${below.id} sits on the ${above.id} baseline`,
@@ -146,6 +160,12 @@ function expectBesideTheLine(route: Route, where: string) {
     }
   }
 }
+
+/** The kinds of words on a route, top of the page to the bottom. */
+const readingOrder = (route: Route) =>
+  [...route.words]
+    .sort((a, b) => a.y - b.y || a.box.x - b.box.x)
+    .map(({ id }) => id.replace(/^.*-/, ""));
 
 /** Opens a man's route panel from the roster and writes his words. */
 async function coach(
@@ -202,7 +222,7 @@ async function installPreview(page: Page): Promise<FrameLocator> {
   return preview;
 }
 
-test("a route's words stack beside it, stay on the paper, print the same, and leave with Notes", async ({
+test("a route's conversion shares its Assignment's line, notes wait for the Notes layer, and the sheet prints the same", async ({
   page,
   browserName,
 }, testInfo) => {
@@ -218,6 +238,7 @@ test("a route's words stack beside it, stay on the paper, print the same, and le
   await coach(page, /^H: /, "Curl", {
     assignment: "COMET RETURN",
     read: "3",
+    conversion: H_CONVERSION,
     note: H_NOTE,
     choice: true,
   });
@@ -230,24 +251,61 @@ test("a route's words stack beside it, stay on the paper, print the same, and le
     page.getByRole("img", { name: /^H route: COMET RETURN/ }),
   ).toHaveCount(1);
 
+  // Notes start off: the Assignment and its conversion are on the field,
+  // the coaching notes are not.
   const field = page.locator("svg.field-diagram").first();
-  const x = await readRoute(field, "COMET FADE-OUT");
-  expect(x.words.map(({ id }) => id.replace(/^.*-/, ""))).toEqual([
-    "assignment",
-    "conversion",
-    "note",
+  await expect(field.locator('[data-scene-coaching$="-note"]')).toHaveCount(0);
+  const quietX = await readRoute(field, "COMET FADE-OUT");
+  expect(quietX.words.map(({ text }) => text)).toEqual([
+    "COMET FADE-OUT",
+    `— ${CONVERSION}`,
   ]);
+  // The short conversion is set on the Assignment's own baseline, after it.
+  const [name, conversion] = quietX.words;
+  expect(conversion!.y).toBe(name!.y);
+  expect(conversion!.box.x).toBeGreaterThan(name!.box.x + name!.box.width);
+  expectWellPlaced(quietX, "editor, notes off");
+  expectBesideTheLine(quietX, "editor, notes off");
+  // The long one is too wide to share the line, so it takes the next.
+  const quietH = await readRoute(field, "COMET RETURN");
+  expect(readingOrder(quietH)).toEqual(["assignment", "conversion"]);
+  expect(quietH.words.map(({ text }) => text)).toEqual([
+    "COMET RETURN",
+    H_CONVERSION,
+  ]);
+  expectWellPlaced(quietH, "editor, notes off");
+  await expect(page.locator(".toast")).toHaveCount(0);
+  await field.screenshot({
+    path: testInfo.outputPath("route-words-notes-off.png"),
+  });
+
+  // Show on field → Notes puts the coaching notes on the diagram, and each
+  // block reads top to bottom: Assignment, conversion, note. Show on field
+  // folds under View & library (ADR 0074).
+  const sidebar = await openViewAndLibrary(page);
+  await sidebar.getByRole("button", { name: /^Show on field/ }).click();
+  const notes = sidebar.getByRole("button", { name: "Notes", exact: true });
+  await notes.click();
+  await expect(field.locator('[data-scene-coaching$="-note"]')).toHaveCount(2);
+  // Folded away again, so the field's pictures show the field.
+  await sidebar.getByRole("button", { name: /^Show on field/ }).click();
+  await expect(notes).toBeHidden();
+  const x = await readRoute(field, "COMET FADE-OUT");
+  expect(readingOrder(x)).toEqual(["assignment", "conversion", "note"]);
   expect(x.words.map(({ text }) => text)).toEqual([
     "COMET FADE-OUT",
-    CONVERSION,
+    `— ${CONVERSION}`,
     // A note longer than a line on the field is cut between words.
     expect.stringMatching(/^Win the release; stack him by 12 and\S*…$/),
   ]);
   expectWellPlaced(x, "editor, light");
   expectBesideTheLine(x, "editor, light");
-  expectWellPlaced(await readRoute(field, "COMET RETURN"), "editor, light");
-  await expect(page.locator(".toast")).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath("route-words-light.png") });
+  const h = await readRoute(field, "COMET RETURN");
+  expect(readingOrder(h)).toEqual(["assignment", "conversion", "note"]);
+  expectWellPlaced(h, "editor, light");
+  await field.screenshot({
+    path: testInfo.outputPath("route-words-light.png"),
+  });
 
   // The same field under a dark shell: the field goes dark and the words
   // stay where they were.
@@ -257,15 +315,16 @@ test("a route's words stack beside it, stay on the paper, print the same, and le
   expect(dark.words).toEqual(x.words);
   expectWellPlaced(dark, "editor, dark");
   expectBesideTheLine(dark, "editor, dark");
-  await page.screenshot({ path: testInfo.outputPath("route-words-dark.png") });
+  await field.screenshot({ path: testInfo.outputPath("route-words-dark.png") });
   await page.emulateMedia({ colorScheme: "light" });
   await expect.poll(() => theme(page)).toBe("light");
 
-  // The install page prints through the same renderer: the same placement,
-  // and the table under it carries every word.
+  // The install page prints through the same renderer at its Full detail:
+  // the same placement, and the table under it carries every word.
   const preview = await installPreview(page);
   const sheet = preview.locator("svg").first();
   const printed = await readRoute(sheet, "COMET FADE-OUT");
+  expect(readingOrder(printed)).toEqual(["assignment", "conversion", "note"]);
   // Print type is a size larger, so the note is cut a word sooner there;
   // the name and the conversion are the same words.
   expect(printed.words.map(({ text }) => text).slice(0, 2)).toEqual(
@@ -280,6 +339,7 @@ test("a route's words stack beside it, stay on the paper, print the same, and le
   const table = preview.locator("table tbody");
   await expect(table).toContainText("COMET FADE-OUT");
   await expect(table).toContainText(CONVERSION);
+  await expect(table).toContainText(H_CONVERSION);
   await expect(table).toContainText(NOTE);
   await expect(table).toContainText(H_NOTE);
 
@@ -287,69 +347,41 @@ test("a route's words stack beside it, stay on the paper, print the same, and le
     .locator("html")
     .evaluate((root) => `<!doctype html>${root.outerHTML}`);
   await writeFile(testInfo.outputPath("install-page.html"), html);
-  await page.keyboard.press("Escape");
 
-  // Notes off takes the conversion and the note off the field; the
-  // Assignment and the read stay. Show on field folds under View & library
-  // (ADR 0074).
-  const sidebar = await openViewAndLibrary(page);
-  await sidebar.getByRole("button", { name: /^Show on field/ }).click();
-  await sidebar.getByRole("button", { name: "Notes", exact: true }).click();
-  await expect(
-    page.locator('[data-scene-coaching$="-conversion"]'),
-  ).toHaveCount(0);
-  await expect(page.locator('[data-scene-coaching$="-note"]')).toHaveCount(0);
-  await expect(
-    page
-      .locator(
-        '[data-scene-coaching="rx-assignment"], [data-scene-coaching$="-assignment"]',
-      )
-      .filter({ hasText: "COMET FADE-OUT" }),
-  ).toHaveCount(1);
-  await expect(page.locator("[data-scene-read]")).toHaveCount(2);
-
-  // The sheet has its own detail: Coaching prints the reads, the
-  // assignments and the text without the notes, and the table under it
+  // The sheet's Coaching detail prints the reads, the assignments with
+  // their conversions, and the text, without the notes; the table under it
   // still carries every word.
-  const quiet = await installPreview(page);
   await page
     .getByRole("region", { name: "Print & export" })
     .getByRole("button", { name: "Coaching", exact: true })
     .click();
-  const quietSheet = quiet.locator("svg").first();
+  await expect(sheet.locator('[data-scene-coaching$="-note"]')).toHaveCount(0);
   await expect(
-    quietSheet.locator('[data-scene-coaching$="-conversion"]'),
-  ).toHaveCount(0);
-  await expect(
-    quietSheet.locator('[data-scene-coaching$="-note"]'),
-  ).toHaveCount(0);
-  await expect(
-    quietSheet.locator('[data-scene-coaching$="-assignment"]'),
+    sheet.locator('[data-scene-coaching$="-conversion"]'),
   ).toHaveCount(2);
-  const quietTable = quiet.locator("table tbody");
-  await expect(quietTable).toContainText(CONVERSION);
-  await expect(quietTable).toContainText(NOTE);
-  await expect(quietTable).toContainText(H_NOTE);
+  await expect(
+    sheet.locator('[data-scene-coaching$="-assignment"]'),
+  ).toHaveCount(2);
+  await expect(table).toContainText(CONVERSION);
+  await expect(table).toContainText(NOTE);
+  await expect(table).toContainText(H_NOTE);
 
-  // The sheet as it prints with Notes off, on a page of its own at Letter
-  // width — and as a PDF where the engine can print one.
-  const quietHtml = await quiet
+  // The sheet as it prints at Coaching detail, on a page of its own at
+  // Letter width — and as a PDF where the engine can print one.
+  const quietHtml = await preview
     .locator("html")
     .evaluate((root) => `<!doctype html>${root.outerHTML}`);
-  await writeFile(
-    testInfo.outputPath("install-page-notes-off.html"),
-    quietHtml,
-  );
+  await writeFile(testInfo.outputPath("install-page-coaching.html"), quietHtml);
   const paper = await page.context().newPage();
   await paper.setViewportSize({ width: 816, height: 1056 });
   await paper.setContent(quietHtml);
   await paper.screenshot({
-    path: testInfo.outputPath("install-page-notes-off.png"),
+    path: testInfo.outputPath("install-page-coaching.png"),
     fullPage: true,
   });
   if (browserName === "chromium") {
     await paper.pdf({
-      path: testInfo.outputPath("install-page-notes-off.pdf"),
+      path: testInfo.outputPath("install-page-coaching.pdf"),
       preferCSSPageSize: true,
     });
   }

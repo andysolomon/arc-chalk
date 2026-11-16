@@ -2,6 +2,7 @@ import { applyPlayCommand, type PlayDocument } from "@chalk/domain";
 import {
   buildRenderScene,
   buildSvgRenderScene,
+  defaultPresentation,
   estimateTextWidth,
   projectCoordinate,
   type SvgRenderScene,
@@ -114,8 +115,13 @@ const everything = {
   coachingNote: NOTE,
 };
 
+/** Every family on the field, notes included — they start off it. */
+const allLayers = {
+  ...defaultPresentation,
+  layers: { ...defaultPresentation.layers, notes: true },
+};
 const drawn = (play: PlayDocument) =>
-  buildSvgRenderScene(buildRenderScene(play));
+  buildSvgRenderScene(buildRenderScene(play, { presentation: allLayers }));
 const wordsOf = (scene: SvgRenderScene, pathId: string) =>
   scene.paths.find(({ id }) => id === pathId)!.coaching!;
 
@@ -263,7 +269,9 @@ describe("where a route's words land", () => {
     // The field is not where the words live: the scene under it still
     // carries the whole note for the table and the inspector.
     expect(
-      buildRenderScene(play).paths.find(({ id }) => id === "rx")!.coachingNote,
+      buildRenderScene(play, { presentation: allLayers }).paths.find(
+        ({ id }) => id === "rx",
+      )!.coachingNote,
     ).toBe(paragraph);
   });
 
@@ -278,13 +286,17 @@ describe("where a route's words land", () => {
     );
     const tip = projectCoordinate(end, scene.viewport);
     const { notes, read } = wordsOf(scene, "rx");
-    // The read hangs 20 below the line; the words start 22 above it and
-    // step up a line (the label size plus 5) at a time, centred on the tip.
+    // The read hangs 20 below the line; the words' last line sits 22 above
+    // it and the block climbs a line (the label size plus 5) at a time,
+    // centred on the tip, so it still reads top to bottom.
     expect(read!.center).toEqual({ x: tip.x, y: tip.y + 20 });
     notes.forEach(({ text }, index) => {
       expect(text.x).toBeCloseTo(tip.x, 6);
       expect(text.textAnchor ?? "middle").toBe("middle");
-      expect(text.y).toBeCloseTo(tip.y - 22 - index * 17, 6);
+      expect(text.y).toBeCloseTo(
+        tip.y - 22 - (notes.length - 1 - index) * 17,
+        6,
+      );
     });
   });
 

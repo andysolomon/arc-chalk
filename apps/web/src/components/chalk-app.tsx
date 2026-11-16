@@ -453,9 +453,10 @@ const COVER_PICK_HINT =
   "cover who? click the receiver he should cover · anywhere else or esc cancels";
 
 /**
- * What a Coach writes on a route beyond drawing it. The read number and the
- * Assignment print on the field; the conversion and the note ride along with
- * the route wherever it goes.
+ * What a Coach writes on a route beyond drawing it. The read number, the
+ * Assignment and its conversion print on the field, and the note does when
+ * the Notes layer is on; all of them ride along with the route wherever it
+ * goes.
  */
 type RouteCoachingField =
   "readOrder" | "assignment" | "conversion" | "coachingNote";
@@ -2267,11 +2268,15 @@ function RouteInspector({
       <span className="section-heading">
         Coaching
         <Hint about="coaching">
-          {showRead
-            ? "Read number and assignment print on the field. "
-            : "The assignment prints on the field. "}
-          {showConversion ? "Conversion and note ride" : "The note rides"} along
-          with the line — through mirror, duplicate and save.
+          {showRead && showConversion
+            ? "Read number, assignment and conversion print on the field. "
+            : showRead
+              ? "Read number and assignment print on the field. "
+              : showConversion
+                ? "Assignment and conversion print on the field. "
+                : "The assignment prints on the field. "}
+          The note prints when Show on field → Notes is on. All of it rides
+          along with the line — through mirror, duplicate and save.
         </Hint>
       </span>
       <div className="coaching-row">
