@@ -115,9 +115,6 @@ test("a man dragged at the defense stops at the line while the drag is still goi
   // Mid-drag he is still on his side of the ball. The field draws downfield
   // as a smaller y.
   expect(held.y).toBeGreaterThanOrEqual(line);
-  // The hold only stops him going forward. He still slides along the line
-  // with the pointer.
-  expect(held.x).toBeGreaterThan(before.x + 20);
   // The status bar names no man over the line mid-drag.
   await expect(page.getByText(/over the line of scrimmage/)).toHaveCount(0);
 
@@ -128,11 +125,13 @@ test("a man dragged at the defense stops at the line while the drag is still goi
   await page.mouse.up();
 
   // Letting go leaves him at the depth the drag held him at: no jump back to
-  // the line. Only depth is compared. Headless WebKit can leave a drag's last
-  // sideways moves unpainted until the release, so he may still slide along
-  // the line as it lands.
+  // the line. The hold only stopped him going forward, so he has slid along
+  // the line with the pointer. That slide is read after the release, because
+  // headless WebKit leaves some of a drag's sideways moves unpainted until
+  // the pointer lifts.
   const after = await settledPlayerAt(page, "x");
   expect(after.y).toBeCloseTo(held.y, 3);
+  expect(after.x).toBeGreaterThan(before.x + 20);
   await expect(page.getByRole("button", { name: "Undo" })).toHaveAttribute(
     "title",
     "Undo Move Player",
