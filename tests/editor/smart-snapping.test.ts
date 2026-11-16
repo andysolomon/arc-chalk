@@ -224,13 +224,14 @@ describe("deterministic smart snapping", () => {
   it("suggests and constrains grass-true route angles deterministically", () => {
     const suggested = snapRouteEndpoint({
       origin: { lateralYards: 0, depthYards: 0 },
-      point: { lateralYards: 5, depthYards: 5.2 },
+      point: { lateralYards: 5, depthYards: 4.3 },
       mode: "suggest",
       screenScale,
     });
+    // 35°, halfway between two 10° steps and far enough out to be past reach.
     const unsnapped = snapRouteEndpoint({
       origin: { lateralYards: 0, depthYards: 0 },
-      point: { lateralYards: 5, depthYards: 8 },
+      point: { lateralYards: 9.83, depthYards: 6.883 },
       mode: "suggest",
       screenScale,
     });
@@ -246,18 +247,24 @@ describe("deterministic smart snapping", () => {
 
     expect(suggested).toMatchObject({
       snapped: true,
-      guide: { angleDegrees: 45, label: "45° route break", strong: false },
+      guide: { angleDegrees: 40, label: "40° route break", strong: false },
     });
-    expect(suggested.point.lateralYards).toBe(suggested.point.depthYards);
+    expect(suggested.point.depthYards).toBeCloseTo(
+      suggested.point.lateralYards * Math.tan((40 * Math.PI) / 180),
+      6,
+    );
     expect(unsnapped).toEqual({
-      point: { lateralYards: 5, depthYards: 8 },
+      point: { lateralYards: 9.83, depthYards: 6.883 },
       snapped: false,
     });
     expect(constrained).toMatchObject({
       snapped: true,
-      guide: { angleDegrees: 45, strong: true },
+      guide: { angleDegrees: 60, strong: true },
     });
-    expect(constrained.point.lateralYards).toBe(constrained.point.depthYards);
+    expect(constrained.point.depthYards).toBeCloseTo(
+      constrained.point.lateralYards * Math.sqrt(3),
+      6,
+    );
   });
 });
 

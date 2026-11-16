@@ -9146,7 +9146,16 @@ export function ChalkApp({
             BALL
           </button>
           <span data-formation-status>{formationStatus}</span>
-          <span className="status-snap">SNAP {snapEnabled ? "ON" : "OFF"}</span>
+          <button
+            aria-label="Snapping"
+            aria-pressed={snapEnabled}
+            className="status-snap"
+            onClick={() => setSnapEnabled((enabled) => !enabled)}
+            title="Turn snapping on or off — S"
+            type="button"
+          >
+            SNAP {snapEnabled ? "ON" : "OFF"}
+          </button>
           {lineStatus ? (
             <span
               className={`status-line${lineCount?.legal === false ? " illegal" : ""}`}

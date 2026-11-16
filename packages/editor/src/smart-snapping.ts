@@ -160,7 +160,7 @@ const ROW_TOLERANCE_YARDS = 0.75;
 const SPLIT_MATCH_YARDS = 0.01;
 /** Two men this close on an axis stand on the same guide. */
 const MEMBER_TOLERANCE_YARDS = 1e-6;
-const DIRECTION_INCREMENT_DEGREES = 45;
+const DIRECTION_INCREMENT_DEGREES = 10;
 const DIRECTION_COUNT = 360 / DIRECTION_INCREMENT_DEGREES;
 
 /**
@@ -830,7 +830,7 @@ function pointScreenDistance(
 }
 
 /**
- * Suggests or constrains a route break to grass-true 45-degree increments.
+ * Suggests or constrains a route break to grass-true 10-degree increments.
  * Screen scale controls only activation tolerance, never the football angle.
  */
 export function snapRouteEndpoint(

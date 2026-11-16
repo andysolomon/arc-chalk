@@ -122,7 +122,7 @@ const updatePath = (path: MovementPath): PrimitivePlayCommand => ({
 });
 
 /**
- * Dragging a break constrains it to 45 degrees from the break before it, then
+ * Dragging a break constrains it to 10-degree steps from the break before it, then
  * lets football landmarks claim it — the original's order, so an angle the
  * Coach set is not undone by a landmark and a landmark still wins ties.
  */
@@ -139,7 +139,7 @@ function dragNode(
   if (!original) return { update: updatePath(path), guides: [] };
   const previous = predecessorOf(path, branchIndex, pointIndex);
   const constrain = context.snap.enabled !== (shiftKey === true);
-  // In the tackle box a break is not held to 45°, and it finds the gaps
+  // In the tackle box a break is not held to 10° steps, and it finds the gaps
   // rather than the men on the line, whose spots and depth are left out of
   // what it can line up with (issue #164).
   const box = tackleBoxFor(context, path.playerId, path.kind, point);

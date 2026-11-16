@@ -332,7 +332,7 @@ test("changes the markings and the words from the inspector without moving the P
 
 test("drives the snap key and live status-bar camera controls", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto("/");
 
   // Snap has no rail button any more (ADR 0052); S is its switch and the
@@ -352,6 +352,18 @@ test("drives the snap key and live status-bar camera controls", async ({
   await expect(page.locator(".status-controls")).toContainText("SNAP OFF");
   await page.keyboard.press("s");
   await expect(page.locator(".status-controls")).not.toContainText("SNAP OFF");
+
+  // The readout is a switch too: a click flips it as S does.
+  const snap = page.getByRole("button", { name: "Snapping" });
+  await expect(snap).toHaveAttribute("aria-pressed", "true");
+  await snap.click();
+  await expect(snap).toHaveText("SNAP OFF");
+  await expect(snap).toHaveAttribute("aria-pressed", "false");
+  await page.locator(".status-controls").screenshot({
+    path: testInfo.outputPath("status-bar-snap-off.png"),
+  });
+  await snap.click();
+  await expect(snap).toHaveText("SNAP ON");
 
   const fit = await cameraOf(page);
 
