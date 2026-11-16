@@ -1031,7 +1031,17 @@ describe("holding a zone bubble on the field", () => {
   });
 
   it("stops a dragged defender where his bubble touches the sideline", () => {
-    const document = dropAt(0, { radiusLateralYards: 5, radiusDepthYards: 4 });
+    const drawn = dropAt(0, { radiusLateralYards: 5, radiusDepthYards: 4 });
+    // Deep enough that the sideline, not Z standing there, is what stops him
+    // (ADR 0086 pushes a man off a teammate he is dropped on).
+    const document: PlayDocument = {
+      ...drawn,
+      players: drawn.players.map((man) =>
+        man.id === "q"
+          ? { ...man, position: { lateralYards: 0, depthYards: -8 } }
+          : man,
+      ),
+    };
     const q = positionOf(document, "q");
     const session = run(zoneContext(document), [
       down(q),
