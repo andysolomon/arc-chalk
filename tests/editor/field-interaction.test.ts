@@ -395,7 +395,7 @@ describe("field interaction drawing by hand between breaks", () => {
     const points = session.model.drawing!.points;
     expect(points).toHaveLength(2);
     expect(points[1]!.traced).toBeUndefined();
-    // Snap holds the break on the 45° ray: straight up from his stance.
+    // Snap holds the break on a 10° ray: straight up from his stance.
     expect(points[1]!.lateralYards).toBeCloseTo(q.lateralYards, 6);
     expect(points[1]!.depthYards).toBeGreaterThan(q.depthYards + 8);
   });

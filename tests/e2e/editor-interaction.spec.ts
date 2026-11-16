@@ -259,7 +259,7 @@ test("draws a route from the selected man's inspector and commits it once", asyn
   await expect(preview).toHaveAttribute("d", /^M 500 478 L 500 /);
 
   await page.mouse.move(start.x, start.y - 60);
-  // Snap constrains the break to a 45 degree family member — here straight
+  // Snap constrains the break to a 10 degree step — here straight
   // downfield, so the preview keeps the Quarterback's lateral position.
   await expect(preview).toHaveAttribute("d", /^M 500 478 L 500 \d/);
   await page.mouse.click(start.x, start.y - 60);

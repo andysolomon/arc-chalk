@@ -89,7 +89,7 @@ const RUN_LINE_KINDS: ReadonlySet<MovementPath["kind"]> = new Set([
 
 /**
  * The tackle box, when a break on this man's line is landing in it. There
- * the men stand shoulder to shoulder, so a break is not held to 45° off the
+ * the men stand shoulder to shoulder, so a break is not held to 10° steps off the
  * last one — that lays a pull along the line, behind the men on it — and it
  * finds the gaps rather than the men (issue #164).
  */
@@ -127,7 +127,7 @@ export function snapIntoGap(
 }
 
 export /**
- * Where the next break would land: constrained to grass-true 45° increments
+ * Where the next break would land: constrained to grass-true 10° increments
  * from the last one while snap is on (Shift inverts) — or, in the tackle box,
  * put in the gap it is aimed at instead — then clamped, then
  * overridden in depth by any digits the Coach has typed. A traced line is
