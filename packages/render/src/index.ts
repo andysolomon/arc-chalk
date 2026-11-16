@@ -339,8 +339,14 @@ export function buildRenderScene(
           ...(coverageArea === undefined ? {} : { coverageArea }),
           ...(covers === undefined ? {} : { covers }),
           ...(layers.reads && readOrder !== undefined ? { readOrder } : {}),
-          ...(layers.notes && conversion !== undefined ? { conversion } : {}),
-          ...(layers.notes && coachingNote !== undefined
+          ...(layers.conversions && conversion !== undefined
+            ? { conversion }
+            : {}),
+          // A motion's note is the only thing written on it (ADR 0080),
+          // so it prints the way a conversion does; on any other line the
+          // note waits for the Notes layer.
+          ...((kind === "motion" ? layers.conversions : layers.notes) &&
+          coachingNote !== undefined
             ? { coachingNote }
             : {}),
           ...(layers.assigns && assignment ? { assignment } : {}),

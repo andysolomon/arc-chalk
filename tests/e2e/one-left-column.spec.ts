@@ -95,16 +95,17 @@ test("the tools head the sidebar, and folding it leaves them as a rail", async (
   }
 
   // The icons still work: Show on field opens its control beside the rail,
-  // and a layer hidden there shows in the icon's name.
+  // and a layer hidden there shows in the icon's name. Notes start off the
+  // field, so four of the five layers show to begin with.
   await folded(page)
-    .getByRole("button", { name: "Show on field, All shown" })
+    .getByRole("button", { name: "Show on field, 4 of 5" })
     .click();
   const layers = folded(page).getByRole("group", { name: "Show on field" });
   await expect(layers).toBeVisible();
   expect((await box(layers)).x).toBeGreaterThanOrEqual(rail.x + rail.width);
   await layers.locator(".layer-toggles > button").first().click();
   await expect(
-    folded(page).getByRole("button", { name: /^Show on field, \d+ of \d+$/ }),
+    folded(page).getByRole("button", { name: "Show on field, 3 of 5" }),
   ).toBeVisible();
   await page.screenshot({
     clip: { x: 0, y: rail.y, width: 400, height: rail.height },

@@ -83,10 +83,16 @@ const scoutCardWindow: FieldWindow = Object.freeze({
   maxDepthYards: depthAtLegacyY(268),
 });
 
+/**
+ * Notes start off the field: a coaching note is the Coach talking about the
+ * line, not part of the drawing, and a third line at every route's end
+ * crowds a busy Play. It still rides with the line and prints in the
+ * install table; Show on field → Notes puts it back on the diagram.
+ */
 export const defaultLayers: FieldLayers = Object.freeze({
   reads: true,
   assigns: true,
-  notes: true,
+  notes: false,
   text: true,
 });
 
@@ -107,7 +113,7 @@ const TYPE = Object.freeze({
     read: 13,
     notes: true,
     flat: false,
-    hint: "Dense — reads, assignments, conversions and notes all on the field.",
+    hint: "Dense — reads, assignments and conversions all on the field.",
   }),
   player: Object.freeze({
     name: "Player",
@@ -222,17 +228,22 @@ export function shadowShown(
 
 /**
  * Layers the Coach toggled, with the type preset's own notes flag applied.
- * Player type hides conversions and coaching notes even when Notes is on —
- * the toggle still reads on; the field just does not draw them.
+ * A conversion rides on its Assignment's line, so it shows with
+ * Assignments, as does a motion's note, the only words a motion has; Notes
+ * is every other line's coaching note. Player type hides both
+ * even when their layers are on — the toggles still read on; the field
+ * just does not draw them.
  */
 export function effectiveLayers(
   presentation: Presentation = defaultPresentation,
-): FieldLayers {
+): FieldLayers & { readonly conversions: boolean } {
   const layers = { ...defaultLayers, ...presentation.layers };
+  const dense = resolveTypeDensity(presentation).notes;
   return {
     reads: layers.reads,
     assigns: layers.assigns,
-    notes: layers.notes && resolveTypeDensity(presentation).notes,
+    conversions: layers.assigns && dense,
+    notes: layers.notes && dense,
     text: layers.text,
   };
 }
