@@ -17,6 +17,7 @@ import {
   type FieldItemRef,
 } from "@chalk/editor";
 import { useEffect, useId, useRef, useState } from "react";
+import { keepInViewport } from "./keep-in-viewport";
 
 export function SelectionToolbar({
   document,
@@ -396,6 +397,7 @@ function ArrangeMenu({
         className="menu-panel arrange-panel"
         hidden={!open}
         id={`${id}-panel`}
+        ref={keepInViewport}
         role="group"
       >
         {sections.map((section, place) => (

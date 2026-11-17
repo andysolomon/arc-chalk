@@ -172,6 +172,11 @@ test("organizes a library: empty books, saved fronts, copy and move, install ord
     .click();
   await page.getByRole("button", { name: "New play" }).click();
   await page.getByRole("button", { name: /^New defensive play/ }).click();
+  // The Defenses browser opens on the new play once it is stored, and takes
+  // focus; naming the play before then lost the name to the browser's search.
+  await expect(page.getByRole("dialog", { name: "Defenses" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Defenses" })).toBeHidden();
   await page
     .getByRole("textbox", { name: "Play name" })
     .fill("Goal Line Pinch");

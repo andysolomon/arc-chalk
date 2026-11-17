@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 
 import { PRESET_GROUP_NAMES, type PresetChoice } from "./preset-choices";
+import { keepInViewport } from "./keep-in-viewport";
 
 /**
  * The inspector's progressive disclosure (issue #64). The idle panel used to
@@ -372,6 +373,7 @@ export function LayersPopover({
         <div
           aria-label="Show on the field"
           className="menu-panel layers-panel"
+          ref={keepInViewport}
           role="group"
         >
           <div className="menu-head">SHOW ON THE FIELD</div>

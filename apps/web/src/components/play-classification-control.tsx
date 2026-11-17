@@ -13,6 +13,7 @@ import {
   type Playbook,
 } from "@chalk/domain";
 import { useState } from "react";
+import { keepInViewport } from "./keep-in-viewport";
 
 export type AddPlayTypeOutcome =
   | { readonly ok: true; readonly playType: PlayTypeDefinition }
@@ -164,6 +165,7 @@ function ClassificationPanel({
     <div
       aria-label="Play classification"
       className="menu-panel classify-panel"
+      ref={keepInViewport}
       role="group"
     >
       <div className="menu-head">{unitName(play.unit).toUpperCase()} TYPE</div>
