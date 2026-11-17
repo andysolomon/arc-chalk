@@ -283,3 +283,49 @@ test("keeps a defensive call's halves and lays a Middle 1/3 over the middle, as 
   ]);
   await saveField(page, testInfo, "2-tampa-2");
 });
+
+/** The depth, in frame units, every bubble in `lines` is drawn at. */
+async function rowsOf(page: Page, lines: string): Promise<number[]> {
+  const rows = await page
+    .locator(`${lines} [data-scene-coverage] ellipse`)
+    .evaluateAll((ellipses) =>
+      ellipses.map((ellipse) => Number(ellipse.getAttribute("cy"))),
+    );
+  return [...new Set(rows.map((y) => Math.round(y * 100) / 100))];
+}
+
+/** Where a man stands down the field, in frame units. */
+async function standsAt(man: Locator): Promise<number> {
+  return Number(
+    /translate\([-\d.]+[ ,]+([-\d.]+)/.exec(
+      (await man.getAttribute("transform")) ?? "",
+    )?.[1],
+  );
+}
+
+test("drops a linebacker called deep as deep as the secondary, not into a middle read", async ({
+  page,
+}, testInfo) => {
+  await openSeededEditor(page);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await putOnDefense(page, "Nickel Cover 2", false);
+  await expect(page.locator("[data-scene-coverage]")).toHaveCount(0);
+
+  const [freeSafety] = await defendersLettered(page, "F");
+  const [mike] = await defendersLettered(page, "M");
+
+  // Alone in the deep shell, the mike's Middle 1/3 is laid behind the
+  // safeties, where a deep zone is, not four yards behind his own stance.
+  await call(page, mike!, "Middle 1/3");
+  await expectDeepShares(page, [[1, 3]]);
+  const [mikeRow] = await rowsOf(page, '[aria-label="M deep zone"]');
+  // The field is drawn with the offense at the bottom: deeper is higher up.
+  expect(mikeRow!).toBeLessThan(await standsAt(freeSafety!));
+  await saveField(page, testInfo, "1-mike-middle-third");
+
+  // A safety called deep after him joins the same line of coverage.
+  await call(page, freeSafety!, "Deep 1/2");
+  await expect.poll(async () => (await deepCenters(page)).length).toBe(2);
+  expect(await rowsOf(page, '[aria-label$="deep zone"]')).toEqual([mikeRow]);
+  await saveField(page, testInfo, "2-one-deep-line");
+});

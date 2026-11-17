@@ -43,7 +43,8 @@ Play behaves as the stages before it describe.
 His side is the side of the ball he stands on. A man straight over the ball takes the
 field side; on the middle of the field, the left as the diagram is drawn. The field is
 split in its own width, as before, and every deep bubble settles at one depth: 4 yards
-behind the deepest man in it, and never shallower than 13.
+behind the deepest man on the defense, and never shallower than 13. A linebacker or
+lineman called deep drops as deep as the safeties behind him, not to a middle read.
 
 **Men whose calls name the same ground share it**: one bubble, a line from each. This
 holds underneath too. Two men given the same call that lands on the same landmark, such
