@@ -65,10 +65,6 @@ export function FieldProfileSection({
           );
         })}
       </div>
-      <p>
-        High school, college and NFL hashes. Changing the profile never moves a
-        man or a route.
-      </p>
       {staleProfile ? (
         <div className="help-row">
           <button

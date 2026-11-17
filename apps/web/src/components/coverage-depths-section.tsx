@@ -4,6 +4,8 @@ import {
   type CoverageDepths,
 } from "@chalk/domain";
 
+import { SettingsCard } from "./settings-overlay";
+
 const yards = (value: number) => (value === 1 ? "1 yard" : `${value} yards`);
 
 /**
@@ -28,46 +30,44 @@ export function CoverageDepthsSection({
     onChange(next);
   };
   return (
-    <div
-      aria-label="Coverage defaults"
-      className="coverage-depths"
-      role="group"
+    <SettingsCard
+      hint="Where every defense you put on, and every reset back to one, stands its corners and deep safeties. In Cover 0 the men in man line up on their receivers at that depth; with a safety deep behind them they stay where the call puts them."
+      title="Coverage defaults"
     >
-      <span className="section-heading">Coverage defaults</span>
-      <label className="settings-field">
-        <span className="settings-field-label">Corners off the ball</span>
-        <select
-          onChange={(event) => pick("cornerYards", event.target.value)}
-          value={depths?.cornerYards ?? ""}
-        >
-          <option value="">As the call draws it</option>
-          {CORNER_DEPTH_CHOICES.map((value) => (
-            <option key={value} value={value}>
-              {value === 1 ? "Press — 1 yard" : yards(value)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="settings-field">
-        <span className="settings-field-label">Deep safeties off the ball</span>
-        <select
-          onChange={(event) => pick("safetyYards", event.target.value)}
-          value={depths?.safetyYards ?? ""}
-        >
-          <option value="">As the call draws it</option>
-          {SAFETY_DEPTH_CHOICES.map((value) => (
-            <option key={value} value={value}>
-              {yards(value)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p>
-        Every defense you put on, and every reset back to one, stands its
-        corners and deep safeties here. In Cover 0 the men in man then line up
-        on their receivers at that depth; with a safety deep behind them they
-        stay where the call puts them.
-      </p>
-    </div>
+      <div
+        aria-label="Coverage defaults"
+        className="coverage-depths"
+        role="group"
+      >
+        <label className="settings-row">
+          <span className="settings-row-label">Corners off the ball</span>
+          <select
+            onChange={(event) => pick("cornerYards", event.target.value)}
+            value={depths?.cornerYards ?? ""}
+          >
+            <option value="">As the call draws it</option>
+            {CORNER_DEPTH_CHOICES.map((value) => (
+              <option key={value} value={value}>
+                {value === 1 ? "Press — 1 yard" : yards(value)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="settings-row">
+          <span className="settings-row-label">Deep safeties off the ball</span>
+          <select
+            onChange={(event) => pick("safetyYards", event.target.value)}
+            value={depths?.safetyYards ?? ""}
+          >
+            <option value="">As the call draws it</option>
+            {SAFETY_DEPTH_CHOICES.map((value) => (
+              <option key={value} value={value}>
+                {yards(value)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </SettingsCard>
   );
 }

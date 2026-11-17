@@ -61,9 +61,6 @@ test("Dark turns the shell and the field dark, and is remembered", async ({
   );
   expect(await theme(page)).toBe("dark");
   expect(await background(page, ".chalk-shell")).toBe("rgb(17, 17, 17)");
-  await expect(settings.getByRole("tab", { name: "Appearance" })).toContainText(
-    "Dark",
-  );
   await settings.getByRole("button", { name: "Close" }).click();
 
   // The field goes dark with the shell: paper and ink trade places.

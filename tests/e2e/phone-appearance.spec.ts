@@ -3,8 +3,8 @@ import { expect, openSeededEditor, test } from "./fixtures";
 /**
  * Dark on a phone (ADR 0061, ADR 0083): Settings is a page with pill tabs,
  * and Appearance is one of them. Picking Dark turns the header, the tools,
- * the assignments sheet and the field dark. The test ends with a screenshot
- * of the editor in the dark.
+ * the assignments sheet and the field dark. The test ends with screenshots
+ * of the Settings page and of the editor in the dark.
  */
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -28,6 +28,9 @@ test("picks Dark from the Settings page and the field goes dark with it", async 
     .getByRole("button", { name: "Dark" })
     .tap();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await settings.screenshot({
+    path: testInfo.outputPath("phone-settings-appearance.png"),
+  });
   await settings.getByRole("button", { name: "Close" }).tap();
   await expect(settings).toHaveCount(0);
 
