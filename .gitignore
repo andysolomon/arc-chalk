@@ -22,3 +22,7 @@ Chalk Football Play Editor-2/
 
 # Vercel project link (machine-local)
 .vercel
+
+# Verification evidence and demo kits (verify-chalk and demo-kit skills)
+.verify/
+.demo-kit/

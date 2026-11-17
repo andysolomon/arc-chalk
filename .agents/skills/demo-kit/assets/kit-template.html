@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{title}} · Chalk demo</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Chalk's own light ramp, from apps/web/src/styles/app.css. */
+      :root {
+        --paper: #fff;
+        --canvas: #fafafa;
+        --wash: #f2f2f2;
+        --rule: #d4d4d4;
+        --line: rgb(0 0 0 / 0.08);
+        --muted: #6b6b6b;
+        --ink-soft: #4d4d4d;
+        --ink: #171717;
+        --blue: #005fcc;
+        --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --mono: "Geist Mono", ui-monospace, monospace;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-synthesis: none;
+        line-height: 1.5;
+      }
+      main {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 32px 24px 96px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+      }
+      .brand svg {
+        width: 26px;
+        height: 26px;
+      }
+      .tag,
+      .count,
+      .facts,
+      footer {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .tag {
+        margin-left: auto;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 56px 0 12px;
+        max-width: 18ch;
+        font-size: clamp(32px, 5vw, 52px);
+        font-weight: 600;
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+      }
+      .summary {
+        margin: 0;
+        max-width: 62ch;
+        font-size: 19px;
+        color: var(--ink-soft);
+      }
+      .facts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 20px;
+        margin: 20px 0 28px;
+        padding: 0;
+        list-style: none;
+      }
+      .film {
+        display: block;
+        width: 100%;
+        aspect-ratio: {{ratio}};
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--ink);
+      }
+      h2 {
+        margin: 72px 0 8px;
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      .lede {
+        margin: 0 0 20px;
+        max-width: 62ch;
+        color: var(--ink-soft);
+      }
+      .steps {
+        margin: 20px 0 0;
+        padding: 0;
+        list-style: none;
+        border-top: 1px solid var(--line);
+      }
+      .step {
+        display: grid;
+        grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+        gap: 32px;
+        align-items: start;
+        padding: 28px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .still img {
+        display: block;
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--paper);
+      }
+      .count {
+        margin: 4px 0 6px;
+      }
+      h3 {
+        margin: 0 0 8px;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        line-height: 1.25;
+      }
+      .words p {
+        margin: 0 0 14px;
+        color: var(--ink-soft);
+      }
+      button[data-seek] {
+        padding: 6px 12px;
+        border: 1px solid var(--rule);
+        border-radius: 6px;
+        background: var(--paper);
+        color: var(--ink);
+        font: 500 13px var(--sans);
+        cursor: pointer;
+      }
+      button[data-seek]:hover {
+        background: var(--wash);
+      }
+      button[data-seek]:focus-visible,
+      a:focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 2px;
+      }
+      .diagram {
+        overflow-x: auto;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--paper);
+      }
+      .diagram svg {
+        display: block;
+        width: 100%;
+        min-width: 880px;
+        height: auto;
+      }
+      .try {
+        display: grid;
+        grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+        gap: 32px;
+        margin-top: 20px;
+        padding: 24px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--paper);
+      }
+      .try p {
+        margin: 0;
+        color: var(--ink-soft);
+      }
+      .try ol {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .try li + li {
+        margin-top: 6px;
+      }
+      footer {
+        margin-top: 72px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+      }
+      footer p {
+        margin: 0 0 6px;
+      }
+      code {
+        font-family: var(--mono);
+        color: var(--ink);
+      }
+      @media (max-width: 760px) {
+        .step,
+        .try {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">
+        <svg viewBox="0 0 26 26" aria-hidden="true">
+          <rect width="26" height="26" rx="6" fill="#171717" />
+          <path d="M10 7.5v11l8.5-5.5z" fill="#fff" />
+        </svg>
+        <span>Chalk</span>
+        <span class="tag">Demo kit</span>
+      </div>
+
+      <h1>{{title}}</h1>
+      <p class="summary">{{summary}}</p>
+      <ul class="facts">
+        <li>{{stepCount}} steps</li>
+        <li>{{duration}} of film</li>
+        <li>{{where}}</li>
+      </ul>
+
+      <video
+        class="film"
+        id="film"
+        src="walkthrough.mp4"
+        poster="poster.png"
+        controls
+        playsinline
+        preload="metadata"
+      ></video>
+
+      <section aria-labelledby="steps">
+        <h2 id="steps">Step by step</h2>
+        <ol class="steps">{{steps}}
+        </ol>
+      </section>
+      {{diagram}}
+
+      <section aria-labelledby="try">
+        <h2 id="try">Try it yourself</h2>
+        <div class="try">
+          <div>
+            <p class="count">Where it is</p>
+            <p>{{where}}</p>
+          </div>
+          <ol>
+            {{tryIt}}
+          </ol>
+        </div>
+      </section>
+
+      <footer>
+        <p>
+          Filmed in Chromium at {{frame}} on commit {{commit}}{{commitNote}},
+          {{date}}.
+        </p>
+        <p>
+          Film it again with
+          <code>bun .agents/skills/demo-kit/scripts/demo-kit.ts record {{slug}}</code>.
+        </p>
+      </footer>
+    </main>
+    <script>
+      const film = document.getElementById("film");
+      for (const button of document.querySelectorAll("button[data-seek]")) {
+        button.addEventListener("click", () => {
+          film.currentTime = Number(button.dataset.seek);
+          film.play();
+          film.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      }
+    </script>
+  </body>
+</html>

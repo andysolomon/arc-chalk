@@ -42,10 +42,14 @@ PR open, merged), confirm it and move on.
    - Port 4173 may already be served by another worktree's dev server, and the
      Playwright config reuses whatever answers there — so the run tests the
      wrong code. Check with `ss -ltnp | grep 4173` and the owning process's
-     cwd. If it is not this checkout, run against a copy of
-     `playwright.config.ts` with a free port and `reuseExistingServer: false`,
-     then delete the copy.
+     cwd. If it is not this checkout, drive the specs through the
+     `verify-chalk` skill, which starts this checkout's own server on a free
+     port.
    - WebKit may not launch locally for lack of system libraries; CI runs it.
+4. Run the `verify-chalk` skill for any change a Coach can see. It drives the
+   change in Chromium and leaves screenshots, a video and a trace under
+   `.verify/runs`. Do not open the pull request until its report marks each
+   changed behavior verified.
 
 ## 2. Commit
 
@@ -74,8 +78,11 @@ gh pr create --base main --title "<commit subject>" --body "<body>"
 ```
 
 The body: what changed and why, then a **Testing** section listing the checks
-run and the e2e artifact (screenshot or export) the new spec produces. Same
-no-attribution rule. If the host has a PR-linking tool, link the PR.
+run, the e2e artifact (screenshot or export) the new spec produces, and the
+`verify-chalk` report: each behavior, the entry point driven, and the evidence
+file that shows it. Same no-attribution rule. Run the body through
+`bun scripts/check-copy.ts -` before you post it. If the host has a
+PR-linking tool, link the PR.
 
 ## 5. Wait for green, then merge
 
