@@ -16,10 +16,12 @@ import type {
  * A defense's zones are one shell rather than a drop per man. A deep call is
  * the ground its name says (ADR 0075): Middle 1/3 the middle third of the
  * field, Deep 1/3 the outside third on the man's side, Deep 1/2 his half and
- * Deep 1/4 the quarter nearest him, all at one depth. Men called to the same
- * ground share it. Underneath, each bubble stays where it was called to unless
- * it would sit on a neighbour's, and then the two are slid apart until they
- * meet at a seam; two men called to the same landmark share its bubble.
+ * Deep 1/4 the quarter nearest him, all at one depth. No two men stand in the
+ * same bubble (ADR 0087): men called to the same ground split it between them,
+ * side by side in the order they line up. Underneath, each bubble stays where
+ * it was called to unless it would sit on a neighbour's — another man's call,
+ * or the same call at the same landmark — and then they are slid apart until
+ * they meet at a seam.
  *
  * The shell is laid out when the Coach changes who is in it — a zone called on
  * a defender, or taken off — so the defenders already dropping make room for
@@ -242,12 +244,14 @@ function landed(
 }
 
 /**
- * The deep shell. Each deep call is laid on the ground it names, its bubble as
- * wide as its share of the field less the seam — though never wider than a
- * zone can be sized — so men called to the same ground share one bubble.
- * They settle at one depth, behind the deepest man on the defense, so the
- * shell reads as one line of coverage and a backer called deep drops as deep
- * as the secondary. A deep drop that is no call stays where it was drawn.
+ * The deep shell. Each deep call is laid on the ground it names. A man alone
+ * on his ground has a bubble as wide as it less the seam; men called to the
+ * same ground split it in equal parts, left to right in the order they line
+ * up, so their lines never cross and no two of them stand in one bubble.
+ * Either way a bubble is never wider than a zone can be sized. They settle at
+ * one depth, behind the deepest man on the defense, so the shell reads as one
+ * line of coverage and a backer called deep drops as deep as the secondary. A
+ * deep drop that is no call stays where it was drawn.
  */
 function layDeep(
   play: ZoneShellPlay,
@@ -279,24 +283,44 @@ function layDeep(
     DEEP_ZONE_DEPTH_YARDS,
     deepest + DEEP_CUSHION_YARDS,
   );
-  for (const { drop, ground } of called) {
+  const grounds = new Map<string, (typeof called)[number][]>();
+  for (const entry of called) {
+    const key = `${entry.ground.shareYards}:${entry.ground.lateralYards}`;
+    grounds.set(key, [...(grounds.get(key) ?? []), entry]);
+  }
+  for (const sharing of grounds.values()) {
+    const { ground } = sharing[0]!;
+    const partYards = ground.shareYards / sharing.length;
     const radiusLateralYards = Math.max(
       bounds.min,
-      Math.min(bounds.max, ground.shareYards / 2 - ZONE_SEAM_YARDS / 2),
+      Math.min(bounds.max, partYards / 2 - ZONE_SEAM_YARDS / 2),
     );
-    const center = { lateralYards: ground.lateralYards, depthYards };
-    const unchanged =
-      drop.path.coverageArea !== undefined &&
-      Math.abs(drop.end.lateralYards - center.lateralYards) <=
-        SAME_SPOT_YARDS &&
-      Math.abs(drop.end.depthYards - center.depthYards) <= SAME_SPOT_YARDS &&
-      Math.abs(drop.area.radiusLateralYards - radiusLateralYards) <=
-        SAME_SPOT_YARDS;
-    if (unchanged) continue;
-    moved.set(
-      drop.path.id,
-      landed(drop, center, { ...drop.area, radiusLateralYards }),
+    const inOrder = [...sharing].sort(
+      (left, right) =>
+        left.drop.stance.lateralYards - right.drop.stance.lateralYards ||
+        byId(left.drop, right.drop),
     );
+    inOrder.forEach(({ drop }, index) => {
+      const center = {
+        lateralYards:
+          ground.lateralYards -
+          ground.shareYards / 2 +
+          (index + 0.5) * partYards,
+        depthYards,
+      };
+      const unchanged =
+        drop.path.coverageArea !== undefined &&
+        Math.abs(drop.end.lateralYards - center.lateralYards) <=
+          SAME_SPOT_YARDS &&
+        Math.abs(drop.end.depthYards - center.depthYards) <= SAME_SPOT_YARDS &&
+        Math.abs(drop.area.radiusLateralYards - radiusLateralYards) <=
+          SAME_SPOT_YARDS;
+      if (unchanged) return;
+      moved.set(
+        drop.path.id,
+        landed(drop, center, { ...drop.area, radiusLateralYards }),
+      );
+    });
   }
   return moved;
 }
@@ -346,8 +370,9 @@ interface Run {
  * Where each bubble on a row goes across the field. A bubble clear of its
  * neighbours stays where it was called to. Bubbles that would stack are laid
  * side by side, seam to seam and in the order they were called across the
- * field, as a group as near as it can be to where each of them was called;
- * and every group is held between the sidelines.
+ * field — men called to one spot in the order they line up, so their lines
+ * never cross — as a group as near as it can be to where each of them was
+ * called; and every group is held between the sidelines.
  */
 function spreadAcross(
   row: readonly Drop[],
@@ -393,51 +418,21 @@ function spreadAcross(
   });
 }
 
-/**
- * Drops that share a bubble: men called to the same landmark with the same
- * call. Each group is laid out as the one bubble its first drop draws, and
- * every man in it goes where that bubble goes. A drop that is no call is a
- * group of its own.
- */
-function sharedGroupsOf(drops: readonly Drop[]): Map<Drop, readonly Drop[]> {
-  const groups = new Map<Drop, Drop[]>();
-  const sorted = [...drops].sort(byId);
-  for (const drop of sorted) {
-    const lead =
-      drop.path.preset === undefined
-        ? undefined
-        : [...groups.keys()].find(
-            (other) =>
-              other.path.preset === drop.path.preset &&
-              Math.abs(other.end.lateralYards - drop.end.lateralYards) <=
-                SAME_SPOT_YARDS &&
-              Math.abs(other.end.depthYards - drop.end.depthYards) <=
-                SAME_SPOT_YARDS,
-          );
-    if (lead) groups.get(lead)!.push(drop);
-    else groups.set(drop, [drop]);
-  }
-  return groups;
-}
-
 function layUnderneath(
   play: ZoneShellPlay,
   drops: readonly Drop[],
 ): Map<string, MovementPath> {
   const moved = new Map<string, MovementPath>();
   const halfWidth = play.fieldProfile.widthYards / 2;
-  const groups = sharedGroupsOf(drops);
-  for (const row of rowsOf([...groups.keys()])) {
-    for (const [lead, lateralYards] of spreadAcross(row, halfWidth)) {
-      for (const drop of groups.get(lead)!) {
-        if (Math.abs(lateralYards - drop.end.lateralYards) <= SAME_SPOT_YARDS) {
-          continue;
-        }
-        moved.set(
-          drop.path.id,
-          landed(drop, { lateralYards, depthYards: drop.end.depthYards }),
-        );
+  for (const row of rowsOf(drops)) {
+    for (const [drop, lateralYards] of spreadAcross(row, halfWidth)) {
+      if (Math.abs(lateralYards - drop.end.lateralYards) <= SAME_SPOT_YARDS) {
+        continue;
       }
+      moved.set(
+        drop.path.id,
+        landed(drop, { lateralYards, depthYards: drop.end.depthYards }),
+      );
     }
   }
   return moved;

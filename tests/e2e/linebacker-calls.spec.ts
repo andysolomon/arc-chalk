@@ -278,10 +278,11 @@ test("drops the right end into the strong safety's curl/flat when he plays the m
     $: "Middle 1/3",
     E2: "Curl / flat",
   });
-  // He and the free safety share the middle third.
-  const middle = await centersOf(page, '[aria-label="F deep zone"]');
-  expect(middle).toHaveLength(1);
-  expect(await centersOf(page, '[aria-label="$ deep zone"]')).toEqual(middle);
+  // He and the free safety split the middle third, each in his own bubble
+  // side by side, the free safety on the left where he stands (ADR 0087).
+  const [free] = await centersOf(page, '[aria-label="F deep zone"]');
+  const [strong] = await centersOf(page, '[aria-label="$ deep zone"]');
+  expect(free).toBeLessThan(strong!);
   expect(await openZones(page)).toEqual([]);
   await saveField(page, testInfo, "ss-middle-third");
 

@@ -1,6 +1,7 @@
 ---
 status: accepted
 amends: 0059-zones-lay-out-as-a-shell
+amended_by: 0087-no-two-men-in-one-bubble
 ---
 
 # The defense is called by unit, the coverage is in charge, and a zone is the ground its name says

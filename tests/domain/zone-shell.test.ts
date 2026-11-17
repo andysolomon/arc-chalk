@@ -15,14 +15,16 @@ import { describe, expect, it } from "vitest";
 /**
  * The zone shell's geometry in isolation (ADR 0059, ADR 0075). The
  * Coach-visible behaviour — calling, undoing, blitzing, clearing and taking
- * off a zone, two men sharing one, and a catalogue call joined by one more —
+ * off a zone, two men called to one laid side by side, and a catalogue call joined by one more —
  * is `tests/e2e/zone-shell.spec.ts`. These cases are the ways the layout could
  * be wrong while still looking plausible on the field, which that journey
  * would not catch:
  *
  * - a deep call laid out by counting the deep men rather than by its name: a
- *   lone Deep 1/3 given the middle, two Middle 1/3 split into halves, mixed
- *   calls forced into equal shares;
+ *   lone Deep 1/3 given the middle, two Middle 1/3 splitting the whole field
+ *   in halves, mixed calls forced into equal shares;
+ * - two men called to one deep ground stacked in one bubble, laid past the
+ *   edge of the ground their call names, or crossing each other's lines;
  * - a man's side read off the middle of the field instead of off the ball, or
  *   a man straight over the ball sent to the boundary side;
  * - Deep 1/4 given a quarter other than the one nearest the man;
@@ -36,8 +38,8 @@ import { describe, expect, it } from "vitest";
  * - a call the Coach never sized left out of the shell;
  * - a bend in the last leg left behind when its bubble moves;
  * - underneath bubbles moved when they were already clear of each other;
- * - two men called to one landmark slid apart instead of sharing it, or a
- *   shared bubble laid beside a neighbour as if it were two;
+ * - two men called to one landmark stacked in one bubble, pushed one way off
+ *   it instead of shared out around it, or laid crossing each other's lines;
  * - stacked bubbles pushed one way off each other instead of shared out;
  * - a group spilling past the sideline, or bubbles at depths that never meet
  *   spread as if they did;
@@ -158,7 +160,7 @@ describe("the deep shell", () => {
     expect(area!.radiusLateralYards).toBeCloseTo(shareRadius(3), 9);
   });
 
-  it("lets two men called Middle 1/3 share the middle third rather than splitting the field in halves", () => {
+  it("splits the middle third between two men called Middle 1/3, side by side, rather than stacking them or splitting the field in halves", () => {
     const strongSafety = defender("ss", 8, 10);
     const play = layoutZoneShell(
       playOf(
@@ -174,10 +176,56 @@ describe("the deep shell", () => {
     );
     const free = bubble(play, "f");
     const strong = bubble(play, "s");
-    expect(free.center.lateralYards).toBeCloseTo(0, 9);
-    expect(strong.center).toEqual(free.center);
-    expect(strong.area!.radiusLateralYards).toBeCloseTo(shareRadius(3), 9);
-    expect(free.area!.radiusLateralYards).toBeCloseTo(shareRadius(3), 9);
+    const half = THIRD / 2;
+    // The free safety stands to the left of the strong safety, so he takes
+    // the left half of the middle third and their lines never cross.
+    expect(free.center.lateralYards).toBeCloseTo(-half / 2, 9);
+    expect(strong.center.lateralYards).toBeCloseTo(half / 2, 9);
+    // One line of coverage.
+    expect(strong.center.depthYards).toBe(free.center.depthYards);
+    // Each is his half of the third less the seam, so they meet at it and
+    // neither reaches into an outside third.
+    for (const { area } of [free, strong]) {
+      expect(area!.radiusLateralYards).toBeCloseTo(
+        half / 2 - ZONE_SEAM_YARDS / 2,
+        9,
+      );
+    }
+  });
+
+  it("splits an outside third between two men called to it, keeping both inside it", () => {
+    const strongSafety = defender("ss", -12, 10);
+    const play = layoutZoneShell(
+      playOf(
+        [leftCorner, strongSafety],
+        [
+          called("deep3", "c", leftCorner, {
+            lateralYards: -20,
+            depthYards: 16,
+          }),
+          called("deep3", "s", strongSafety, {
+            lateralYards: -12,
+            depthYards: 16,
+          }),
+        ],
+      ),
+    );
+    const corner = bubble(play, "c");
+    const safety = bubble(play, "s");
+    // The corner is the wider man, so he keeps the outside of the third.
+    expect(corner.center.lateralYards).toBeLessThan(safety.center.lateralYards);
+    const gap =
+      safety.center.lateralYards -
+      safety.area!.radiusLateralYards -
+      (corner.center.lateralYards + corner.area!.radiusLateralYards);
+    expect(gap).toBeCloseTo(ZONE_SEAM_YARDS, 9);
+    // Neither spills out of the third the call names.
+    expect(
+      corner.center.lateralYards - corner.area!.radiusLateralYards,
+    ).toBeGreaterThanOrEqual(-WIDTH / 2);
+    expect(
+      safety.center.lateralYards + safety.area!.radiusLateralYards,
+    ).toBeLessThanOrEqual(-WIDTH / 2 + THIRD);
   });
 
   it("lays a Cover 3 called man by man in thirds, at one depth behind the deepest of them", () => {
@@ -447,22 +495,35 @@ describe("underneath", () => {
     expect(right.depthYards).toBe(8);
   });
 
-  it("lets two men called to one landmark share its bubble instead of sliding apart", () => {
-    const before = playOf(
-      [will, mike],
-      [
-        drop("w", will, { lateralYards: 0, depthYards: 10 }, hookArea, {
-          preset: "hook",
-        }),
-        drop("m", mike, { lateralYards: 0, depthYards: 10 }, hookArea, {
-          preset: "hook",
-        }),
-      ],
+  it("lays two men called to one landmark side by side, centred on it, instead of stacking them in one bubble", () => {
+    const play = layoutZoneShell(
+      playOf(
+        [mike, sam],
+        [
+          drop("m", mike, { lateralYards: 4, depthYards: 10 }, hookArea, {
+            preset: "hook",
+          }),
+          drop("s", sam, { lateralYards: 4, depthYards: 10 }, hookArea, {
+            preset: "hook",
+          }),
+        ],
+      ),
     );
-    expect(layoutZoneShell(before)).toBe(before);
+    const left = bubble(play, "m").center;
+    const right = bubble(play, "s").center;
+    // The mike stands inside the sam, so he takes the inside bubble and
+    // their lines never cross.
+    expect(right.lateralYards - left.lateralYards).toBeCloseTo(
+      2 * hookArea.radiusLateralYards + ZONE_SEAM_YARDS,
+      9,
+    );
+    // Shared out around the landmark, not one man pushed off the other.
+    expect((left.lateralYards + right.lateralYards) / 2).toBeCloseTo(4, 9);
+    expect(left.depthYards).toBe(10);
+    expect(right.depthYards).toBe(10);
   });
 
-  it("lays a shared bubble beside a neighbour as one bubble, not two", () => {
+  it("lays two men at one landmark beside a neighbour as three bubbles, seam to seam", () => {
     const play = layoutZoneShell(
       playOf(
         [will, mike, sam],
@@ -477,15 +538,12 @@ describe("underneath", () => {
         ],
       ),
     );
-    const shared = bubble(play, "w").center;
-    expect(bubble(play, "m").center).toEqual(shared);
-    expect(
-      bubble(play, "s").center.lateralYards - shared.lateralYards,
-    ).toBeCloseTo(2 * hookArea.radiusLateralYards + ZONE_SEAM_YARDS, 9);
-    // Shared out between where the hook and the third man were called.
-    expect(
-      shared.lateralYards + bubble(play, "s").center.lateralYards,
-    ).toBeCloseTo(2, 9);
+    const step = 2 * hookArea.radiusLateralYards + ZONE_SEAM_YARDS;
+    const [w, m, s] = ["w", "m", "s"].map(
+      (id) => bubble(play, id).center.lateralYards,
+    );
+    expect(m! - w!).toBeCloseTo(step, 9);
+    expect(s! - m!).toBeCloseTo(step, 9);
   });
 
   it("keeps a group that would spill past a sideline on the field", () => {
