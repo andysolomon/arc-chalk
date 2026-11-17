@@ -24,52 +24,8 @@ export type RailGlyph =
   | "zone"
   | "text"
   | "snap"
-  | "formation"
-  | "shadow"
-  | "shadow-add"
-  | "concept"
-  | "clear-lines"
-  | "clear-players"
-  | "trash"
   | "pointer"
   | "hand";
-
-/**
- * A set as the browsers draw one: three men on the line and a back behind
- * the middle. Drawn here at full size for Formation, and smaller in the
- * corner Clear every player leaves for its badge.
- */
-const SET = [
-  [0, 0],
-  [5.5, 0],
-  [11, 0],
-  [5.5, 7.5],
-] as const;
-const men = (scale: number, x: number, y: number, r = 2 * scale) =>
-  SET.map(([dx, dy]) => (
-    <circle
-      cx={x + dx * scale}
-      cy={y + dy * scale}
-      key={`${dx}-${dy}`}
-      r={r}
-      {...stroke}
-    />
-  ));
-
-/**
- * The add and take-off badges (ADR 0077): a ringed + or − tucked into the
- * glyph's lower right, so every rail button that puts something on the field
- * or takes it off says which, and what.
- */
-const badge = (sign: "+" | "-") => (
-  <>
-    <circle cx="13.6" cy="13.6" r="3.4" {...stroke} />
-    <path
-      d={sign === "+" ? "M12 13.6h3.2M13.6 12v3.2" : "M12 13.6h3.2"}
-      {...stroke}
-    />
-  </>
-);
 
 const icons: Record<RailGlyph, ReactNode> = {
   select: (
@@ -126,53 +82,6 @@ const icons: Record<RailGlyph, ReactNode> = {
       />
     </>
   ),
-  formation: <>{men(1, 3.5, 5.5)}</>,
-  shadow: (
-    // The Play's own man and, ghosted beside him, the other unit's: an O
-    // and a dashed X, which is what the shadow looks like on the field.
-    <>
-      <circle cx="6.5" cy="11.5" r="4" {...stroke} />
-      <path d="M10.5 3.5 L15.5 8.5" {...stroke} strokeDasharray="2 2" />
-      <path d="M15.5 3.5 L10.5 8.5" {...stroke} strokeDasharray="2 2" />
-    </>
-  ),
-  "shadow-add": (
-    // The same O and dashed X, drawn smaller to make room for the + that
-    // says there is no other unit yet and this puts one on.
-    <>
-      <circle cx="5" cy="8.5" r="3.2" {...stroke} />
-      <path d="M10 2.5 L14.5 7" {...stroke} strokeDasharray="2 2" />
-      <path d="M14.5 2.5 L10 7" {...stroke} strokeDasharray="2 2" />
-      {badge("+")}
-    </>
-  ),
-  concept: (
-    // Two men and what the concept has them run together: one goes deep,
-    // the other breaks in under him.
-    <>
-      <circle cx="4" cy="14.5" r="1.8" {...stroke} />
-      <circle cx="14" cy="14.5" r="1.8" {...stroke} />
-      <path d="M4 12.2 L4 3.5" {...stroke} />
-      <path d="M2.4 5.2 L4 3.5 L5.6 5.2" {...stroke} />
-      <path d="M14 12.2 L14 9 L7.5 9" {...stroke} />
-      <path d="M9.2 7.4 L7.5 9 L9.2 10.6" {...stroke} />
-    </>
-  ),
-  "clear-lines": (
-    // A route breaking to the corner, and the − that takes it off.
-    <>
-      <path d="M2.8 15.5 L2.8 11 L10 4.2" {...stroke} />
-      <path d="M6.4 3.6 L10.4 3.8 L10.2 7.8" {...stroke} />
-      {badge("-")}
-    </>
-  ),
-  "clear-players": (
-    // The Formation glyph, smaller, and the − that takes the men off.
-    <>
-      {men(0.82, 3, 4, 1.8)}
-      {badge("-")}
-    </>
-  ),
   pointer: (
     // Select (ADR 0079): the original's arrow, drawn in outline so it reads
     // as a pair with the Hand beside it.
@@ -195,15 +104,6 @@ const icons: Record<RailGlyph, ReactNode> = {
         d="M12.4 8.6 L12.4 5.6 A1.2 1.2 0 0 1 14.8 5.6 L14.8 10.8 C14.8 14 12.5 16.5 9.4 16.5 L8.6 16.5 C7.1 16.5 6 16 5 14.9 L2.6 12 A1.2 1.2 0 0 1 4.3 10.3 L5.2 11.2"
         {...stroke}
       />
-    </>
-  ),
-  trash: (
-    <>
-      <path d="M4 5.5 L14 5.5" {...stroke} />
-      <path d="M7 5.5 L7 3.8 L11 3.8 L11 5.5" {...stroke} />
-      <path d="M5.5 5.5 L6.3 14.5 L11.7 14.5 L12.5 5.5" {...stroke} />
-      <path d="M8 8 L8 12" {...stroke} />
-      <path d="M10 8 L10 12" {...stroke} />
     </>
   ),
 };
