@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
+import { keepInViewport } from "./keep-in-viewport";
 
 /**
  * The left sidebar (ADR 0058, ADR 0074): how this play is set up, so the
@@ -168,7 +169,12 @@ function Row({
         ) : null}
       </button>
       {open && detailed ? (
-        <div aria-label={spec.label} className="sidebar-popover" role="group">
+        <div
+          aria-label={spec.label}
+          className="sidebar-popover"
+          ref={keepInViewport}
+          role="group"
+        >
           <div className="sidebar-popover-head">
             <span className="sidebar-popover-title">{spec.label}</span>
             {spec.aside}
@@ -373,6 +379,7 @@ export function PlaySidebar({
               <div
                 aria-label={footOpen.label}
                 className="sidebar-popover sidebar-foot-popover"
+                ref={keepInViewport}
                 role="group"
               >
                 {footOpen.detail}
@@ -406,6 +413,7 @@ export function PlaySidebar({
             <div
               aria-label={spec.label}
               className={`sidebar-popover${foot ? " sidebar-foot-popover" : ""}`}
+              ref={keepInViewport}
               role="group"
             >
               {spec.detail}

@@ -24,6 +24,7 @@ import {
 } from "./editor-command-surface";
 import { defenseThumbnail } from "./defense-thumbnail";
 import { FORMATION_THUMBNAIL, formationThumbnail } from "./formation-thumbnail";
+import { keepInViewport } from "./keep-in-viewport";
 
 function MenuItem({
   actions,
@@ -156,7 +157,11 @@ export function MoreMenu({
       >
         ⋯
       </button>
-      <div className="menu-panel more-panel" hidden={!open}>
+      <div
+        className="menu-panel more-panel"
+        hidden={!open}
+        ref={keepInViewport}
+      >
         {clearing ? (
           <ClearPage
             actions={actions}
@@ -303,6 +308,7 @@ export function NewPlayMenu({
         <div
           aria-label="New play"
           className="menu-panel new-play-panel"
+          ref={keepInViewport}
           role="group"
         >
           <div className="menu-head">START</div>
@@ -397,7 +403,11 @@ export function HelpMenu({
       >
         {icon}
       </button>
-      <div className="menu-panel help-panel" hidden={!open}>
+      <div
+        className="menu-panel help-panel"
+        hidden={!open}
+        ref={keepInViewport}
+      >
         <HelpEntries actions={actions} onDismiss={onDismiss} />
       </div>
     </div>
@@ -484,7 +494,7 @@ function ExportPanel({
   );
 
   return (
-    <div className="menu-panel export-panel">
+    <div className="menu-panel export-panel" ref={keepInViewport}>
       {submenu === null ? (
         <>
           <MenuItem
@@ -675,7 +685,7 @@ function VersionsPanel({
   };
 
   return (
-    <div className="menu-panel versions-panel">
+    <div className="menu-panel versions-panel" ref={keepInViewport}>
       {naming ? (
         <form
           className="snapshot-form"
@@ -889,8 +899,10 @@ export function ContextMenu({
     >
       <div
         className="menu-panel context-panel"
+        key={`${at.x},${at.y}`}
         onContextMenu={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
+        ref={keepInViewport}
         role="menu"
         style={{ left: `${at.x}px`, top: `${at.y}px` }}
       >

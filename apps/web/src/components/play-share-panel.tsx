@@ -14,6 +14,8 @@ import { useState, useSyncExternalStore } from "react";
 import type { ChalkRuntime } from "../app/editor-runtime";
 import { blobsFromNormalized, processImageFile } from "../assets/process-image";
 
+import { keepInViewport } from "./keep-in-viewport";
+
 type PanelState =
   | { readonly phase: "idle" }
   | { readonly phase: "working" }
@@ -32,7 +34,11 @@ export function PlaySharePanel({ runtime }: { runtime: ChalkRuntime }) {
       >
         Share & assets
       </button>
-      <div className="backup-panel share-assets-panel" hidden={!open}>
+      <div
+        className="backup-panel share-assets-panel"
+        hidden={!open}
+        ref={keepInViewport}
+      >
         <AttachImageForm runtime={runtime} />
         <FilmReferenceForm runtime={runtime} />
         <ShareLinkForm runtime={runtime} />

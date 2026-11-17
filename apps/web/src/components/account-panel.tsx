@@ -1,6 +1,8 @@
 import type { IdentityPort, SyncOrchestrator, SyncSnapshot } from "@chalk/sync";
 import { useState } from "react";
 
+import { keepInViewport } from "./keep-in-viewport";
+
 export function AccountPanel({
   identity,
   sync,
@@ -74,7 +76,11 @@ export function AccountPanel({
           Account
         </button>
       )}
-      <div className="backup-panel" hidden={!expanded && !open}>
+      <div
+        className="backup-panel"
+        hidden={!expanded && !open}
+        ref={keepInViewport}
+      >
         {session.status === "signed_in" ? (
           <>
             <p className="version-empty">

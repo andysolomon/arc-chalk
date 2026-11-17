@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { keepInViewport } from "../components/keep-in-viewport";
 
 /** One thing a filter can be set to, and how many of the book it finds. */
 export interface FilterChoice {
@@ -98,6 +99,10 @@ function ChoicePicker({
   const [query, setQuery] = useState("");
   const listId = useId();
   const sheetRef = useRef<HTMLDivElement>(null);
+  const fitSheet = useCallback((sheet: HTMLDivElement | null) => {
+    sheetRef.current = sheet;
+    return keepInViewport(sheet);
+  }, []);
   const lower = label.toLowerCase();
   const searchable = choices.length >= SEARCH_FROM;
   const needle = query.trim().toLowerCase();
@@ -133,7 +138,7 @@ function ChoicePicker({
             onClose();
           }
         }}
-        ref={sheetRef}
+        ref={fitSheet}
         role="dialog"
         tabIndex={-1}
       >
