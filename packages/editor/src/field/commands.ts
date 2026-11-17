@@ -242,10 +242,53 @@ function holdOnSideOfBall(
   );
 }
 
+/** Nearer than this, two points of a line are the same point. */
+const SAME_POINT_YARDS = 0.05;
+
+function samePoint(a: Coordinate, b: Coordinate): boolean {
+  return (
+    Math.abs(a.lateralYards - b.lateralYards) <= SAME_POINT_YARDS &&
+    Math.abs(a.depthYards - b.depthYards) <= SAME_POINT_YARDS
+  );
+}
+
+/**
+ * The pressure or front call a defender's line was drawn with, when it still
+ * is that call — not reshaped by hand since — and so goes where the call
+ * says rather than where the man happened to stand: a gap, the edge, the
+ * quarterback. Zones are laid out as a shell with the drops beside them
+ * (ADR 0059) and are left to travel with the man.
+ */
+function aimedCallOf(
+  document: PlayDocument,
+  path: MovementPath,
+): LinePreset | undefined {
+  if (path.preset === undefined || path.branches.length > 0) return undefined;
+  const preset = linePresetByKey(path.preset);
+  if (!preset || preset.pull) return undefined;
+  if (preset.kind !== "blitz" && preset.kind !== "stunt") return undefined;
+  const player = document.players.find(({ id }) => id === path.playerId);
+  if (!player || player.unit !== "defense") return undefined;
+  const drawn = presetPoints(document, player, preset);
+  const untouched =
+    drawn.length === path.points.length &&
+    drawn.every((point, index) => {
+      const own = path.points[index]!;
+      if (!samePoint(point, own)) return false;
+      if (point.control === undefined || own.control === undefined) {
+        return point.control === own.control;
+      }
+      return samePoint(point.control, own.control);
+    });
+  return untouched ? preset : undefined;
+}
+
 /**
  * One completed move — however many items it carried — becomes one batch.
  * Routes attached to a moving Player travel with him, the way the original
- * dragged them as a unit.
+ * dragged them as a unit — except a line drawn with a call aimed at the
+ * field, which is drawn again from where he now stands, so a man sent
+ * through the A gap still goes through the A gap.
  */
 export function buildMoveCommand(
   document: PlayDocument,
@@ -279,8 +322,26 @@ export function buildMoveCommand(
     ),
   }));
   if (moves.length > 0) commands.push({ kind: "move-players", moves });
+  const moved =
+    moves.length > 0
+      ? applyPlayCommand(document, { kind: "move-players", moves })
+      : document;
 
   for (const path of document.paths) {
+    // Whoever moved — the man himself, or the linemen whose gaps he is sent
+    // through — a line aimed at the field is drawn again where it now aims.
+    const call = pathIds.has(path.id) ? undefined : aimedCallOf(document, path);
+    const player = moved.players.find(({ id }) => id === path.playerId);
+    if (call && player) {
+      const points = presetPoints(moved, player, call);
+      const unchanged =
+        points.length === path.points.length &&
+        points.every((point, index) => samePoint(point, path.points[index]!));
+      if (!unchanged || playerIds.has(path.playerId)) {
+        commands.push({ kind: "update-path", path: { ...path, points } });
+      }
+      continue;
+    }
     // Attachment wins: a route selected alongside its own Player still moves
     // exactly once.
     if (playerIds.has(path.playerId) || pathIds.has(path.id)) {
@@ -423,6 +484,9 @@ function movingPoints(
   }
   for (const path of context.document.paths) {
     if (!playerIds.has(path.playerId) && !pathIds.has(path.id)) continue;
+    // A line aimed at the field is drawn again where it is aimed, not carried.
+    if (playerIds.has(path.playerId) && aimedCallOf(context.document, path))
+      continue;
     points.push(...pathExtentPoints(path));
   }
   for (const label of context.document.labels) {
@@ -2381,6 +2445,18 @@ function presetShape(
   );
 }
 
+/** The points a call draws for this man where he stands on this Play. */
+function presetPoints(
+  document: PlayDocument,
+  player: Player,
+  preset: LinePreset,
+  toward?: PlaySide,
+): PathPoint[] {
+  const drawn = presetShape(document, player, preset, toward);
+  // The stance itself is left exactly as it is; the rest is held in the paint.
+  return [player.position, ...insidePoints(document, drawn.slice(1))];
+}
+
 function presetPath(
   document: PlayDocument,
   player: Player,
@@ -2388,13 +2464,11 @@ function presetPath(
   id: string,
   toward?: PlaySide,
 ): MovementPath {
-  const drawn = presetShape(document, player, preset, toward);
   return {
     id,
     kind: preset.kind,
     playerId: player.id,
-    // The stance itself is left exactly as it is; the rest is held in the paint.
-    points: [player.position, ...insidePoints(document, drawn.slice(1))],
+    points: presetPoints(document, player, preset, toward),
     branches: [],
     style: {
       ...routeKindStyle(preset.kind, {
