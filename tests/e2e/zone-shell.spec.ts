@@ -5,8 +5,9 @@ import { assignmentButton } from "./defense-helpers";
 /**
  * The zone shell (ADR 0059, ADR 0075), built the way a Coach builds one: a
  * defense put on the field, then a zone called on one defender at a time from
- * the Quick assignments grid. A deep call is the ground its name says, and two
- * men called to one zone share it. Every bubble is read off the field as
+ * the Quick assignments grid. A deep call is the ground its name says, and no
+ * two men stand in one bubble: men called to one zone split it side by side
+ * (ADR 0087). Every bubble is read off the field as
  * drawn, against the sidelines it is drawn between, and the field is saved at
  * each stage as the run's artifact.
  */
@@ -70,8 +71,7 @@ async function call(
 /**
  * The centre of every bubble in `lines`, left to right across the field, in
  * frame units. Each bubble is drawn as a fill and an outline at one centre,
- * and men sharing a zone draw theirs at one centre too, so each centre is
- * listed once.
+ * so each centre is listed once.
  */
 async function centersOf(page: Page, lines: string): Promise<number[]> {
   const centers = await page
@@ -123,6 +123,38 @@ async function expectDeepShares(
   expected.forEach((x, index) => expect(centers[index]).toBeCloseTo(x, 0));
 }
 
+/**
+ * The left and right edges of every bubble in `lines`, left to right across
+ * the field, in frame units.
+ */
+async function extentsOf(
+  page: Page,
+  lines: string,
+): Promise<(readonly [left: number, right: number])[]> {
+  const extents = await page
+    .locator(`${lines} [data-scene-coverage] ellipse`)
+    .evaluateAll((ellipses) =>
+      ellipses.map((ellipse) => {
+        const cx = Number(ellipse.getAttribute("cx"));
+        const rx = Number(ellipse.getAttribute("rx"));
+        return [cx - rx, cx + rx] as const;
+      }),
+    );
+  const unique = new Map(
+    extents.map((extent) => [extent.map((x) => x.toFixed(2)).join(), extent]),
+  );
+  return [...unique.values()].sort((left, right) => left[0] - right[0]);
+}
+
+/** Expects no two of these bubbles to overlap across the field. */
+function expectSideBySide(
+  extents: readonly (readonly [left: number, right: number])[],
+): void {
+  for (let index = 1; index < extents.length; index += 1) {
+    expect(extents[index]![0]).toBeGreaterThan(extents[index - 1]![1]);
+  }
+}
+
 /** The field as drawn, saved beside the run's results. */
 async function saveField(page: Page, info: TestInfo, name: string) {
   await page
@@ -131,7 +163,7 @@ async function saveField(page: Page, info: TestInfo, name: string) {
     .screenshot({ path: info.outputPath(`${name}.png`) });
 }
 
-test("lays each deep call on the ground its name says, and lets two men share a zone", async ({
+test("lays each deep call on the ground its name says, and splits a zone two men are called to", async ({
   page,
 }, testInfo) => {
   await openSeededEditor(page);
@@ -174,30 +206,39 @@ test("lays each deep call on the ground its name says, and lets two men share a 
   await call(page, freeSafety!, "Middle 1/3");
   await expect.poll(() => deepCenters(page)).toEqual(thirds);
 
-  // The other safety called into the middle third shares it: both men keep
-  // their line, to one bubble, and the corners keep their thirds.
+  // The other safety called into the middle third splits it with the free
+  // safety, each in his own half of it, side by side; the corners keep
+  // their thirds.
   await call(page, safety!, "Middle 1/3");
-  await expect.poll(() => deepCenters(page)).toEqual(thirds);
-  expect(await centersOf(page, '[aria-label="F deep zone"]')).toEqual([
-    thirds[1],
+  await expectDeepShares(page, [
+    [0, 3],
+    [2, 6],
+    [3, 6],
+    [2, 3],
   ]);
-  expect(await centersOf(page, '[aria-label="S deep zone"]')).toEqual([
-    thirds[1],
+  const split = await deepCenters(page);
+  const free = await centersOf(page, '[aria-label="F deep zone"]');
+  const strong = await centersOf(page, '[aria-label="S deep zone"]');
+  expect([...free, ...strong].sort((a, b) => a - b)).toEqual([
+    split[1],
+    split[2],
   ]);
+  expectSideBySide(await extentsOf(page, '[aria-label$="deep zone"]'));
   await saveField(page, testInfo, "4-two-in-the-middle-third");
 
   // A hook underneath adds its own bubble and leaves the deep shell alone.
   await call(page, mike!, "Hook");
   await expect
     .poll(async () => (await centersOf(page, "")).length)
-    .toBe(thirds.length + 1);
-  expect(await deepCenters(page)).toEqual(thirds);
+    .toBe(split.length + 1);
+  expect(await deepCenters(page)).toEqual(split);
 
   // A corner sent on a blitz leaves his third open; nobody re-splits the field.
   await call(page, rightCorner!, "D gap");
-  await expect.poll(() => deepCenters(page)).toEqual(thirds.slice(0, 2));
+  await expect.poll(() => deepCenters(page)).toEqual(split.slice(0, 3));
 
-  // Clearing the free safety's lines leaves the middle to the man sharing it.
+  // Clearing the free safety's lines gives the whole middle back to the man
+  // who was splitting it.
   await freeSafety!.click({ force: true });
   await expect(page.locator(".player-heading")).toBeVisible();
   await page.keyboard.press("Delete");
@@ -210,7 +251,7 @@ test("lays each deep call on the ground its name says, and lets two men share a 
   await saveField(page, testInfo, "5-safety-alone-in-the-middle");
 });
 
-test("draws Cover 4 and Cover 6 from quick assignments, and lets two men share a landmark underneath", async ({
+test("draws Cover 4 and Cover 6 from quick assignments, and lays two men called to one landmark side by side", async ({
   page,
 }, testInfo) => {
   await openSeededEditor(page);
@@ -250,13 +291,49 @@ test("draws Cover 4 and Cover 6 from quick assignments, and lets two men share a
   ]);
   await saveField(page, testInfo, "2-cover-6");
 
-  // Two backers called Robber share its one bubble over the ball.
+  // Two backers called Robber each get a bubble of their own, side by side
+  // over the ball, the Will on the left where he stands.
   await call(page, will!, "Robber");
   await call(page, mike!, "Robber");
-  const robber = await centersOf(page, '[aria-label="W curl zone"]');
-  expect(robber).toHaveLength(1);
-  expect(await centersOf(page, '[aria-label="M curl zone"]')).toEqual(robber);
+  const [willRobber] = await centersOf(page, '[aria-label="W curl zone"]');
+  const [mikeRobber] = await centersOf(page, '[aria-label="M curl zone"]');
+  expect(willRobber).toBeLessThan(mikeRobber!);
+  expectSideBySide(await extentsOf(page, '[aria-label$="curl zone"]'));
   await saveField(page, testInfo, "3-two-robbers");
+});
+
+test("never stacks two men in one hook: the safety called to the Mike's hook drops beside him", async ({
+  page,
+}, testInfo) => {
+  await openSeededEditor(page);
+  await expect(page.locator("[data-scene-player]")).toHaveCount(11);
+  await putOnDefense(page, "Nickel Cover 2", false);
+
+  const [will] = await defendersLettered(page, "W");
+  const [mike] = await defendersLettered(page, "M");
+  const [safety] = await defendersLettered(page, "S");
+  const hooks = '[aria-label$="hook zone"]';
+
+  // The Will and the Mike take the hooks on either side of the ball.
+  await call(page, will!, "Hook");
+  await call(page, mike!, "Hook");
+  await expect.poll(async () => (await centersOf(page, hooks)).length).toBe(2);
+  await saveField(page, testInfo, "1-two-hooks");
+
+  // The strong safety, on the Mike's side, is called to the same hook. He
+  // gets a bubble of his own outside the Mike's rather than sharing it, and
+  // none of the three overlap.
+  await call(page, safety!, "Hook");
+  await expect.poll(async () => (await centersOf(page, hooks)).length).toBe(3);
+  const [mikeHook] = await centersOf(page, '[aria-label="M hook zone"]');
+  const [safetyHook] = await centersOf(page, '[aria-label="S hook zone"]');
+  expect(mikeHook).toBeLessThan(safetyHook!);
+  expectSideBySide(await extentsOf(page, hooks));
+  await saveField(page, testInfo, "2-safety-beside-the-mike");
+
+  // One undo puts the hooks back as they were.
+  await page.keyboard.press("Control+z");
+  await expect.poll(async () => (await centersOf(page, hooks)).length).toBe(2);
 });
 
 test("keeps a defensive call's halves and lays a Middle 1/3 over the middle, as Tampa 2 does", async ({

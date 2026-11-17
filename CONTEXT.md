@@ -45,7 +45,7 @@ What one man does before the snap — a jet, an orbit, across, a return or a shi
 _Avoid_: Motion route, kind of route, pre-snap route
 
 **Zone shell**:
-A defense's zone drops taken together rather than one defender at a time. Each zone is the ground its call names — Middle 1/3, the outside third on a man's side, his half, his quarter — men called into the same zone share it, and bubbles of different zones sit side by side instead of stacking.
+A defense's zone drops taken together rather than one defender at a time. Each zone is the ground its call names — Middle 1/3, the outside third on a man's side, his half, his quarter — no two men stand in one bubble: men called into the same zone split it side by side, and every bubble sits beside its neighbours instead of stacking.
 _Avoid_: Coverage template, zone preset
 
 **Defensive call**:
