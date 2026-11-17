@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 /**
  * The left sidebar (ADR 0058, ADR 0074): how this play is set up, so the
@@ -13,15 +13,7 @@ import type { ReactNode } from "react";
  * folding it leaves a narrow rail of the tools and the sidebar's own icons.
  */
 export type SidebarGlyph =
-  | "formation"
-  | "ball"
-  | "shadow"
-  | "layers"
-  | "library"
-  | "print"
-  | "settings"
-  | "help"
-  | "sidebar";
+  "ball" | "layers" | "library" | "print" | "settings" | "help" | "sidebar";
 
 const stroke = {
   fill: "none",
@@ -32,31 +24,32 @@ const stroke = {
 } as const;
 
 const glyphs: Record<SidebarGlyph, ReactNode> = {
-  formation: (
-    <>
-      <rect height="10" rx="1.5" width="10" x="3" y="3" {...stroke} />
-      <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" {...stroke} />
-    </>
+  // The ball as it lies on the field: a football, tipped, with its stripes.
+  ball: (
+    <g transform="rotate(-45 8 8)">
+      <path
+        d="M1.2 8C3.4 4.6 5.7 3.6 8 3.6s4.6 1 6.8 4.4c-2.2 3.4-4.5 4.4-6.8 4.4S3.4 11.4 1.2 8z"
+        {...stroke}
+      />
+      <path d="M4.3 5.3v5.4M11.7 5.3v5.4" {...stroke} />
+    </g>
   ),
-  ball: <circle cx="8" cy="8" fill="currentColor" r="2.6" />,
-  shadow: <path d="M8 3.2l5 9.6H3z" {...stroke} />,
+  // Show on field: an eye, for what is shown and what is hidden.
   layers: (
     <>
-      <circle cx="8" cy="8" r="5.5" {...stroke} />
-      <path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor" />
+      <path
+        d="M1.8 8C3.4 5.2 5.5 3.8 8 3.8s4.6 1.4 6.2 4.2c-1.6 2.8-3.7 4.2-6.2 4.2S3.4 10.8 1.8 8z"
+        {...stroke}
+      />
+      <circle cx="8" cy="8" r="1.9" {...stroke} />
     </>
   ),
+  // An open book, its pages falling to the spine.
   library: (
-    <>
-      <path
-        d="M3 3.5h4.2a1.8 1.8 0 0 1 1.8 1.8V13H4.8A1.8 1.8 0 0 1 3 11.2z"
-        {...stroke}
-      />
-      <path
-        d="M13 3.5H8.8A1.8 1.8 0 0 0 7 5.3V13h4.2a1.8 1.8 0 0 0 1.8-1.8z"
-        {...stroke}
-      />
-    </>
+    <path
+      d="M8 4.5C6.8 3.6 5 3.3 2.5 3.5v8.5c2.5-.2 4.3.1 5.5 1 1.2-.9 3-1.2 5.5-1V3.5C11 3.3 9.2 3.6 8 4.5zM8 4.5V13"
+      {...stroke}
+    />
   ),
   print: (
     <>
@@ -66,11 +59,12 @@ const glyphs: Record<SidebarGlyph, ReactNode> = {
       />
     </>
   ),
+  // A cog: a toothed wheel round its hub.
   settings: (
     <>
-      <circle cx="8" cy="8" r="2.2" {...stroke} />
+      <circle cx="8" cy="8" r="1.9" {...stroke} />
       <path
-        d="M8 2.5v1.8M8 11.7v1.8M2.5 8h1.8M11.7 8h1.8M4.1 4.1l1.3 1.3M10.6 10.6l1.3 1.3M4.1 11.9l1.3-1.3M10.6 5.4l1.3-1.3"
+        d="M6.9 2.2h2.2l.4 1.7 1.5.9 1.7-.5 1.1 1.9-1.3 1.2v1.2l1.3 1.2-1.1 1.9-1.7-.5-1.5.9-.4 1.7H6.9l-.4-1.7-1.5-.9-1.7.5-1.1-1.9 1.3-1.2V7.4L2.2 6.2l1.1-1.9 1.7.5 1.5-.9z"
         {...stroke}
       />
     </>
@@ -97,9 +91,15 @@ export function SidebarIcon({ glyph }: { glyph: SidebarGlyph }) {
   );
 }
 
+/** A row's icon: the glyph it names, or the mark it was handed. */
+function rowIcon(icon: SidebarGlyph | ReactElement) {
+  return typeof icon === "string" ? <SidebarIcon glyph={icon} /> : icon;
+}
+
 export interface SidebarRowSpec {
   readonly id: string;
-  readonly icon: SidebarGlyph;
+  /** One of the sidebar's glyphs, or a mark drawn elsewhere: a side's letter. */
+  readonly icon: SidebarGlyph | ReactElement;
   readonly label: string;
   /** What it currently says, at the row's right. */
   readonly value?: string;
@@ -154,9 +154,7 @@ function Row({
         type="button"
         {...dataProps}
       >
-        <span className="sidebar-icon">
-          <SidebarIcon glyph={spec.icon} />
-        </span>
+        <span className="sidebar-icon">{rowIcon(spec.icon)}</span>
         <span className="sidebar-label">{spec.label}</span>
         {spec.value ? (
           <span className="sidebar-value" title={spec.value}>
@@ -211,7 +209,7 @@ function FooterIcon({
       title={spec.title ?? spec.label}
       type="button"
     >
-      <SidebarIcon glyph={spec.icon} />
+      {rowIcon(spec.icon)}
     </button>
   );
 }

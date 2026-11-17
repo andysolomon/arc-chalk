@@ -1512,12 +1512,38 @@ button.play-type.open {
 .tool-rail .snap-toggle[aria-pressed="false"] {
   color: var(--faint);
 }
-.tool-rail .rail-shadow[aria-pressed="true"] {
-  background: var(--hover);
-  color: var(--ink);
+/* The two sides of the ball, as their letters (ADR 0077). The side the play
+   is drawn for is the solid letter on a tile of its unit's tint; the shadow
+   is the other letter in outline, in its unit's colour while its men are on
+   the field and grey while they are not. */
+.unit-letter {
+  flex: none;
+  color: var(--unit-offense);
 }
-.tool-rail .rail-shadow[aria-pressed="false"] {
-  color: var(--faint);
+.unit-letter[data-unit="defense"] {
+  color: var(--unit-defense);
+}
+.unit-letter[data-off] {
+  color: var(--muted);
+}
+.tool-rail .unit-letter {
+  width: 20px;
+  height: 20px;
+}
+.tool-rail > .rail-unit,
+.tool-rail > .rail-unit:hover {
+  background: var(--unit-offense-tint);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--unit-offense) 45%, transparent);
+}
+.tool-rail > .rail-unit:has([data-unit="defense"]),
+.tool-rail > .rail-unit:has([data-unit="defense"]):hover {
+  background: var(--unit-defense-tint);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--unit-defense) 45%, transparent);
+}
+.tool-rail > .rail-unit:hover {
+  filter: brightness(1.08);
 }
 .tool-rail .rail-call:disabled,
 .tool-rail .rail-clear:disabled,

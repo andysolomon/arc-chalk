@@ -369,7 +369,7 @@ import {
   openProgressionStrip,
 } from "./print-progression";
 import { HeaderIcon, RailIcon } from "./rail-icons";
-import { ChalkToolbarIcon } from "./chalk-toolbar-icons";
+import { ChalkToolbarIcon, UnitLetter } from "./chalk-toolbar-icons";
 import { renderToStaticMarkup } from "react-dom/server";
 
 export { FieldDiagram };
@@ -7363,6 +7363,9 @@ export function ChalkApp({
   };
 
   const defensePlay = editor.document.unit === "defense";
+  // The side the play is drawn for, and the side it is drawn against.
+  const playUnit = defensePlay ? "defense" : "offense";
+  const shadowUnit = defensePlay ? "offense" : "defense";
   const shadowName = defensePlay ? "Shadow offense" : "Shadow defense";
   const defenderCount = editor.document.players.filter(
     ({ unit }) => unit === "defense",
@@ -7471,7 +7474,7 @@ export function ChalkApp({
   const sidebarThisPlay: readonly SidebarRowSpec[] = [
     {
       id: "formation",
-      icon: "formation",
+      icon: <UnitLetter size={16} unit={playUnit} />,
       label: defensePlay ? "Defensive call" : "Formation",
       value: defensePlay ? callName : formationName,
       title: defensePlay ? "Browse defenses — ⇧⌘D" : "Browse formations — ⇧⌘F",
@@ -7517,7 +7520,14 @@ export function ChalkApp({
     },
     {
       id: "shadow",
-      icon: "shadow",
+      icon: (
+        <UnitLetter
+          off={!shadowOnField || shadowCount === 0}
+          shadow
+          size={16}
+          unit={shadowUnit}
+        />
+      ),
       label: shadowName,
       value: shadowOnField ? shadowLook : "hidden",
       aside: (
@@ -8401,6 +8411,46 @@ export function ChalkApp({
    * sidebar is a drawer, so its tools keep a rail of their own, and a phone's
    * are the row along the field's foot.
    */
+  const railSetButton = (
+    <button
+      // The set for an offensive play, the call for a defensive one: the
+      // same browser the sidebar's Formation row opens.
+      aria-label={railSetName}
+      className="rail-formation rail-unit"
+      onClick={defensePlay ? openDefenses : openFormations}
+      title={railSetName}
+      type="button"
+    >
+      <UnitLetter unit={playUnit} />
+    </button>
+  );
+  const railShadowButton =
+    shadowCount === 0 ? (
+      // Nobody to show yet: the button puts the other unit on, in the
+      // browser for its side, and is a toggle once it is there.
+      <button
+        aria-label={railShadowAddName}
+        className="rail-shadow rail-shadow-add"
+        onClick={defensePlay ? openFormations : openDefenses}
+        title={railShadowAddName}
+        type="button"
+      >
+        <UnitLetter off shadow unit={shadowUnit} />
+      </button>
+    ) : (
+      <button
+        // The other unit under the play, shown or hidden (ADR 0053).
+        // Pressed means it is on the field; it stays in the play either way.
+        aria-label={`${shadowLayerName} — H`}
+        aria-pressed={shadowOnField}
+        className="rail-shadow"
+        onClick={toggleShadow}
+        title={`${shadowLayerName} on / off — H`}
+        type="button"
+      >
+        <UnitLetter off={!shadowOnField} shadow unit={shadowUnit} />
+      </button>
+    );
   const toolsInSidebar = !sidebarFloats;
   /** Folded (⌥3) with the tools out: the rail of tools and sidebar icons. */
   const sidebarFolded = toolsInSidebar && !sidebarOpen && railOpen;
@@ -8415,43 +8465,19 @@ export function ChalkApp({
       {phoneWorkspace ? null : (
         <span aria-hidden="true" className="rail-divider" />
       )}
-      <button
-        // The set for an offensive play, the call for a defensive one:
-        // the same browser the sidebar's Formation row opens.
-        aria-label={railSetName}
-        className="rail-formation"
-        onClick={defensePlay ? openDefenses : openFormations}
-        title={railSetName}
-        type="button"
-      >
-        <ChalkToolbarIcon glyph="formation" />
-      </button>
-      {shadowCount === 0 ? (
-        // Nobody to show yet: the button puts the other unit on, in
-        // the browser for its side, and is a toggle once it is there.
-        <button
-          aria-label={railShadowAddName}
-          className="rail-shadow rail-shadow-add"
-          onClick={defensePlay ? openFormations : openDefenses}
-          title={railShadowAddName}
-          type="button"
-        >
-          <ChalkToolbarIcon glyph="shadow-add" />
-        </button>
+      {/* The two sides of the ball, O above D wherever the play stands:
+          the solid letter on its tile is the side the play is drawn for,
+          the outlined one the shadow it is drawn against. */}
+      {defensePlay ? (
+        <>
+          {railShadowButton}
+          {railSetButton}
+        </>
       ) : (
-        <button
-          // The other unit under the play, shown or hidden (ADR 0053).
-          // Pressed means it is on the field; it stays in the play
-          // either way.
-          aria-label={`${shadowLayerName} — H`}
-          aria-pressed={shadowOnField}
-          className="rail-shadow"
-          onClick={toggleShadow}
-          title={`${shadowLayerName} on / off — H`}
-          type="button"
-        >
-          <ChalkToolbarIcon glyph="shadow-toggle" />
-        </button>
+        <>
+          {railSetButton}
+          {railShadowButton}
+        </>
       )}
       <button
         aria-label={railCallName}
@@ -8467,7 +8493,7 @@ export function ChalkApp({
         }
         type="button"
       >
-        <RailIcon glyph="concept" />
+        <ChalkToolbarIcon glyph="concept" />
       </button>
       {tools.map((tool) => (
         // Text is the one tool left here (ADR 0052): a note goes on

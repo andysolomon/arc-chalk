@@ -79,6 +79,63 @@ phone journey draws a line, checks the finish target is at least 44 × 44 px
 and on the glass, and completes it with one tap. Regenerable evidence is
 kept in `docs/reviews/screenshots/toolbar-icons/`.
 
+## November 2026: the sides as letters
+
+Product request (2026-11-16): the formation and shadow glyphs are confusing
+and should just be an **O** and a **D**; which side the play is drawn for
+should be obvious, with a treatment for the shadow; the clears are not
+obvious without a hover; and every icon in the left column should be
+reviewed so it stays simple and clear.
+
+**The two sides are their letters, O above D wherever the play stands.**
+The side the play is drawn for is the solid letter on a tile of its unit's
+tint; the shadow is the other letter in outline, in its unit's colour while
+its men are on the field and grey while they are hidden or not in the play
+yet. The colours are the unit palette's (ADR 0051), so the letter matches
+the header's Offense or Defense chip. On a defensive play the D is the
+solid one and the O the outline; the buttons keep their names, keys and
+what they open, and only their order follows the letters. The sidebar's
+Formation (or Defensive call) row and its Shadow row draw the same letters
+in place of the crossed box and the triangle, so one mark means one thing
+down the column. `UnitLetter` in `chalk-toolbar-icons.tsx` draws all four.
+
+**The clears say what goes with an ×.** Clear every line is a route with
+no man under it and an × in the lower right; Clear every player is a man
+and the same ×, in the same place. The × replaces the − of the October
+pack, which read as an underscore.
+
+**The concept is one man and his route**, off the line and then the break,
+on the pack's 24-unit grid with the rest of the rail, in place of the two
+men whose routes read as a branch. It is the same glyph for the coverage.
+
+**The sidebar's own glyphs.** Ball on is a football where it was a dot;
+Show on field an eye where it was a half-filled disc; the Library an open
+book with its pages falling to the spine; Settings a cog where eight loose
+rays read as a sun. Select, Hand, Text, the bin, Print and Help are
+unchanged.
+
+The folded rail (ADR 0074) now shows each letter twice, once among the
+tools and once for its row, where it used to show two different glyphs for
+the same side. Whether the fold should drop the rows the tools already
+carry is left open.
+
+Measured against the original's goldens as before, on one Linux machine,
+this branch against `main` (pixels differing out of 1,382,400): Editor
+33,772 → 33,911; More menu 34,735 → 34,874; Export menu 35,059 → 35,198;
+Versions menu 34,590 → 34,729; command palette 34,389 → 34,513; Formations
+34,040 → 34,164; Defenses 27,890 → 28,014; shortcut reference 54,911 →
+55,035; Demo 22,165 → 22,163; Present and Print unchanged at 106,690 and
+29,696. Each state that draws the rail moves by about 130 px. Every state
+but the shortcut reference stays inside its ratchet; that one already sat
+168 px over its own (54,743) on `main` on this machine and passes with the
+CI rasterization delta, so no ratchet moves.
+
+`tests/e2e/toolbar.spec.ts`, `phone-toolbar.spec.ts`, `rail-concept.spec.ts`
+and `one-left-column.spec.ts` pass unchanged on Chromium's desktop and
+phone projects, since every button keeps its name; WebKit was not run. The
+evidence in `docs/reviews/screenshots/toolbar-icons/` is regenerated from
+them, with a defensive play and the folded rail added.
+
 ## Preserved
 
 The sidebar's Formation and Defensive call rows and their Reset rows; ⇧⌘F,

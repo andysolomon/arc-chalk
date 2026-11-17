@@ -2,36 +2,27 @@ import type { ReactNode } from "react";
 
 /** Arc Chalk toolbar study: 24-unit glyphs sized by CSS, accessible button owns the label. */
 export type ChalkToolbarGlyph =
-  | "formation"
-  | "shadow-add"
-  | "shadow-toggle"
+  | "concept"
   | "add-text"
   | "clear-lines"
   | "clear-players"
   | "delete-selection"
   | "finish-route";
 
+/**
+ * The take-off mark (ADR 0077): an × in the glyph's lower right, the same
+ * size and place on both clears, so the pair reads as what goes and that it
+ * goes.
+ */
+const off = <path d="M15.5 15.5l5 5M20.5 15.5l-5 5" />;
+
 const shapes: Record<ChalkToolbarGlyph, ReactNode> = {
-  formation: (
+  concept: (
+    // A man and the route he is given: off the line, then the break.
     <>
-      <circle cx="5" cy="7" r="2.1" />
-      <circle cx="12" cy="7" r="2.1" />
-      <circle cx="19" cy="7" r="2.1" />
-      <path d="M3.5 11.5h17" strokeOpacity=".5" />
-      <circle cx="12" cy="17" r="2.3" />
-    </>
-  ),
-  "shadow-add": (
-    <>
-      <circle cx="8" cy="13" r="4" />
-      <circle cx="15" cy="8" r="3.4" strokeDasharray="2.1 2.1" />
-      <path d="M17.5 16v6M14.5 19h6" />
-    </>
-  ),
-  "shadow-toggle": (
-    <>
-      <circle cx="9" cy="14" r="4.4" />
-      <circle cx="15" cy="8" r="4.4" strokeDasharray="2.5 2.2" />
+      <circle cx="6.5" cy="18.5" r="2.3" />
+      <path d="M6.5 16V8.5H17" />
+      <path d="M13.5 5l3.5 3.5-3.5 3.5" />
     </>
   ),
   "add-text": (
@@ -41,19 +32,19 @@ const shapes: Record<ChalkToolbarGlyph, ReactNode> = {
     </>
   ),
   "clear-lines": (
+    // The route alone, with no man under it, and the ×: the lines go and
+    // the men stay.
     <>
-      <path d="M4.5 19v-6l9-8" />
-      <path d="M9.5 5h4v4" />
-      <path d="M15.5 18.5h5.5" />
+      <path d="M4.5 20v-9.5h8" />
+      <path d="M9.5 7l3.5 3.5-3.5 3.5" />
+      {off}
     </>
   ),
   "clear-players": (
+    // The man, and the ×.
     <>
-      <circle cx="4.5" cy="7" r="1.9" />
-      <circle cx="10.5" cy="7" r="1.9" />
-      <circle cx="16.5" cy="7" r="1.9" />
-      <circle cx="10.5" cy="15" r="2" />
-      <path d="M16 18.5h5.5" />
+      <circle cx="9.5" cy="9.5" r="5" />
+      {off}
     </>
   ),
   "delete-selection": (
@@ -84,6 +75,64 @@ export function ChalkToolbarIcon({ glyph }: { glyph: ChalkToolbarGlyph }) {
       strokeLinejoin="round"
     >
       {shapes[glyph]}
+    </svg>
+  );
+}
+
+/**
+ * The two sides of the ball as their letters: O and D. The side the Play is
+ * drawn for is the solid letter; the other side, the shadow it is drawn
+ * against, is the same letter in outline. Each is in its unit's colour
+ * (ADR 0051), and an outline goes grey while its men are off the field. The
+ * rail's two buttons and the sidebar's two rows draw the same four letters,
+ * so one mark means one thing in the column.
+ */
+export function UnitLetter({
+  off: offField = false,
+  shadow = false,
+  size = 20,
+  unit,
+}: {
+  /** A shadow that is hidden, or not in the play yet. */
+  off?: boolean;
+  /** The other side's letter, in outline. */
+  shadow?: boolean;
+  size?: number;
+  unit: "offense" | "defense";
+}) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="unit-letter"
+      data-off={offField ? "true" : undefined}
+      data-shadow={shadow ? "true" : undefined}
+      data-unit={unit}
+      fill="none"
+      focusable="false"
+      height={size}
+      stroke="currentColor"
+      strokeLinejoin="miter"
+      strokeWidth={shadow ? 1.5 : 3.8}
+      viewBox="0 0 24 24"
+      width={size}
+    >
+      {unit === "offense" ? (
+        shadow ? (
+          <>
+            <ellipse cx="12" cy="12" rx="7.8" ry="9.4" />
+            <ellipse cx="12" cy="12" rx="4.4" ry="6" />
+          </>
+        ) : (
+          <ellipse cx="12" cy="12" rx="6.2" ry="7.8" />
+        )
+      ) : shadow ? (
+        <>
+          <path d="M4.4 2.6h5.7a9.4 9.4 0 0 1 0 18.8H4.4z" />
+          <path d="M7.8 6h2.3a6 6 0 0 1 0 12H7.8z" />
+        </>
+      ) : (
+        <path d="M6.1 4.2h4a7.8 7.8 0 0 1 0 15.6h-4z" />
+      )}
     </svg>
   );
 }
