@@ -28,7 +28,8 @@ import { describe, expect, it } from "vitest";
  * - Deep 1/4 given a quarter other than the one nearest the man;
  * - a deep bubble wider than a zone can be sized, or past a sideline;
  * - deep drops left at their own depths, shallower than a deep drop reads, or
- *   anchored behind a man whose drop is no call;
+ *   anchored behind the man called deep rather than the deepest man on the
+ *   defense, so a backer's Middle 1/3 lands at a middle read;
  * - a deep drop that is no call moved by the shell;
  * - the seam between deep neighbours missing, so bubbles touch or stack;
  * - the depth radius the call gave rewritten along with the width;
@@ -337,7 +338,7 @@ describe("the deep shell", () => {
     );
   });
 
-  it("leaves a deep drop that is no call where it was drawn, and does not settle behind its man", () => {
+  it("leaves a deep drop that is no call where it was drawn, and settles the shell behind the deepest man", () => {
     const deepMan = defender("d", -18, 20);
     const handDrawn = drop(
       "d",
@@ -356,7 +357,8 @@ describe("the deep shell", () => {
     expect(play.paths.find(({ id }) => id === "d")).toBe(
       before.paths.find(({ id }) => id === "d"),
     );
-    expect(bubble(play, "f").center.depthYards).toBeCloseTo(16, 9);
+    // Four yards behind the deep man's stance, not the free safety's.
+    expect(bubble(play, "f").center.depthYards).toBeCloseTo(24, 9);
   });
 
   it("counts a call the Coach never sized, at the level where it ends", () => {

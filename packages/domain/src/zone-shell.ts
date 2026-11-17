@@ -51,8 +51,8 @@ export const zoneShellLevels: readonly ZoneShellLevel[] = Object.freeze([
 export const ZONE_SEAM_YARDS = 1;
 
 /**
- * The deep shell settles this far behind the deepest defender in it, and
- * never shallower than a drop that reads as deep.
+ * The deep shell settles this far behind the deepest defender on the field,
+ * and never shallower than a drop that reads as deep.
  */
 const DEEP_CUSHION_YARDS = 4;
 
@@ -245,8 +245,9 @@ function landed(
  * The deep shell. Each deep call is laid on the ground it names, its bubble as
  * wide as its share of the field less the seam — though never wider than a
  * zone can be sized — so men called to the same ground share one bubble.
- * They settle at one depth, behind the deepest of them, so the shell reads as
- * one line of coverage. A deep drop that is no call stays where it was drawn.
+ * They settle at one depth, behind the deepest man on the defense, so the
+ * shell reads as one line of coverage and a backer called deep drops as deep
+ * as the secondary. A deep drop that is no call stays where it was drawn.
  */
 function layDeep(
   play: ZoneShellPlay,
@@ -266,7 +267,14 @@ function layDeep(
   });
   if (called.length === 0) return moved;
   const bounds = ZONE_COVERAGE_RADIUS_BOUNDS.lateralYards;
-  const deepest = Math.max(...called.map(({ drop }) => drop.stance.depthYards));
+  // Behind the deepest man on the defense, not only the deepest called deep:
+  // a backer's Middle 1/3 is as deep as the safeties behind him, not a read.
+  const deepest = Math.max(
+    ...called.map(({ drop }) => drop.stance.depthYards),
+    ...play.players
+      .filter(({ unit }) => unit === "defense")
+      .map(({ position }) => position.depthYards),
+  );
   const depthYards = Math.max(
     DEEP_ZONE_DEPTH_YARDS,
     deepest + DEEP_CUSHION_YARDS,
