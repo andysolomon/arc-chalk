@@ -72,3 +72,7 @@ ends with a checklist of interactions that must actually work; run them.
 - Do not add tweaks/props for things in-place editing already covers (copy, single colors).
 - Do not draw illustrative SVG artwork by hand. Field lines and player symbols only.
 - Do not introduce a build step, npm import, or `.jsx` file.
+
+## Other plan sets
+
+- `plans/e2e/` holds the plans for faster, steadier browser tests. It has its own README and does not use the shared context above.

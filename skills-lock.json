@@ -1,131 +1,152 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": {
     "arc-conventional-commits": {
       "source": "andysolomon/arc-skills",
       "sourceType": "github",
       "skillPath": "arc-conventional-commits/SKILL.md",
-      "computedHash": "dcf5be9370020dc058da29e8f44c26cd3e6d0b14860de154be784b084f7bd18c"
+      "computedHash": "048a41f9f7563bb8c35595434ea94e81c6651610430bdc79330b7f8913c4f97d"
     },
     "arc-creating-user-stories": {
       "source": "andysolomon/arc-skills",
       "sourceType": "github",
       "skillPath": "arc-creating-user-stories/SKILL.md",
-      "computedHash": "8b99ba7cd85914a65ee73a21a3536827097063536491406a11d4eece33906f6e"
+      "computedHash": "bbeec9cf3bc3beb60d91136c1e11ea167025df9bd806da5d734b53eaf0fdf783"
     },
     "arc-defining-work": {
       "source": "andysolomon/arc-skills",
       "sourceType": "github",
       "skillPath": "arc-defining-work/SKILL.md",
-      "computedHash": "b5147fa0f7d4fd398bf76fe14dd388d289d173eca1bcc095d39784abcc15143d"
+      "computedHash": "334ef656df13196da9424d8b05625891fb25912c8c8ede0d982dc231d9fcecba"
     },
     "arc-git-pr-check": {
       "source": "andysolomon/arc-skills",
       "sourceType": "github",
       "skillPath": "arc-git-pr-check/SKILL.md",
-      "computedHash": "dca14a5e64e6ab26fc6a77adbe0bf67228e9b52ac4b9a9aace69351c1b874b5a"
+      "computedHash": "17b1cdef36c2bd0cf6b39ead1be8ff9fe6dc9a6657747f7f18c0bf4fa2531189"
     },
     "arc-implementation-plan-progress": {
       "source": "andysolomon/arc-skills",
       "sourceType": "github",
       "skillPath": "arc-implementation-plan-progress/SKILL.md",
-      "computedHash": "14d2ee138ac83cc50e45683ba8296f768b5cea8ba73ca52478c9956fbb0f98aa"
+      "computedHash": "d400e5c9b8be55be2c826fe88be9935fa6702205ffad7d8fc05da3a49aae2792"
     },
     "arc-parallel-implement": {
       "source": "andysolomon/arc-skills",
       "sourceType": "github",
       "skillPath": "arc-parallel-implement/SKILL.md",
-      "computedHash": "46f3734511b6d0c74101c446cadd3ab45b7490da5885db60fa389fc90831df6d"
+      "computedHash": "90fa9c8c2def84c06e9b486fa4c621597b460743cc91d44911a179492e05a517"
     },
     "arc-planning-work": {
       "source": "andysolomon/arc-skills",
       "sourceType": "github",
       "skillPath": "arc-planning-work/SKILL.md",
-      "computedHash": "538fabb83d8cb2cb0eeb4f0a9307d10e6a4ebd929fb4d804480c9a8bdf26718e"
+      "computedHash": "1a2e7bade943d7d1d50eb8bbb1b271699bb04357fd8430fcda6f4ab1ba0a1075"
     },
     "arc-prd-to-issues": {
       "source": "andysolomon/arc-skills",
       "sourceType": "github",
       "skillPath": "arc-prd-to-issues/SKILL.md",
-      "computedHash": "eb1f07b90db2c39afc183bf8b40bce81038ff8c5fbddda20a5d8328916316814"
+      "computedHash": "2928e6b1b259ad0bb876b2a0bfb4968172c8dd3f03267703e557d0961aa1523f"
     },
     "arc-work-issue": {
       "source": "andysolomon/arc-skills",
       "sourceType": "github",
       "skillPath": "arc-work-issue/SKILL.md",
-      "computedHash": "8602e314e305e9141bfb8890b5b712198464d4f508af48041e180dbe33cd293f"
+      "computedHash": "551c919bde1c44d1e8a224fef5b9a6f0f474a78f989a205d5e882c3521bc2961"
     },
     "codebase-design": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/codebase-design/SKILL.md",
-      "computedHash": "6d9d51d8caa01633fd00cf87089c5618c982321f942ac69f62565dc001c6b22f"
+      "computedHash": "814a4254c2e1f335620640ae2b658f59aa40afa3d136f0d67cfdc24a7d1c3b67"
+    },
+    "create-verification-skill": {
+      "source": "cursor/plugins",
+      "commit": "b4a4f6151b8e77f8d71045f09f553a733cf0ed37",
+      "sourceType": "github",
+      "skillPath": "harness/pstack/claude-code/skills/create-verification-skill/SKILL.md",
+      "computedHash": "31c6b5b22baa59f8963c21acef73ff225d557dc76b01465ea41abc870607c9de"
     },
     "domain-modeling": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/domain-modeling/SKILL.md",
-      "computedHash": "363cb0f53b0b431e7c00086ad1f823500b7e1b70b5616ee969c979f0934e9e6e"
+      "computedHash": "7fdeabdeb6be303e327f282e766507929577356615521fcb1abd2ada9ab443b9"
     },
     "grill-me": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/productivity/grill-me/SKILL.md",
-      "computedHash": "f361db4e15e6bfd562a9282b1dccda513910a50061f9e838ce017be9c69dde3f"
+      "computedHash": "056d334e5d235e66ecd359f096d1b3d63f31500ec0d97504775351014869d465"
     },
     "grill-with-docs": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
-      "computedHash": "9c460cbd94fd3c63cdef967dbdb6e66ca687103cdc380cd37834e4d10b738f78"
+      "computedHash": "25d2f72f125680eca8b256ad235d35aa5aff09ec2c998d362f5feea14015fcce"
     },
     "grilling": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/productivity/grilling/SKILL.md",
-      "computedHash": "368d3dd7251247c69f3656d93dc83c8f1577792eacac2111f1e7981db2ece49b"
+      "computedHash": "6363d5dd9c479161abd32030d83e81a59f2805159731fb75c76519f36f3caa15"
     },
     "handoff": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/productivity/handoff/SKILL.md",
-      "computedHash": "ad03e8d4ea3cbbff66420eb7ba3cc375b5cbe1821a2449b53e863256cf5b5cde"
+      "computedHash": "7caab20cd3b98bd88902e345a4b9063fd2e78e557a062f5b5e706008766042bd"
     },
     "implement": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/implement/SKILL.md",
-      "computedHash": "2139cfedf24791adbc839aaab6019cff158af1e28bfead020ec6e0ce01b3e74d"
+      "computedHash": "125de9503b6d2aec4eb4b5bbcdeadf7b68edd305a367dc5a14e08c543babd2ab"
+    },
+    "maintain-verification-skill": {
+      "source": "cursor/plugins",
+      "commit": "b4a4f6151b8e77f8d71045f09f553a733cf0ed37",
+      "sourceType": "github",
+      "skillPath": "harness/pstack/claude-code/skills/maintain-verification-skill/SKILL.md",
+      "computedHash": "faab042b93816a301022006190fea0bc74f3f0d531c679fcce51c34329f00ce3"
     },
     "research": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/research/SKILL.md",
-      "computedHash": "bd3e2c6826671d82c86ed0da3dac3370ebcf63b0fe847f91bb444e1fb7dac21b"
+      "computedHash": "af34aaedad189574e756df36b67e7a62b1bd95211213321c5f5dd5d759be3ab1"
     },
     "to-spec": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/to-spec/SKILL.md",
-      "computedHash": "0f544cd0c099c06f0dd0b7b9ee98b4237218e7e95fd3d3c02e791efbaf74bacb"
+      "computedHash": "af4468b6f84e614e949d34ca76fdd30e3589d110d5a2f898657d204e8494edbd"
     },
     "to-tickets": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/to-tickets/SKILL.md",
-      "computedHash": "0349eee265e7005e667b4543de849672106c46d545e998f37d3319300bb07751"
+      "computedHash": "6077aaa3768f31a3bd4dc04607814f6d2a92a8dd022e1733e0b215c52e35a609"
     },
     "triage": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/triage/SKILL.md",
-      "computedHash": "7c923b6a677cfe689500721f08307e2a4c46797ff169dc55ef6c34a431a0d533"
+      "computedHash": "94899a90915b38a1dec15b054eaf663acac655f90fe155977935cbb2d08add7a"
+    },
+    "unslop": {
+      "source": "cursor/plugins",
+      "commit": "b4a4f6151b8e77f8d71045f09f553a733cf0ed37",
+      "sourceType": "github",
+      "skillPath": "harness/pstack/claude-code/skills/unslop/SKILL.md",
+      "computedHash": "4bbcb6719a8f0f6f7fb46752e1c360791d7758a837708e300a06fc7d6907938c"
     },
     "wayfinder": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/wayfinder/SKILL.md",
-      "computedHash": "c9e18cefd77b6b5b0ee35f59ce2fd96359aa2d2f02e3479e12c873c5402d9d43"
+      "computedHash": "65adbc6754f0429b8762183ac6626c0649f02a058ca3146f1cefa542668b0694"
     }
   }
 }
