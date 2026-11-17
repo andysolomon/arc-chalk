@@ -9186,79 +9186,111 @@ button.shell-quiet:hover {
   }
 }
 
-/* Settings: a modal with the tabs down its left. */
+/*
+ * Settings: a modal with grouped, iconed tabs down its left, a head that
+ * says what the open tab changes, and the tab's settings as titled cards.
+ */
 .settings-overlay {
   align-items: flex-start;
   justify-content: center;
 }
 .settings-panel {
-  width: 720px;
-  max-width: 92vw;
-  height: 440px;
-  max-height: 86vh;
+  width: 820px;
+  max-width: 94vw;
+  height: 600px;
+  max-height: 88vh;
   margin-top: 6vh;
   display: flex;
   overflow: hidden;
-  border-radius: 12px;
-  background: var(--paper);
+  border-radius: 16px;
+  background: var(--canvas);
   box-shadow:
-    0 0 0 1px rgb(var(--shade) / 0.08),
-    0 20px 60px rgba(0, 0, 0, 0.25);
+    0 0 0 1px rgb(var(--shade) / 0.1),
+    0 24px 72px -12px rgba(0, 0, 0, 0.35);
 }
 .settings-side {
-  width: 200px;
+  width: 216px;
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 12px;
-  background: var(--canvas);
-  box-shadow: 1px 0 rgb(var(--shade) / 0.06);
+  gap: 14px;
+  padding: 18px 10px;
+  background: var(--paper);
+  box-shadow: 1px 0 var(--line);
 }
 .settings-title {
-  padding: 0 6px;
-  font-size: 15px;
+  padding: 0 10px;
+  font-size: 16px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .settings-tabs {
   display: flex;
   flex-direction: column;
+  gap: 14px;
+}
+.settings-tab-group {
+  display: flex;
+  flex-direction: column;
   gap: 2px;
 }
+.settings-group-label {
+  padding: 0 10px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
 .settings-tab {
-  height: 32px;
+  min-height: 34px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 8px;
+  gap: 10px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
-  color: var(--ink);
+  color: var(--ink-soft);
   font: inherit;
   font-size: 13px;
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 .settings-tab:hover {
   background: var(--wash);
+  color: var(--ink);
 }
 .settings-tab.active {
-  background: var(--paper);
-  box-shadow: 0 0 0 1px var(--line);
+  background: var(--wash);
+  color: var(--ink);
   font-weight: 600;
 }
-.settings-tab-name {
-  flex: 1;
+.settings-tab:focus-visible,
+.settings-close:focus-visible,
+.settings-tile:focus-visible,
+.settings-option:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
-.settings-tab-value {
-  max-width: 110px;
-  overflow: hidden;
+.settings-tab-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: grid;
+  place-items: center;
   color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 400;
+}
+.settings-tab.active .settings-tab-icon {
+  color: var(--ink);
+}
+.settings-tab-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .settings-main {
   flex: 1;
@@ -9267,129 +9299,557 @@ button.shell-quiet:hover {
   flex-direction: column;
 }
 .settings-head {
-  height: 48px;
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 22px;
-  box-shadow: 0 1px 0 var(--line);
+  gap: 12px;
+  padding: 18px 20px 16px 24px;
 }
-.settings-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-.settings-summary {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 400;
-}
-.settings-close {
-  height: 30px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 7px;
+.settings-head-icon {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
   background: var(--paper);
   box-shadow: 0 0 0 1px var(--line);
   color: var(--ink);
-  font: inherit;
-  font-size: 12px;
+}
+.settings-head-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.settings-head-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-heading {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 22px;
+}
+.settings-summary {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 12.5px;
+  line-height: 17px;
+}
+.settings-close {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  align-self: flex-start;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-strong);
   cursor: pointer;
 }
 .settings-close:hover {
-  background: var(--raised);
+  background: var(--wash);
+  color: var(--ink);
 }
 .settings-body {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 18px 22px;
+  gap: 12px;
+  padding: 2px 24px 24px;
   overflow-y: auto;
 }
-.settings-section {
+
+/* A card: a title, a line on what it does, then the controls. */
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.settings-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.settings-card-head:only-child {
+  gap: 2px;
+}
+.settings-card-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.settings-card-hint,
+.settings-card p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 12px;
+  line-height: 17px;
+}
+.settings-season {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+  color: var(--blue-text);
+  font-size: 12px;
+  line-height: 17px;
+}
+.settings-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  margin-left: 8px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--wash);
+  color: var(--muted-strong);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  font-weight: 500;
+  vertical-align: 2px;
+}
+
+/* Tiles: a picture of the choice over its name — Page and Theme. */
+.settings-page-kinds,
+.theme-tiles {
+  display: grid;
+  gap: 8px;
+}
+.settings-page-kinds {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+.theme-tiles {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.settings-tile {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px 8px 9px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--canvas);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--muted-strong);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    box-shadow 120ms ease,
+    color 120ms ease;
+}
+.settings-tile:hover {
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--rule);
+}
+.settings-tile.active {
+  color: var(--ink);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.page-thumb,
+.theme-thumb {
+  width: 100%;
+  height: auto;
+  display: block;
+  aspect-ratio: 8 / 5;
+}
+.theme-thumb {
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.settings-tile-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Options: a name and what it means, one per row, checked when on. */
+.settings-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--canvas);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.settings-option:hover {
+  box-shadow: 0 0 0 1px var(--rule);
+}
+.settings-option.active {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.settings-option-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-option-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.settings-option-hint {
+  color: var(--muted-strong);
+  font-size: 12px;
+  line-height: 16px;
+}
+.settings-check {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--rule);
+}
+.settings-option.active .settings-check {
+  background: var(--ink);
+  box-shadow: none;
+  color: var(--on-ink);
+}
+.settings-check svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Segments and form controls drawn at the cards' size. */
+.settings-card .segments {
+  flex: none;
+  padding: 3px;
+  border-radius: 9px;
+}
+.settings-card .segments button {
+  height: 30px;
+  border-radius: 7px;
+  font-size: 12.5px;
+}
+.settings-card .segments button.active {
+  font-weight: 500;
+}
+.settings-card select,
+.settings-card input:not([type]),
+.settings-card input[type="text"],
+.settings-card input[type="email"],
+.settings-card input[type="password"] {
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--canvas);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  outline: 0;
+}
+.settings-card select:focus-visible,
+.settings-card input:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus);
+}
+.settings-card
+  button:not(.settings-tile, .settings-option, .chip, .segments button) {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--rule);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.settings-card
+  button:not(.settings-tile, .settings-option, .chip, .segments button):not(
+    :disabled
+  ):hover {
+  background: var(--wash);
+}
+.settings-card button:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+.settings-card button[type="submit"] {
+  background: var(--ink);
+  box-shadow: none;
+  color: var(--on-ink);
+}
+.settings-card button[type="submit"]:not(:disabled):hover {
+  background: var(--ink-hover);
+}
+
+/* Field: the profiles as chips, and any reapply offers under them. */
+.settings-card .field-profile-section {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.settings-section p {
+.settings-card .field-profile-chips {
+  gap: 6px;
   margin: 0;
-  color: var(--muted-strong);
-  font-size: 11px;
-  line-height: 15px;
 }
-.settings-section p.settings-season {
-  color: var(--blue-text);
+.settings-card .chip {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  background: var(--canvas);
+  box-shadow: 0 0 0 1px var(--line);
+  font-size: 12.5px;
 }
-.settings-field {
-  display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
-  align-items: center;
+.settings-card .chip:hover {
+  color: var(--ink);
+}
+.settings-card .chip.active {
+  background: var(--ink);
+  box-shadow: none;
+  color: var(--on-ink);
+  font-weight: 500;
+}
+.settings-card .help-row button {
+  flex: none;
+}
+
+/* Playbook: the new-profile form on one line, then labeled rows. */
+.settings-card .field-profile-new {
   gap: 10px;
+  margin: 0;
 }
-.settings-field-label {
-  color: var(--muted);
+.settings-card .field-profile-new input:not([type]) {
+  flex: 1 1 200px;
+}
+.settings-card .field-profile-new label {
   font-size: 12px;
 }
 .coverage-depths {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
-  padding-top: 12px;
 }
-.coverage-depths select {
-  min-height: 32px;
+.settings-row {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 220px);
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  box-shadow: 0 -1px 0 var(--line);
+}
+.settings-row:first-child {
+  box-shadow: none;
+  padding-top: 0;
+}
+.settings-row-label {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+/* History: each snapshot a row with its age under it. */
+.settings-card .history-list {
+  gap: 0;
+}
+.settings-card .history-row {
+  height: auto;
+  min-height: 48px;
+  gap: 12px;
+  padding: 6px 0;
+  border-radius: 0;
+  box-shadow: 0 -1px 0 var(--line);
+}
+.settings-card .history-row:first-child {
+  box-shadow: none;
+}
+.settings-card .history-row:hover {
+  background: none;
+}
+.history-text {
   min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
-.settings-section .settings-about-name {
+.settings-card .history-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+.settings-card .history-ago {
+  width: auto;
+  font-size: 11.5px;
+}
+.settings-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 32px 24px 48px;
+  text-align: center;
+}
+.settings-empty-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--muted-strong);
+}
+.settings-empty-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.settings-empty-title {
+  margin: 0;
   color: var(--ink);
   font-size: 14px;
   font-weight: 600;
 }
-.settings-account .backup-panel {
+.settings-empty .history-empty {
+  max-width: 340px;
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+/* Account and Backup: their panels laid open inside the cards. */
+.settings-card .backup-section {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.settings-card .backup-panel {
   position: static;
   width: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
   padding: 0;
   background: none;
   box-shadow: none;
+  font-size: 12.5px;
 }
-.settings-account .backup-section {
+.settings-card .backup-panel > p,
+.settings-card .version-empty {
+  margin: 0;
+}
+.settings-card .backup-field {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-  padding-top: 14px;
+  gap: 5px;
+  margin: 0;
 }
-/* Back up: the Settings dialog's own button, as Close is drawn. */
-.settings-account .backup-panel > button {
-  align-self: flex-start;
-  height: 30px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 7px;
-  background: var(--paper);
-  box-shadow: 0 0 0 1px var(--line);
-  color: var(--ink);
+.settings-card .backup-field > span {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 500;
+}
+.settings-card .backup-field input {
+  width: 100%;
+}
+.settings-card .backup-restore {
+  margin-top: 6px;
+  padding-top: 14px;
+  box-shadow: 0 -1px 0 var(--line);
+}
+.settings-card input[type="file"] {
+  padding: 2px;
+  color: var(--muted-strong);
   font: inherit;
   font-size: 12px;
+}
+.settings-card input[type="file"]::file-selector-button {
+  height: 32px;
+  margin-right: 10px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--rule);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
   cursor: pointer;
 }
-.settings-account .backup-panel > button:not(:disabled):hover {
-  background: var(--raised);
-}
-.settings-account .backup-panel > button:disabled {
+.settings-card input[type="file"]:disabled::file-selector-button {
   color: var(--disabled);
   cursor: not-allowed;
 }
+.settings-card .backup-status {
+  margin: 0;
+}
+.settings-card .sign-out-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* About: the mark, the name and version, the one line on what Chalk is. */
+.settings-about {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 16px;
+}
+.settings-about-mark {
+  width: 48px;
+  height: 48px;
+  flex: none;
+}
+.settings-about-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-card .settings-about-name {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
 /* On a phone Settings is a page: the head, pill tabs across, the body. */
 .phone-workspace .settings-overlay {
   align-items: stretch;
@@ -9402,36 +9862,48 @@ button.shell-quiet:hover {
   margin: 0;
   flex-direction: column;
   border-radius: 0;
+  box-shadow: none;
 }
 .phone-workspace .settings-main {
   display: contents;
 }
 .phone-workspace .settings-head {
   order: 0;
-  height: 52px;
-  padding: 0 12px;
+  padding: 12px 8px 12px 16px;
+  background: var(--paper);
+}
+.phone-workspace .settings-head-icon {
+  display: none;
 }
 .phone-workspace .settings-side {
   order: 1;
   width: auto;
-  padding: 8px 12px;
+  padding: 0 0 10px;
   background: var(--paper);
   box-shadow: 0 1px 0 var(--line);
 }
-.phone-workspace .settings-title {
+.phone-workspace .settings-title,
+.phone-workspace .settings-group-label {
   display: none;
 }
 .phone-workspace .settings-tabs {
   flex-direction: row;
   gap: 8px;
+  padding: 0 16px;
   overflow-x: auto;
   scrollbar-width: none;
 }
+.phone-workspace .settings-tab-group {
+  flex-direction: row;
+  gap: 8px;
+}
 .phone-workspace .settings-tab {
-  height: 34px;
+  min-height: 36px;
   flex: none;
-  padding: 0 14px;
-  border-radius: 17px;
+  gap: 7px;
+  padding: 0 14px 0 12px;
+  border-radius: 18px;
+  background: var(--canvas);
   box-shadow: 0 0 0 1px var(--line);
   font-size: 14px;
 }
@@ -9440,25 +9912,33 @@ button.shell-quiet:hover {
   box-shadow: none;
   color: var(--on-ink);
 }
-.phone-workspace .settings-tab-value {
-  display: none;
+.phone-workspace .settings-tab.active .settings-tab-icon {
+  color: var(--on-ink);
 }
 .phone-workspace .settings-body {
   order: 2;
   padding: 16px;
 }
 .phone-workspace .settings-close {
-  min-height: 44px;
-  box-shadow: none;
-  color: var(--blue-text);
-  font-size: 15px;
+  width: 44px;
+  height: 44px;
+  align-self: center;
 }
-.phone-workspace .settings-field {
+.phone-workspace .settings-close svg {
+  width: 20px;
+  height: 20px;
+}
+.phone-workspace .settings-row {
   grid-template-columns: 1fr;
+  gap: 6px;
 }
-.phone-workspace .settings-body .segments button,
-.phone-workspace .settings-body .page-kinds button {
-  min-height: 38px;
+.phone-workspace .settings-card .segments button,
+.phone-workspace .settings-card select,
+.phone-workspace .settings-card input:not([type="checkbox"], [type="file"]) {
+  min-height: 40px;
+}
+.phone-workspace .settings-page-kinds {
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
 }
 
 /*

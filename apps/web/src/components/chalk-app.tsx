@@ -238,7 +238,6 @@ import {
   fieldLayerCatalog,
   shadowShown,
   resolveTypeDensity,
-  typePresetCatalog,
   type FieldLayerId,
   type Presentation,
 } from "@chalk/render";
@@ -350,7 +349,11 @@ import { applyLiveFieldPaint, type LiveFieldPaint } from "./live-field-paint";
 import { FieldDiagram } from "./field-diagram";
 import { SELECTION_BLUE, sceneColors, selectionKey } from "./field-marks";
 import { PlaybackBar } from "./playback-bar";
-import { SettingsOverlay, type SettingsTab } from "./settings-overlay";
+import {
+  SettingsCard,
+  SettingsOverlay,
+  type SettingsTab,
+} from "./settings-overlay";
 import { CoverageDepthsSection } from "./coverage-depths-section";
 import { PlaySidebar, SidebarIcon, type SidebarRowSpec } from "./play-sidebar";
 import { rosterFor, type Roster, type RosterRow } from "./assignments-roster";
@@ -6857,20 +6860,25 @@ export function ChalkApp({
    * gets to bring the diagram onto the latest revision.
    */
   const settingsFieldProfile = (
-    <FieldProfileSection
-      formations={allFormations}
-      onApplyProfile={(profile) => {
-        void editorStore
-          .applyCommand({
-            kind: "set-field-profile",
-            fieldProfile: profile,
-          })
-          .catch(() => undefined);
-      }}
-      onReapplyFormation={(formation) => applyFormationPick(formation.id)}
-      play={editor.document}
-      playbook={playbook.snapshot.playbook}
-    />
+    <SettingsCard
+      hint="High school, college and NFL hashes. Changing the profile never moves a man or a route."
+      title="Hash marks"
+    >
+      <FieldProfileSection
+        formations={allFormations}
+        onApplyProfile={(profile) => {
+          void editorStore
+            .applyCommand({
+              kind: "set-field-profile",
+              fieldProfile: profile,
+            })
+            .catch(() => undefined);
+        }}
+        onReapplyFormation={(formation) => applyFormationPick(formation.id)}
+        play={editor.document}
+        playbook={playbook.snapshot.playbook}
+      />
+    </SettingsCard>
   );
   /**
    * Playbook settings keeps the new-profile form — a profile is Playbook-wide
@@ -6894,14 +6902,22 @@ export function ChalkApp({
   };
   const settingsPlaybookSettings = (
     <>
-      <NewProfileForm
-        current={editor.document.fieldProfile}
-        onCreate={createFieldProfile}
-      />
-      <p>Play types are managed from the Unit · Type pill in the header.</p>
+      <SettingsCard
+        hint="Keep the current play's hash marks as a profile any play in this playbook can use."
+        title="Field profiles"
+      >
+        <NewProfileForm
+          current={editor.document.fieldProfile}
+          onCreate={createFieldProfile}
+        />
+      </SettingsCard>
       <CoverageDepthsSection
         depths={coverageDepths}
         onChange={saveCoverageDepths}
+      />
+      <SettingsCard
+        hint="Add and rename play types from the Unit · Type pill in the header, above the field."
+        title="Play types"
       />
     </>
   );
@@ -7035,31 +7051,35 @@ export function ChalkApp({
         <SettingsOverlay
           account={
             <>
-              <AccountPanel
-                expanded
-                identity={identity}
-                onKeepLocalData={async () => {
-                  await identity.signOut();
-                }}
-                onOpenConflicts={() => setOverlay("conflicts")}
-                onRemoveLocalData={async () => {
-                  await identity.signOut();
-                  await runtime.destroyLocalData();
-                }}
-                snapshot={syncSnapshot}
-                sync={sync}
-              />
-              <BackupPanel runtime={runtime} />
+              <SettingsCard
+                hint="Sign in to keep your playbooks in sync across devices."
+                title="Cloud sync"
+              >
+                <AccountPanel
+                  expanded
+                  identity={identity}
+                  onKeepLocalData={async () => {
+                    await identity.signOut();
+                  }}
+                  onOpenConflicts={() => setOverlay("conflicts")}
+                  onRemoveLocalData={async () => {
+                    await identity.signOut();
+                    await runtime.destroyLocalData();
+                  }}
+                  snapshot={syncSnapshot}
+                  sync={sync}
+                />
+              </SettingsCard>
+              <SettingsCard
+                hint="An encrypted file of every playbook on this device. A passphrase you lose cannot be recovered."
+                title="Backup"
+              >
+                <BackupPanel runtime={runtime} />
+              </SettingsCard>
             </>
-          }
-          accountSummary={
-            identitySession.status === "signed_in"
-              ? `Signed in · ${syncSnapshot.status}`
-              : "Local only"
           }
           field={fieldPreference}
           fieldProfile={settingsFieldProfile}
-          fieldProfileName={editor.document.fieldProfile.name}
           onClose={() => setOverlay(null)}
           onField={setFieldPreference}
           onTab={setSettingsTab}
@@ -7080,10 +7100,6 @@ export function ChalkApp({
           }
           pageKind={presentation.pageKind}
           playbookSettings={settingsPlaybookSettings}
-          typeHint={
-            typePresetCatalog.find(({ id }) => id === presentation.typePreset)
-              ?.hint ?? typePresetCatalog[0]!.hint
-          }
           typePreset={presentation.typePreset}
           versions={editor.versions}
         />
@@ -9568,7 +9584,6 @@ function BackupPanel({ runtime }: { runtime: ChalkRuntime }) {
 
   return (
     <div aria-label="Backup" className="backup-section" role="group">
-      <span className="settings-field-label">Backup</span>
       <div className="backup-panel">
         <label className="backup-field">
           <span>Passphrase</span>
@@ -9580,10 +9595,6 @@ function BackupPanel({ runtime }: { runtime: ChalkRuntime }) {
             value={passphrase}
           />
         </label>
-        <p className="version-empty">
-          Chalk encrypts the backup on this device. A passphrase you lose cannot
-          be recovered.
-        </p>
         <button
           disabled={!passphrase || state.phase === "working"}
           onClick={backUp}
@@ -9591,7 +9602,7 @@ function BackupPanel({ runtime }: { runtime: ChalkRuntime }) {
         >
           Back up my Playbooks
         </button>
-        <label className="backup-field">
+        <label className="backup-field backup-restore">
           <span>Restore a backup</span>
           <input
             accept="application/json"
