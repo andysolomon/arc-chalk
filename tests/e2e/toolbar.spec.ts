@@ -6,16 +6,22 @@ import { expect, openBlankEditor, test } from "./fixtures";
  * The tool rail puts men on and takes them off (ADR 0077). A new play opens
  * on the browser for its unit, so the set is the first thing chosen, and
  * closing it leaves the field blank. From a blank field the rail's Formation
- * button puts a set on or changes it, its shadow button adds the other unit
- * and then shows or hides it, Clear every line and Clear every player take
- * the routes or the men off, and the trash takes what is picked. The field
- * after each run, and the rail beside it, are the artifacts.
+ * button puts a set on or changes it, Clear every line and Clear every player
+ * take the routes or the men off, and the trash takes what is picked. Beside
+ * the sidebar the rail has no shadow button: the sidebar's Shadow row adds
+ * the other unit and then shows or hides it, its one home (ADR 0088). The
+ * field after each run, and the rail beside it, are the artifacts.
  */
 
 const rail = (page: Page) =>
   page.getByRole("navigation", { name: "Drawing tools" });
 const men = (page: Page) => page.locator("[data-scene-player]");
 const lines = (page: Page) => page.locator("[data-scene-path-group]");
+/** The sidebar's Shadow row, the shadow's one home beside the rail. */
+const shadowRow = (page: Page) =>
+  page.locator('[data-row="shadow"] > button.sidebar-row');
+const shadowPopover = (page: Page) =>
+  page.locator('[data-row="shadow"] .sidebar-popover');
 
 async function newPlay(page: Page, unit: "offensive" | "defensive") {
   await page
@@ -87,21 +93,36 @@ test("an offensive play starts on its set, and the rail puts men on and takes th
   await expect(men(page)).toHaveCount(11);
   await expect(clearPlayers).toBeEnabled();
 
-  // With no defense yet, the shadow button adds one…
-  await tools
-    .getByRole("button", { name: "Add a shadow defense — ⇧⌘D" })
-    .click();
+  // The rail has no shadow button; with no defense yet the sidebar's
+  // Shadow row adds one…
+  await expect(tools.getByRole("button", { name: /shadow/i })).toHaveCount(0);
+  await expect(shadowRow(page)).toHaveAccessibleName(
+    "Shadow defense, No defense yet",
+  );
+  await shadowRow(page).click();
+  await shadowPopover(page).locator(".wide-picker").click();
   await pick(page, "Defenses", "4-3 Cover 3");
   await expect(men(page)).toHaveCount(22);
 
   // …and then shows and hides it, which never takes it out of the play.
-  const shadow = tools.getByRole("button", { name: "Shadow defense — H" });
-  await expect(shadow).toHaveAttribute("aria-pressed", "true");
-  await shadow.click();
-  await expect(shadow).toHaveAttribute("aria-pressed", "false");
-  await shadow.click();
-  await expect(shadow).toHaveAttribute("aria-pressed", "true");
+  await shadowRow(page).click();
+  const shown = shadowPopover(page).getByRole("button", {
+    name: "Shown",
+    exact: true,
+  });
+  const hidden = shadowPopover(page).getByRole("button", {
+    name: "Hidden",
+    exact: true,
+  });
+  await expect(shown).toHaveAttribute("aria-pressed", "true");
+  await hidden.click();
+  await expect(shown).toHaveAttribute("aria-pressed", "false");
+  await expect(shadowRow(page)).toHaveAccessibleName("Shadow defense, hidden");
+  await shown.click();
+  await expect(shown).toHaveAttribute("aria-pressed", "true");
   await expect(men(page)).toHaveCount(22);
+  await shadowRow(page).click();
+  await expect(shadowPopover(page)).toBeHidden();
 
   // The Formation button changes the set the men stand in.
   await tools
@@ -137,21 +158,23 @@ test("an offensive play starts on its set, and the rail puts men on and takes th
   await expect(men(page)).toHaveCount(22);
 
   // Clear every player empties the field on both sides of the ball, and the
-  // shadow button goes back to adding one.
+  // Shadow row goes back to having nobody to show.
   await clearPlayers.click();
   await expect(men(page)).toHaveCount(0);
   await expect(page.getByRole("status")).toContainText(
     "Clear every player — 22 men off",
   );
   await expect(clearPlayers).toBeDisabled();
-  await expect(
-    tools.getByRole("button", { name: "Add a shadow defense — ⇧⌘D" }),
-  ).toBeVisible();
+  await expect(shadowRow(page)).toHaveAccessibleName(
+    "Shadow defense, No defense yet",
+  );
 
-  // One undo puts every one of them back.
+  // One undo puts every one of them back, the shadow shown.
   await page.keyboard.press("ControlOrMeta+z");
   await expect(men(page)).toHaveCount(22);
-  await expect(shadow).toHaveAttribute("aria-pressed", "true");
+  await expect(shadowRow(page)).not.toHaveAccessibleName(
+    /hidden|No defense yet/,
+  );
 
   await settle(page);
   await page.screenshot({ path: testInfo.outputPath("offense-toolbar.png") });
@@ -166,7 +189,7 @@ test("an offensive play starts on its set, and the rail puts men on and takes th
   });
 });
 
-test("a defensive play starts on its call, and the rail adds its shadow offense", async ({
+test("a defensive play starts on its call, and the sidebar adds its shadow offense", async ({
   page,
 }, testInfo) => {
   await openBlankEditor(page);
@@ -176,19 +199,20 @@ test("a defensive play starts on its call, and the rail adds its shadow offense"
   await pick(page, "Defenses", "4-3 Cover 3");
   await expect(men(page)).toHaveCount(11);
 
-  // On a defensive play the rail's set is the call and its shadow is the
-  // offense, each in its own browser.
+  // On a defensive play the rail's set is the call, and the sidebar's
+  // Shadow row adds the offense from its own browser.
   await expect(
     tools.getByRole("button", { name: "Add or change the formation — ⇧⌘F" }),
   ).toHaveCount(0);
-  await tools
-    .getByRole("button", { name: "Add a shadow offense — ⇧⌘F" })
-    .click();
+  await expect(tools.getByRole("button", { name: /shadow/i })).toHaveCount(0);
+  await expect(shadowRow(page)).toHaveAccessibleName(/^Shadow offense, /);
+  await shadowRow(page).click();
+  await shadowPopover(page).locator(".wide-picker").click();
   await pick(page, "Formations", "Gun Doubles Right");
   await expect(men(page)).toHaveCount(22);
-  await expect(
-    tools.getByRole("button", { name: "Shadow offense — H" }),
-  ).toHaveAttribute("aria-pressed", "true");
+  await expect(shadowRow(page)).toHaveAccessibleName(
+    "Shadow offense, Gun Doubles Right",
+  );
 
   await tools
     .getByRole("button", { name: "Add or change the defense — ⇧⌘D" })
