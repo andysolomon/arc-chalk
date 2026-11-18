@@ -6477,7 +6477,7 @@ export function ChalkApp({
       if (key === "s") setSnapEnabled((enabled) => !enabled);
       if (key === "h") {
         // H takes the other unit's shadow off the field and puts it back;
-        // the rail's Shadow button does the same (ADR 0053).
+        // the sidebar's Shadow row does the same (ADR 0053).
         setPresentation((current) => ({
           ...current,
           hideShadow: shadowShown(current),
@@ -6797,28 +6797,16 @@ export function ChalkApp({
       },
     };
   })();
-  /** The shadow by the other unit's name, as the rail and the layers call it. */
-  const shadowLayerName =
-    editor.document.unit === "defense" ? "Shadow offense" : "Shadow defense";
-  const fieldLayers: readonly FieldLayerToggle[] = [
-    ...fieldLayerCatalog.map((layer) => ({
+  // The shadow is not a layer here: its one home is the sidebar's Shadow row
+  // (ADR 0088).
+  const fieldLayers: readonly FieldLayerToggle[] = fieldLayerCatalog.map(
+    (layer) => ({
       id: layer.id,
       name: layer.name,
       on: presentation.layers[layer.id],
-    })),
-    // The other unit's shadow is listed with the layers (ADR 0053): the one
-    // drawn thing on the field that is not the Play's own.
-    {
-      id: "shadow",
-      name: shadowLayerName,
-      on: shadowOnField,
-    },
-  ];
+    }),
+  );
   const toggleFieldLayer = (id: string) => {
-    if (id === "shadow") {
-      toggleShadow();
-      return;
-    }
     setPresentation((current) => ({
       ...current,
       layers: {
@@ -8440,34 +8428,35 @@ export function ChalkApp({
       <UnitLetter unit={playUnit} />
     </button>
   );
-  const railShadowButton =
-    shadowCount === 0 ? (
-      // Nobody to show yet: the button puts the other unit on, in the
-      // browser for its side, and is a toggle once it is there.
-      <button
-        aria-label={railShadowAddName}
-        className="rail-shadow rail-shadow-add"
-        onClick={defensePlay ? openFormations : openDefenses}
-        title={railShadowAddName}
-        type="button"
-      >
-        <UnitLetter off shadow unit={shadowUnit} />
-      </button>
-    ) : (
-      <button
-        // The other unit under the play, shown or hidden (ADR 0053).
-        // Pressed means it is on the field; it stays in the play either way.
-        aria-label={`${shadowLayerName} — H`}
-        aria-pressed={shadowOnField}
-        className="rail-shadow"
-        onClick={toggleShadow}
-        title={`${shadowLayerName} on / off — H`}
-        type="button"
-      >
-        <UnitLetter off={!shadowOnField} shadow unit={shadowUnit} />
-      </button>
-    );
   const toolsInSidebar = !sidebarFloats;
+  // Beside the sidebar the Shadow row is the shadow's one home (ADR 0088);
+  // a tablet's drawer rail and the phone's tool row keep a button for it.
+  const railShadowButton = toolsInSidebar ? null : shadowCount === 0 ? (
+    // Nobody to show yet: the button puts the other unit on, in the
+    // browser for its side, and is a toggle once it is there.
+    <button
+      aria-label={railShadowAddName}
+      className="rail-shadow rail-shadow-add"
+      onClick={defensePlay ? openFormations : openDefenses}
+      title={railShadowAddName}
+      type="button"
+    >
+      <UnitLetter off shadow unit={shadowUnit} />
+    </button>
+  ) : (
+    <button
+      // The other unit under the play, shown or hidden (ADR 0053).
+      // Pressed means it is on the field; it stays in the play either way.
+      aria-label={`${shadowName} — H`}
+      aria-pressed={shadowOnField}
+      className="rail-shadow"
+      onClick={toggleShadow}
+      title={`${shadowName} on / off — H`}
+      type="button"
+    >
+      <UnitLetter off={!shadowOnField} shadow unit={shadowUnit} />
+    </button>
+  );
   /** Folded (⌥3) with the tools out: the rail of tools and sidebar icons. */
   const sidebarFolded = toolsInSidebar && !sidebarOpen && railOpen;
   const railTools = (
