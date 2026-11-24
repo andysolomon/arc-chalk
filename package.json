@@ -23,7 +23,8 @@
     "format": "prettier --write apps packages convex scripts tests package.json tsconfig.json tsconfig.base.json eslint.config.js vitest.config.ts .releaserc.json",
     "format:check": "prettier --check apps packages convex scripts tests package.json tsconfig.json tsconfig.base.json eslint.config.js vitest.config.ts .releaserc.json",
     "check:boundaries": "bun scripts/check-boundaries.ts",
-    "check": "bun run format:check && bun run lint && bun run check:boundaries && bun run test && bun run test:e2e && bun run test:parity && bun run test:pwa && bun run build",
+    "check:models": "bun scripts/check-models.ts",
+    "check": "bun run format:check && bun run lint && bun run check:boundaries && bun run check:models && bun run test && bun run test:e2e && bun run test:parity && bun run test:pwa && bun run build",
     "release": "semantic-release",
     "release:dry-run": "semantic-release --dry-run --no-ci"
   },
