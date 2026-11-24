@@ -355,6 +355,7 @@ import {
   type SettingsTab,
 } from "./settings-overlay";
 import { CoverageDepthsSection } from "./coverage-depths-section";
+import { swallowRestOfPress, useDismissOnPressOutside } from "./page-press";
 import { PlaySidebar, SidebarIcon, type SidebarRowSpec } from "./play-sidebar";
 import { rosterFor, type Roster, type RosterRow } from "./assignments-roster";
 import {
@@ -390,7 +391,6 @@ type Menu =
   | "versions"
   | "help"
   | "classify"
-  | "layers"
   | "new"
   /** The Playbooks page's own New play, apart from the header's. */
   | "newPage"
@@ -1517,6 +1517,7 @@ function QuickTray({
   calls,
   heading,
   onApply,
+  ref,
   running,
   title,
 }: {
@@ -1524,13 +1525,14 @@ function QuickTray({
   /** What the row offers, said short: Routes, Blocks, Assignments. */
   heading: string;
   onApply: (presetKey: string) => void;
+  ref: Ref<HTMLElement>;
   /** The calls already on him, or the one this line was drawn as. */
   running: ReadonlySet<string>;
   /** Whom or what the row is for, said the way the Coach would. */
   title: string;
 }) {
   return (
-    <nav aria-label="Quick calls" className="quick-tray">
+    <nav aria-label="Quick calls" className="quick-tray" ref={ref}>
       <span className="quick-tray-heading" title={title}>
         {heading}
       </span>
@@ -2846,6 +2848,7 @@ function Inspector({
   onSelectPlayer,
   onSheetSnap,
   openZones,
+  ref,
   roster,
   scopeBadge,
   selected,
@@ -2867,6 +2870,7 @@ function Inspector({
   onSelectPlayer: (playerId: string) => void;
   onSheetSnap?: (snap: "peek" | "full") => void;
   openZones?: readonly string[];
+  ref: Ref<HTMLElement>;
   roster: Roster;
   scopeBadge?: string;
   /** What is picked out, for the sheet's head and the pager. */
@@ -2948,14 +2952,14 @@ function Inspector({
   if (!sheet) {
     if (labelEditor) {
       return (
-        <aside className="inspector" aria-label="Play inspector">
+        <aside className="inspector" aria-label="Play inspector" ref={ref}>
           {defensiveAdjustments}
           {labelEditor}
         </aside>
       );
     }
     return (
-      <aside className="inspector" aria-label="Play inspector">
+      <aside className="inspector" aria-label="Play inspector" ref={ref}>
         <div className="inspector-bar assignments-bar">
           <strong>Assignments</strong>
           <span className="assignments-count">{count}</span>
@@ -2990,6 +2994,7 @@ function Inspector({
   if (sheetSnap === "peek") {
     return (
       <aside
+        ref={ref}
         aria-label="Play inspector"
         className="inspector sheet sheet-peek"
         data-sheet="peek"
@@ -3057,6 +3062,7 @@ function Inspector({
       );
     return (
       <aside
+        ref={ref}
         aria-label="Play inspector"
         className="inspector sheet sheet-full"
         data-sheet="full"
@@ -3116,6 +3122,7 @@ function Inspector({
   }
   return (
     <aside
+      ref={ref}
       aria-label="Play inspector"
       className="inspector sheet sheet-full"
       data-sheet="full"
@@ -3318,6 +3325,8 @@ export function ChalkApp({
     return undefined;
   };
   const fieldSvgRef = useRef<SVGSVGElement | null>(null);
+  const inspectorRef = useRef<HTMLElement | null>(null);
+  const quickTrayRef = useRef<HTMLElement | null>(null);
   const livePreviewRef = useRef<LiveFieldPaint | undefined>(undefined);
   const heldLiveRef = useRef<LiveFieldPaint | undefined>(undefined);
   /**
@@ -4232,37 +4241,7 @@ export function ChalkApp({
     } else {
       return;
     }
-    swallowClickUnderPanel();
-  };
-  /**
-   * A panel that comes out mid-press can rise under the pointer — a phone's
-   * sheet always does — and the mouse events that end the press would land
-   * on whatever it put there: the mousedown takes the caret from a note
-   * just placed, the click picks a meaning or a size. They were the press
-   * on the field, so they go nowhere. The next press lets the guard go, and
-   * a key's click (detail 0) is never one.
-   */
-  const swallowClickUnderPanel = (): void => {
-    const types = ["mousedown", "mouseup", "click"] as const;
-    const swallow = (event: MouseEvent) => {
-      if (event.detail === 0) return;
-      const target = event.target instanceof Element ? event.target : null;
-      if (!target?.closest(".inspector")) return;
-      event.preventDefault();
-      event.stopPropagation();
-    };
-    for (const type of types) {
-      globalThis.addEventListener(type, swallow, { capture: true });
-    }
-    globalThis.addEventListener(
-      "pointerdown",
-      () => {
-        for (const type of types) {
-          globalThis.removeEventListener(type, swallow, { capture: true });
-        }
-      },
-      { capture: true, once: true },
-    );
+    swallowRestOfPress(inspectorRef);
   };
   const dispatchField = (event: FieldInteractionEvent): void => {
     const document = editorStore.getSnapshot().document;
@@ -6517,74 +6496,20 @@ export function ChalkApp({
     showSelectionOnKey,
   ]);
 
-  useEffect(() => {
-    if (!openMenu) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest(".menu")) return;
-      setOpenMenu(null);
-    };
-    globalThis.addEventListener("pointerdown", onPointerDown);
-    return () => globalThis.removeEventListener("pointerdown", onPointerDown);
-  }, [openMenu]);
-
-  // A drawer or sheet over the field goes away on a tap past it — the field,
-  // the tools, the top bar. What it opened itself (a browser, a menu, its own
-  // handle) is not past it.
-  useEffect(() => {
-    if (phoneWorkspace ? sheetSnap !== "full" : !inspectorOpen) return;
-    if (!inspectorFloats) return;
-    // The press that brought it out — a note placed with the Text tool — is
-    // still on its way up when this listens, and is not a tap past it.
-    const armedAt = performance.now();
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.timeStamp < armedAt) return;
-      const target = event.target instanceof Element ? event.target : null;
-      if (
-        target?.closest(
-          ".inspector, .inspector-stub, .overlay, .menu-panel, .context-backdrop, .toast, .play-sidebar, .sidebar-rail, .sidebar-scrim, .quick-tray",
-        )
-      ) {
-        return;
-      }
+  // A drawer or sheet over the field goes away on a press past it: the field,
+  // the tools, the top bar. While the sidebar's drawer is out, every press
+  // lands on that drawer or its scrim, and neither is past this one.
+  useDismissOnPressOutside(
+    inspectorFloats &&
+      !sidebarOpen &&
+      (phoneWorkspace ? sheetSnap === "full" : inspectorOpen),
+    [inspectorRef, quickTrayRef],
+    () => {
       // A phone's sheet never leaves: it goes back to its peek.
       if (phoneWorkspace) setSheetSnap("peek");
       else setInspectorOpen(false);
-    };
-    globalThis.addEventListener("pointerdown", onPointerDown);
-    return () => globalThis.removeEventListener("pointerdown", onPointerDown);
-  }, [inspectorOpen, inspectorFloats, phoneWorkspace, sheetSnap]);
-
-  // The sidebar's drawer goes away on a tap past it too. On a desktop its
-  // popover goes on a press anywhere past the popover — the field, the
-  // tools, the header, the rest of the sidebar — but not on the row that
-  // opened it, which toggles it itself. It listens in the capture phase so a
-  // handle on the field that keeps its press to itself still lets it go.
-  useEffect(() => {
-    const drawer = sidebarFloats && sidebarOpen;
-    if (!drawer && sidebarPopover === null) return;
-    const kept = ".overlay, .menu-panel, .context-backdrop, .toast";
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target instanceof Element ? event.target : null;
-      if (drawer) {
-        if (target?.closest(`.play-sidebar, ${kept}`)) return;
-        setSidebarPopover(null);
-        setSidebarOpen(false);
-        return;
-      }
-      if (
-        target?.closest(
-          `.sidebar-popover, .sidebar-row.active, .sidebar-foot-icon.active, .sidebar-open, .sidebar-stub, ${kept}`,
-        )
-      ) {
-        return;
-      }
-      setSidebarPopover(null);
-    };
-    globalThis.addEventListener("pointerdown", onPointerDown, true);
-    return () =>
-      globalThis.removeEventListener("pointerdown", onPointerDown, true);
-  }, [sidebarFloats, sidebarOpen, sidebarPopover]);
+    },
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -7174,6 +7099,7 @@ export function ChalkApp({
       return (
         <QuickTray
           calls={calls}
+          ref={quickTrayRef}
           heading={
             who?.label.trim() ? `${who.label.trim()} · Redraw` : "Redraw"
           }
@@ -7196,6 +7122,7 @@ export function ChalkApp({
       const name = selectedPlayer.label.trim();
       return (
         <QuickTray
+          ref={quickTrayRef}
           calls={
             defense
               ? assignmentOfferFor(editor.document, selectedPlayer).own
@@ -8853,6 +8780,7 @@ export function ChalkApp({
         </main>
         {inspectorOpen || phoneWorkspace ? (
           <Inspector
+            ref={inspectorRef}
             labelEditor={
               selectedPath?.kind === "motion" ? (
                 <MotionInspector

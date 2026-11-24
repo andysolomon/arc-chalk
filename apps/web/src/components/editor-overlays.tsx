@@ -25,6 +25,7 @@ import {
 import { defenseThumbnail } from "./defense-thumbnail";
 import { FORMATION_THUMBNAIL, formationThumbnail } from "./formation-thumbnail";
 import { keepInViewport } from "./keep-in-viewport";
+import { useDismissOnPressOutside } from "./page-press";
 
 function MenuItem({
   actions,
@@ -110,6 +111,8 @@ export function MoreMenu({
   phone?: boolean;
   zonesHidden: boolean;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  useDismissOnPressOutside(open, [root], onDismiss);
   // Clear… walks into its own page of the menu, the way Export's submenus
   // do; opening the menu again starts it on the actions.
   const [clearing, setClearing] = useState(false);
@@ -144,7 +147,7 @@ export function MoreMenu({
   ];
 
   return (
-    <div className="menu menu-more">
+    <div className="menu menu-more" ref={root}>
       <button
         aria-expanded={open}
         // The original labels this button only with its tooltip; a screen
@@ -289,9 +292,11 @@ export function NewPlayMenu({
   onToggle: () => void;
   open: boolean;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  useDismissOnPressOutside(open, [root], onDismiss);
   const enabled = newPlayEntries.some(({ id }) => actions[id] !== undefined);
   return (
-    <div className="menu menu-new">
+    <div className="menu menu-new" ref={root}>
       <button
         aria-expanded={open}
         aria-haspopup="true"
@@ -391,8 +396,10 @@ export function HelpMenu({
   onToggle: () => void;
   open: boolean;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  useDismissOnPressOutside(open, [root], onDismiss);
   return (
-    <div className="menu menu-help">
+    <div className="menu menu-help" ref={root}>
       <button
         aria-expanded={open}
         aria-label="Help"
@@ -441,8 +448,10 @@ export function ExportMenu({
   recent?: readonly MenuEntry[];
   wristband: WristbandPicker;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  useDismissOnPressOutside(open, [root], onDismiss);
   return (
-    <div className="menu menu-export">
+    <div className="menu menu-export" ref={root}>
       <button
         aria-expanded={open}
         className={`export${open ? " open" : ""}`}
@@ -642,8 +651,10 @@ export function VersionsMenu({
   onToggle: () => void;
   open: boolean;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  useDismissOnPressOutside(open, [root], onDismiss);
   return (
-    <div className="menu menu-versions">
+    <div className="menu menu-versions" ref={root}>
       <button
         aria-expanded={open}
         className={`versions${open ? " open" : ""}`}
