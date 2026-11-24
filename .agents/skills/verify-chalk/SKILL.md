@@ -184,7 +184,6 @@ Share publishes the instance on the tailnet with `tailscale serve` and prints an
 
 ## Gotchas
 
-- **Port 4173 belongs to the first checkout that ran `bun run dev`.** `bun run test:e2e` reuses whatever answers there, so from a second worktree it tests the wrong code. `$V drive` never uses 4173.
 - **WebKit needs system libraries this machine may lack.** `webkit-ipad` and `phone-webkit` then fail at launch with "Host system is missing dependencies". CI runs both.
 - **The starter Playbook is opt-in.** `openSeededEditor(page)` and the fixture's `page.goto("/")` open `Stick — Thunder`. `openBlankEditor(page)` opens an empty library.
 - **A clean device is cleared once per page.** The fixtures clear `localStorage` and delete the `chalk-production-beta` database in the test browser's own profile. They never touch a person's browser.
