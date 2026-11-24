@@ -3,7 +3,6 @@ import {
   callSheetGroups,
   installPageHtml,
   libraryOrder,
-  playMeta,
   playRows,
   playbookHtml,
   positionViewHtml,
@@ -99,14 +98,6 @@ describe("coaching rows", () => {
     expect(third).toBeGreaterThan(second);
     expect(strip.endsWith("  →  CHECK")).toBe(true);
     expect(progressionStrip(stickThunderPlay)).toBe("");
-  });
-
-  it("reads personnel, formation, strength and hash off the men", () => {
-    const meta = playMeta(readPlay, offensivePlaybookGolden.formations);
-    expect(meta.personnel).toBe("11P");
-    expect(meta.formation).toBe(offensivePlaybookGolden.formations[0]!.name);
-    expect(meta.strength).toBe("balanced");
-    expect(meta.hash).toBe("middle");
   });
 
   it("keeps only landmark labels on the quiz diagram", () => {

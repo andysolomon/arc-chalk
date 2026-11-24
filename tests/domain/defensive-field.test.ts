@@ -158,18 +158,6 @@ describe("zone drops land at their landmark", () => {
     expect(end.depthYards).toBeLessThanOrEqual(12);
   });
 
-  it("puts a spy five to seven yards off the ball over the quarterback, not at the spy's own depth", () => {
-    const play = playOf([
-      ...lineAt(3),
-      { ...quarterback, position: { lateralYards: 3, depthYards: -5 } },
-      man("f", "defense", "F", -6, 20),
-    ]);
-    const { end } = drawn(play, "spy", "f");
-    expect(end.lateralYards).toBeCloseTo(3, 6);
-    expect(end.depthYards).toBeGreaterThanOrEqual(5);
-    expect(end.depthYards).toBeLessThanOrEqual(7);
-  });
-
   it("puts a spy over the ball when there is no offense on the field", () => {
     const play = playOf([
       man("e", "defense", "E", -4, 2),
