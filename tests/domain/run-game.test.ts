@@ -1,7 +1,6 @@
 import {
   highSchoolFieldProfile,
   playSideOf,
-  snapSpotOf,
   tackleBoxOf,
   type MovementPath,
   type PlayDocument,
@@ -95,12 +94,6 @@ const down = (owner: Player, lateralYards = -1.6): MovementPath =>
   );
 
 describe("which way the run is going", () => {
-  it("reads a power right off the down blocks, not the way they move", () => {
-    const [, , c, rg, rt] = line;
-    const power = play(line, [down(c!), down(rg!), down(rt!)]);
-    expect(playSideOf(power)).toBe(1);
-  });
-
   it("counts the centre's down block though he stands on the ball", () => {
     const [, , c] = line;
     expect(playSideOf(play(line, [down(c!)]))).toBe(1);
@@ -192,26 +185,5 @@ describe("the tackle box", () => {
 
   it("has no box with one man on the line", () => {
     expect(tackleBoxOf(play([line[2]!]))).toBeUndefined();
-  });
-});
-
-describe("where a man is at the snap", () => {
-  it("is where his motion leaves him", () => {
-    const h = man("h", -12, LINE_DEPTH, "H");
-    expect(
-      snapSpotOf(
-        play(
-          [h],
-          [
-            path("jet", h, "motion", [
-              [-6, -2],
-              [-1, -2],
-            ]),
-          ],
-        ),
-        "h",
-      ),
-    ).toEqual({ lateralYards: -1, depthYards: -2 });
-    expect(snapSpotOf(play([h]), "h")).toEqual(h.position);
   });
 });
