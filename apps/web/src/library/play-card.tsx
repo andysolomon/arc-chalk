@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { ChalkLibrary } from "../app/editor-runtime";
 import { playFrame } from "../components/export-diagram";
+import { askToType } from "../components/ask-to-type";
 import { FieldDiagram } from "../components/field-diagram";
 import { UnitBadge } from "../components/unit-badge";
 import { PlaybookNameForm } from "./playbooks-shelf";
@@ -148,8 +149,8 @@ export function PlayCard({
           <div className="play-card-title">
             {renamingThis && onRename ? (
               <PlaybookNameForm
-                autoFocus
                 className="play-rename"
+                field="play-name"
                 initial={member.name}
                 label="Play name"
                 onCancel={() => setRenaming(undefined)}
@@ -167,7 +168,10 @@ export function PlayCard({
                   <button
                     aria-label={`Rename ${member.name}`}
                     className="book-rename-open play-card-rename"
-                    onClick={() => setRenaming(member.playId)}
+                    onClick={() => {
+                      askToType("play-name");
+                      setRenaming(member.playId);
+                    }}
                     type="button"
                   >
                     Rename

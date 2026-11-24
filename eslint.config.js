@@ -4,6 +4,27 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+const focusMessage =
+  "Opening a panel must not raise the tablet keyboard (#59, #87). Focus a field only from the handler of a Coach action that asked to type: call askToType in that handler and useFocusWhenAsked on the field, from apps/web/src/components/ask-to-type.ts.";
+const effectHook = "/^use(Layout|Insertion)?Effect$/";
+
+const fieldAutoFocus = {
+  selector:
+    'JSXOpeningElement[name.name=/^(input|textarea|select|[A-Z]\\w*)$/] > JSXAttribute[name.name="autoFocus"]',
+  message: focusMessage,
+};
+const focusFromEffect = {
+  selector: `CallExpression:matches([callee.name=${effectHook}], [callee.property.name=${effectHook}]) CallExpression[callee.property.name="focus"]`,
+  message: focusMessage,
+};
+const focusFromRef = {
+  selector:
+    'JSXAttribute[name.name="ref"] CallExpression[callee.property.name="focus"]',
+  message: focusMessage,
+};
+
+const restrictedSyntax = [fieldAutoFocus, focusFromEffect, focusFromRef];
+
 export default tseslint.config(
   { ignores: ["**/dist/**", "**/.turbo/**", "**/convex/_generated/**"] },
   eslint.configs.recommended,
@@ -29,6 +50,7 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
+      "no-restricted-syntax": ["error", ...restrictedSyntax],
     },
   },
   {
