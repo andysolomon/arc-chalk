@@ -892,16 +892,16 @@ export function applyLabelRoleCommand(
 /** Every id a command brings into existence. */
 export function insertedEntityIds(command: PlayCommand): readonly string[] {
   const fromPrimitive = (primitive: PrimitivePlayCommand): string[] => {
-    switch (primitive.kind) {
-      case "insert-players":
-        return primitive.players.map(({ item }) => item.id);
-      case "insert-paths":
-        return primitive.paths.map(({ item }) => item.id);
-      case "insert-labels":
-        return primitive.labels.map(({ item }) => item.id);
-      default:
-        return [];
+    if (primitive.kind === "insert-players") {
+      return primitive.players.map(({ item }) => item.id);
     }
+    if (primitive.kind === "insert-paths") {
+      return primitive.paths.map(({ item }) => item.id);
+    }
+    if (primitive.kind === "insert-labels") {
+      return primitive.labels.map(({ item }) => item.id);
+    }
+    return [];
   };
   return command.kind === "batch"
     ? command.commands.flatMap(fromPrimitive)
