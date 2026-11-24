@@ -20,6 +20,7 @@ import {
 } from "@chalk/domain";
 import { createStore } from "zustand/vanilla";
 
+import { describeFailure } from "./describe-failure";
 import {
   recordUndoEntry,
   redoStep,
@@ -267,28 +268,6 @@ function withManCoverageSettled(
   };
 }
 
-/**
- * What the device said, in the words meant for a person. A Play the
- * repository refuses carries its reasons as a list of issues, each written
- * for the Coach; the JSON the error prints them in, paths and all, is
- * bookkeeping he should never have to read.
- */
-function describeSaveFailure(error: unknown): string {
-  if (error instanceof Error) {
-    const { issues } = error as { readonly issues?: unknown };
-    if (Array.isArray(issues)) {
-      const said = issues.flatMap((issue: unknown) => {
-        const message = (issue as { readonly message?: unknown } | null)
-          ?.message;
-        return typeof message === "string" && message.trim() ? [message] : [];
-      });
-      if (said.length > 0) return said.join(" ");
-    }
-    if (error.message.trim()) return error.message;
-  }
-  return String(error);
-}
-
 function defaultMutationId(): string {
   return `mutation_${globalThis.crypto.randomUUID()}`;
 }
@@ -442,7 +421,7 @@ export function createEditorStore({
       };
     } catch (error) {
       const durationMs = Math.max(0, monotonicNow() - requestedAtMs);
-      const reason = describeSaveFailure(error);
+      const reason = describeFailure(error);
       // The status bar shows two words; the console keeps the whole story.
       console.error("Chalk could not save the Play on this device.", error);
       if (sequence === latestSequence) {
@@ -753,10 +732,14 @@ export function createEditorStore({
           });
           publishVersions([version, ...state.getState().versions]);
           return { status: "created", version } as const;
-        } catch {
+        } catch (error) {
+          console.error(
+            "Chalk could not create a version on this device.",
+            error,
+          );
           return {
             status: "failed",
-            reason: "Chalk could not create this version on this device.",
+            reason: `Chalk could not create this version on this device. ${describeFailure(error)}`,
           } as const;
         }
       });
@@ -766,8 +749,12 @@ export function createEditorStore({
       let restored: PlayDocument | undefined;
       try {
         restored = await persistence.loadVersionDocument(revisionId);
-      } catch {
-        restored = undefined;
+      } catch (error) {
+        console.error("Chalk could not read a version on this device.", error);
+        return {
+          status: "failed",
+          reason: `Chalk could not read that version on this device. ${describeFailure(error)}`,
+        };
       }
       if (!restored) {
         return {
