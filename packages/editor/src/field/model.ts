@@ -51,9 +51,8 @@ export type FieldInteractionEvent =
   | {
       readonly type: "delete";
       /**
-       * Take the whole selection even when a break of the selected route is
-       * picked — the route's own Delete button. Backspace leaves it unset,
-       * so a picked break is what goes.
+       * The route's own Delete button: take the route even while a piece of
+       * it is picked. Backspace leaves it unset, so the piece is what goes.
        */
       readonly whole?: boolean;
     }
@@ -267,19 +266,104 @@ export interface FieldClipboard {
   readonly labels: readonly TextLabel[];
 }
 
+/**
+ * What the Coach has picked. Things are picked whole, one or several, and a
+ * lone route can be narrowed to one piece of it. A piece names its route, so
+ * picking anything else replaces it outright, and no index can outlive the
+ * route or the line it was read against.
+ */
+export type FieldPick =
+  | { readonly kind: "items"; readonly items: readonly FieldItemRef[] }
+  /** A segment of the route's main line, by the index of the break it ends at. */
+  | {
+      readonly kind: "segment";
+      readonly pathId: string;
+      readonly segment: number;
+    }
+  /** A choice the route forks into, whole. */
+  | {
+      readonly kind: "choice";
+      readonly pathId: string;
+      readonly branch: number;
+    }
+  /** A break, pressed by its handle, on the main line or on a choice. */
+  | {
+      readonly kind: "break";
+      readonly pathId: string;
+      /** Absent means the main line. */
+      readonly branch?: number;
+      readonly node: number;
+    };
+
+/** The whole things a pick is made of. A piece of a route stands for its route. */
+export function pickedItems(pick: FieldPick): readonly FieldItemRef[] {
+  switch (pick.kind) {
+    case "items":
+      return pick.items;
+    case "segment":
+    case "choice":
+    case "break":
+      return [{ kind: "path", id: pick.pathId }];
+  }
+}
+
+/**
+ * Where on its route a pick sits, for the handles and the Route panel to
+ * show. It names the choice the pick is on and the segment or break it
+ * narrows to.
+ */
+export interface FieldRoutePart {
+  readonly branch?: number;
+  readonly segment?: number;
+  readonly node?: number;
+}
+
+export function routePart(pick: FieldPick): FieldRoutePart {
+  switch (pick.kind) {
+    case "items":
+      return {};
+    case "segment":
+      return { segment: pick.segment };
+    case "choice":
+      return { branch: pick.branch };
+    case "break":
+      return { branch: pick.branch, node: pick.node };
+  }
+}
+
+export function samePick(a: FieldPick, b: FieldPick): boolean {
+  switch (a.kind) {
+    case "items":
+      return (
+        b.kind === "items" &&
+        a.items.length === b.items.length &&
+        a.items.every(
+          (item, index) =>
+            item.kind === b.items[index]?.kind && item.id === b.items[index].id,
+        )
+      );
+    case "segment":
+      return (
+        b.kind === "segment" && a.pathId === b.pathId && a.segment === b.segment
+      );
+    case "choice":
+      return (
+        b.kind === "choice" && a.pathId === b.pathId && a.branch === b.branch
+      );
+    case "break":
+      return (
+        b.kind === "break" &&
+        a.pathId === b.pathId &&
+        a.branch === b.branch &&
+        a.node === b.node
+      );
+  }
+}
+
 export interface FieldInteractionModel {
-  readonly selection: readonly FieldItemRef[];
+  readonly pick: FieldPick;
   readonly gesture: FieldGesture;
   readonly drawing?: FieldDrawingState;
-  /** Which break of the selected route the Coach last touched. */
-  readonly selectedNodeIndex?: number;
-  /**
-   * Which line of the selected route he is working on: a branch by index, or
-   * the main line when absent. Handles and breaks are read against it.
-   */
-  readonly selectedBranchIndex?: number;
-  /** Which segment of that line is picked out, if he narrowed to one. */
-  readonly selectedSegmentIndex?: number;
   readonly clipboard?: FieldClipboard;
 }
 
@@ -317,7 +401,7 @@ export interface FieldInteractionResult {
 }
 
 export const idleFieldInteraction: FieldInteractionModel = {
-  selection: [],
+  pick: { kind: "items", items: [] },
   gesture: { kind: "idle" },
 };
 
