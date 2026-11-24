@@ -1,7 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 
+import { checkoutPort } from "../checkout-port";
+
 const root = fileURLToPath(new URL("../../", import.meta.url));
+const port = checkoutPort(4175, 6200);
 
 /**
  * The installed shell can only be proven against the production build: the
@@ -14,7 +17,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:4175",
+    baseURL: `http://127.0.0.1:${port}`,
     trace: "on-first-retry",
   },
   projects: [
@@ -28,10 +31,9 @@ export default defineConfig({
   ],
   webServer: {
     cwd: root,
-    command:
-      "bun run --cwd apps/web build && bun run --cwd apps/web preview -- --host 127.0.0.1 --port 4175 --strictPort",
-    url: "http://127.0.0.1:4175",
-    reuseExistingServer: !process.env.CI,
+    command: `bun run --cwd apps/web build && bun run --cwd apps/web preview -- --host 127.0.0.1 --port ${port} --strictPort`,
+    url: `http://127.0.0.1:${port}`,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

@@ -2,6 +2,8 @@ import { execSync } from "node:child_process";
 
 import { defineConfig, devices } from "@playwright/test";
 
+import { checkoutPort } from "./tests/checkout-port";
+
 /** The source under test, so a failed phone run names the build (issue #96). */
 const buildSha = (() => {
   try {
@@ -23,6 +25,9 @@ const buildSha = (() => {
  */
 const phoneSpecs = /phone-.*\.spec\.ts$/;
 
+const port = Number(process.env.CHALK_E2E_PORT ?? checkoutPort(4173, 4200));
+const baseURL = `http://127.0.0.1:${port}`;
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -31,7 +36,7 @@ export default defineConfig({
   reporter: "list",
   metadata: { buildSha },
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL,
     trace: "on-first-retry",
   },
   projects: [
@@ -77,9 +82,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "bun run dev",
-    url: "http://127.0.0.1:4173",
-    reuseExistingServer: !process.env.CI,
+    command: `bun run dev --port ${port} --strictPort`,
+    url: baseURL,
+    reuseExistingServer: false,
     timeout: 30_000,
   },
 });
