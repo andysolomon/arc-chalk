@@ -4,10 +4,11 @@ import type {
   PrimitivePlayCommand,
 } from "@chalk/domain";
 
-import type {
-  FieldGesture,
-  FieldInteractionModel,
-  FieldItemRef,
+import {
+  samePick,
+  type FieldGesture,
+  type FieldInteractionModel,
+  type FieldItemRef,
 } from "./field/model";
 
 /**
@@ -49,17 +50,6 @@ export function affectedLiveEntities(
   };
 }
 
-function sameRefs(
-  left: readonly FieldItemRef[],
-  right: readonly FieldItemRef[],
-): boolean {
-  if (left.length !== right.length) return false;
-  return left.every(
-    (item, index) =>
-      item.kind === right[index]?.kind && item.id === right[index]?.id,
-  );
-}
-
 /**
  * What about a drawing the shell must be told of. A new break and a change
  * of mode are its business; the points a free stroke traces are not — they
@@ -89,12 +79,7 @@ export function livePaintCanHold(
   previous: FieldInteractionModel,
   next: FieldInteractionModel,
 ): boolean {
-  if (!sameRefs(previous.selection, next.selection)) return false;
-  if (previous.selectedNodeIndex !== next.selectedNodeIndex) return false;
-  if (previous.selectedSegmentIndex !== next.selectedSegmentIndex) {
-    return false;
-  }
-  if (previous.selectedBranchIndex !== next.selectedBranchIndex) return false;
+  if (!samePick(previous.pick, next.pick)) return false;
   if (drawingIdentity(previous) !== drawingIdentity(next)) return false;
 
   if (previous.gesture.kind !== next.gesture.kind) {

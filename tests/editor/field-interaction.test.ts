@@ -169,7 +169,7 @@ describe("field interaction dragging", () => {
       all,
     );
     expect(tapped.commands).toHaveLength(0);
-    expect(tapped.model.selection).toEqual([player("q")]);
+    expect(tapped.model.pick).toEqual({ kind: "items", items: [player("q")] });
 
     // The same six pixels under a mouse are a drag of everything picked.
     const dragged = run(
@@ -835,7 +835,10 @@ describe("holding everything on the field", () => {
     const session = run(
       boundsContext({ document, scene: buildRenderScene(document) }),
       [{ type: "nudge", lateralYards: 0.5, depthYards: 0 }],
-      { selection: [player("q")], gesture: { kind: "idle" } },
+      {
+        pick: { kind: "items", items: [player("q")] },
+        gesture: { kind: "idle" },
+      },
     );
     // Nothing to move by, so nothing to undo either.
     expect(session.commands).toHaveLength(0);
@@ -843,7 +846,10 @@ describe("holding everything on the field", () => {
     const back = run(
       boundsContext({ document, scene: buildRenderScene(document) }),
       [{ type: "nudge", lateralYards: -0.5, depthYards: 0 }],
-      { selection: [player("q")], gesture: { kind: "idle" } },
+      {
+        pick: { kind: "items", items: [player("q")] },
+        gesture: { kind: "idle" },
+      },
     );
     expect(back.commands).toHaveLength(1);
     expect(
@@ -937,7 +943,7 @@ describe("holding everything on the field", () => {
       createId: (prefix) => `${prefix}_${(next += 1)}`,
     });
     const session = run(context, [{ type: "copy" }, { type: "paste" }], {
-      selection: [player("q")],
+      pick: { kind: "items", items: [player("q")] },
       gesture: { kind: "idle" },
     });
     expect(session.commands).toHaveLength(1);

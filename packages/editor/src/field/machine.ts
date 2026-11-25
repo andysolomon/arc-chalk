@@ -56,7 +56,10 @@ import {
   type FieldInteractionModel,
   type FieldInteractionResult,
   type FieldItemRef,
+  type FieldPick,
   type FieldPointerInput,
+  pickedItems,
+  routePart,
 } from "./model";
 
 /**
@@ -86,9 +89,12 @@ function withSelection(
 ): FieldInteractionModel {
   return {
     ...model,
-    selection: document
-      ? expandSelectionToGroups(document, selection)
-      : selection,
+    pick: {
+      kind: "items",
+      items: document
+        ? expandSelectionToGroups(document, selection)
+        : selection,
+    },
     gesture: { kind: "idle" },
   };
 }
@@ -128,50 +134,48 @@ function pointerDown(
   const hit = found?.item;
 
   if (hit) {
+    const selection = pickedItems(model.pick);
     if (input.shiftKey) {
       // Shift settles membership on the press itself; no drag follows.
       return {
         model: withSelection(
           model,
-          isSelected(model.selection, hit)
-            ? model.selection.filter((item) => !sameItem(item, hit))
-            : [...model.selection, hit],
+          isSelected(selection, hit)
+            ? selection.filter((item) => !sameItem(item, hit))
+            : [...selection, hit],
           context.document,
         ),
       };
     }
-    const already = isSelected(model.selection, hit);
-    const wasMulti = already && model.selection.length > 1;
+    const already = isSelected(selection, hit);
+    const wasMulti = already && selection.length > 1;
     // A thing tied into a group is picked with the rest of it, and dragged
     // with the rest of it, which is the whole of what a group is for.
     const picked = already
-      ? model.selection
+      ? selection
       : expandSelectionToGroups(context.document, [hit]);
     const items = wasMulti || picked.length > 1 ? picked : [hit];
+    // Pressing a choice picks that choice straight away, since it is its own
+    // line rather than a piece of the route's stem. Only on its own, though:
+    // in a group the press takes the group.
+    const pick: FieldPick = already
+      ? model.pick
+      : picked.length === 1 &&
+          hit.kind === "path" &&
+          found?.branchIndex !== undefined
+        ? { kind: "choice", pathId: hit.id, branch: found.branchIndex }
+        : { kind: "items", items: picked };
     return {
       model: {
         ...model,
-        selection: picked,
-        // Picking something new starts it whole: the line and break the
-        // Coach was working on belonged to what he just left. A choice is
-        // the exception — pressing one picks that choice straight away,
-        // since it is its own line rather than a piece of the route's stem.
-        // Only on its own, though: in a group the press takes the group.
-        ...(already
-          ? {}
-          : {
-              selectedBranchIndex:
-                picked.length === 1 ? found?.branchIndex : undefined,
-              selectedSegmentIndex: undefined,
-              selectedNodeIndex: undefined,
-            }),
+        pick,
         gesture: {
           kind: "pressing",
           pointerId: input.pointerId,
           items,
           clickItem: hit,
           wasMulti,
-          wasSingle: already && model.selection.length === 1,
+          wasSingle: already && selection.length === 1,
           start: input.point,
           ...(found?.branchIndex === undefined
             ? {}
@@ -188,7 +192,7 @@ function pointerDown(
     // side of the selected Player, not where on the field he pressed —
     // depth notes and progression numbers live downfield too.
     const selectedPlayer = context.document.players.find((player) =>
-      model.selection.some(
+      pickedItems(model.pick).some(
         (item) => item.kind === "player" && item.id === player.id,
       ),
     );
@@ -420,42 +424,36 @@ function pointerUp(
     // of the main line nearest his press. This is how the original let a
     // Coach reach one piece of a route without a second control.
     if (gesture.clickItem.kind === "path" && gesture.wasSingle) {
-      const path = context.document.paths.find(
-        ({ id }) => id === gesture.clickItem.id,
-      );
+      const pathId = gesture.clickItem.id;
+      const path = context.document.paths.find(({ id }) => id === pathId);
       if (gesture.hitBranchIndex !== undefined) {
         return {
           model: {
             ...withGesture(model, { kind: "idle" }),
-            selectedBranchIndex: gesture.hitBranchIndex,
-            selectedSegmentIndex: undefined,
-            selectedNodeIndex: undefined,
+            pick: { kind: "choice", pathId, branch: gesture.hitBranchIndex },
           },
         };
       }
-      // Narrowed onto a branch, a click on the main line goes back to that
-      // line, whole — the same place a first click on the route starts.
-      // Without this the branch held on, and the stem it forked from (an
-      // alternate with a choice off its end, say) could not be picked again.
-      if (model.selectedBranchIndex !== undefined) {
-        return {
-          model: {
-            ...withGesture(model, { kind: "idle" }),
-            selectedBranchIndex: undefined,
-            selectedSegmentIndex: undefined,
-            selectedNodeIndex: undefined,
-          },
-        };
+      // Narrowed onto a choice, a click on the main line picks that line
+      // whole, the same as a first click on the route. Without this the
+      // choice held on, and the stem it forked from could not be picked
+      // again. An alternate with a choice off its end is one such stem.
+      if (routePart(model.pick).branch !== undefined) {
+        return { model: withSelection(model, [gesture.clickItem]) };
       }
       if (path && path.points.length > 2) {
         return {
           model: {
             ...withGesture(model, { kind: "idle" }),
-            selectedSegmentIndex: nearestSegmentIndex(
-              path,
-              gesture.start,
-              context.screenScale,
-            ),
+            pick: {
+              kind: "segment",
+              pathId,
+              segment: nearestSegmentIndex(
+                path,
+                gesture.start,
+                context.screenScale,
+              ),
+            },
           },
         };
       }
@@ -500,11 +498,9 @@ function pointerUp(
     };
   }
   const hits = marqueeHits(context.scene, gesture.anchor, gesture.corner);
+  const picked = pickedItems(model.pick);
   const selection = gesture.additive
-    ? [
-        ...model.selection,
-        ...hits.filter((hit) => !isSelected(model.selection, hit)),
-      ]
+    ? [...picked, ...hits.filter((hit) => !isSelected(picked, hit))]
     : hits;
   return { model: withSelection(model, selection, context.document) };
 }
@@ -549,7 +545,7 @@ export function fieldInteraction(
       if (model.gesture.kind !== "idle") {
         return { model: withGesture(model, { kind: "idle" }) };
       }
-      return model.selection.length > 0
+      return pickedItems(model.pick).length > 0
         ? { model: withSelection(model, []) }
         : { model };
     }
@@ -582,74 +578,13 @@ export function fieldInteraction(
         }
         return { model: clearDrawing(model) };
       }
-      if (model.selection.length === 0) return { model };
-      const picked = model.selection[0];
-      if (
-        !event.whole &&
-        model.selection.length === 1 &&
-        picked?.kind === "path" &&
-        model.selectedNodeIndex !== undefined
-      ) {
-        // A picked break is what Backspace takes, not the route around it.
-        // The break before it is picked next, so pressing again keeps
-        // walking the route back, the way it does while drawing.
-        const pointIndex = model.selectedNodeIndex;
-        const branchIndex = model.selectedBranchIndex;
-        const path = context.document.paths.find(({ id }) => id === picked.id);
-        const choiceGone =
-          branchIndex !== undefined &&
-          path?.branches[branchIndex]?.points.length === 1;
-        const command = removeRouteBreakCommand(
-          context.document,
-          picked.id,
-          pointIndex,
-          branchIndex,
-        );
-        if (!command) return { model };
-        return {
-          model: {
-            ...model,
-            ...(choiceGone
-              ? { selectedBranchIndex: undefined, selectedNodeIndex: undefined }
-              : {
-                  selectedNodeIndex:
-                    pointIndex > 0 ? pointIndex - 1 : undefined,
-                }),
-            selectedSegmentIndex: undefined,
-          },
-          command,
-        };
-      }
-      if (
-        !event.whole &&
-        model.selection.length === 1 &&
-        picked?.kind === "path" &&
-        model.selectedBranchIndex !== undefined
-      ) {
-        // Narrowed onto a choice, Backspace takes the choice, not the route
-        // it forks from. The route stays picked, whole, the way the panel's
-        // Remove this choice leaves it.
-        const command = removeRouteChoiceCommand(
-          context.document,
-          picked.id,
-          model.selectedBranchIndex,
-        );
-        if (!command) return { model };
-        return {
-          model: {
-            ...model,
-            selectedBranchIndex: undefined,
-            selectedNodeIndex: undefined,
-            selectedSegmentIndex: undefined,
-          },
-          command,
-        };
-      }
-      const command = buildDeleteCommand(context.document, model.selection);
-      return {
-        model: withSelection(model, []),
-        ...(command === undefined ? {} : { command }),
-      };
+      return deletePick(
+        model,
+        event.whole
+          ? { kind: "items", items: pickedItems(model.pick) }
+          : model.pick,
+        context,
+      );
     }
     case "select-all":
       // Everything on the field — what is drawn, the way a marquee sees it,
@@ -670,13 +605,14 @@ export function fieldInteraction(
     case "nudge": {
       // The original had no keyboard nudge; ADR 0016 requires a keyboard
       // alternative to dragging, so each press is its own small, undoable move.
-      if (model.selection.length === 0) return { model };
+      const selection = pickedItems(model.pick);
+      if (selection.length === 0) return { model };
       const command = buildMoveCommand(
         context.document,
-        model.selection,
+        selection,
         holdMove(
           context,
-          model.selection,
+          selection,
           coordinate(event.lateralYards, event.depthYards),
         ),
       );
@@ -745,14 +681,21 @@ export function fieldInteraction(
         handle.kind === "leader"
           ? { kind: "label", id: handle.labelId }
           : { kind: "path", id: handle.pathId };
+      const kept = pickedItems(model.pick);
       return {
         model: {
           ...model,
-          // The route or label stays selected; a node press picks its break.
-          selection: [owner],
-          ...(handle.kind === "node"
-            ? { selectedNodeIndex: handle.pointIndex }
-            : {}),
+          pick:
+            handle.kind === "node"
+              ? {
+                  kind: "break",
+                  pathId: handle.pathId,
+                  branch: handle.branchIndex,
+                  node: handle.pointIndex,
+                }
+              : kept.length === 1 && sameItem(kept[0]!, owner)
+                ? model.pick
+                : { kind: "items", items: [owner] },
           gesture: {
             kind: "handle",
             pointerId: event.input.pointerId,
@@ -780,8 +723,7 @@ export function fieldInteraction(
       return {
         model: {
           ...model,
-          selection: [{ kind: "path", id: path.id }],
-          selectedNodeIndex: index,
+          pick: { kind: "break", pathId: path.id, node: index },
           gesture: { kind: "idle" },
         },
         command: {
@@ -795,15 +737,21 @@ export function fieldInteraction(
       // What he already picked stays picked, so asking about one of several
       // does not throw the rest away; anything else becomes the selection on
       // its own. Whatever was in flight is abandoned — he has stopped to look.
-      const settled = isSelected(model.selection, event.item)
-        ? model.selection
-        : [event.item];
       return {
-        model: { ...withSelection(model, settled), drawing: undefined },
+        model: {
+          ...withGesture(model, { kind: "idle" }),
+          pick: isSelected(pickedItems(model.pick), event.item)
+            ? model.pick
+            : { kind: "items", items: [event.item] },
+          drawing: undefined,
+        },
       };
     }
     case "copy": {
-      const clipboard = copySelection(context.document, model.selection);
+      const clipboard = copySelection(
+        context.document,
+        pickedItems(model.pick),
+      );
       return { model: clipboard ? { ...model, clipboard } : model };
     }
     case "paste":
@@ -812,7 +760,7 @@ export function fieldInteraction(
       // nor disturbs whatever the Coach has on the clipboard.
       const source =
         event.type === "duplicate"
-          ? copySelection(context.document, model.selection)
+          ? copySelection(context.document, pickedItems(model.pick))
           : model.clipboard;
       if (!source) return { model };
       const createId =
@@ -827,14 +775,17 @@ export function fieldInteraction(
       return {
         model: {
           ...model,
-          selection: pasted.selection,
+          pick: { kind: "items", items: pasted.selection },
           gesture: { kind: "idle" },
         },
         command: pasted.command,
       };
     }
     case "mirror": {
-      const command = buildMirrorCommand(context.document, model.selection);
+      const command = buildMirrorCommand(
+        context.document,
+        pickedItems(model.pick),
+      );
       return { model, ...(command === undefined ? {} : { command }) };
     }
     case "depth-digit": {
@@ -863,6 +814,88 @@ export function fieldInteraction(
     }
   }
 }
+/**
+ * What Backspace takes is what is picked: the things, or the one piece of a
+ * route. A segment is not a thing of its own, so it takes its route.
+ */
+function deletePick(
+  model: FieldInteractionModel,
+  pick: FieldPick,
+  context: FieldInteractionContext,
+): FieldInteractionResult {
+  switch (pick.kind) {
+    case "items":
+      return deleteItems(model, pick.items, context);
+    case "segment":
+      return deleteItems(model, [{ kind: "path", id: pick.pathId }], context);
+    case "choice": {
+      const command = removeRouteChoiceCommand(
+        context.document,
+        pick.pathId,
+        pick.branch,
+      );
+      if (!command) return { model };
+      return {
+        model: {
+          ...model,
+          pick: { kind: "items", items: [{ kind: "path", id: pick.pathId }] },
+        },
+        command,
+      };
+    }
+    case "break": {
+      const command = removeRouteBreakCommand(
+        context.document,
+        pick.pathId,
+        pick.node,
+        pick.branch,
+      );
+      if (!command) return { model };
+      return {
+        model: { ...model, pick: pickAfterBreak(pick, context.document) },
+        command,
+      };
+    }
+  }
+}
+
+function deleteItems(
+  model: FieldInteractionModel,
+  items: readonly FieldItemRef[],
+  context: FieldInteractionContext,
+): FieldInteractionResult {
+  if (items.length === 0) return { model };
+  const command = buildDeleteCommand(context.document, items);
+  return {
+    model: withSelection(model, []),
+    ...(command === undefined ? {} : { command }),
+  };
+}
+
+/**
+ * Once Backspace takes a break, the break before it is picked, so pressing
+ * again keeps walking the line back the way it does while drawing. Taking a
+ * choice's first break leaves the choice picked. Taking the one break a
+ * choice has left takes the choice too, and leaves the route picked whole.
+ */
+function pickAfterBreak(
+  pick: Extract<FieldPick, { kind: "break" }>,
+  document: PlayDocument,
+): FieldPick {
+  const route: FieldPick = {
+    kind: "items",
+    items: [{ kind: "path", id: pick.pathId }],
+  };
+  if (pick.branch === undefined) {
+    return pick.node > 0 ? { ...pick, node: pick.node - 1 } : route;
+  }
+  const path = document.paths.find(({ id }) => id === pick.pathId);
+  if (path?.branches[pick.branch]?.points.length === 1) return route;
+  return pick.node > 0
+    ? { ...pick, node: pick.node - 1 }
+    : { kind: "choice", pathId: pick.pathId, branch: pick.branch };
+}
+
 /**
  * The transient preview is the commit builder run early: what the Coach sees
  * mid-drag is exactly the document the release would produce.
@@ -898,6 +931,28 @@ export function gesturePreviewCommand(
  * the instant between the Coach making it and the save arriving — absent
  * because it is still on its way, not because an undo took it.
  */
+function prunePick(
+  pick: FieldPick,
+  exists: (item: FieldItemRef) => boolean,
+): FieldPick {
+  switch (pick.kind) {
+    case "items": {
+      const items = pick.items.filter(exists);
+      return items.length === pick.items.length
+        ? pick
+        : { kind: "items", items };
+    }
+    // A piece outlives an edit to its own route, so the Coach can make two
+    // changes to one segment in a row.
+    case "segment":
+    case "choice":
+    case "break":
+      return exists({ kind: "path", id: pick.pathId })
+        ? pick
+        : { kind: "items", items: [] };
+  }
+}
+
 export function pruneFieldSelection(
   model: FieldInteractionModel,
   document: PlayDocument,
@@ -914,7 +969,7 @@ export function pruneFieldSelection(
         return document.labels.some(({ id }) => id === item.id);
     }
   };
-  const selection = model.selection.filter(exists);
+  const pick = prunePick(model.pick, exists);
   const gestureItems =
     model.gesture.kind === "pressing" || model.gesture.kind === "moving"
       ? model.gesture.items
@@ -929,18 +984,15 @@ export function pruneFieldSelection(
       ? model.drawing
       : undefined;
   if (
-    selection.length === model.selection.length &&
+    pick === model.pick &&
     gesture === model.gesture &&
     drawing === model.drawing
   ) {
     return model;
   }
-  // Spread rather than rebuilt: the line and break the Coach narrowed to
-  // survive an edit to the very thing he narrowed to, so he can make two
-  // changes to one segment in a row.
   return {
     ...model,
-    selection,
+    pick,
     gesture,
     ...(drawing === undefined ? { drawing: undefined } : { drawing }),
   };
