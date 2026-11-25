@@ -64,6 +64,9 @@
         "react-dom": "*",
         "zustand": "*",
       },
+      "devDependencies": {
+        "fake-indexeddb": "6.2.5",
+      },
     },
     "packages/contracts": {
       "name": "@chalk/contracts",
