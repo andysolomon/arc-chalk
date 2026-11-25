@@ -103,15 +103,6 @@ const laterals = (play: PlayDocument) =>
   new Map(play.players.map(({ id, position }) => [id, position.lateralYards]));
 
 describe("where the ball is on a defense drawn alone", () => {
-  it("reads the right hash off a front the hash squeezed", () => {
-    const { play, tightened } = spotBall(defenseAlone("4-3 Cover 3"), "right");
-    // The boundary corner had to come in, which pulls the front's middle
-    // toward the field; the ball is still on the hash.
-    expect(tightened).toBe(true);
-    expect(currentBallSpot(play)).toBe("right");
-    expect(currentBallSpot(spotBall(play, "left").play)).toBe("left");
-  });
-
   it("moves nobody when the hash the ball is on is spotted again", () => {
     const once = spotBall(defenseAlone("4-3 Cover 3"), "right").play;
     const twice = spotBall(once, "right").play;

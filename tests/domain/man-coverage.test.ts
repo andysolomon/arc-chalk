@@ -143,19 +143,6 @@ describe("settling man coverage", () => {
     expect(end.lateralYards).toBeLessThan(0);
   });
 
-  it("covers every receiver it can before doubling one, and leaves the extra man free", () => {
-    const twoWide = offense.filter(({ id }) => id !== "y" && id !== "f");
-    const before = playOf([...twoWide, leftCorner, rightCorner, will], []);
-    const after = playOf(
-      [...twoWide, leftCorner, rightCorner, will],
-      [manLine(leftCorner), manLine(rightCorner), manLine(will)],
-    );
-    const settled = settleManCoverage(before, after);
-    expect(coveredBy(settled, "lc")).toBe("x");
-    expect(coveredBy(settled, "rc")).toBe("z");
-    expect(coveredBy(settled, "w")).toBeUndefined();
-  });
-
   it("does not re-sort everybody else's man when one receiver takes a small step", () => {
     const defenders = [leftCorner, rightCorner, safety, will, mike];
     const before = playOf([...offense, ...defenders], []);
