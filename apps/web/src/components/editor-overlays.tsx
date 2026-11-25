@@ -6,7 +6,7 @@ import {
   type DefensiveCall,
   type Formation,
 } from "@chalk/domain";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   clearEntries,
@@ -24,6 +24,7 @@ import {
 } from "./editor-command-surface";
 import { defenseThumbnail } from "./defense-thumbnail";
 import { FORMATION_THUMBNAIL, formationThumbnail } from "./formation-thumbnail";
+import { askToType, useFocusWhenAsked } from "./ask-to-type";
 import { keepInViewport } from "./keep-in-viewport";
 import { useDismissOnPressOutside } from "./page-press";
 
@@ -689,6 +690,7 @@ function VersionsPanel({
 }) {
   const [naming, setNaming] = useState(false);
   const [draft, setDraft] = useState("");
+  const nameField = useFocusWhenAsked("snapshot-name");
 
   const cancel = () => {
     setNaming(false);
@@ -709,7 +711,6 @@ function VersionsPanel({
         >
           <input
             aria-label="Snapshot name"
-            autoFocus
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== "Escape") return;
@@ -717,6 +718,7 @@ function VersionsPanel({
               cancel();
             }}
             placeholder="What this state is"
+            ref={nameField}
             spellCheck={false}
             value={draft}
           />
@@ -745,7 +747,12 @@ function VersionsPanel({
               key={entry.label}
               onDismiss={onDismiss}
               onRun={
-                entry.id === "snapshot" ? () => setNaming(true) : undefined
+                entry.id === "snapshot"
+                  ? () => {
+                      askToType("snapshot-name");
+                      setNaming(true);
+                    }
+                  : undefined
               }
             />
           ))}
@@ -766,6 +773,7 @@ export function CommandPalette({
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
+  const queryField = useFocusWhenAsked("command-palette");
   const search = query.trim().toLowerCase();
   const hits = commands.filter(
     (command) => !search || command.label.toLowerCase().includes(search),
@@ -793,7 +801,6 @@ export function CommandPalette({
       >
         <input
           aria-label="Command palette"
-          autoFocus
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Escape") {
@@ -805,6 +812,7 @@ export function CommandPalette({
             }
           }}
           placeholder="Type a command — formation, defense, export, clear…"
+          ref={queryField}
           spellCheck={false}
           value={query}
         />
@@ -833,12 +841,6 @@ export function CommandPalette({
 }
 
 export function ShortcutReference({ onClose }: { onClose: () => void }) {
-  const close = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    close.current?.focus();
-  }, []);
-
   return (
     <div
       className="overlay shortcuts-overlay"
@@ -854,9 +856,9 @@ export function ShortcutReference({ onClose }: { onClose: () => void }) {
         <div className="shortcuts-head">
           <div className="shortcuts-title">Keyboard shortcuts</div>
           <button
+            autoFocus
             className="shortcuts-close"
             onClick={onClose}
-            ref={close}
             type="button"
           >
             Close
@@ -1345,7 +1347,6 @@ export function DefenseBrowser({
   currentCallId,
   defensivePlayerCount,
   favoriteIds,
-  focusSearch = true,
   onClose,
   onPick,
   onPreview,
@@ -1360,8 +1361,6 @@ export function DefenseBrowser({
   /** How many defenders stand on the field, which is what Save keeps. */
   defensivePlayerCount: number;
   favoriteIds: readonly string[];
-  /** Search takes focus for a keyboard, not for a finger (issue #68). */
-  focusSearch?: boolean;
   onClose: () => void;
   onPick: (callId: string) => void;
   onPreview: (callId?: string) => void;
@@ -1449,7 +1448,6 @@ export function DefenseBrowser({
           <div className="browser-title">Defenses</div>
           <input
             aria-label="Search defenses"
-            autoFocus={focusSearch}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search — cover 3, nickel, blitz…"
             spellCheck={false}

@@ -3,6 +3,11 @@ import type { PlaybookSummary } from "@chalk/local-db";
 import { useState } from "react";
 
 import { agoStamp } from "../components/ago-stamp";
+import {
+  askToType,
+  type TypingField,
+  useFocusWhenAsked,
+} from "../components/ask-to-type";
 import { sortShelf, type ShelfSort } from "./shelf-order";
 
 function plays(count: number): string {
@@ -15,8 +20,8 @@ function plays(count: number): string {
  * answers to is refused rather than saved twice.
  */
 export function PlaybookNameForm({
-  autoFocus = false,
   className,
+  field,
   initial = "",
   label,
   onCancel,
@@ -24,8 +29,9 @@ export function PlaybookNameForm({
   placeholder,
   taken,
 }: {
-  autoFocus?: boolean;
   className: string;
+  /** The field the Coach's press asks to type into, when one opened this form. */
+  field?: TypingField;
   initial?: string;
   label: string;
   onCancel?: () => void;
@@ -36,6 +42,7 @@ export function PlaybookNameForm({
 }) {
   const [draft, setDraft] = useState(initial);
   const [saving, setSaving] = useState(false);
+  const input = useFocusWhenAsked(field);
   const name = tidyPlaybookName(draft);
   const clash = taken.find(
     (other) => playbookNameKey(other) === playbookNameKey(name),
@@ -65,7 +72,6 @@ export function PlaybookNameForm({
         aria-describedby={clash ? `${className}-clash` : undefined}
         aria-invalid={clash !== undefined}
         aria-label={label}
-        autoFocus={autoFocus}
         maxLength={80}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
@@ -75,6 +81,7 @@ export function PlaybookNameForm({
           onCancel();
         }}
         placeholder={placeholder}
+        ref={input}
         spellCheck={false}
         type="text"
         value={draft}
@@ -343,8 +350,8 @@ function ShelfSheet({
         </div>
         {step === "rename" ? (
           <PlaybookNameForm
-            autoFocus
             className="shelf-rename"
+            field="playbook-name"
             initial={book.name}
             label="Playbook name"
             onCancel={() => setStep("menu")}
@@ -369,7 +376,14 @@ function ShelfSheet({
           </div>
         ) : (
           <div className="play-sheet-actions">
-            <button autoFocus onClick={() => setStep("rename")} type="button">
+            <button
+              autoFocus
+              onClick={() => {
+                askToType("playbook-name");
+                setStep("rename");
+              }}
+              type="button"
+            >
               Rename…
             </button>
             <button

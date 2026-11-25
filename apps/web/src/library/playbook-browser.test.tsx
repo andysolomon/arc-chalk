@@ -113,7 +113,6 @@ describe("the Playbooks page", () => {
       <PlaybookBrowser
         currentPlayId="play_1"
         embedded
-        focusSearch={false}
         initial={{ scrollTop: 0, query: "" }}
         library={createMemoryLibrary()}
         members={book}
@@ -167,7 +166,6 @@ describe("the Playbooks page", () => {
       <PlaybookBrowser
         currentPlayId="play_1"
         embedded
-        focusSearch={false}
         initial={{ scrollTop: 0, query: "" }}
         library={createMemoryLibrary()}
         members={book}
@@ -200,7 +198,6 @@ describe("the Playbooks page", () => {
         currentPlayId="play_1"
         deletePrompt={() => "It goes for good."}
         embedded
-        focusSearch={false}
         initial={{ scrollTop: 0, query: "" }}
         library={createMemoryLibrary()}
         members={book}

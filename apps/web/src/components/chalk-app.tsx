@@ -274,6 +274,7 @@ import { LibraryAside, LibraryPanel } from "../library/library-panel";
 import { ScopeBar } from "../library/scope-bar";
 import { PlaybookBrowser } from "../library/playbook-browser";
 import { PlaybookNameForm, PlaybooksShelf } from "../library/playbooks-shelf";
+import { askToType, useFocusWhenAsked } from "./ask-to-type";
 import { sortShelf, type ShelfSort } from "../library/shelf-order";
 import { canSwitchPlay, createUntitledPlay } from "../library/library-actions";
 import { FormationsPage } from "../library/formations-page";
@@ -1168,7 +1169,6 @@ function LabelInspector({
   onText,
   onTextCommitted,
   text,
-  textInputRef,
 }: {
   /** Where the back arrow goes: the panel before this one, or the play. */
   backLabel?: string | undefined;
@@ -1183,9 +1183,14 @@ function LabelInspector({
   onRole: (role: LabelRole) => void;
   onText: (text: string) => void;
   onTextCommitted: () => void;
-  textInputRef: React.Ref<HTMLInputElement>;
 }) {
   const boxed = label.box !== "none";
+  // A note just placed says "5 Yds" until the Coach types over it, so its
+  // text is selected for him: one gesture from the field to the note.
+  const textField = useFocusWhenAsked("note-text", {
+    id: label.id,
+    select: true,
+  });
   return (
     <div className="label-inspector">
       {bare ? null : (
@@ -1199,7 +1204,7 @@ function LabelInspector({
         className="label-text"
         onBlur={onTextCommitted}
         onChange={(event) => onText(event.target.value)}
-        ref={textInputRef}
+        ref={textField}
         spellCheck={false}
         value={text}
       />
@@ -3371,10 +3376,6 @@ export function ChalkApp({
   const [outputPresets, setOutputPresets] = useState<readonly OutputPreset[]>(
     [],
   );
-  const labelTextInputRef = useRef<HTMLInputElement | null>(null);
-  // A label the Coach has just placed is waiting to be typed into. A ref,
-  // not state: nothing renders from it, and clearing it must not re-render.
-  const labelAwaitingTextRef = useRef<string | undefined>(undefined);
   /**
    * What the Coach is typing into a note, held here until he leaves the
    * field. The committed text arrives asynchronously (ADR 0012), so binding
@@ -4282,7 +4283,7 @@ export function ChalkApp({
     // A note just placed is typed into at once, so its panel comes out with
     // it and the caret can land in the text.
     if (result.editingLabelId) {
-      labelAwaitingTextRef.current = result.editingLabelId;
+      askToType("note-text", result.editingLabelId);
       revealPick([{ kind: "label", id: result.editingLabelId }]);
     }
     publishLiveVisualsRef.current(result.model);
@@ -4424,19 +4425,6 @@ export function ChalkApp({
     publishLiveVisualsRef.current = publishLiveVisuals;
   });
   useEffect(() => () => paintLoop.cancel(), [paintLoop]);
-
-  /**
-   * A label the Coach just placed says "5 Yds" until he types over it, so
-   * the field is focused and selected the moment the panel appears — one
-   * gesture from pressing the field to writing the note.
-   */
-  useEffect(() => {
-    if (!labelAwaitingTextRef.current) return;
-    if (selectedLabel?.id !== labelAwaitingTextRef.current) return;
-    labelAwaitingTextRef.current = undefined;
-    labelTextInputRef.current?.focus();
-    labelTextInputRef.current?.select();
-  }, [selectedLabel?.id]);
 
   // An undo, redo, or restore may remove what the selection points at.
   useEffect(() => {
@@ -5880,6 +5868,10 @@ export function ChalkApp({
       ...current,
       hideShadow: shadowShown(current),
     }));
+  const startVariation = () => {
+    askToType("variation-name");
+    playbook.startVariation();
+  };
   const actions: ActionMap = {
     toolSelect: () => selectTool("select"),
     toolHand: () => selectTool("pan"),
@@ -5975,6 +5967,7 @@ export function ChalkApp({
     },
     shortcuts: () => setOverlay("shortcuts"),
     palette: () => {
+      askToType("command-palette");
       setOpenMenu(null);
       setOverlay("palette");
     },
@@ -5992,11 +5985,11 @@ export function ChalkApp({
       demoTours.map((tour) => [`demo:${tour.id}`, () => openTour(tour.id)]),
     ),
     saveAsVariant: () => {
-      playbook.startVariation();
+      startVariation();
       setOpenMenu(null);
     },
     newVariation: () => {
-      playbook.startVariation();
+      startVariation();
       setOpenMenu(null);
     },
     newOffensivePlay: () => startPlay("offense"),
@@ -6237,6 +6230,7 @@ export function ChalkApp({
         }
         if (meta && key === "k") {
           event.preventDefault();
+          if (overlay !== "palette") askToType("command-palette");
           setOverlay((current) => (current === "palette" ? null : "palette"));
         }
         return;
@@ -6307,6 +6301,7 @@ export function ChalkApp({
       }
       if (meta && key === "k") {
         event.preventDefault();
+        askToType("command-palette");
         setOpenMenu(null);
         setOverlay("palette");
         return;
@@ -7523,7 +7518,7 @@ export function ChalkApp({
       aside: (
         <LibraryAside
           count={playbook.snapshot.members.length}
-          onStartVariation={playbook.startVariation}
+          onStartVariation={startVariation}
         />
       ),
       detail: libraryPanel,
@@ -8096,7 +8091,7 @@ export function ChalkApp({
                   </button>
                   {renamingBook ? (
                     <PlaybookNameForm
-                      autoFocus
+                      field="playbook-name"
                       className="book-rename"
                       initial={playbook.snapshot.playbook.name}
                       label="Playbook name"
@@ -8119,7 +8114,10 @@ export function ChalkApp({
                       <button
                         aria-label={`Rename ${playbook.snapshot.playbook.name}`}
                         className="book-rename-open"
-                        onClick={() => setRenamingBook(true)}
+                        onClick={() => {
+                          askToType("playbook-name");
+                          setRenamingBook(true);
+                        }}
                         type="button"
                       >
                         Rename
@@ -8155,7 +8153,6 @@ export function ChalkApp({
                     deletePrompt={deletePlayPrompt}
                     embedded
                     filters="book"
-                    focusSearch={precisePointer}
                     formations={allFormations}
                     initial={playbook.browserState}
                     layoutChoice
@@ -8218,7 +8215,6 @@ export function ChalkApp({
               calls={defensiveCalls}
               favoriteCallIds={favoriteCallIds}
               favoriteFormationIds={favoriteFormationIds}
-              focusSearch={precisePointer}
               formations={allFormations}
               members={playbook.snapshot.members}
               onRemove={removeCoachFormation}
@@ -8239,7 +8235,6 @@ export function ChalkApp({
               deletePrompt={deletePlayPrompt}
               embedded
               filters="library"
-              focusSearch={precisePointer}
               formations={allFormations}
               initial={playbook.browserState}
               initialFilters={
@@ -9164,7 +9159,6 @@ export function ChalkApp({
                       ? labelTextDraft.text
                       : selectedLabel.text
                   }
-                  textInputRef={labelTextInputRef}
                 />
               ) : undefined
             }
@@ -9319,7 +9313,6 @@ export function ChalkApp({
             editor.document.players.filter(({ unit }) => unit === "defense")
               .length
           }
-          focusSearch={precisePointer}
           favoriteIds={favoriteCallIds}
           currentCallId={onFieldCall?.formation.id}
           onRemove={removeCoachFormation}
@@ -9370,7 +9363,6 @@ export function ChalkApp({
       {overlay === "playbook" ? (
         <PlaybookBrowser
           currentPlayId={editor.document.id}
-          focusSearch={precisePointer}
           initial={playbook.browserState}
           library={runtime.library}
           members={playbook.snapshot.members}

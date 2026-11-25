@@ -9,6 +9,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import type { LibrarySnapshot } from "../app/editor-runtime";
+import { askToType, useFocusWhenAsked } from "../components/ask-to-type";
 import { membersToRows } from "./library-actions";
 
 /**
@@ -86,6 +87,7 @@ export function LibraryPanel({
   const [hoverId, setHoverId] = useState<string>();
   const [armedId, setArmedId] = useState<string>();
   const [noteConceptId, setNoteConceptId] = useState<string>();
+  const variationField = useFocusWhenAsked("variation-name");
   const members = useMemo(
     () => membersToRows(snapshot.members),
     [snapshot.members],
@@ -161,7 +163,6 @@ export function LibraryPanel({
       {variationOpen ? (
         <input
           aria-label="Variation name"
-          autoFocus
           className="library-inline"
           onBlur={onCancelVariation}
           onChange={(event) => onVariationDraft(event.target.value)}
@@ -176,6 +177,7 @@ export function LibraryPanel({
             }
           }}
           placeholder="What tells it apart — Gun Trips Right"
+          ref={variationField}
           spellCheck={false}
           value={variationDraft}
         />
@@ -193,7 +195,10 @@ export function LibraryPanel({
               onDetach={onDetach}
               onHover={setHoverId}
               onLoad={onLoad}
-              onNote={(conceptId) => setNoteConceptId(conceptId)}
+              onNote={(conceptId) => {
+                askToType("concept-note");
+                setNoteConceptId(conceptId);
+              }}
               onPush={onPush}
               onToggle={() => row.conceptId && onToggleOpen(row.conceptId)}
               onToggleTarget={onTogglePick}
@@ -238,12 +243,12 @@ function NoteFields({
 }) {
   const [noteDraft, setNoteDraft] = useState(notes);
   const [tagDraft, setTagDraft] = useState(tags);
+  const noteField = useFocusWhenAsked("concept-note");
   const commit = () => onCommit(noteDraft, tagDraft);
   return (
     <div className="library-note">
       <input
         aria-label="Concept note"
-        autoFocus
         onBlur={commit}
         onChange={(event) => setNoteDraft(event.target.value)}
         onKeyDown={(event) => {
@@ -257,6 +262,7 @@ function NoteFields({
           }
         }}
         placeholder="What this concept is for"
+        ref={noteField}
         spellCheck={false}
         value={noteDraft}
       />

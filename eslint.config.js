@@ -7,6 +7,10 @@ import tseslint from "typescript-eslint";
 const passTheErrorOn =
   "Bind it as catch (error) and pass it on. Rethrow it, or put describeFailure(error) in the reason the Coach reads, such as the save status or a failed outcome, and console.error it. When the browser refusing a storage API is the expected case, wrap the call in unlessBrowserRefuses from @chalk/local-db.";
 
+const focusMessage =
+  "Opening a panel must not raise the tablet keyboard (#59, #87). Focus a field only from the handler of a Coach action that asked to type: call askToType in that handler and useFocusWhenAsked on the field, from apps/web/src/components/ask-to-type.ts.";
+const effectHook = "/^use(Layout|Insertion)?Effect$/";
+
 /**
  * Every no-restricted-syntax rule, with the files it covers and the files it
  * leaves out. A later block's no-restricted-syntax replaces an earlier one
@@ -39,6 +43,25 @@ const restrictedSyntax = [
         selector:
           "CallExpression[callee.property.name='catch'] > :matches(ArrowFunctionExpression, FunctionExpression) > Identifier.params[name=/^_/]",
         message: `A .catch callback whose error is named to be ignored throws it away, so a failed save can look like it worked. ${passTheErrorOn}`,
+      },
+    ],
+  },
+  {
+    files: ["apps/web/src/**/*.{ts,tsx}"],
+    rules: [
+      {
+        selector:
+          'JSXOpeningElement[name.name=/^(input|textarea|select|[A-Z]\\w*)$/] > JSXAttribute[name.name="autoFocus"]',
+        message: focusMessage,
+      },
+      {
+        selector: `CallExpression:matches([callee.name=${effectHook}], [callee.property.name=${effectHook}]) CallExpression[callee.property.name="focus"]`,
+        message: focusMessage,
+      },
+      {
+        selector:
+          'JSXAttribute[name.name="ref"] CallExpression[callee.property.name="focus"]',
+        message: focusMessage,
       },
     ],
   },

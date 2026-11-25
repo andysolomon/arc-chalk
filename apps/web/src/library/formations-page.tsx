@@ -80,7 +80,6 @@ export function FormationsPage({
   calls,
   favoriteCallIds,
   favoriteFormationIds,
-  focusSearch = true,
   formations,
   members,
   onRemove,
@@ -94,7 +93,6 @@ export function FormationsPage({
   calls: readonly DefensiveCall[];
   favoriteCallIds: readonly string[];
   favoriteFormationIds: readonly string[];
-  focusSearch?: boolean;
   /** Every set, shipped and saved. */
   formations: readonly Formation[];
   /** The Plays of the open book, to say how many stand in each set. */
@@ -309,7 +307,6 @@ export function FormationsPage({
           </svg>
           <input
             aria-label="Search formations"
-            autoFocus={focusSearch}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search formations — gun, trips, nickel, 12…"
             spellCheck={false}
@@ -350,28 +347,24 @@ export function FormationsPage({
                   .length,
               })),
             ]}
-            focusSearch={focusSearch}
             label="Playbook"
             onPick={setPlaybookId}
             value={playbookId}
           />
           <FilterChip
             choices={groupChoices}
-            focusSearch={focusSearch}
             label={axis.group}
             onPick={setGroup}
             value={group}
           />
           <FilterChip
             choices={setChoiceList}
-            focusSearch={focusSearch}
             label={axis.set}
             onPick={setSet}
             value={set}
           />
           <FilterChip
             choices={personnelChoiceList}
-            focusSearch={focusSearch}
             label="Personnel"
             onPick={setPersonnel}
             value={personnel}
@@ -379,7 +372,6 @@ export function FormationsPage({
           {unit !== "defense" ? (
             <FilterChip
               choices={packageChoices}
-              focusSearch={focusSearch}
               label="Package"
               onPick={setPackage}
               value={pkg}

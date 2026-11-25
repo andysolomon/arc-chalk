@@ -43,6 +43,7 @@ import {
   pageCardRowHeightFor,
   playCardRowHeightFor,
 } from "./grid-columns";
+import { askToType } from "../components/ask-to-type";
 import { PlayCard, PlayMeta } from "./play-card";
 import { PlaybookNameForm } from "./playbooks-shelf";
 import {
@@ -109,7 +110,6 @@ export function PlaybookBrowser({
   deletePrompt,
   embedded = false,
   filters = "compact",
-  focusSearch = true,
   formations = [],
   initial,
   initialFilters,
@@ -154,11 +154,6 @@ export function PlaybookBrowser({
    * Play there carries its own actions and, on a phone, reads as a list.
    */
   embedded?: boolean;
-  /**
-   * Whether search takes focus as the browser opens. A keyboard wants it; a
-   * finger does not want the keyboard raised over the cards (issue #68).
-   */
-  focusSearch?: boolean;
   initial: LibraryBrowserState;
   library: ChalkLibrary;
   members: readonly PlaySearchProjection[];
@@ -533,7 +528,6 @@ export function PlaybookBrowser({
   const searchInput = (
     <input
       aria-label="Search plays"
-      autoFocus={focusSearch}
       onChange={(event) => setQuery(event.target.value)}
       onKeyDown={(event) => {
         // On the page, Escape empties the search first and then goes back
@@ -670,7 +664,6 @@ export function PlaybookBrowser({
               <>
                 <FilterChip
                   choices={choices.playTypes}
-                  focusSearch={focusSearch}
                   label="Type"
                   onPick={(next) => setValue("playType", next)}
                   value={values.playType}
@@ -678,7 +671,6 @@ export function PlaybookBrowser({
                 {filters === "library" ? (
                   <FilterChip
                     choices={choices.playbooks}
-                    focusSearch={focusSearch}
                     label="Playbook"
                     onPick={(next) => setValue("playbookId", next)}
                     value={values.playbookId}
@@ -701,7 +693,6 @@ export function PlaybookBrowser({
                   <>
                     <FilterChip
                       choices={choices.formationGroups}
-                      focusSearch={focusSearch}
                       label="Formation"
                       onPick={(next) => setValue("formationGroup", next)}
                       value={values.formationGroup}
@@ -709,7 +700,6 @@ export function PlaybookBrowser({
                     {filters === "library" ? (
                       <FilterChip
                         choices={choices.sets}
-                        focusSearch={focusSearch}
                         label="Set"
                         onPick={(next) => setValue("set", next)}
                         value={values.set}
@@ -719,7 +709,6 @@ export function PlaybookBrowser({
                 )}
                 <FilterChip
                   choices={choices.personnel}
-                  focusSearch={focusSearch}
                   label="Personnel"
                   onPick={(next) => setValue("personnel", next)}
                   value={values.personnel}
@@ -786,14 +775,12 @@ export function PlaybookBrowser({
             >
               <FilterChip
                 choices={choices.concepts}
-                focusSearch={focusSearch}
                 label="Concept"
                 onPick={(next) => setValue("conceptId", next)}
                 value={values.conceptId}
               />
               <FilterChip
                 choices={choices.tags}
-                focusSearch={focusSearch}
                 label="Tag"
                 onPick={(next) => setValue("tag", next)}
                 value={values.tag}
@@ -801,7 +788,6 @@ export function PlaybookBrowser({
               <FilterChip
                 allName="Either"
                 choices={choices.motion}
-                focusSearch={focusSearch}
                 label="Motion"
                 onPick={(next) =>
                   setValue(
@@ -1355,8 +1341,8 @@ function PlayActions({
         </div>
         {step === "rename" && onRename ? (
           <PlaybookNameForm
-            autoFocus
             className="play-rename"
+            field="play-name"
             initial={member.name}
             label="Play name"
             onCancel={() => setStep("menu")}
@@ -1408,7 +1394,13 @@ function PlayActions({
               {current ? "Back to the editor" : "Open in editor"}
             </button>
             {onRename ? (
-              <button onClick={() => setStep("rename")} type="button">
+              <button
+                onClick={() => {
+                  askToType("play-name");
+                  setStep("rename");
+                }}
+                type="button"
+              >
                 Rename…
               </button>
             ) : null}
