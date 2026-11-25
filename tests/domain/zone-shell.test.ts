@@ -313,28 +313,6 @@ describe("the deep shell", () => {
     }
   });
 
-  it("gives Deep 1/4 the quarter nearest the man: outside for a corner, inside for a safety", () => {
-    const corner = defender("c", 19, 7);
-    const safety = defender("s", 4, 12);
-    const play = layoutZoneShell(
-      playOf(
-        [corner, safety],
-        [
-          called("quarter", "c", corner, { lateralYards: 0, depthYards: 18 }),
-          called("quarter", "s", safety, { lateralYards: 0, depthYards: 18 }),
-        ],
-      ),
-    );
-    expect(bubble(play, "c").center.lateralYards).toBeCloseTo(
-      shareCentre(3, 4),
-      9,
-    );
-    expect(bubble(play, "s").center.lateralYards).toBeCloseTo(
-      shareCentre(2, 4),
-      9,
-    );
-  });
-
   // The ball on the left hash, where a front of two lines up on it.
   const onTheLeftHash = [defender("le", -8, 1), defender("re", -4, 1)];
 

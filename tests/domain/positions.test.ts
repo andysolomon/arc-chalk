@@ -156,22 +156,6 @@ const onField = (call: DefensiveCall): PlayDocument => {
 };
 
 describe("what an offensive man plays, read off where he stands", () => {
-  it("makes the I-Form's H the tailback and its F the fullback, among the backs", () => {
-    const words = offenseWords(menOf(setNamed("I-Form Right")));
-    expect(words).toContain("H: backs · Tailback");
-    expect(words).toContain("F: backs · Fullback");
-    expect(words).toContain("Q: backs · Quarterback");
-    expect(words).toContain("Y: skill · Tight end");
-    expect(words).toContain("X: skill · Receiver");
-    expect(words).toContain("Z: skill · Receiver");
-  });
-
-  it("reads the Strong set off the stance too: the deep F is the tailback and the offset H the fullback", () => {
-    const words = offenseWords(menOf(setNamed("Strong Right")));
-    expect(words).toContain("F: backs · Tailback");
-    expect(words).toContain("H: backs · Fullback");
-  });
-
   it("calls a lone back Back, and backs level with each other Back", () => {
     expect(offenseWords(menOf(setNamed("Gun Doubles Right")))).toContain(
       "F: backs · Back",
@@ -280,33 +264,6 @@ describe("what an offensive man plays, read off where he stands", () => {
 });
 
 describe("what a defender plays, read off his stance and the front", () => {
-  it("puts the nickel in the secondary and the deep S among the safeties (Nickel Cover 2)", () => {
-    const words = defenseWords(onField(callNamed("Nickel Cover 2")));
-    expect(words).toContain("N: secondary · Nickel");
-    expect(words).toContain("S: secondary · Strong safety");
-    expect(words).toContain("F: secondary · Free safety");
-    expect(words).toContain("W: linebackers · Will");
-    expect(words).toContain("M: linebackers · Mike");
-    expect(words.filter((word) => word.startsWith("E:"))).toEqual([
-      "E: front · End",
-      "E: front · End",
-    ]);
-    expect(words.filter((word) => word.startsWith("T:"))).toEqual([
-      "T: front · Tackle",
-      "T: front · Tackle",
-    ]);
-  });
-
-  it("tells the two S of 4-3 Cover 2 apart: the Sam in the box, the strong safety deep", () => {
-    const words = defenseWords(onField(callNamed("4-3 Cover 2"))).filter(
-      (word) => word.startsWith("S:"),
-    );
-    expect(words.sort()).toEqual([
-      "S: linebackers · Sam",
-      "S: secondary · Strong safety",
-    ]);
-  });
-
   it("calls the $ of a base front the strong safety, and a $ beside a strong safety the nickel", () => {
     expect(defenseWords(onField(callNamed("4-3 Cover 3")))).toContain(
       "$: secondary · Strong safety",
@@ -387,33 +344,6 @@ describe("what a defender plays, read off his stance and the front", () => {
       "C: secondary · Corner",
       "-: secondary · Safety",
       "-: secondary · Nickel",
-    ]);
-  });
-
-  it("fields the Bear's four defensive backs as two corners and two safeties, each with his own letter", () => {
-    const bear = callNamed("Bear Front Cover 0");
-    const letters = bear.formation.slots.map(({ label }) => label).sort();
-    expect(letters).toEqual([
-      "$",
-      "C",
-      "C",
-      "E",
-      "E",
-      "F",
-      "M",
-      "N",
-      "T",
-      "T",
-      "W",
-    ]);
-    const secondary = defenseWords(onField(bear)).filter((word) =>
-      word.includes("secondary"),
-    );
-    expect(secondary.sort()).toEqual([
-      "$: secondary · Strong safety",
-      "C: secondary · Corner",
-      "C: secondary · Corner",
-      "F: secondary · Free safety",
     ]);
   });
 

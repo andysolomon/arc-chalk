@@ -467,6 +467,24 @@ async function ensurePlaybookRecord(
   await repository.savePlaybookRecord(blankPlaybook(playbookId, Date.now()));
 }
 
+export function repositoryPersistence(
+  repository: ChalkLocalRepository,
+  onCommitted: () => void = () => {},
+): EditorPersistence {
+  return {
+    commitPlay: async (input) => {
+      await ensurePlaybookRecord(repository, input.play.playbookId);
+      const receipt = await repository.commitPlay(input);
+      onCommitted();
+      return receipt;
+    },
+    createNamedVersion: (input) => repository.createNamedVersion(input),
+    listPlayVersions: (playId) => repository.listPlayVersions(playId),
+    loadVersionDocument: async (revisionId) =>
+      (await repository.getRevision(revisionId))?.document,
+  };
+}
+
 interface InitialEditorDocument {
   readonly document: PlayDocument;
   readonly documentHash: string;
@@ -749,18 +767,9 @@ export async function createBrowserRuntime(): Promise<ChalkRuntime> {
   let playbookId = initial.playbookId;
   const localEditListeners = new Set<() => void>();
 
-  const persistence: EditorPersistence = {
-    commitPlay: async (input) => {
-      await ensurePlaybookRecord(repository, input.play.playbookId);
-      const receipt = await repository.commitPlay(input);
-      for (const listener of localEditListeners) listener();
-      return receipt;
-    },
-    createNamedVersion: (input) => repository.createNamedVersion(input),
-    listPlayVersions: (playId) => repository.listPlayVersions(playId),
-    loadVersionDocument: async (revisionId) =>
-      (await repository.getRevision(revisionId))?.document,
-  };
+  const persistence = repositoryPersistence(repository, () => {
+    for (const listener of localEditListeners) listener();
+  });
 
   const editorStore = createEditorStore({
     initialDocument: initial.document,
