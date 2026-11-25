@@ -39,12 +39,6 @@ PR open, merged), confirm it and move on.
 3. Run the cheap checks locally, scoped to what changed:
    `bun run format:check`, `bun run lint`, `bun run typecheck`, and
    `bunx playwright test <changed specs> --project=chromium`.
-   - Port 4173 may already be served by another worktree's dev server, and the
-     Playwright config reuses whatever answers there — so the run tests the
-     wrong code. Check with `ss -ltnp | grep 4173` and the owning process's
-     cwd. If it is not this checkout, drive the specs through the
-     `verify-chalk` skill, which starts this checkout's own server on a free
-     port.
    - WebKit may not launch locally for lack of system libraries; CI runs it.
 4. Run the `verify-chalk` skill for any change a Coach can see. It drives the
    change in Chromium and leaves screenshots, a video and a trace under

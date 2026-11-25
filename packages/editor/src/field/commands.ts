@@ -114,6 +114,7 @@ import type {
   FieldInteractionContext,
   FieldItemRef,
   FieldMoveReadout,
+  HeldTranslation,
 } from "./model";
 
 /**
@@ -212,11 +213,11 @@ function selectionLabel(verb: string, items: readonly FieldItemRef[]): string {
  * so a dragged group keeps its shape. Only the way toward the ball is held;
  * a man somehow already across it may always come back.
  */
-function holdDepthOnSideOfBall(
+function holdOnSideOfBall(
   players: readonly Player[],
-  depthYards: number,
-): number {
-  let held = depthYards;
+  translation: Coordinate,
+): Coordinate {
+  let held = translation.depthYards;
   for (const player of players) {
     const limit = depthLimitForUnit(player.unit);
     const downfield = Math.max(
@@ -229,17 +230,7 @@ function holdDepthOnSideOfBall(
     );
     held = Math.max(-backfield, Math.min(downfield, held));
   }
-  return held;
-}
-
-function holdOnSideOfBall(
-  players: readonly Player[],
-  translation: Coordinate,
-): Coordinate {
-  return coordinate(
-    translation.lateralYards,
-    holdDepthOnSideOfBall(players, translation.depthYards),
-  );
+  return coordinate(translation.lateralYards, held);
 }
 
 /** Nearer than this, two points of a line are the same point. */
@@ -284,28 +275,26 @@ function aimedCallOf(
 }
 
 /**
- * One completed move — however many items it carried — becomes one batch.
  * Routes attached to a moving Player travel with him, the way the original
  * dragged them as a unit — except a line drawn with a call aimed at the
  * field, which is drawn again from where he now stands, so a man sent
  * through the A gap still goes through the A gap.
  */
-export function buildMoveCommand(
+function carry(
   document: PlayDocument,
   items: readonly FieldItemRef[],
-  requested: Coordinate,
-): PlayCommand | undefined {
-  const playerIds = new Set(
-    items.filter(({ kind }) => kind === "player").map(({ id }) => id),
-  );
-  const moving = document.players.filter(({ id }) => playerIds.has(id));
-  const translation = holdOnSideOfBall(moving, requested);
+  translation: Coordinate,
+): PrimitivePlayCommand[] {
   if (
     rounded(translation.lateralYards) === 0 &&
     rounded(translation.depthYards) === 0
   ) {
-    return undefined;
+    return [];
   }
+  const playerIds = new Set(
+    items.filter(({ kind }) => kind === "player").map(({ id }) => id),
+  );
+  const moving = document.players.filter(({ id }) => playerIds.has(id));
   const pathIds = new Set(
     items.filter(({ kind }) => kind === "path").map(({ id }) => id),
   );
@@ -342,8 +331,6 @@ export function buildMoveCommand(
       }
       continue;
     }
-    // Attachment wins: a route selected alongside its own Player still moves
-    // exactly once.
     if (playerIds.has(path.playerId) || pathIds.has(path.id)) {
       commands.push({
         kind: "update-path",
@@ -359,12 +346,54 @@ export function buildMoveCommand(
       });
     }
   }
+  return commands;
+}
+
+/** One completed move — however many items it carried — becomes one batch. */
+export function buildMoveCommand(
+  document: PlayDocument,
+  items: readonly FieldItemRef[],
+  translation: HeldTranslation,
+): PlayCommand | undefined {
+  const commands = carry(document, items, translation);
   if (commands.length === 0) return undefined;
   return {
     kind: "batch",
     label: selectionLabel("Move", items),
     commands,
   };
+}
+
+/**
+ * Men stood on spots a call chose for them, one after another, each carrying
+ * his lines the way a move carries them. The call picked spots on the field
+ * and on his side of the ball, so it is not a move the field has to hold.
+ */
+export function placeMen(
+  document: PlayDocument,
+  spots: ReadonlyMap<string, Coordinate>,
+): PlayDocument {
+  let placed = document;
+  for (const [id, spot] of spots) {
+    const man = placed.players.find((candidate) => candidate.id === id);
+    if (!man) continue;
+    const commands = carry(
+      placed,
+      [{ kind: "player", id }],
+      coordinate(
+        spot.lateralYards - man.position.lateralYards,
+        spot.depthYards - man.position.depthYards,
+      ),
+    );
+    if (commands.length > 0) {
+      placed = applyPlayCommand(placed, {
+        kind: "batch",
+        label: "Place",
+        commands,
+      });
+    }
+  }
+  return placed;
 }
 
 /**
@@ -500,13 +529,11 @@ function movingPoints(
 }
 
 /**
- * Cuts a move back to what keeps everything it carries on the field and on
- * its own side of the ball. A drag and a keyboard nudge go through the same
- * hold, so neither can put a man or a route past the sideline or off the
- * drawn frame, and a dragged man stops at the line of scrimmage while the
- * pointer is still moving rather than jumping back to it on release.
+ * Cuts a move back to what keeps everything it carries between the
+ * sidelines and inside the drawn frame, and every man on his side of the
+ * ball.
  */
-export function clampMoveToField(
+function holdOnTheField(
   context: FieldInteractionContext,
   items: readonly FieldItemRef[],
   translation: Coordinate,
@@ -572,12 +599,7 @@ function pushOffTeammates(
   }
   if (circles.length === 0) return translation;
 
-  const wanted = toCanvas(
-    coordinate(
-      translation.lateralYards,
-      holdDepthOnSideOfBall(moving, translation.depthYards),
-    ),
-  );
+  const wanted = toCanvas(translation);
   const clear = (point: { x: number; y: number }) =>
     circles.every(
       (circle) =>
@@ -589,9 +611,7 @@ function pushOffTeammates(
   const allowed = (point: { x: number; y: number }) => {
     if (!clear(point)) return false;
     const yards = toYards(point);
-    const held = holdDepthOnSideOfBall(moving, yards.depthYards);
-    if (Math.abs(held - yards.depthYards) > 1e-6) return false;
-    const kept = clampMoveToField(context, items, yards);
+    const kept = holdOnTheField(context, items, yards);
     return (
       Math.abs(kept.lateralYards - yards.lateralYards) < 1e-6 &&
       Math.abs(kept.depthYards - yards.depthYards) < 1e-6
@@ -661,23 +681,23 @@ function pushOffTeammates(
 }
 
 /**
- * Every hold a move goes through, drag or keyboard nudge alike: the field
+ * Every rule a move obeys, and the one place a move is held: the field
  * first, then off any teammate the move would stand a man on.
  */
 export function holdMove(
   context: FieldInteractionContext,
   items: readonly FieldItemRef[],
-  translation: Coordinate,
-): Coordinate {
+  requested: Coordinate,
+): HeldTranslation {
   return pushOffTeammates(
     context,
     items,
-    clampMoveToField(context, items, translation),
-  );
+    holdOnTheField(context, items, requested),
+  ) as HeldTranslation;
 }
 
 export interface MovePreview {
-  readonly translation: Coordinate;
+  readonly translation: HeldTranslation;
   readonly guides: readonly AxisSnapGuide[];
   readonly readout?: FieldMoveReadout;
 }
@@ -751,12 +771,14 @@ export function movePreview(
     point.lateralYards - start.lateralYards,
     point.depthYards - start.depthYards,
   );
-  const held = (translation: Coordinate): Coordinate =>
-    holdMove(context, items, translation);
   const only = items.length === 1 ? items[0] : undefined;
-  if (only?.kind !== "player") return { translation: held(raw), guides: [] };
-  const player = context.document.players.find(({ id }) => id === only.id);
-  if (!player) return { translation: held(raw), guides: [] };
+  const player =
+    only?.kind === "player"
+      ? context.document.players.find(({ id }) => id === only.id)
+      : undefined;
+  if (!player) {
+    return { translation: holdMove(context, items, raw), guides: [] };
+  }
 
   const lineDepth = offenseLineFor(context.document.players, player);
   const result = snapPosition({
@@ -778,16 +800,14 @@ export function movePreview(
   // past the sideline cannot pull him off it, nor one under a teammate stand
   // him there. A hold that moved him leaves the guides behind: they pointed
   // at where he is no longer going.
-  const translation = held(snapped);
+  const translation = holdMove(context, items, snapped);
   const stopped =
     translation.lateralYards !== snapped.lateralYards ||
     translation.depthYards !== snapped.depthYards;
-  const landed = stopped
-    ? coordinate(
-        player.position.lateralYards + translation.lateralYards,
-        player.position.depthYards + translation.depthYards,
-      )
-    : result.point;
+  const landed = coordinate(
+    player.position.lateralYards + translation.lateralYards,
+    player.position.depthYards + translation.depthYards,
+  );
   return {
     translation,
     guides: stopped ? [] : result.guides,

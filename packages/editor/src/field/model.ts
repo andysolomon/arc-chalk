@@ -125,6 +125,18 @@ export interface FieldMoveReadout {
   readonly text: string;
 }
 
+declare const heldByTheField: unique symbol;
+
+/**
+ * How far a move goes once every rule a move obeys has held it. Only
+ * `holdMove` makes one, and a drag's preview, its release and a keyboard
+ * nudge all take their translation from it, so the field never shows a man
+ * where letting go will not keep him (#244).
+ */
+export type HeldTranslation = Coordinate & {
+  readonly [heldByTheField]: true;
+};
+
 /**
  * A handle on the selected route. Handles are drawn by the shell at a
  * constant screen size (ADR 0016), so the shell names the one that was
@@ -170,8 +182,7 @@ export type FieldGesture =
       readonly pointerId: number;
       readonly items: readonly FieldItemRef[];
       readonly start: Coordinate;
-      /** What the commit will apply — snapped when one Player is moving. */
-      readonly translation: Coordinate;
+      readonly translation: HeldTranslation;
       readonly guides: readonly AxisSnapGuide[];
       readonly readout?: FieldMoveReadout;
     }

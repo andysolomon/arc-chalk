@@ -11,11 +11,13 @@ import {
   buildMoveCommand,
   fieldInteraction,
   gesturePreviewCommand,
+  holdMove,
   idleFieldInteraction,
   setRouteKindCommand,
   type FieldInteractionContext,
   type FieldInteractionEvent,
   type FieldInteractionModel,
+  type FieldItemRef,
 } from "@chalk/editor";
 import { buildRenderScene, createSvgProjection } from "@chalk/render";
 import { stickThunderPlay } from "@chalk/test-fixtures";
@@ -217,12 +219,18 @@ describe("field interaction tools", () => {
 });
 
 describe("move command builder", () => {
-  it("moves a route selected alongside its own Player exactly once", () => {
-    const command = buildMoveCommand(
+  const moveBy = (items: readonly FieldItemRef[], by: Coordinate) =>
+    buildMoveCommand(
       stickThunderPlay,
-      [player("x"), path("rx")],
-      { lateralYards: 1, depthYards: 0 },
+      items,
+      holdMove(contextFor(stickThunderPlay), items, by),
     );
+
+  it("moves a route selected alongside its own Player exactly once", () => {
+    const command = moveBy([player("x"), path("rx")], {
+      lateralYards: 1,
+      depthYards: 0,
+    });
     const updates =
       command?.kind === "batch"
         ? command.commands.filter(
@@ -235,21 +243,19 @@ describe("move command builder", () => {
 
   it("holds a man at the line of scrimmage instead of carrying him across", () => {
     // Offense stands at negative depth and keeps a yard clear of the ball
-    // (ADR 0052): a drag downfield stops there.
-    const q = positionOf(stickThunderPlay, "q");
-    const command = buildMoveCommand(stickThunderPlay, [player("q")], {
-      lateralYards: 0,
-      depthYards: 40,
-    });
+    // (ADR 0052): a drag downfield stops there. X has open grass in front of
+    // him, so no teammate pushes him off the spot.
+    const x = positionOf(stickThunderPlay, "x");
+    const command = moveBy([player("x")], { lateralYards: 0, depthYards: 40 });
     const after = applyPlayCommand(stickThunderPlay, command!);
-    expect(positionOf(after, "q").depthYards).toBe(-1);
-    expect(positionOf(after, "q").lateralYards).toBe(q.lateralYards);
+    expect(positionOf(after, "x").depthYards).toBe(-1);
+    expect(positionOf(after, "x").lateralYards).toBeCloseTo(x.lateralYards, 6);
 
     const lineman = positionOf(stickThunderPlay, "ol2");
     expect(lineman.depthYards).toBeLessThan(0);
     const held = applyPlayCommand(
       stickThunderPlay,
-      buildMoveCommand(stickThunderPlay, [player("ol2")], {
+      moveBy([player("ol2")], {
         lateralYards: 0,
         depthYards: 1 - lineman.depthYards,
       })!,
@@ -258,35 +264,31 @@ describe("move command builder", () => {
   });
 
   it("holds a dragged group together at the line, and lets men back away from it", () => {
-    const q = positionOf(stickThunderPlay, "q");
-    const ol2 = positionOf(stickThunderPlay, "ol2");
-    const command = buildMoveCommand(
-      stickThunderPlay,
-      [player("q"), player("ol2")],
-      { lateralYards: 2, depthYards: 40 },
-    );
+    const x = positionOf(stickThunderPlay, "x");
+    const f = positionOf(stickThunderPlay, "f");
+    const command = moveBy([player("f"), player("x")], {
+      lateralYards: 2,
+      depthYards: 40,
+    });
     const after = applyPlayCommand(stickThunderPlay, command!);
-    // The lineman reaches the line first and the group stops with him, so
-    // the Quarterback keeps his distance behind the line.
-    expect(positionOf(after, "ol2").depthYards).toBe(-1);
-    expect(positionOf(after, "q").depthYards).toBeCloseTo(
-      q.depthYards + (-1 - ol2.depthYards),
+    // X reaches the line first and the group stops with him, so F keeps his
+    // distance behind the line.
+    expect(positionOf(after, "x").depthYards).toBe(-1);
+    expect(positionOf(after, "f").depthYards).toBeCloseTo(
+      f.depthYards + (-1 - x.depthYards),
       6,
     );
-    expect(positionOf(after, "q").lateralYards).toBeCloseTo(
-      q.lateralYards + 2,
+    expect(positionOf(after, "f").lateralYards).toBeCloseTo(
+      f.lateralYards + 2,
       6,
     );
 
     // Away from the ball is always open.
     const back = applyPlayCommand(
       stickThunderPlay,
-      buildMoveCommand(stickThunderPlay, [player("q")], {
-        lateralYards: 0,
-        depthYards: -3,
-      })!,
+      moveBy([player("x")], { lateralYards: 0, depthYards: -3 })!,
     );
-    expect(positionOf(back, "q").depthYards).toBeCloseTo(q.depthYards - 3, 6);
+    expect(positionOf(back, "x").depthYards).toBeCloseTo(x.depthYards - 3, 6);
   });
 });
 

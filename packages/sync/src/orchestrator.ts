@@ -236,14 +236,11 @@ export async function createSyncOrchestrator(
     },
   ) => {
     const play = await repository.getPlay(playId);
-    let remoteDocument = fields.remoteDocument;
-    if (!remoteDocument && fields.remotePayloadJson) {
-      try {
-        remoteDocument = asPlay(parseJsonRecord(fields.remotePayloadJson));
-      } catch {
-        remoteDocument = undefined;
-      }
-    }
+    const remoteDocument =
+      fields.remoteDocument ??
+      (fields.remotePayloadJson
+        ? asPlay(parseJsonRecord(fields.remotePayloadJson))
+        : undefined);
     const conflict: LocalConflict = {
       id: fields.conflictId,
       playId,

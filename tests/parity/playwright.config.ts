@@ -1,10 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
 import { resolve } from "node:path";
 
+import { checkoutPort } from "../checkout-port";
+
 const prototypeServer = resolve(
   import.meta.dirname,
   "../../scripts/serve-prototype.ts",
 );
+
+const productionPort = checkoutPort(4173, 5200);
+const productionURL = `http://127.0.0.1:${productionPort}`;
 
 export default defineConfig({
   testDir: import.meta.dirname,
@@ -38,7 +43,7 @@ export default defineConfig({
       // so the recorded difference is the parity gap itself.
       name: "production",
       testMatch: "production-shell.spec.ts",
-      use: { baseURL: "http://127.0.0.1:4173" },
+      use: { baseURL: productionURL },
     },
   ],
   // CHALK_PROTOTYPE_SERVER=external says the *prototype* is already running —
@@ -57,9 +62,9 @@ export default defineConfig({
           },
         ]),
     {
-      command: "bun run dev",
-      url: "http://127.0.0.1:4173",
-      reuseExistingServer: !process.env.CI,
+      command: `bun run dev --port ${productionPort} --strictPort`,
+      url: productionURL,
+      reuseExistingServer: false,
       timeout: 60_000,
     },
   ],
