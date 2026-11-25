@@ -129,6 +129,12 @@ const ATTACHED_YARDS = 3.5;
 
 /** How much one step down a defender's list of preferences is worth, in yards. */
 const PREFERENCE_YARDS = 30;
+/**
+ * Between two matches the same yards apart all told, the one whose lines do
+ * not cross: each pairing is charged this much of its distance squared too,
+ * which is too little to outweigh a yard but tips a tie.
+ */
+const UNCROSSED = 1e-4;
 /** How much a defender prefers the man he already has, so a nudge re-sorts nobody. */
 const STICKY_YARDS = 4;
 /** What a receiver left uncovered costs, more than any pairing ever does. */
@@ -308,30 +314,39 @@ function compareIds(left: string, right: string): number {
 
 /**
  * Who each defender takes. Every receiver is covered that can be — nobody is
- * left open while a defender in man has nobody — then each defender gets the
- * man who best suits him, the nearest across the field of those, and the man
- * he already had where it is a close call. Nobody is doubled: a defender left
- * over when every receiver is taken is free.
+ * left open while a defender in man has nobody — and nobody is sent across
+ * the ball to a receiver while a man in man stands free on that receiver's
+ * side: the free man takes him instead (ADR 0060). Within that, each
+ * defender gets the man who best suits him, the nearest across the field of
+ * those, and the man he already had where it is a close call. Nobody is
+ * doubled: a defender left over when every receiver is taken is free.
  */
 function bestMatch(
-  agents: readonly {
-    readonly defender: Player;
-    readonly kind: DefenderKind;
-    readonly had?: string;
-  }[],
+  agents: readonly MatchAgent[],
   receivers: readonly CoverableReceiver[],
+  ball: number,
 ): (string | undefined)[] {
-  const cost = (agent: (typeof agents)[number], receiver: CoverableReceiver) =>
-    PREFERENCE[agent.kind][receiver.kind] * PREFERENCE_YARDS +
-    Math.abs(
-      agent.defender.position.lateralYards -
-        receiver.player.position.lateralYards,
-    ) -
-    (agent.had === receiver.player.id ? STICKY_YARDS : 0);
+  const cost = (agent: MatchAgent, receiver: CoverableReceiver) => {
+    // A back releases from behind the ball to either side of it, so he is
+    // taken from the middle: measured halfway between his spot and the ball.
+    const at =
+      receiver.kind === "back"
+        ? (receiver.player.position.lateralYards + ball) / 2
+        : receiver.player.position.lateralYards;
+    const apart = Math.abs(agent.defender.position.lateralYards - at);
+    return (
+      PREFERENCE[agent.kind][receiver.kind] * PREFERENCE_YARDS +
+      apart +
+      apart * apart * UNCROSSED -
+      (agent.had === receiver.player.id ? STICKY_YARDS : 0)
+    );
+  };
 
   if (receivers.length > MAX_EXACT_RECEIVERS) {
     // A Coach who has lettered a dozen receivers gets a good match rather
-    // than the best one: the cheapest pairing first, and so on down.
+    // than the best one: the cheapest pairing first, and so on down. With
+    // more receivers than a defense has men, nobody is left free to keep on
+    // his own side of the ball.
     const pairs = agents
       .flatMap((agent, a) =>
         receivers.map((receiver, r) => ({ a, r, cost: cost(agent, receiver) })),
@@ -347,24 +362,87 @@ function bestMatch(
     return result;
   }
 
-  // The exact answer, one defender at a time over which receivers are taken.
+  // Which side of the ball each man stands on: −1, +1, or 0 over it. A man
+  // over the ball is never sent across it, and left free he is free on
+  // both sides.
+  const sideOf = (lateralYards: number) =>
+    Math.abs(lateralYards - ball) <= SAME ? 0 : sideSign(lateralYards, ball);
+  const agentSides = agents.map(({ defender }) =>
+    sideOf(defender.position.lateralYards),
+  );
+  const receiverSides = receivers.map(({ player }) =>
+    sideOf(player.position.lateralYards),
+  );
+
+  // Whether a man on each side may be left free decides the rest: where
+  // one may, nobody from the other side may take a receiver on his. The
+  // best match is the cheapest of the four ways that can go.
+  let best: ExactMatch | undefined;
+  for (const freeLeft of [true, false]) {
+    for (const freeRight of [true, false]) {
+      const freeOn = (side: number) => (side < 0 ? freeLeft : freeRight);
+      const match = exactMatch(
+        agents,
+        receivers,
+        cost,
+        (a) => {
+          const side = agentSides[a]!;
+          return side === 0 ? freeLeft && freeRight : freeOn(side);
+        },
+        (a, r) => {
+          const his = receiverSides[r]!;
+          const mine = agentSides[a]!;
+          return his === 0 || mine === 0 || mine === his || !freeOn(his);
+        },
+      );
+      if (!best || match.total < best.total - SAME) best = match;
+    }
+  }
+  return best!.result;
+}
+
+interface MatchAgent {
+  readonly defender: Player;
+  readonly kind: DefenderKind;
+  readonly had?: string;
+}
+
+interface ExactMatch {
+  readonly total: number;
+  readonly result: (string | undefined)[];
+}
+
+/**
+ * The cheapest match, one defender at a time over which receivers are
+ * taken, among those that leave free only the men `mayGoFree` allows and
+ * pair only those `mayTake` does. An open receiver costs more than any
+ * pairing ever does.
+ */
+function exactMatch(
+  agents: readonly MatchAgent[],
+  receivers: readonly CoverableReceiver[],
+  cost: (agent: MatchAgent, receiver: CoverableReceiver) => number,
+  mayGoFree: (agent: number) => boolean,
+  mayTake: (agent: number, receiver: number) => boolean,
+): ExactMatch {
   const masks = 1 << receivers.length;
   let best = new Float64Array(masks).fill(Infinity);
   best[0] = 0;
   const picks: Int8Array[] = [];
-  for (const agent of agents) {
+  agents.forEach((agent, a) => {
+    const free = mayGoFree(a);
     const next = new Float64Array(masks).fill(Infinity);
     const pick = new Int8Array(masks).fill(-2);
     for (let mask = 0; mask < masks; mask += 1) {
       const so = best[mask]!;
       if (so === Infinity) continue;
-      if (so < next[mask]!) {
+      if (free && so < next[mask]!) {
         next[mask] = so;
         pick[mask] = -1;
       }
       receivers.forEach((receiver, index) => {
         const bit = 1 << index;
-        if (mask & bit) return;
+        if (mask & bit || !mayTake(a, index)) return;
         const total = so + cost(agent, receiver);
         if (total < next[mask | bit]!) {
           next[mask | bit] = total;
@@ -374,7 +452,7 @@ function bestMatch(
     }
     best = next;
     picks.push(pick);
-  }
+  });
   let end = 0;
   let lowest = Infinity;
   for (let mask = 0; mask < masks; mask += 1) {
@@ -393,7 +471,7 @@ function bestMatch(
       end &= ~(1 << chosen);
     }
   }
-  return result;
+  return { total: lowest, result };
 }
 
 function popCount(mask: number): number {
@@ -677,6 +755,7 @@ export function settleManCoverage(
         ...(path.covers ? { had: path.covers.playerId } : {}),
       })),
       pool,
+      ball,
     );
     open.forEach(({ path }, index) => {
       const playerId = matched[index];
