@@ -188,9 +188,9 @@ export function ClerkWiredSession({
       identity,
       currentPlayId: () => runtime.editorStore.getSnapshot().document.id,
       onOpenPlayChanged: (play) => {
-        void canonicalSha256(play).then((hash) => {
-          runtime.editorStore.revealPersistedPlay(play, hash);
-        });
+        void canonicalSha256(play).then((hash) =>
+          runtime.editorStore.revealPersistedPlay(play, hash),
+        );
       },
       headWatcher: {
         subscribe(onAdvance) {
