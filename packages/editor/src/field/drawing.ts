@@ -469,7 +469,7 @@ export function canDrawLine(
 export function clearDrawing(
   model: FieldInteractionModel,
 ): FieldInteractionModel {
-  return { selection: model.selection, gesture: { kind: "idle" } };
+  return { pick: model.pick, gesture: { kind: "idle" } };
 }
 
 export function startDrawing(
@@ -487,7 +487,7 @@ export function startDrawing(
   const from =
     kind === "route" ? snapSpotOf(context.document, playerId) : player.position;
   return {
-    selection: [],
+    pick: { kind: "items", items: [] },
     gesture: { kind: "idle" },
     drawing: {
       kind: drawingKindFor(kind, player),
@@ -620,7 +620,7 @@ export function finishDrawing(
   if (command === undefined) return { model: clearDrawing(model) };
   return {
     model: {
-      selection: [{ kind: "path", id: pathId }],
+      pick: { kind: "items", items: [{ kind: "path", id: pathId }] },
       gesture: { kind: "idle" },
     },
     command,

@@ -196,6 +196,8 @@ import {
   localSaveMessage,
   localSaveStatus,
   pruneFieldSelection,
+  pickedItems,
+  routePart,
   editorScreenQuery,
   idleStylus,
   penInterrupts,
@@ -1057,9 +1059,11 @@ function FieldLiveOverlay({
     store.getSnapshot,
   );
   const zoom = getZoom();
+  const selection = pickedItems(model.pick);
+  const part = routePart(model.pick);
   const selectedPathId =
-    model.selection.length === 1 && model.selection[0]?.kind === "path"
-      ? model.selection[0].id
+    selection.length === 1 && selection[0]?.kind === "path"
+      ? selection[0].id
       : undefined;
   const selectedPath =
     liveHandlePath(model.gesture) ??
@@ -1067,8 +1071,8 @@ function FieldLiveOverlay({
       ? document.paths.find(({ id }) => id === selectedPathId)
       : undefined);
   const selectedLabel =
-    model.selection.length === 1 && model.selection[0]?.kind === "label"
-      ? document.labels.find(({ id }) => id === model.selection[0]!.id)
+    selection.length === 1 && selection[0]?.kind === "label"
+      ? document.labels.find(({ id }) => id === selection[0]!.id)
       : undefined;
   const leader = selectedLabel?.leader
     ? projectCoordinate(selectedLabel.leader.endpoint, projection)
@@ -1096,13 +1100,13 @@ function FieldLiveOverlay({
       {selectedPath ? (
         <g transform={handleShift}>
           <RouteHandles
-            branchIndex={model.selectedBranchIndex}
+            branchIndex={part.branch}
             onHandleDown={onHandleDown}
             path={selectedPath}
             precise={precise}
             projection={projection}
-            selectedNodeIndex={model.selectedNodeIndex}
-            selectedSegmentIndex={model.selectedSegmentIndex}
+            selectedNodeIndex={part.node}
+            selectedSegmentIndex={part.segment}
             zoom={zoom}
           />
         </g>
@@ -3283,6 +3287,11 @@ export function ChalkApp({
   const [freeDraw, setFreeDraw] = useState(false);
   const drawingMode: FieldDrawingMode = freeDraw ? "free" : "breaks";
   const [interaction, setInteraction] = useState(idleFieldInteraction);
+  const selection = useMemo(
+    () => pickedItems(interaction.pick),
+    [interaction.pick],
+  );
+  const pickedPart = routePart(interaction.pick);
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string>();
   // The line whose row in a man's panel the mouse is over, lit on the field.
   const [hoveredLineId, setHoveredLineId] = useState<string>();
@@ -3313,7 +3322,7 @@ export function ChalkApp({
   const coverPickingFor = (): string | undefined => {
     const defenderId = coverPickRef.current;
     if (defenderId === undefined) return undefined;
-    const selection = interactionRef.current.selection;
+    const selection = pickedItems(interactionRef.current.pick);
     if (
       selection.length === 1 &&
       selection[0]?.kind === "player" &&
@@ -3765,19 +3774,13 @@ export function ChalkApp({
     showAnimation,
   ]);
   const selectionKeys = useMemo(
-    () =>
-      new Set(
-        interaction.selection.map(({ kind, id }) => selectionKey(kind, id)),
-      ),
-    [interaction.selection],
+    () => new Set(selection.map(({ kind, id }) => selectionKey(kind, id))),
+    [selection],
   );
   /** The one selected label, whose Text panel replaces the idle inspector. */
   const selectedLabel =
-    interaction.selection.length === 1 &&
-    interaction.selection[0]?.kind === "label"
-      ? editor.document.labels.find(
-          ({ id }) => id === interaction.selection[0]!.id,
-        )
+    selection.length === 1 && selection[0]?.kind === "label"
+      ? editor.document.labels.find(({ id }) => id === selection[0]!.id)
       : undefined;
   const runLabelCommand = (
     command: PlayCommand | undefined,
@@ -3960,11 +3963,9 @@ export function ChalkApp({
   const selectedPath =
     activeTool !== "text" &&
     !interaction.drawing &&
-    interaction.selection.length === 1 &&
-    interaction.selection[0]?.kind === "path"
-      ? editor.document.paths.find(
-          ({ id }) => id === interaction.selection[0]!.id,
-        )
+    selection.length === 1 &&
+    selection[0]?.kind === "path"
+      ? editor.document.paths.find(({ id }) => id === selection[0]!.id)
       : undefined;
   /**
    * The one selected man, whose Player panel replaces the idle inspector. The
@@ -3973,11 +3974,9 @@ export function ChalkApp({
   const selectedPlayer =
     activeTool !== "text" &&
     !interaction.drawing &&
-    interaction.selection.length === 1 &&
-    interaction.selection[0]?.kind === "player"
-      ? editor.document.players.find(
-          ({ id }) => id === interaction.selection[0]!.id,
-        )
+    selection.length === 1 &&
+    selection[0]?.kind === "player"
+      ? editor.document.players.find(({ id }) => id === selection[0]!.id)
       : undefined;
   /** Every line he has, named the way the original names them. */
   const playerLines = (player: Player) => {
@@ -4122,7 +4121,7 @@ export function ChalkApp({
    */
   const runQuickCall = (presetKey: string, kind: "route" | "line"): void => {
     const document = editorStore.getSnapshot().document;
-    const playerId = interactionRef.current.selection.find(
+    const playerId = pickedItems(interactionRef.current.pick).find(
       (item) => item.kind === "player",
     )?.id;
     if (playerId === undefined) return;
@@ -4141,11 +4140,7 @@ export function ChalkApp({
     if (kind === "route") {
       sayKeptName(command, document, baseRouteOf(document, playerId)?.id);
     }
-    runPanelCommand(command, {
-      selectedNodeIndex: undefined,
-      selectedBranchIndex: undefined,
-      selectedSegmentIndex: undefined,
-    });
+    runPanelCommand(command, {});
   };
   /**
    * A call off a catalogue put on a line the Coach has picked out. A route is
@@ -4169,12 +4164,13 @@ export function ChalkApp({
           );
     if (line?.kind === "route") sayKeptName(command, document, pathId);
     runPanelCommand(command, {
-      ...(line?.kind === "route"
-        ? { selection: [{ kind: "path", id: pathId }] }
-        : {}),
-      selectedNodeIndex: undefined,
-      selectedBranchIndex: undefined,
-      selectedSegmentIndex: undefined,
+      pick: {
+        kind: "items",
+        items:
+          line?.kind === "route"
+            ? [{ kind: "path", id: pathId }]
+            : pickedItems(interactionRef.current.pick),
+      },
     });
   };
   /**
@@ -4186,8 +4182,7 @@ export function ChalkApp({
     activeTool === "select" &&
     !interaction.drawing &&
     interaction.gesture.kind === "idle"
-      ? (interaction.selection.find(({ kind }) => kind === "player")?.id ??
-        hoveredPlayerId)
+      ? (selection.find(({ kind }) => kind === "player")?.id ?? hoveredPlayerId)
       : undefined;
   const routeDotMan =
     routeDotCandidate === undefined
@@ -4269,7 +4264,7 @@ export function ChalkApp({
     if (!hold) setInteraction(result.model);
     // A click, not a drag: a man dragged was only being moved.
     if (event.type === "pointer-up" && previous.gesture.kind === "pressing") {
-      revealPick(result.model.selection);
+      revealPick(pickedItems(result.model.pick));
     }
     if (result.command) {
       pendingCommitPaintRef.current = true;
@@ -4414,7 +4409,7 @@ export function ChalkApp({
     dispatchField({ type: "start-drawing", kind, playerId, mode: drawingMode });
   };
   const startDrawingFromSelection = (kind: FieldDrawingKind): void => {
-    const men = interactionRef.current.selection.filter(
+    const men = pickedItems(interactionRef.current.pick).filter(
       (item) => item.kind === "player",
     );
     if (men.length !== 1) return;
@@ -4837,7 +4832,7 @@ export function ChalkApp({
     if (activeTool === "pan") return;
     // Double-clicking the selected route adds a break where the Coach
     // pointed, the way the original did.
-    const selected = interactionRef.current.selection.find(
+    const selected = pickedItems(interactionRef.current.pick).find(
       ({ kind }) => kind === "path",
     );
     if (!selected) return;
@@ -5004,12 +4999,7 @@ export function ChalkApp({
     [editor.document],
   );
   const pickFieldItem = (item: FieldItemRef): void => {
-    focusInteraction({
-      selection: [item],
-      selectedBranchIndex: undefined,
-      selectedSegmentIndex: undefined,
-      selectedNodeIndex: undefined,
-    });
+    focusInteraction({ pick: { kind: "items", items: [item] } });
     revealPick([item]);
   };
   /** What each of them is called, said the way a Coach would say it aloud. */
@@ -5020,7 +5010,7 @@ export function ChalkApp({
         ? scene.paths.find(({ id }) => id === item.id)?.ariaLabel
         : scene.labels.find(({ id }) => id === item.id)?.ariaLabel) ??
     item.kind;
-  const activeItem = interaction.selection[0];
+  const activeItem = selection[0];
   /**
    * What was just picked, said out loud. The halo is the answer for anybody
    * who can see it; this is the same answer for anybody who cannot, and it
@@ -5028,9 +5018,7 @@ export function ChalkApp({
    */
   const activeItemName = activeItem
     ? `${fieldItemName(activeItem)}${
-        interaction.selection.length > 1
-          ? `, and ${interaction.selection.length - 1} more`
-          : ""
+        selection.length > 1 ? `, and ${selection.length - 1} more` : ""
       }`
     : "Nothing picked";
 
@@ -5085,7 +5073,7 @@ export function ChalkApp({
     const document = editorStore.getSnapshot().document;
     const bounds = selectionFrameBounds(
       document,
-      interactionRef.current.selection,
+      pickedItems(interactionRef.current.pick),
       createSvgProjection(document.fieldProfile),
     );
     setCamera(
@@ -5106,7 +5094,7 @@ export function ChalkApp({
    * do nothing — the same rule the Clear menu and the reorder items use, so
    * grey and inert always come from one answer.
    */
-  const selectedPlayerIds = interaction.selection
+  const selectedPlayerIds = selection
     .filter(({ kind }) => kind === "player")
     .map(({ id }) => id);
   const alignAction = (
@@ -5125,7 +5113,7 @@ export function ChalkApp({
   const groupAction = ((): (() => void) | undefined => {
     const command = groupSelectionCommand(
       editor.document,
-      interaction.selection,
+      selection,
       createStableId,
     );
     if (!command) return undefined;
@@ -5134,10 +5122,7 @@ export function ChalkApp({
     };
   })();
   const ungroupAction = ((): (() => void) | undefined => {
-    const command = ungroupSelectionCommand(
-      editor.document,
-      interaction.selection,
-    );
+    const command = ungroupSelectionCommand(editor.document, selection);
     if (!command) return undefined;
     return () => {
       void editorStore.applyCommand(command).catch(() => undefined);
@@ -5145,9 +5130,8 @@ export function ChalkApp({
   })();
   /** The one line the Coach has picked out, for the verbs that need just one. */
   const lonePathId =
-    interaction.selection.length === 1 &&
-    interaction.selection[0]?.kind === "path"
-      ? interaction.selection[0].id
+    selection.length === 1 && selection[0]?.kind === "path"
+      ? selection[0].id
       : undefined;
   const reverseAction = ((): (() => void) | undefined => {
     if (!lonePathId) return undefined;
@@ -5165,24 +5149,26 @@ export function ChalkApp({
   const addDepthMarker = (): void => {
     const document = editorStore.getSnapshot().document;
     const model = interactionRef.current;
+    const picked = pickedItems(model.pick);
     const pathId =
-      model.selection.length === 1 && model.selection[0]?.kind === "path"
-        ? model.selection[0].id
+      picked.length === 1 && picked[0]?.kind === "path"
+        ? picked[0].id
         : undefined;
     if (!pathId) return;
+    const segment = routePart(model.pick).segment;
     const command = addDepthLabelCommand(
       document,
       pathId,
-      model.selectedSegmentIndex === undefined
-        ? undefined
-        : model.selectedSegmentIndex + 1,
+      segment === undefined ? undefined : segment + 1,
       createStableId,
     );
     if (!command) return;
     const [labelId] = insertedEntityIds(command);
     runPanelCommand(
       command,
-      labelId ? { selection: [{ kind: "label", id: labelId }] } : {},
+      labelId
+        ? { pick: { kind: "items", items: [{ kind: "label", id: labelId }] } }
+        : {},
     );
   };
   const depthLabelAction = ((): (() => void) | undefined => {
@@ -5190,9 +5176,7 @@ export function ChalkApp({
     const command = addDepthLabelCommand(
       editor.document,
       lonePathId,
-      interaction.selectedSegmentIndex === undefined
-        ? undefined
-        : interaction.selectedSegmentIndex + 1,
+      pickedPart.segment === undefined ? undefined : pickedPart.segment + 1,
       createStableId,
     );
     return command ? addDepthMarker : undefined;
@@ -5205,7 +5189,7 @@ export function ChalkApp({
   );
   const zoomPercentage = Math.round(cameraZoom(camera, EDITOR_FRAME) * 100);
   const formationStatus =
-    interaction.selection.length > 0 || interaction.drawing
+    selection.length > 0 || interaction.drawing
       ? ""
       : editor.document.players.some(({ unit }) => unit !== "defense")
         ? onFieldFormation
@@ -5250,7 +5234,10 @@ export function ChalkApp({
         ? "— alignment and assignments"
         : "— alignment only",
     });
-    runPanelCommand(command, { selection: [], drawing: undefined });
+    runPanelCommand(command, {
+      pick: { kind: "items", items: [] },
+      drawing: undefined,
+    });
     void result;
   };
 
@@ -5289,7 +5276,10 @@ export function ChalkApp({
       name: concept.name,
       text: cleared ? "— routes cleared" : `— ${count} routes drawn`,
     });
-    runPanelCommand(command, { selection: [], drawing: undefined });
+    runPanelCommand(command, {
+      pick: { kind: "items", items: [] },
+      drawing: undefined,
+    });
   };
 
   /**
@@ -5417,7 +5407,10 @@ export function ChalkApp({
       name: ballSpotNames[spot],
       text: tightened ? "— boundary splits tightened to stay in bounds" : "",
     });
-    runPanelCommand(command, { selection: [], drawing: undefined });
+    runPanelCommand(command, {
+      pick: { kind: "items", items: [] },
+      drawing: undefined,
+    });
   };
   const ballSpotActions = ballSpotCommands.map(({ command, ...spot }) => ({
     ...spot,
@@ -5484,10 +5477,13 @@ export function ChalkApp({
       text: parts.length > 0 ? `— ${parts.join(", ")}` : "— already aligned",
     });
     runPanelCommand(command, {
-      selection: result.addedPlayerIds.map((id) => ({
-        kind: "player" as const,
-        id,
-      })),
+      pick: {
+        kind: "items",
+        items: result.addedPlayerIds.map((id) => ({
+          kind: "player" as const,
+          id,
+        })),
+      },
       drawing: undefined,
     });
   };
@@ -5553,7 +5549,10 @@ export function ChalkApp({
             ? `— base, ${men} moved`
             : `— ${men} back in place`,
     });
-    runPanelCommand(command, { selection: [], drawing: undefined });
+    runPanelCommand(command, {
+      pick: { kind: "items", items: [] },
+      drawing: undefined,
+    });
   };
   /**
    * Bringing forward and sending back are unavailable when the selection is
@@ -5563,7 +5562,7 @@ export function ChalkApp({
   const reorderAction = (direction: 1 | -1): (() => void) | undefined => {
     const command = reorderSelectionCommand(
       editor.document,
-      interaction.selection,
+      selection,
       direction,
     );
     if (!command) return undefined;
@@ -6190,7 +6189,7 @@ export function ChalkApp({
     const document = editorStore.getSnapshot().document;
     const bounds = selectionFrameBounds(
       document,
-      interactionRef.current.selection,
+      pickedItems(interactionRef.current.pick),
       createSvgProjection(document.fieldProfile),
     );
     setCamera(
@@ -6274,7 +6273,7 @@ export function ChalkApp({
         if (picking !== undefined) {
           coverPickRef.current = undefined;
           setCoverPickState(undefined);
-          const selection = interactionRef.current.selection;
+          const selection = pickedItems(interactionRef.current.pick);
           if (selection.length === 1 && selection[0]?.id === picking) return;
         }
         if (overlay !== null || openMenu !== null) {
@@ -6336,7 +6335,7 @@ export function ChalkApp({
       if (meta && !typing && key === "g") {
         event.preventDefault();
         const document = editorStore.getSnapshot().document;
-        const selection = interactionRef.current.selection;
+        const selection = pickedItems(interactionRef.current.pick);
         const command = event.shiftKey
           ? ungroupSelectionCommand(document, selection)
           : groupSelectionCommand(document, selection, createStableId);
@@ -6351,7 +6350,7 @@ export function ChalkApp({
         // The menu's reorder may still be in the queue, and a command
         // captured now would paint that older order back over it.
         const direction = key === "]" ? 1 : -1;
-        const selection = interactionRef.current.selection;
+        const selection = pickedItems(interactionRef.current.pick);
         void editorStore
           .applyEdit((document) =>
             reorderSelectionCommand(document, selection, direction),
@@ -7228,8 +7227,7 @@ export function ChalkApp({
     readonly current: FieldItemRef | undefined;
     readonly back: readonly FieldItemRef[];
   }>({ current: undefined, back: [] });
-  const onlyPick =
-    interaction.selection.length === 1 ? interaction.selection[0] : undefined;
+  const onlyPick = selection.length === 1 ? selection[0] : undefined;
   if (!sameFieldItem(panelTrail.current, onlyPick)) {
     setPanelTrail({
       current: onlyPick,
@@ -7274,21 +7272,13 @@ export function ChalkApp({
       current: backPick,
       back: panelTrail.back.slice(0, backIndex),
     });
-    focusInteraction({
-      selection: [backPick],
-      selectedBranchIndex: undefined,
-      selectedSegmentIndex: undefined,
-      selectedNodeIndex: undefined,
-    });
+    focusInteraction({ pick: { kind: "items", items: [backPick] } });
   };
   /** A row of the roster is the man on the field: the same pick. */
   const selectRosterPlayer = (playerId: string) => {
     if (activeTool === "text") selectTool("select");
     focusInteraction({
-      selection: [{ kind: "player", id: playerId }],
-      selectedBranchIndex: undefined,
-      selectedSegmentIndex: undefined,
-      selectedNodeIndex: undefined,
+      pick: { kind: "items", items: [{ kind: "player", id: playerId }] },
     });
     if (phoneWorkspace) setSheetSnap("full");
   };
@@ -7687,10 +7677,9 @@ export function ChalkApp({
               : "editor",
         tool: activeTool,
         atFit: isAtFit(camera, EDITOR_FRAME),
-        selectionCount: interaction.selection.length,
+        selectionCount: selection.length,
         playerSelected:
-          interaction.selection.length === 1 &&
-          interaction.selection[0]!.kind === "player",
+          selection.length === 1 && selection[0]!.kind === "player",
         drawing: interaction.drawing
           ? {
               depthBuffer: interaction.drawing.depthBuffer,
@@ -8006,10 +7995,13 @@ export function ChalkApp({
       const name = formation?.name ?? call!.formation.name;
       setToast({ name, text: "— a new play in it" });
       runPanelCommand(command, {
-        selection: result.addedPlayerIds.map((id) => ({
-          kind: "player" as const,
-          id,
-        })),
+        pick: {
+          kind: "items",
+          items: result.addedPlayerIds.map((id) => ({
+            kind: "player" as const,
+            id,
+          })),
+        },
         drawing: undefined,
       });
       void playbook.refresh();
@@ -8308,7 +8300,10 @@ export function ChalkApp({
       }
       const command = diffPlayDocuments(before, next, tip.title);
       if (command.commands.length)
-        runPanelCommand(command, { selection: [], drawing: undefined });
+        runPanelCommand(command, {
+          pick: { kind: "items", items: [] },
+          drawing: undefined,
+        });
       goToView("Editor");
       setToast({
         name: tip.title,
@@ -8494,7 +8489,7 @@ export function ChalkApp({
       <button
         aria-label="Delete selection — ⌫"
         className="rail-trash"
-        disabled={interaction.selection.length === 0 && !interaction.drawing}
+        disabled={selection.length === 0 && !interaction.drawing}
         onClick={() => dispatchField({ type: "delete" })}
         title="Delete selection — ⌫"
         type="button"
@@ -8598,7 +8593,7 @@ export function ChalkApp({
               <SelectionToolbar
                 onAdjustDefense={(ids) => setDefenseAdjustmentScope(ids)}
                 document={editor.document}
-                selection={interaction.selection}
+                selection={selection}
                 onCommand={(command) => runPanelCommand(command, {})}
               />
             ) : null}
@@ -8851,23 +8846,26 @@ export function ChalkApp({
                   }
                   onToggle={toggleDisclosure}
                   open={chrome.open}
-                  branchIndex={interaction.selectedBranchIndex}
+                  branchIndex={pickedPart.branch}
                   coaching={routeCoaching(selectedPath)}
                   scopeBadge={playbook.scopeBadge}
-                  nodeIndex={interaction.selectedNodeIndex}
+                  nodeIndex={pickedPart.node}
                   onAddChoice={() =>
                     runPanelCommand(
                       addRouteChoiceCommand(
                         editor.document,
                         selectedPath.id,
-                        interaction.selectedNodeIndex,
+                        pickedPart.node,
                         fieldDepthWindow(scene.viewport),
                       ),
                       {
                         // The Coach lands on the fork he just made, the way
                         // the original narrows to it.
-                        selectedBranchIndex: selectedPath.branches.length,
-                        selectedSegmentIndex: undefined,
+                        pick: {
+                          kind: "choice",
+                          pathId: selectedPath.id,
+                          branch: selectedPath.branches.length,
+                        },
                       },
                     )
                   }
@@ -8896,16 +8894,19 @@ export function ChalkApp({
                   }
                   onRemoveChoice={() =>
                     runPanelCommand(
-                      interaction.selectedBranchIndex === undefined
+                      pickedPart.branch === undefined
                         ? undefined
                         : removeRouteChoiceCommand(
                             editor.document,
                             selectedPath.id,
-                            interaction.selectedBranchIndex,
+                            pickedPart.branch,
                           ),
-                      // What he narrowed to is gone, so the whole line is his
-                      // again.
-                      { selectedBranchIndex: undefined },
+                      {
+                        pick: {
+                          kind: "items",
+                          items: [{ kind: "path", id: selectedPath.id }],
+                        },
+                      },
                     )
                   }
                   onKind={(kind) => {
@@ -8921,7 +8922,7 @@ export function ChalkApp({
                   onStraighten={() =>
                     runLabelCommand(
                       straightenRouteCommand(editor.document, selectedPath.id, {
-                        branchIndex: interaction.selectedBranchIndex,
+                        branchIndex: pickedPart.branch,
                       }),
                     )
                   }
@@ -8932,8 +8933,8 @@ export function ChalkApp({
                         editor.document,
                         selectedPath.id,
                         {
-                          branchIndex: interaction.selectedBranchIndex,
-                          segmentIndex: interaction.selectedSegmentIndex,
+                          branchIndex: pickedPart.branch,
+                          segmentIndex: pickedPart.segment,
                         },
                         style,
                       ),
@@ -8949,7 +8950,7 @@ export function ChalkApp({
                     );
                   }}
                   path={selectedPath}
-                  segmentIndex={interaction.selectedSegmentIndex}
+                  segmentIndex={pickedPart.segment}
                   timing={routeTiming(selectedPath)}
                   kinds={lineKindChoices(editor.document, selectedPath)}
                   quickCalls={
@@ -9037,10 +9038,7 @@ export function ChalkApp({
                       ),
                       // The new stem is his to shape, so he lands on it.
                       {
-                        selection: [{ kind: "path", id }],
-                        selectedBranchIndex: undefined,
-                        selectedSegmentIndex: undefined,
-                        selectedNodeIndex: undefined,
+                        pick: { kind: "items", items: [{ kind: "path", id }] },
                       },
                     );
                   }}
@@ -9082,10 +9080,10 @@ export function ChalkApp({
                   }
                   onSelectLine={(pathId) =>
                     focusInteraction({
-                      selection: [{ kind: "path", id: pathId }],
-                      selectedBranchIndex: undefined,
-                      selectedSegmentIndex: undefined,
-                      selectedNodeIndex: undefined,
+                      pick: {
+                        kind: "items",
+                        items: [{ kind: "path", id: pathId }],
+                      },
                     })
                   }
                   onText={(field, value) => {
