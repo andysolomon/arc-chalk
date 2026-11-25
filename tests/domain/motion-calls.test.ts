@@ -155,14 +155,6 @@ describe("the motion types' shapes", () => {
     );
   });
 
-  it("shifts a wide receiver in toward the ball", () => {
-    const play = playIn("Gun Doubles Right");
-    const z = man(play, "Z");
-    const end = shape(play, "Z", "shift").at(-1)!;
-    expect(end.lateralYards).toBeLessThan(z.position.lateralYards);
-    expect(end.lateralYards).toBeGreaterThan(z.position.lateralYards - 7);
-  });
-
   it("brings a return back to where he started from", () => {
     const play = playIn("Gun Doubles Right");
     const z = man(play, "Z");

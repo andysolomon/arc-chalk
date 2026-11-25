@@ -26,3 +26,6 @@ Chalk Football Play Editor-2/
 # Verification evidence and demo kits (verify-chalk and demo-kit skills)
 .verify/
 .demo-kit/
+
+# TLC state and logs (bun run check:models)
+.tlc/

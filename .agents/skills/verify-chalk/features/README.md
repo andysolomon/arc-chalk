@@ -6,7 +6,7 @@ This folder is the maintained source for verifying what a Coach can do in Chalk.
 
 - Run every command from the repo root with `V="bun .agents/skills/verify-chalk/scripts/chalk-verify.ts"`.
 - Run `$V launch`, then `$V doctor`. Every doctor line must read `ok`.
-- Never drive an instance this checkout did not launch. Port 4173 may belong to another worktree.
+- Never drive an instance this checkout did not launch.
 - Each test starts on a clean device. The fixture's `page.goto("/")` and `openSeededEditor(page)` open the starter Playbook on the play `Stick — Thunder`. `openBlankEditor(page)` opens an empty library on Untitled play.
 - The app runs signed out with no cloud. Nothing needs a network.
 
