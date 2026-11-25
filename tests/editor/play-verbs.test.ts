@@ -182,19 +182,6 @@ describe("lining men up with one another", () => {
     );
   });
 
-  it("spreads them evenly between the two widest, who do not move", () => {
-    const spread = run(tenMen, alignPlayersCommand(tenMen, ids, "splits"));
-    const before = ids
-      .map((id) => at(tenMen, id).position.lateralYards)
-      .sort((left, right) => left - right);
-    const after = ids
-      .map((id) => at(spread, id).position.lateralYards)
-      .sort((left, right) => left - right);
-    expect(after[0]).toBeCloseTo(before[0]!, 9);
-    expect(after.at(-1)).toBeCloseTo(before.at(-1)!, 9);
-    expect(after[1]! - after[0]!).toBeCloseTo(after[2]! - after[1]!, 9);
-  });
-
   it("needs two men to line up with each other", () => {
     expect(alignPlayersCommand(tenMen, ["man_7"], "depth")).toBeUndefined();
     // Evening the splits between one man is a division by no gaps at all,

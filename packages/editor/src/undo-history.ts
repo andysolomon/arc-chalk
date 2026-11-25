@@ -11,6 +11,8 @@ import {
   type UndoHistory,
 } from "@chalk/domain";
 
+import { describeFailure } from "./describe-failure";
+
 /** Consecutive edits to one field coalesce until the Coach pauses this long. */
 export const UNDO_COALESCE_WINDOW_MS = 1_000;
 
@@ -152,11 +154,12 @@ async function step(
       document,
       direction === "undo" ? entry.inverse : entry.forward,
     );
-  } catch {
+  } catch (error) {
+    console.error(`Chalk could not replay the stored ${direction}.`, error);
     return quarantine(
       history,
       nowMs,
-      `Chalk could not replay the stored ${direction} for this Play.`,
+      `Chalk could not replay the stored ${direction} for this Play. ${describeFailure(error)}`,
     );
   }
   if ((await canonicalSha256(next)) !== expectedAfter) {
