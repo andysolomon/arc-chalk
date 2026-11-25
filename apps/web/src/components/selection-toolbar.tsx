@@ -18,6 +18,7 @@ import {
 } from "@chalk/editor";
 import { useEffect, useId, useRef, useState } from "react";
 import { keepInViewport } from "./keep-in-viewport";
+import { useDismissOnPressOutside } from "./page-press";
 
 export function SelectionToolbar({
   document,
@@ -362,20 +363,14 @@ function ArrangeMenu({
   const root = useRef<HTMLDivElement>(null);
   const id = useId();
 
+  useDismissOnPressOutside(open, [root], () => setOpen(false));
   useEffect(() => {
     if (!open) return;
-    const away = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
-    window.addEventListener("pointerdown", away, true);
     window.addEventListener("keydown", escape);
-    return () => {
-      window.removeEventListener("pointerdown", away, true);
-      window.removeEventListener("keydown", escape);
-    };
+    return () => window.removeEventListener("keydown", escape);
   }, [open]);
 
   return (

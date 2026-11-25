@@ -1,7 +1,6 @@
 import { useId, useState } from "react";
 
 import { PRESET_GROUP_NAMES, type PresetChoice } from "./preset-choices";
-import { keepInViewport } from "./keep-in-viewport";
 
 /**
  * The inspector's progressive disclosure (issue #64). The idle panel used to
@@ -341,45 +340,6 @@ export function LayerToggles({
           {layer.name}
         </button>
       ))}
-    </div>
-  );
-}
-
-export function LayersPopover({
-  layers,
-  onToggle,
-  open,
-  onOpenChange,
-}: {
-  layers: readonly FieldLayerToggle[];
-  onToggle: (id: string) => void;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const shown = layers.filter(({ on }) => on).length;
-  return (
-    <div className="menu layers-menu">
-      <button
-        aria-expanded={open}
-        aria-haspopup="true"
-        className={`inspector-bar-button${open ? " open" : ""}`}
-        onClick={() => onOpenChange(!open)}
-        title="Show on the field — reads, assignments, notes, text, the shadow"
-        type="button"
-      >
-        Layers{shown < layers.length ? ` ${shown}/${layers.length}` : ""}
-      </button>
-      {open ? (
-        <div
-          aria-label="Show on the field"
-          className="menu-panel layers-panel"
-          ref={keepInViewport}
-          role="group"
-        >
-          <div className="menu-head">SHOW ON THE FIELD</div>
-          <LayerToggles layers={layers} onToggle={onToggle} />
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -12,8 +12,9 @@ import {
   type PlayUnit,
   type Playbook,
 } from "@chalk/domain";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { keepInViewport } from "./keep-in-viewport";
+import { useDismissOnPressOutside } from "./page-press";
 
 export type AddPlayTypeOutcome =
   | { readonly ok: true; readonly playType: PlayTypeDefinition }
@@ -54,10 +55,12 @@ export function PlayClassificationControl({
   play: PlayDocument;
   playbook: Playbook;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  useDismissOnPressOutside(open, [root], onDismiss);
   const label = formatClassification(play);
   const unit = unitName(play.unit);
   return (
-    <div className="menu classify-menu">
+    <div className="menu classify-menu" ref={root}>
       <button
         aria-expanded={open}
         aria-label="Play type"
