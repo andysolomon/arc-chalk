@@ -30,6 +30,7 @@ import {
   type PlaybookEnvelope,
 } from "@chalk/domain";
 
+import { unlessBrowserRefusesAsync } from "./browser-refusal";
 import { CHALK_LOCAL_DATABASE_VERSION, ChalkDexieDatabase } from "./database";
 import { TRASH_RETENTION_MS } from "./types";
 import type {
@@ -92,11 +93,7 @@ function projectedFormationId(play: PlayDocument): string | undefined {
   if (declared && !stockFormations.some(({ id }) => id === declared)) {
     return declared;
   }
-  try {
-    return currentFormation(play, stockFormations)?.id;
-  } catch {
-    return declared;
-  }
+  return currentFormation(play, stockFormations)?.id;
 }
 
 function projectionFor(
@@ -1031,26 +1028,23 @@ class DexieLocalRepository implements ChalkLocalRepository {
 
   /** Without persistent storage a browser may evict a Coach's whole season. */
   async requestPersistentStorage(): Promise<boolean> {
-    try {
+    return unlessBrowserRefusesAsync(async () => {
       if (await this.#storage?.persisted?.()) return true;
       return (await this.#storage?.persist?.()) ?? false;
-    } catch {
-      return false;
-    }
+    }, false);
   }
 
   async storageHealth(): Promise<StorageHealth> {
-    let persisted = false;
-    let usageBytes: number | undefined;
-    let quotaBytes: number | undefined;
-    try {
-      persisted = (await this.#storage?.persisted?.()) ?? false;
-      const estimate = await this.#storage?.estimate?.();
-      usageBytes = estimate?.usage;
-      quotaBytes = estimate?.quota;
-    } catch {
-      // An unavailable storage API reports unknown rather than failing startup.
-    }
+    const persisted = await unlessBrowserRefusesAsync(
+      async () => (await this.#storage?.persisted?.()) ?? false,
+      false,
+    );
+    const estimate = await unlessBrowserRefusesAsync(
+      async () => this.#storage?.estimate?.(),
+      undefined,
+    );
+    const usageBytes = estimate?.usage;
+    const quotaBytes = estimate?.quota;
     const usedFraction =
       usageBytes !== undefined && quotaBytes !== undefined && quotaBytes > 0
         ? usageBytes / quotaBytes

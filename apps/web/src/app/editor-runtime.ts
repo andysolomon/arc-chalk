@@ -43,6 +43,7 @@ import {
   type StorageHealth,
   type StoredPlay,
   type ThumbnailDerivative,
+  unlessBrowserRefuses,
 } from "@chalk/local-db";
 
 import {
@@ -279,11 +280,10 @@ export interface ChalkLibrary {
 const CLEAN_EXIT_KEY = "chalk.session.cleanExit";
 
 function markCleanExit(sessionId: string): void {
-  try {
-    localStorage.setItem(CLEAN_EXIT_KEY, sessionId);
-  } catch {
-    // Without storage the IndexedDB marker alone decides.
-  }
+  unlessBrowserRefuses(
+    () => localStorage.setItem(CLEAN_EXIT_KEY, sessionId),
+    undefined,
+  );
 }
 
 /**
@@ -297,21 +297,17 @@ export function reconcileCleanExit(
   if (!recovery.interrupted || recovery.previousSessionId === undefined) {
     return recovery;
   }
-  try {
-    return storage?.getItem(CLEAN_EXIT_KEY) === recovery.previousSessionId
-      ? { interrupted: false }
-      : recovery;
-  } catch {
-    return recovery;
-  }
+  return unlessBrowserRefuses(
+    () =>
+      storage?.getItem(CLEAN_EXIT_KEY) === recovery.previousSessionId
+        ? { interrupted: false }
+        : recovery,
+    recovery,
+  );
 }
 
 function safeLocalStorage(): Storage | undefined {
-  try {
-    return globalThis.localStorage;
-  } catch {
-    return undefined;
-  }
+  return unlessBrowserRefuses(() => globalThis.localStorage, undefined);
 }
 
 export interface ChalkRuntime {
@@ -402,31 +398,18 @@ export function emptyLibrarySnapshot(
  * Product boot stays blank unless this opt-in is set before the runtime opens.
  */
 export function preferStarterSeed(
-  storage: Pick<Storage, "getItem"> | undefined = safeSessionStorage(),
-  search = safeLocationSearch(),
+  storage: Pick<Storage, "getItem"> | undefined = unlessBrowserRefuses(
+    () => globalThis.sessionStorage,
+    undefined,
+  ),
+  search = globalThis.location?.search ?? "",
 ): boolean {
-  try {
-    if (storage?.getItem("chalk.seedStarter") === "1") return true;
-  } catch {
-    // Session storage may be blocked; fall through to the URL.
-  }
-  return new URLSearchParams(search).get("seed") === "starter";
-}
-
-function safeSessionStorage(): Storage | undefined {
-  try {
-    return globalThis.sessionStorage;
-  } catch {
-    return undefined;
-  }
-}
-
-function safeLocationSearch(): string {
-  try {
-    return globalThis.location?.search ?? "";
-  } catch {
-    return "";
-  }
+  return (
+    unlessBrowserRefuses(
+      () => storage?.getItem("chalk.seedStarter") === "1",
+      false,
+    ) || new URLSearchParams(search).get("seed") === "starter"
+  );
 }
 
 async function mostRecentStoredPlay(
