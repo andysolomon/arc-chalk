@@ -41,12 +41,15 @@ export type Fault =
       readonly by: number;
     };
 
+/** A distance as the message gives it: tenths below a pixel, else whole. */
+const px = (by: number) => (by < 1 ? by.toFixed(1) : String(Math.ceil(by)));
+
 /** One entry per fault, with the fix that has worked for that fault. */
 export function explain(fault: Fault, where: string): string {
   switch (fault.kind) {
     case "outside":
       return (
-        `${where}: ${fault.control} runs ${Math.ceil(fault.by)} px past the ` +
+        `${where}: ${fault.control} runs ${px(fault.by)} px past the ` +
         `${fault.edge} edge of the glass. ` +
         (fault.panel
           ? `Fix: give ${fault.panel} the keepInViewport ref ` +
@@ -206,21 +209,32 @@ function collectFaults(
   };
 
   /** Scrolls the boxes a Coach can scroll until the control is in view. */
+  /**
+   * Whole pixels to scroll by: enough to clear the overhang, not so many
+   * that the near edge goes out. WebKit keeps a scroll offset in whole
+   * pixels and drops the fraction, so scrolling 30.6 px leaves a control
+   * 0.6 px short of view there while Chromium shows all of it.
+   */
+  const whole = (over: number, room: number) =>
+    Math.max(Math.min(Math.ceil(over), Math.floor(room)), 0);
+
+  /** Scrolls the boxes a Coach can scroll until the control is in view. */
   const reveal = (control: Element) => {
     for (let at = control.parentElement; at; at = at.parentElement) {
       if (at === document.body || at === document.documentElement) break;
       const box = at.getBoundingClientRect();
       const own = control.getBoundingClientRect();
       if (isScroller(at, "y")) {
-        if (own.top < box.top) at.scrollTop -= box.top - own.top;
+        if (own.top < box.top) at.scrollTop -= Math.ceil(box.top - own.top);
         else if (own.bottom > box.bottom) {
-          at.scrollTop += Math.min(own.bottom - box.bottom, own.top - box.top);
+          at.scrollTop += whole(own.bottom - box.bottom, own.top - box.top);
         }
       }
       if (isScroller(at, "x")) {
-        if (own.left < box.left) at.scrollLeft -= box.left - own.left;
-        else if (own.right > box.right) {
-          at.scrollLeft += Math.min(own.right - box.right, own.left - box.left);
+        if (own.left < box.left) {
+          at.scrollLeft -= Math.ceil(box.left - own.left);
+        } else if (own.right > box.right) {
+          at.scrollLeft += whole(own.right - box.right, own.left - box.left);
         }
       }
     }
@@ -232,7 +246,9 @@ function collectFaults(
       if (scroller.scrollHeight > scroller.clientHeight + 1) {
         window.scrollBy(
           0,
-          own.top < 0 ? own.top : own.bottom - window.innerHeight,
+          own.top < 0
+            ? -Math.ceil(-own.top)
+            : whole(own.bottom - window.innerHeight, own.top),
         );
       }
     }
