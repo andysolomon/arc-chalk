@@ -344,8 +344,16 @@ function pointerMove(
       input.shiftKey,
     );
     if (!edit) return { model };
+    const { update, ...shown } = edit;
     return {
-      model: withGesture(model, { ...gesture, ...edit, moved: true }),
+      model: withGesture(model, {
+        ...gesture,
+        ...shown,
+        preview: update,
+        point: input.point,
+        shiftKey: input.shiftKey,
+        moved: true,
+      }),
     };
   }
 
@@ -474,15 +482,20 @@ function pointerUp(
   }
 
   if (gesture.kind === "handle") {
-    // A handle pressed but never dragged only selected its break.
+    // A handle pressed but never dragged only selected its break. A drag is
+    // built again from the Play this release is given, which in the save
+    // queue is the Play as it stands when the edit's turn runs.
+    const edit = gesture.moved
+      ? editHandle(context, gesture.handle, gesture.point, gesture.shiftKey)
+      : undefined;
     return {
       model: withGesture(model, { kind: "idle" }),
-      ...(gesture.moved
+      ...(edit
         ? {
             command: {
               kind: "batch",
               label: handleLabels[gesture.handle.kind],
-              commands: [gesture.update],
+              commands: [edit.update],
             } satisfies PlayCommand,
           }
         : {}),
@@ -700,7 +713,9 @@ export function fieldInteraction(
             kind: "handle",
             pointerId: event.input.pointerId,
             handle,
-            update: seed.update,
+            point: seedPoint,
+            shiftKey: event.input.shiftKey,
+            preview: seed.update,
             guides: [],
             moved: false,
           },
@@ -915,7 +930,7 @@ export function gesturePreviewCommand(
     return {
       kind: "batch",
       label: handleLabels[model.gesture.handle.kind],
-      commands: [model.gesture.update],
+      commands: [model.gesture.preview],
     };
   }
   return undefined;

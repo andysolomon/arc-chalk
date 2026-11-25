@@ -3,6 +3,7 @@ import {
   stickThunderFamily,
   stickThunderPlay,
   type PlayCommand,
+  type PlayDocument,
 } from "@chalk/domain";
 import { createEditorStore, type EditorStore } from "@chalk/editor";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -78,8 +79,7 @@ function setup() {
   return { family, editorStore, hook };
 }
 
-function dashZ(store: EditorStore): PlayCommand {
-  const play = store.getSnapshot().document;
+function dashZ(play: PlayDocument): PlayCommand {
   const z = play.paths.find((path) => path.playerId === "z")!;
   return {
     kind: "update-path",
@@ -92,14 +92,18 @@ describe("edits made in 'This play'", () => {
     const { editorStore, hook, family } = setup();
     await waitFor(() => expect(hook.result.current.familySize).toBe(5));
 
-    const first = dashZ(editorStore);
+    const first = dashZ(editorStore.getSnapshot().document);
     await act(async () => {
-      await editorStore.applyCommand(first);
+      await editorStore.applyEdit((document) => dashZ(document));
       hook.result.current.maybeBroadcast(first);
     });
     expect(hook.result.current.offer).toEqual({ edits: 1, others: 4 });
 
-    act(() => hook.result.current.maybeBroadcast(dashZ(editorStore)));
+    act(() =>
+      hook.result.current.maybeBroadcast(
+        dashZ(editorStore.getSnapshot().document),
+      ),
+    );
     expect(hook.result.current.offer).toEqual({ edits: 2, others: 4 });
 
     // Nothing has gone anywhere yet, and a formation edit never offers.

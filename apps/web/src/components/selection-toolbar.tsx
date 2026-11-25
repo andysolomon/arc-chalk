@@ -14,6 +14,7 @@ import {
   groupSelectionCommand,
   ungroupSelectionCommand,
   arrangePlayers,
+  type BuildEdit,
   type FieldItemRef,
 } from "@chalk/editor";
 import { useEffect, useId, useRef, useState } from "react";
@@ -23,13 +24,14 @@ import { useDismissOnPressOutside } from "./page-press";
 export function SelectionToolbar({
   document,
   selection,
-  onCommand,
+  onEdit,
   onAdjustDefense,
 }: {
   onAdjustDefense?: (ids: readonly string[]) => void;
   document: PlayDocument;
   selection: readonly FieldItemRef[];
-  onCommand: (command: PlayCommand | undefined) => void;
+  /** Built again from the Play its turn in the save queue finds. */
+  onEdit: (build: BuildEdit) => void;
 }) {
   const [target, setTarget] = useState("");
   const ids = selection
@@ -72,6 +74,8 @@ export function SelectionToolbar({
   const ball = ballPosition(document).lateralYards;
   const targetId = defenders.some((man) => man.id === target) ? target : "";
   const ungroup = ungroupSelectionCommand(document, selection);
+  const runUngroup = () =>
+    onEdit((document) => ungroupSelectionCommand(document, selection));
   return (
     <div
       className="selection-toolbar"
@@ -85,7 +89,7 @@ export function SelectionToolbar({
             : `${men.length} ${men.length === 1 ? "player" : "players"} selected`)}
       </span>
       {group && !designation ? (
-        <button type="button" onClick={() => onCommand(ungroup)}>
+        <button type="button" onClick={runUngroup}>
           Ungroup
         </button>
       ) : null}
@@ -109,8 +113,8 @@ export function SelectionToolbar({
             type="button"
             aria-pressed={designation?.name === "Trips left"}
             onClick={() =>
-              onCommand(
-                tripsSelectionCommand(document, ids, "left", createStableId),
+              onEdit((document, createId) =>
+                tripsSelectionCommand(document, ids, "left", createId),
               )
             }
           >
@@ -120,8 +124,8 @@ export function SelectionToolbar({
             type="button"
             aria-pressed={designation?.name === "Trips right"}
             onClick={() =>
-              onCommand(
-                tripsSelectionCommand(document, ids, "right", createStableId),
+              onEdit((document, createId) =>
+                tripsSelectionCommand(document, ids, "right", createId),
               )
             }
           >
@@ -132,12 +136,12 @@ export function SelectionToolbar({
               <button
                 type="button"
                 onClick={() =>
-                  onCommand(
+                  onEdit((document, createId) =>
                     tripsSelectionCommand(
                       document,
                       ids,
                       side,
-                      createStableId,
+                      createId,
                       [...order].reverse(),
                     ),
                   )
@@ -163,12 +167,12 @@ export function SelectionToolbar({
                           swapped[other]!,
                           swapped[index]!,
                         ];
-                        onCommand(
+                        onEdit((document, createId) =>
                           tripsSelectionCommand(
                             document,
                             ids,
                             side,
-                            createStableId,
+                            createId,
                             swapped,
                           ),
                         );
@@ -196,11 +200,11 @@ export function SelectionToolbar({
           <button
             type="button"
             onClick={() =>
-              onCommand(
+              onEdit((document, createId) =>
                 doubleTeamSelectionCommand(
                   document,
                   ids,
-                  createStableId,
+                  createId,
                   targetId || undefined,
                 ),
               )
@@ -236,16 +240,12 @@ export function SelectionToolbar({
               coverageCalls.find((call) => call.name === designation?.name)
                 ?.key ?? ""
             }
-            onChange={(event) =>
-              onCommand(
-                coverageSelectionCommand(
-                  document,
-                  ids,
-                  event.target.value,
-                  createStableId,
-                ),
-              )
-            }
+            onChange={(event) => {
+              const key = event.target.value;
+              onEdit((document, createId) =>
+                coverageSelectionCommand(document, ids, key, createId),
+              );
+            }}
           >
             <option value="" disabled>
               Choose coverage…
@@ -259,7 +259,7 @@ export function SelectionToolbar({
         </label>
       ) : null}
       <ArrangeMenu
-        onCommand={onCommand}
+        onEdit={onEdit}
         sections={[
           {
             head: "GROUP",
@@ -271,8 +271,15 @@ export function SelectionToolbar({
                   selection,
                   createStableId,
                 ),
+                build: (document, createId) =>
+                  groupSelectionCommand(document, selection, createId),
               },
-              { label: "Ungroup", command: ungroup },
+              {
+                label: "Ungroup",
+                command: ungroup,
+                build: (document) =>
+                  ungroupSelectionCommand(document, selection),
+              },
             ],
           },
           {
@@ -281,17 +288,21 @@ export function SelectionToolbar({
               {
                 label: "Align depth",
                 ...arrangePlayers(document, ids, "depth"),
+                build: (document) =>
+                  arrangePlayers(document, ids, "depth").command,
               },
               {
                 label: "Space evenly",
                 ...arrangePlayers(document, ids, "splits"),
+                build: (document) =>
+                  arrangePlayers(document, ids, "splits").command,
               },
             ],
           },
         ]}
       />
       {designation ? (
-        <button type="button" onClick={() => onCommand(ungroup)}>
+        <button type="button" onClick={runUngroup}>
           Remove designation
         </button>
       ) : null}
@@ -339,7 +350,9 @@ function groupHeading(selection: readonly FieldItemRef[]): string {
 
 interface ArrangeItem {
   readonly label: string;
+  /** Built from the Play on screen, to grey the item when it would do nothing. */
   readonly command?: PlayCommand | undefined;
+  readonly build: BuildEdit;
   /** Why the item is greyed, shown under it: an illegal set, or no change. */
   readonly reason?: string | undefined;
 }
@@ -351,13 +364,13 @@ interface ArrangeItem {
  */
 function ArrangeMenu({
   sections,
-  onCommand,
+  onEdit,
 }: {
   sections: readonly {
     readonly head: string;
     readonly items: readonly ArrangeItem[];
   }[];
-  onCommand: (command: PlayCommand | undefined) => void;
+  onEdit: (build: BuildEdit) => void;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -409,7 +422,7 @@ function ArrangeMenu({
                     disabled={!item.command}
                     onClick={() => {
                       setOpen(false);
-                      onCommand(item.command);
+                      onEdit(item.build);
                     }}
                     type="button"
                   >

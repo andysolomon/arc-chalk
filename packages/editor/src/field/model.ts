@@ -200,8 +200,15 @@ export type FieldGesture =
       readonly kind: "handle";
       readonly pointerId: number;
       readonly handle: FieldHandleRef;
-      /** The edit as it stands — exactly what a release would commit. */
-      readonly update: PrimitivePlayCommand;
+      /** Where the last move left the pointer. A release builds from it. */
+      readonly point: Coordinate;
+      readonly shiftKey: boolean | undefined;
+      /**
+       * The edit as the last move drew it, for the live paint. A release
+       * builds it again from the Play it is given, so the edit it commits
+       * never carries the route as it was before an edit still saving.
+       */
+      readonly preview: PrimitivePlayCommand;
       readonly guides: readonly AxisSnapGuide[];
       readonly readout?: FieldMoveReadout;
       readonly moved: boolean;

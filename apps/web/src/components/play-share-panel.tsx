@@ -71,7 +71,7 @@ function AttachImageForm({ runtime }: { runtime: ChalkRuntime }) {
           createdAtMs: Date.now(),
         });
         const cleaned = sanitizeImageCaption(caption || undefined);
-        await runtime.editorStore.applyCommand({
+        await runtime.editorStore.applyEdit((document) => ({
           kind: "insert-attachments",
           attachments: [
             {
@@ -87,7 +87,7 @@ function AttachImageForm({ runtime }: { runtime: ChalkRuntime }) {
               },
             },
           ],
-        });
+        }));
         setCaption("");
         setState({ phase: "done", message: "Image attached on this device." });
         void uploadInBackground(runtime, image, blobs.blob);
@@ -139,10 +139,14 @@ function AttachImageForm({ runtime }: { runtime: ChalkRuntime }) {
             <span>{attachment.caption ?? "Attached image"}</span>
             <button
               onClick={() =>
-                void runtime.editorStore.applyCommand({
-                  kind: "remove-attachments",
-                  attachmentIds: [attachment.id],
-                })
+                void runtime.editorStore.applyEdit((document) =>
+                  document.attachments?.some(({ id }) => id === attachment.id)
+                    ? {
+                        kind: "remove-attachments",
+                        attachmentIds: [attachment.id],
+                      }
+                    : undefined,
+                )
               }
               type="button"
             >
@@ -171,7 +175,7 @@ function FilmReferenceForm({ runtime }: { runtime: ChalkRuntime }) {
       const cleaned = sanitizeFilmLabel(label || undefined);
       setState({ phase: "working" });
       void runtime.editorStore
-        .applyCommand({
+        .applyEdit((document) => ({
           kind: "insert-film-references",
           filmReferences: [
             {
@@ -183,7 +187,7 @@ function FilmReferenceForm({ runtime }: { runtime: ChalkRuntime }) {
               },
             },
           ],
-        })
+        }))
         .then(() => {
           setUrl("");
           setLabel("");
@@ -247,10 +251,14 @@ function FilmReferenceForm({ runtime }: { runtime: ChalkRuntime }) {
             </a>
             <button
               onClick={() =>
-                void runtime.editorStore.applyCommand({
-                  kind: "remove-film-references",
-                  filmReferenceIds: [film.id],
-                })
+                void runtime.editorStore.applyEdit((document) =>
+                  document.filmReferences?.some(({ id }) => id === film.id)
+                    ? {
+                        kind: "remove-film-references",
+                        filmReferenceIds: [film.id],
+                      }
+                    : undefined,
+                )
               }
               type="button"
             >

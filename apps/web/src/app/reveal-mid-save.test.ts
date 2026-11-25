@@ -72,7 +72,7 @@ describe("showing the other device's Play while a save waits on its hash", () =>
   });
 
   const rename = (name: string) =>
-    store.applyEdit(() => ({ kind: "set-play-name", name }));
+    store.applyCommand({ kind: "set-play-name", name });
   const writeNote = (coachingNote: string) =>
     store.applyEdit((document) => ({
       kind: "update-path",

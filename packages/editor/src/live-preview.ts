@@ -101,7 +101,7 @@ export function liveHandlePath(
   gesture: FieldGesture,
 ): MovementPath | undefined {
   if (gesture.kind !== "handle" || !gesture.moved) return undefined;
-  return pathFromUpdate(gesture.update);
+  return pathFromUpdate(gesture.preview);
 }
 
 function pathFromUpdate(

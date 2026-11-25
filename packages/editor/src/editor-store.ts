@@ -138,6 +138,29 @@ export type EditorVersionOutcome =
   | { readonly status: "unavailable" }
   | { readonly status: "failed"; readonly reason: string };
 
+/**
+ * A change to one of the Play's own fields, set to a value the Coach gave.
+ * It carries no entity read from the Play, so it cannot put back what an
+ * edit still in the queue changed, and it may be built before it is queued.
+ * Every other command is built inside {@link EditorStore.applyEdit}.
+ */
+export type PlayFieldCommand = Extract<
+  PlayCommand,
+  {
+    readonly kind:
+      | "set-play-name"
+      | "set-notes"
+      | "set-tags"
+      | "set-personnel-label"
+      | "set-play-type"
+      | "set-unit"
+      | "set-field-profile"
+      | "set-concept-source"
+      | "set-formation-source"
+      | "set-defensive-call-source";
+  }
+>;
+
 export interface ApplyCommandOptions {
   /** Merge into the entry on top when the Coach is still in the same field. */
   readonly coalesce?: boolean;
@@ -152,17 +175,18 @@ export interface EditorStore {
   commitPlayName(this: void): Promise<EditorCommitOutcome | undefined>;
   applyCommand(
     this: void,
-    command: PlayCommand,
+    command: PlayFieldCommand,
     options?: ApplyCommandOptions,
   ): Promise<EditorCommitOutcome>;
   /**
-   * Applies an edit built against the Play as it will actually be when the
-   * edit runs, rather than as it was when the Coach's keystroke was handled.
-   * Saves are serialised, so a command built in the shell can be a save or
-   * two out of date — and a command carries whole entities, so an out-of-date
-   * one silently puts back the field the one before it had just changed.
-   * Anything typed quickly has to be built this way; a one-off gesture may
-   * use {@link applyCommand}.
+   * Applies an edit built against the Play as it will be when the edit runs,
+   * not as it was when the Coach's keystroke or gesture was handled. Saves
+   * run one at a time, so a command built in the shell can be a save or two
+   * out of date. A command carries whole entities, so an out-of-date one
+   * puts back the field the edit before it had just changed. Every command
+   * built from the Play comes through here, typed or gestured
+   * (FindingGestureDuringSave); `build` gets the Play as it stands when its
+   * turn runs.
    */
   applyEdit(
     this: void,
@@ -549,7 +573,7 @@ export function createEditorStore({
     });
 
   const applyCommand = (
-    command: PlayCommand,
+    command: PlayFieldCommand,
     options: ApplyCommandOptions = {},
   ): Promise<EditorCommitOutcome> => runCommand(() => command, options);
 

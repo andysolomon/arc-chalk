@@ -101,25 +101,22 @@ function refusalOf(store: EditorStore): string | undefined {
 }
 
 async function pickSet(store: EditorStore, formation: Formation) {
-  const { command } = applyFormationCommand(
-    store.getSnapshot().document,
-    formation,
-    createStableId,
+  await store.applyEdit(
+    (document) =>
+      applyFormationCommand(document, formation, createStableId).command,
   );
-  if (command) await store.applyCommand(command);
 }
 
 async function pickCall(
   store: EditorStore,
   { call, withAssignments }: CallPick,
 ) {
-  const { command } = applyDefensiveCallCommand(
-    store.getSnapshot().document,
-    call,
-    createStableId,
-    { withAssignments },
+  await store.applyEdit(
+    (document) =>
+      applyDefensiveCallCommand(document, call, createStableId, {
+        withAssignments,
+      }).command,
   );
-  if (command) await store.applyCommand(command);
 }
 
 async function save(

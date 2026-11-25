@@ -33,10 +33,12 @@ CONSTANTS
     Theirs,    \* the edit on the other device's branch of this Play
     NoRecord,  \* no Play stored, or a commit with no expected hash
     NoMark,    \* a turn that carries no edit
-    \* How the shell builds a typed edit. "in queue" is applyEdit (main).
-    \* "from snapshot" is applyCommand on a command built from
-    \* editorStore.getSnapshot().document (4d7994b^, b41f13d^).
-    TypedBuild,
+    \* How the shell builds an edit, typed or gestured. "in queue" is main:
+    \* applyEdit builds it from the Play when its turn runs. "from snapshot"
+    \* is applyCommand on a command built from
+    \* editorStore.getSnapshot().document: typing before 4d7994b and
+    \* b41f13d, and every gesture before FindingGestureDuringSave's fix.
+    EditBuild,
     \* What persistedDocumentHash starts as. "when stored" is main:
     \* initialDocumentPersisted ? initialDocumentHash : undefined.
     \* "always" is 251b330^: initialDocumentHash, stored or not.
@@ -49,9 +51,6 @@ CONSTANTS
     \* it calls enqueueSave. "at once" is the code before it: shown in the
     \* step that asked, under whatever turn was running.
     RevealRuns,
-    \* An assumption about timing. It is TRUE in SaveQueue.cfg, and a
-    \* Finding*.cfg shows what main does without it.
-    GesturesWaitForSaves,  \* a gesture built from the snapshot comes when no save is queued or running
     MaxFailures,  \* writes IndexedDB may refuse (quota, aborted transaction)
     MaxQueue,     \* turns that may wait on saveTail at once
     MaxUndoSteps  \* Undo and Redo presses
@@ -111,25 +110,15 @@ Send(t, play) ==
 -----------------------------------------------------------------------------
 (* The Coach                                                              *)
 
-\* editRouteCoaching, the label Text panel: applyEdit -> runCommand.
-CoachTypes(e) ==
+\* A typed edit (editRouteCoaching, the label Text panel) or a gesture
+\* (dispatchField, queueEdit for the inspector and the menus):
+\* applyEdit -> runCommand.
+CoachEdits(e) ==
     /\ Settled
     /\ e \notin made
     /\ Len(queue) < MaxQueue
     /\ made' = made \cup {e}
-    /\ AskToSave(NewTurn("edit", e, TypedBuild = "in queue", doc \cup {e}, TRUE))
-    /\ UNCHANGED <<doc, persisted, disk, settled, undoStack, redoStack, sync,
-                   undone, abandoned, failures, undoSteps>>
-
-\* dispatchField, the Flip and route-kind buttons: a command built from
-\* editorStore.getSnapshot().document, then applyCommand -> runCommand.
-CoachGestures(e) ==
-    /\ Settled
-    /\ e \notin made
-    /\ Len(queue) < MaxQueue
-    /\ GesturesWaitForSaves => Idle
-    /\ made' = made \cup {e}
-    /\ AskToSave(NewTurn("edit", e, FALSE, doc \cup {e}, TRUE))
+    /\ AskToSave(NewTurn("edit", e, EditBuild = "in queue", doc \cup {e}, TRUE))
     /\ UNCHANGED <<doc, persisted, disk, settled, undoStack, redoStack, sync,
                    undone, abandoned, failures, undoSteps>>
 
@@ -346,7 +335,7 @@ Init ==
     /\ undoSteps = 0
 
 Next ==
-    \/ \E e \in Edits : CoachTypes(e) \/ CoachGestures(e)
+    \/ \E e \in Edits : CoachEdits(e)
     \/ CoachSteps("undo")
     \/ CoachSteps("redo")
     \/ CoachRetries
