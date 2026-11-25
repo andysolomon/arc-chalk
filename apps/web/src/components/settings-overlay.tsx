@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 import { PRODUCT_NAME } from "@chalk/domain";
 import type { EditorVersionSummary } from "@chalk/editor";
@@ -196,12 +196,7 @@ export function SettingsOverlay({
   version?: string;
   versions: readonly EditorVersionSummary[];
 }) {
-  const close = useRef<HTMLButtonElement>(null);
   const typeId = useId();
-
-  useEffect(() => {
-    close.current?.focus();
-  }, []);
 
   const current = allTabs.find(({ id }) => id === tab) ?? allTabs[0]!;
 
@@ -261,9 +256,9 @@ export function SettingsOverlay({
             </div>
             <button
               aria-label="Close"
+              autoFocus
               className="settings-close"
               onClick={onClose}
-              ref={close}
               title="Close (Esc)"
               type="button"
             >

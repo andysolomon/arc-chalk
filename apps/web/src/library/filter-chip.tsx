@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { type RefObject, useCallback, useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { keepInViewport } from "../components/keep-in-viewport";
 
 /** One thing a filter can be set to, and how many of the book it finds. */
@@ -24,7 +25,6 @@ export const ANY = "all";
 export function FilterChip({
   allName = "All",
   choices,
-  focusSearch = true,
   label,
   onPick,
   value,
@@ -32,13 +32,12 @@ export function FilterChip({
   /** What the open choice is called in the picker; "All" unless it needs a noun. */
   allName?: string;
   choices: readonly FilterChoice[];
-  /** Whether the picker's filter line takes focus: a keyboard wants it, a finger does not. */
-  focusSearch?: boolean;
   label: string;
   onPick: (value: string) => void;
   value: string;
 }) {
   const [open, setOpen] = useState(false);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
   const chosen = choices.find((choice) => choice.value === value);
   const lit = value !== ANY && chosen !== undefined;
   const lower = label.toLowerCase();
@@ -49,7 +48,17 @@ export function FilterChip({
         aria-haspopup="dialog"
         aria-label={lit ? `${label}: ${chosen.name}` : label}
         className={`chip chip-menu${lit ? " active" : ""}${open ? " open" : ""}`}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (open) {
+            setOpen(false);
+            return;
+          }
+          // The sheet takes focus from the press that opened it, so Escape
+          // and the arrow keys reach it and a screen reader announces where
+          // it landed.
+          flushSync(() => setOpen(true));
+          sheetRef.current?.focus();
+        }}
         title={lit ? `${label} — ${chosen.name}` : `Filter by ${lower}`}
         type="button"
       >
@@ -62,13 +71,13 @@ export function FilterChip({
         <ChoicePicker
           allName={allName}
           choices={choices}
-          focusSearch={focusSearch}
           label={label}
           onClose={() => setOpen(false)}
           onPick={(next) => {
             setOpen(false);
             onPick(next);
           }}
+          sheetRef={sheetRef}
           value={value}
         />
       ) : null}
@@ -82,27 +91,33 @@ const SEARCH_FROM = 7;
 function ChoicePicker({
   allName,
   choices,
-  focusSearch,
   label,
   onClose,
   onPick,
+  sheetRef,
   value,
 }: {
   allName: string;
   choices: readonly FilterChoice[];
-  focusSearch: boolean;
   label: string;
   onClose: () => void;
   onPick: (value: string) => void;
+  sheetRef: RefObject<HTMLDivElement | null>;
   value: string;
 }) {
   const [query, setQuery] = useState("");
   const listId = useId();
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const fitSheet = useCallback((sheet: HTMLDivElement | null) => {
-    sheetRef.current = sheet;
-    return keepInViewport(sheet);
-  }, []);
+  const fitSheet = useCallback(
+    (node: HTMLDivElement | null) => {
+      sheetRef.current = node;
+      const release = keepInViewport(node);
+      return () => {
+        sheetRef.current = null;
+        release?.();
+      };
+    },
+    [sheetRef],
+  );
   const lower = label.toLowerCase();
   const searchable = choices.length >= SEARCH_FROM;
   const needle = query.trim().toLowerCase();
@@ -111,13 +126,6 @@ function ChoicePicker({
         `${name} ${detail ?? ""}`.toLowerCase().includes(needle),
       )
     : choices;
-
-  // Without a filter line the sheet itself takes focus, so Escape and the
-  // arrow keys reach it and a screen reader announces where it landed.
-  useEffect(() => {
-    if (searchable && focusSearch) return;
-    sheetRef.current?.focus();
-  }, [focusSearch, searchable]);
 
   const pickFirst = () => {
     const first = shown[0];
@@ -147,7 +155,6 @@ function ChoicePicker({
           <input
             aria-controls={listId}
             aria-label={`Filter ${lower}`}
-            autoFocus={focusSearch}
             className="choice-search"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {

@@ -49,6 +49,7 @@ import {
   type ChalkLibrary,
   type LibrarySnapshot,
 } from "../app/editor-runtime";
+import { askToType, useFocusWhenAsked } from "../components/ask-to-type";
 import { UnitBadge } from "../components/unit-badge";
 import { agoStamp } from "../components/ago-stamp";
 import { openPrintWindow } from "../components/print-window";
@@ -222,6 +223,9 @@ function PlanList({
   const [copyDraft, setCopyDraft] = useState("");
   const [armedId, setArmedId] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const nameField = useFocusWhenAsked("game-plan-name");
+  const renameField = useFocusWhenAsked("game-plan-rename");
+  const copyField = useFocusWhenAsked("game-plan-copy");
 
   const create = () => {
     try {
@@ -257,7 +261,10 @@ function PlanList({
         </span>
         <button
           className="game-plans-new"
-          onClick={() => setCreating((open) => !open)}
+          onClick={() => {
+            if (!creating) askToType("game-plan-name");
+            setCreating(!creating);
+          }}
           type="button"
         >
           {creating ? "Cancel" : "New plan"}
@@ -282,9 +289,9 @@ function PlanList({
         >
           <input
             aria-label="Plan name"
-            autoFocus
             onChange={(event) => setName(event.target.value)}
             placeholder="Plan name — Week 3"
+            ref={nameField}
             spellCheck={false}
             value={name}
           />
@@ -347,8 +354,8 @@ function PlanList({
                 {renamingId === plan.id ? (
                   <input
                     aria-label="Rename plan"
-                    autoFocus
                     onBlur={() => setRenamingId(undefined)}
+                    ref={renameField}
                     onChange={(event) => setRenameDraft(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
@@ -403,8 +410,8 @@ function PlanList({
                 >
                   <input
                     aria-label="Copy name"
-                    autoFocus
                     onChange={(event) => setCopyDraft(event.target.value)}
+                    ref={copyField}
                     value={copyDraft}
                   />
                   <button disabled={!copyDraft.trim()} type="submit">
@@ -434,6 +441,7 @@ function PlanList({
                 <span className="game-plan-row-actions">
                   <button
                     onClick={() => {
+                      askToType("game-plan-rename");
                       setRenameDraft(plan.name);
                       setRenamingId(plan.id);
                     }}
@@ -443,6 +451,7 @@ function PlanList({
                   </button>
                   <button
                     onClick={() => {
+                      askToType("game-plan-copy");
                       setCopyDraft(`${plan.name} copy`);
                       setCopyingId(plan.id);
                     }}
@@ -505,6 +514,7 @@ function PlanEditor({
   const [armed, setArmed] = useState<string>();
   const [renamingSection, setRenamingSection] = useState<string>();
   const [sectionDraft, setSectionDraft] = useState("");
+  const sectionField = useFocusWhenAsked("game-plan-section");
   const [newSection, setNewSection] = useState("");
   const [dragging, setDragging] = useState<DragPayload>();
   const members = useMemo(
@@ -944,8 +954,8 @@ function PlanEditor({
                 {renamingSection === section.id ? (
                   <input
                     aria-label="Section name"
-                    autoFocus
                     onBlur={() => setRenamingSection(undefined)}
+                    ref={sectionField}
                     onChange={(event) => setSectionDraft(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
@@ -970,6 +980,7 @@ function PlanEditor({
                   <button
                     className="game-plan-section-name"
                     onClick={() => {
+                      askToType("game-plan-section");
                       setSectionDraft(section.name);
                       setRenamingSection(section.id);
                     }}
