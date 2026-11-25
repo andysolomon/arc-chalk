@@ -20,6 +20,11 @@ Playwright specs in `tests/e2e`, `tests/parity`, and `tests/pwa` are the tests t
 - Put the evidence list from its report in the pull request's Testing section.
 - When asked to demo a feature, run the `demo-kit` skill in `.agents/skills/demo-kit`.
 
+## Model checking
+
+- Each directory under `models/` holds a TLA+ model, and a `verify-*` skill in `.agents/skills` names the code that model covers. When your change touches that code, follow the skill before you open a pull request.
+- CI runs `bun run check:models`, and the Merge Gate needs it to pass.
+
 ## Diagrams and charts
 
 - When asked for a diagram or a chart of the app or of a feature, draw it with the Diagram Design skill. This holds in docs, ADRs, pull requests, chat and demo kits. Do not write Mermaid, ASCII art or a one-off SVG in its place.
