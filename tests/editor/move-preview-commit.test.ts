@@ -112,7 +112,10 @@ const pointer = (
 
 const selected = (ids: readonly string[]): FieldInteractionModel => ({
   ...idleFieldInteraction,
-  selection: ids.map((id): FieldItemRef => ({ kind: "player", id })),
+  pick: {
+    kind: "items",
+    items: ids.map((id): FieldItemRef => ({ kind: "player", id })),
+  },
 });
 
 interface Shown {
