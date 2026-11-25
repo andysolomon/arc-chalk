@@ -6,7 +6,7 @@ import {
   type DefensiveCall,
   type Formation,
 } from "@chalk/domain";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   clearEntries,
