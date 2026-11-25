@@ -45,10 +45,13 @@ CONSTANTS
     \* stepHistory calls enqueueSave. "when run" is the code before it: the
     \* turn called startSaving once its step was found.
     UndoSequence,
-    \* Assumptions about timing. Each is TRUE in SaveQueue.cfg, and a
+    \* How revealPersistedPlay shows the Play sync wrote. "in queue" is main:
+    \* it calls enqueueSave. "at once" is the code before it: shown in the
+    \* step that asked, under whatever turn was running.
+    RevealRuns,
+    \* An assumption about timing. It is TRUE in SaveQueue.cfg, and a
     \* Finding*.cfg shows what main does without it.
     GesturesWaitForSaves,  \* a gesture built from the snapshot comes when no save is queued or running
-    RevealWaitsForSaves,   \* sync shows the other device's Play while no turn waits on its hash
     MaxFailures,  \* writes IndexedDB may refuse (quota, aborted transaction)
     MaxQueue,     \* turns that may wait on saveTail at once
     MaxUndoSteps  \* Undo and Redo presses
@@ -63,7 +66,7 @@ VARIABLES
     turn,       \* the turn enqueue is running
     undoStack,  \* history.undo, as <<beforeHash, afterHash>> entries
     redoStack,  \* history.redo
-    sync,       \* "none", "written" (applyRemotePlay), "revealed"
+    sync,       \* "none", "written" (applyRemotePlay), "asked" (a reveal queued), "revealed"
     made,       \* edits the Coach has made
     undone,     \* edits an undo took off and no redo put back
     abandoned,  \* edits made before the Coach took the other device's Play
@@ -103,7 +106,7 @@ AskToSave(t) ==
 \* A sync write the store has not been shown yet excuses a stale one.
 Send(t, play) ==
     [t EXCEPT !.pc = "committing", !.next = play, !.expected = persisted,
-              !.excused = (sync = "written")]
+              !.excused = (sync \in {"written", "asked"})]
 
 -----------------------------------------------------------------------------
 (* The Coach                                                              *)
@@ -167,6 +170,7 @@ CoachRetries ==
 StartTurn ==
     /\ ~Running
     /\ queue /= <<>>
+    /\ Head(queue).kind /= "reveal"
     /\ queue' = Tail(queue)
     /\ LET t == Head(queue)
            Ends == /\ turn' = NoTurn
@@ -273,12 +277,42 @@ SyncWritesTheirs ==
     /\ UNCHANGED <<doc, persisted, status, settled, queue, undoStack, redoStack,
                    made, undone, abandoned, failures, undoSteps>>
 
-\* onOpenPlayChanged -> canonicalSha256(play).then(revealPersistedPlay).
-\* Not queued. Same Play id, so the history stays.
-Reveal ==
+\* onOpenPlayChanged -> canonicalSha256(play).then(revealPersistedPlay),
+\* which calls enqueueSave ("in queue"). The edits made so far are on the
+\* branch the Coach gave up; the ones he asks for after it land on theirs.
+AskToReveal ==
+    /\ RevealRuns = "in queue"
     /\ Settled
     /\ sync = "written"
-    /\ RevealWaitsForSaves => turn.pc /= "hashing"
+    /\ Len(queue) < MaxQueue
+    /\ sync' = "asked"
+    /\ abandoned' = made
+    /\ AskToSave(NewTurn("reveal", NoMark, TRUE, {}, TRUE))
+    /\ UNCHANGED <<doc, persisted, disk, settled, undoStack, redoStack, made,
+                   undone, failures, undoSteps>>
+
+\* The reveal's turn runs: same Play id, so the history stays. It shows the
+\* Play sync wrote and settles its save as saved (settleSave). One step: it
+\* waits on nothing.
+RevealTurn ==
+    /\ ~Running
+    /\ queue /= <<>>
+    /\ Head(queue).kind = "reveal"
+    /\ queue' = Tail(queue)
+    /\ sync' = "revealed"
+    /\ doc' = {Theirs}
+    /\ persisted' = {Theirs}
+    /\ settled' = "saved"
+    /\ status' = IF Head(queue).newest THEN "saved" ELSE status
+    /\ UNCHANGED <<disk, turn, undoStack, redoStack, made, undone, abandoned,
+                   failures, undoSteps>>
+
+\* "at once": revealPersistedPlay showed the Play in the step that asked,
+\* even while a turn waited on its hash.
+RevealAtOnce ==
+    /\ RevealRuns = "at once"
+    /\ Settled
+    /\ sync = "written"
     /\ sync' = "revealed"
     /\ doc' = {Theirs}
     /\ persisted' = {Theirs}
@@ -320,17 +354,20 @@ Next ==
     \/ ShowAndSend
     \/ Commit
     \/ SyncWritesTheirs
-    \/ Reveal
+    \/ AskToReveal
+    \/ RevealTurn
+    \/ RevealAtOnce
     \/ Finished
 
-\* The queue and IndexedDB keep going. Sync's reveal runs on its own chain,
-\* so it happens even though each queued turn holds it off for a microtask
-\* (strong fairness). The Coach presses Retry while the status says the save
-\* failed.
+\* The queue and IndexedDB keep going. Sync calls revealPersistedPlay on
+\* its own chain, so the call happens even though each queued turn holds it
+\* off for a microtask (strong fairness). The Coach presses Retry while the
+\* status says the save failed.
 Spec ==
     /\ Init /\ [][Next]_vars
     /\ WF_vars(StartTurn) /\ WF_vars(ShowAndSend) /\ WF_vars(Commit)
-    /\ SF_vars(Reveal) /\ WF_vars(CoachRetries)
+    /\ SF_vars(AskToReveal) /\ WF_vars(RevealTurn) /\ SF_vars(RevealAtOnce)
+    /\ WF_vars(CoachRetries)
 
 -----------------------------------------------------------------------------
 (* What the Coach is promised                                             *)
@@ -342,7 +379,7 @@ TypeOK ==
     /\ status \in {"saving", "saved", "error"}
     /\ settled \in {"saved", "error"}
     /\ Len(queue) <= MaxQueue
-    /\ sync \in {"none", "written", "revealed"}
+    /\ sync \in {"none", "written", "asked", "revealed"}
 
 \* The edits he expects to see: every one he made, less those an undo took
 \* off and those on the branch he gave up for the other device's.

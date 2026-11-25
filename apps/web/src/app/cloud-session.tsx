@@ -35,9 +35,9 @@ export function CloudSessionHost({
       identity,
       currentPlayId: () => runtime.editorStore.getSnapshot().document.id,
       onOpenPlayChanged: (play) => {
-        void canonicalSha256(play).then((hash) => {
-          runtime.editorStore.revealPersistedPlay(play, hash);
-        });
+        void canonicalSha256(play).then((hash) =>
+          runtime.editorStore.revealPersistedPlay(play, hash),
+        );
       },
     }).then((orchestrator) => {
       if (cancelled) return;

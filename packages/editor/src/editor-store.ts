@@ -202,12 +202,17 @@ export interface EditorStore {
   /**
    * Shows a Play that sync already wrote, without another local mutation.
    * Used when the Coach takes the other device's branch of the open Play.
+   * It waits its turn like every other change to the open Play. Shown under
+   * a turn waiting on its hash, it would hand that turn the other device's
+   * hash to expect, and the turn would write the Coach's old branch over
+   * the Play he chose. If he has opened another Play by its turn, it shows
+   * nothing: the Play sync wrote is stored, and opening it shows it.
    */
   revealPersistedPlay(
     this: void,
     document: PlayDocument,
     persistedHash: string,
-  ): void;
+  ): Promise<void>;
   retryLocalSave(this: void): Promise<EditorCommitOutcome | undefined>;
   undo(this: void): Promise<EditorUndoOutcome>;
   redo(this: void): Promise<EditorUndoOutcome>;
@@ -642,20 +647,24 @@ export function createEditorStore({
   const revealPersistedPlay = (
     nextDocument: PlayDocument,
     persistedHash: string,
-  ): void => {
+  ): Promise<void> => {
     const revealed = playDocumentSchema.parse(nextDocument);
-    if (revealed.id !== state.getState().document.id) {
-      history = createUndoHistory(revealed.id, wallClockNow());
-      state.setState((current) => ({ ...current, versions: [] }));
-    }
-    documentHash = persistedHash;
-    persistedDocumentHash = persistedHash;
-    showDocument(revealed);
-    publishUndo();
-    showSettled({
-      phase: "saved",
-      documentHash: persistedHash,
-      budgetMs: saveBudgetMs,
+    // It takes a save sequence so that the saves queued before it, on the
+    // branch the Coach gave up, never reach the status.
+    return enqueueSave((save) => {
+      if (revealed.id !== state.getState().document.id) {
+        settleSave(settledSave, save.sequence);
+        return Promise.resolve();
+      }
+      documentHash = persistedHash;
+      persistedDocumentHash = persistedHash;
+      showDocument(revealed);
+      publishUndo();
+      settleSave(
+        { phase: "saved", documentHash: persistedHash, budgetMs: saveBudgetMs },
+        save.sequence,
+      );
+      return Promise.resolve();
     });
   };
 
