@@ -1,5 +1,12 @@
-import type { ReactElement, ReactNode } from "react";
+import {
+  type ReactElement,
+  type ReactNode,
+  type Ref,
+  useCallback,
+  useRef,
+} from "react";
 import { keepInViewport } from "./keep-in-viewport";
+import { useDismissOnPressOutside } from "./page-press";
 
 /**
  * The left sidebar (ADR 0058, ADR 0074): how this play is set up, so the
@@ -123,12 +130,16 @@ export interface SidebarRowSpec {
 }
 
 function Row({
+  control,
   onOpen,
   open,
+  popover,
   spec,
 }: {
+  control: Ref<HTMLButtonElement>;
   onOpen: (id: string | null) => void;
   open: boolean;
+  popover: Ref<HTMLDivElement>;
   spec: SidebarRowSpec;
 }) {
   const detailed = spec.detail !== undefined;
@@ -151,6 +162,7 @@ function Row({
           if (detailed) onOpen(open ? null : spec.id);
           else spec.onOpen?.();
         }}
+        ref={open ? control : undefined}
         title={spec.title}
         type="button"
         {...dataProps}
@@ -172,7 +184,7 @@ function Row({
         <div
           aria-label={spec.label}
           className="sidebar-popover"
-          ref={keepInViewport}
+          ref={popover}
           role="group"
         >
           <div className="sidebar-popover-head">
@@ -192,10 +204,12 @@ function Row({
  * bar draw theirs: the word is its accessible name and its tooltip.
  */
 function FooterIcon({
+  control,
   onOpen,
   open,
   spec,
 }: {
+  control: Ref<HTMLButtonElement>;
   onOpen: (id: string | null) => void;
   open: boolean;
   spec: SidebarRowSpec;
@@ -212,6 +226,7 @@ function FooterIcon({
         if (detailed) onOpen(open ? null : spec.id);
         else spec.onOpen?.();
       }}
+      ref={open ? control : undefined}
       title={spec.title ?? spec.label}
       type="button"
     >
@@ -273,6 +288,27 @@ export function PlaySidebar({
    */
   tools?: ReactNode;
 }) {
+  const drawerRef = useRef<HTMLElement>(null);
+  const openControl = useRef<HTMLButtonElement>(null);
+  const openPopover = useRef<HTMLDivElement>(null);
+  const popover = useCallback((node: HTMLDivElement | null) => {
+    openPopover.current = node;
+    const release = keepInViewport(node);
+    return () => {
+      openPopover.current = null;
+      release?.();
+    };
+  }, []);
+  // The drawer goes on a press past it. A popover goes on a press past it
+  // and past the row that opened it, which toggles it itself.
+  useDismissOnPressOutside(
+    drawer || open !== null,
+    drawer ? [drawerRef] : [openControl, openPopover],
+    () => {
+      onOpen(null);
+      if (drawer) onClose?.();
+    },
+  );
   const rows = [...thisPlay, ...(fold?.open ? fold.rows : []), ...footer];
   const page = drawer
     ? rows.find((row) => row.id === open && row.detail !== undefined)
@@ -282,9 +318,11 @@ export function PlaySidebar({
     : footer.find((spec) => spec.id === open && spec.detail !== undefined);
   const row = (spec: SidebarRowSpec) => (
     <Row
+      control={openControl}
       key={spec.id}
       onOpen={onOpen}
       open={!drawer && open === spec.id}
+      popover={popover}
       spec={spec}
     />
   );
@@ -292,6 +330,7 @@ export function PlaySidebar({
     <nav
       aria-label="Sidebar"
       className={`play-sidebar${drawer ? " sidebar-drawer" : ""}`}
+      ref={drawerRef}
     >
       {drawer ? (
         <div className="sidebar-drawer-head">
@@ -358,6 +397,7 @@ export function PlaySidebar({
           <div className="sidebar-foot">
             {footer.map((spec) => (
               <FooterIcon
+                control={openControl}
                 key={spec.id}
                 onOpen={onOpen}
                 open={!drawer && open === spec.id}
@@ -379,7 +419,7 @@ export function PlaySidebar({
               <div
                 aria-label={footOpen.label}
                 className="sidebar-popover sidebar-foot-popover"
-                ref={keepInViewport}
+                ref={popover}
                 role="group"
               >
                 {footOpen.detail}
@@ -408,12 +448,17 @@ export function PlaySidebar({
       };
       return (
         <div className="sidebar-rail-item" data-row={spec.id} key={spec.id}>
-          <FooterIcon onOpen={onOpen} open={shown} spec={named} />
+          <FooterIcon
+            control={openControl}
+            onOpen={onOpen}
+            open={shown}
+            spec={named}
+          />
           {shown ? (
             <div
               aria-label={spec.label}
               className={`sidebar-popover${foot ? " sidebar-foot-popover" : ""}`}
-              ref={keepInViewport}
+              ref={popover}
               role="group"
             >
               {spec.detail}

@@ -2610,18 +2610,6 @@ button.play-type.open {
   font-size: 16px;
   line-height: 1;
 }
-.layers-menu {
-  position: relative;
-}
-.layers-panel {
-  top: 30px;
-  left: 0;
-  right: auto;
-  width: 196px;
-}
-.layers-panel .layer-toggles {
-  padding: 0 4px 4px;
-}
 .disclosure-heading {
   margin-bottom: 0;
   justify-content: space-between;

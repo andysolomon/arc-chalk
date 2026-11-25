@@ -65,6 +65,22 @@ const restrictedSyntax = [
       },
     ],
   },
+  {
+    files: ["apps/web/src/**/*.{ts,tsx}"],
+    // The one module that listens for a press anywhere on the page.
+    ignores: ["apps/web/src/components/page-press.ts"],
+    rules: [
+      {
+        selector: [
+          "CallExpression",
+          ':matches([callee.name="addEventListener"], [callee.property.name="addEventListener"]:matches([callee.object.name=/^(window|document|globalThis|self)$/], [callee.object.property.name=/^(document|body|documentElement|ownerDocument)$/]))',
+          "[arguments.0.value=/^(pointerdown|mousedown|touchstart)$/]",
+        ].join(""),
+        message:
+          "Close a panel on a press past it with useDismissOnPressOutside from apps/web/src/components/page-press.ts. A press listener on the page written by hand heard the press after a field handle had stopped it, so the panel stayed open (#240), and it caught the press that had just opened the panel (#211).",
+      },
+    ],
+  },
 ];
 
 /**
