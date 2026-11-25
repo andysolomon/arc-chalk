@@ -48,7 +48,7 @@ Each config's first line says what TLC must report, and the command exits 0 only
 
 | Config                         | TLC must report                    | What it is                                                                                                                          |
 | ------------------------------ | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `SaveQueue.cfg`                | pass                               | Main, with the three timing assumptions below.                                                                                      |
+| `SaveQueue.cfg`                | pass                               | Main, with the two timing assumptions below.                                                                                        |
 | `BugSnapshotCommand.cfg`       | `NoEditLost` violated              | Replays 4d7994b and b41f13d. A typed edit built from `editorStore.getSnapshot().document`.                                          |
 | `BugFreshDeviceHash.cfg`       | `CommitExpectsStoredHash` violated | Replays 251b330. `persistedDocumentHash` starts as the blank Play's hash on a fresh device.                                         |
 | `BugFreshDeviceNeverSaves.cfg` | `SaveEventuallyLands` violated     | Replays 251b330 again. Every commit and every Retry is refused as stale.                                                            |
