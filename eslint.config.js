@@ -4,26 +4,101 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+const passTheErrorOn =
+  "Bind it as catch (error) and pass it on. Rethrow it, or put describeFailure(error) in the reason the Coach reads, such as the save status or a failed outcome, and console.error it. When the browser refusing a storage API is the expected case, wrap the call in unlessBrowserRefuses from @chalk/local-db.";
+
 const focusMessage =
   "Opening a panel must not raise the tablet keyboard (#59, #87). Focus a field only from the handler of a Coach action that asked to type: call askToType in that handler and useFocusWhenAsked on the field, from apps/web/src/components/ask-to-type.ts.";
 const effectHook = "/^use(Layout|Insertion)?Effect$/";
 
-const fieldAutoFocus = {
-  selector:
-    'JSXOpeningElement[name.name=/^(input|textarea|select|[A-Z]\\w*)$/] > JSXAttribute[name.name="autoFocus"]',
-  message: focusMessage,
-};
-const focusFromEffect = {
-  selector: `CallExpression:matches([callee.name=${effectHook}], [callee.property.name=${effectHook}]) CallExpression[callee.property.name="focus"]`,
-  message: focusMessage,
-};
-const focusFromRef = {
-  selector:
-    'JSXAttribute[name.name="ref"] CallExpression[callee.property.name="focus"]',
-  message: focusMessage,
-};
+/**
+ * Every no-restricted-syntax rule, with the files it covers and the files it
+ * leaves out. A later block's no-restricted-syntax replaces an earlier one
+ * for the same file instead of adding to it, so the rules are only ever set
+ * through composeRestrictedSyntax below.
+ */
+const restrictedSyntax = [
+  {
+    files: [
+      "packages/editor/src/**/*.ts",
+      "packages/local-db/src/**/*.ts",
+      "packages/sync/src/**/*.ts",
+      "apps/web/src/app/editor-runtime.ts",
+    ],
+    rules: [
+      {
+        selector: "CatchClause[param=null]",
+        message: `A catch with no binding throws the error away, so a failed save can look like it worked. ${passTheErrorOn}`,
+      },
+      {
+        selector: "CatchClause[param.name=/^_/]",
+        message: `A catch binding named to be ignored throws the error away, so a failed save can look like it worked. ${passTheErrorOn}`,
+      },
+      {
+        selector:
+          "CallExpression[callee.property.name='catch'] > :matches(ArrowFunctionExpression, FunctionExpression)[params.length=0]",
+        message: `A .catch callback that takes no error throws it away, so a failed save can look like it worked. ${passTheErrorOn}`,
+      },
+      {
+        selector:
+          "CallExpression[callee.property.name='catch'] > :matches(ArrowFunctionExpression, FunctionExpression) > Identifier.params[name=/^_/]",
+        message: `A .catch callback whose error is named to be ignored throws it away, so a failed save can look like it worked. ${passTheErrorOn}`,
+      },
+    ],
+  },
+  {
+    files: ["apps/web/src/**/*.{ts,tsx}"],
+    rules: [
+      {
+        selector:
+          'JSXOpeningElement[name.name=/^(input|textarea|select|[A-Z]\\w*)$/] > JSXAttribute[name.name="autoFocus"]',
+        message: focusMessage,
+      },
+      {
+        selector: `CallExpression:matches([callee.name=${effectHook}], [callee.property.name=${effectHook}]) CallExpression[callee.property.name="focus"]`,
+        message: focusMessage,
+      },
+      {
+        selector:
+          'JSXAttribute[name.name="ref"] CallExpression[callee.property.name="focus"]',
+        message: focusMessage,
+      },
+    ],
+  },
+];
 
-const restrictedSyntax = [fieldAutoFocus, focusFromEffect, focusFromRef];
+/**
+ * One config block for each set of entries, smallest sets first. Its files
+ * are the files every entry in the set covers, and its rules are all their
+ * rules. A file covered by several entries matches each subset of them, and
+ * the last block it matches is the one that holds every entry covering it,
+ * so it gets the union.
+ */
+const composeRestrictedSyntax = (entries) =>
+  entries
+    .reduce(
+      (sets, entry) => [...sets, ...sets.map((set) => [...set, entry])],
+      [[]],
+    )
+    .filter((set) => set.length > 0)
+    .sort((a, b) => a.length - b.length)
+    .map((set) => ({
+      // An inner array is matched when the file matches every pattern in it.
+      files: set.reduce(
+        (all, entry) =>
+          all.flatMap((patterns) =>
+            entry.files.map((file) => [...patterns, file]),
+          ),
+        [[]],
+      ),
+      ignores: set.flatMap((entry) => entry.ignores ?? []),
+      rules: {
+        "no-restricted-syntax": [
+          "error",
+          ...set.flatMap((entry) => entry.rules),
+        ],
+      },
+    }));
 
 export default tseslint.config(
   { ignores: ["**/dist/**", "**/.turbo/**", "**/convex/_generated/**"] },
@@ -50,9 +125,9 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
-      "no-restricted-syntax": ["error", ...restrictedSyntax],
     },
   },
+  ...composeRestrictedSyntax(restrictedSyntax),
   {
     files: ["convex/**/*.ts"],
     rules: {

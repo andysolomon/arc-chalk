@@ -52,7 +52,7 @@ Update this table in the pull request that lands a plan.
 - `playwright.config.ts` runs `tests/e2e` with four projects. `chromium` and `webkit-ipad` run every spec that is not a phone spec. `phone-chromium` and `phone-webkit` run `phone-*.spec.ts`.
 - At commit `1762b2a` there are 782 tests in 103 files: 290 on each desktop project and 101 on each phone project.
 - `tests/parity` and `tests/pwa` have their own configs. No plan here changes them.
-- The config starts `bun run dev` on port 4173 and reuses whatever already answers there.
+- The config starts `bun run dev` on a port derived from the checkout's path, or on 4173 in CI, and never reuses a running server. `CHALK_E2E_PORT` sets the port.
 - CI is `.github/workflows/merge.yml`. The Browser job runs `bun run test:e2e --shard=N/4` on four runners with `retries: 2`. The one required check is Merge Gate, which needs `quality`, `browser` and `parity`.
 - The runners have 4 cores, and Playwright uses 2 workers on them.
 
@@ -109,6 +109,6 @@ After plan 02 lands, read the same facts from the run's summary and its merged r
 - Use the commit types `test` and `ci` for this work. Neither cuts a release, so no deploy follows.
 - Work on a branch of your own from an up-to-date `main`. Ship with the `ship` skill. Other agents merge often, so keep each pull request small and rebase before you merge.
 - WebKit does not launch on the workstation. It is missing system libraries, and Docker there needs a group the agent is not in. Prove WebKit changes in CI.
-- To run specs locally against this checkout's own server, use the `verify-chalk` skill. Port 4173 may belong to another worktree until plan 01 lands.
+- To run specs locally with video and traces, use the `verify-chalk` skill.
 - Put the before and after numbers in the pull request body, with the run IDs they came from.
 - Hold the pull request body and any doc you write to the copy rules in `AGENTS.md`.
