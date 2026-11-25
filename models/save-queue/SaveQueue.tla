@@ -41,11 +41,14 @@ CONSTANTS
     \* initialDocumentPersisted ? initialDocumentHash : undefined.
     \* "always" is 251b330^: initialDocumentHash, stored or not.
     BootHash,
+    \* When Undo and Redo take their save sequence. "when asked" is main:
+    \* stepHistory calls enqueueSave. "when run" is the code before it: the
+    \* turn called startSaving once its step was found.
+    UndoSequence,
     \* Assumptions about timing. Each is TRUE in SaveQueue.cfg, and a
     \* Finding*.cfg shows what main does without it.
     GesturesWaitForSaves,  \* a gesture built from the snapshot comes when no save is queued or running
     RevealWaitsForSaves,   \* sync shows the other device's Play while no turn waits on its hash
-    EditsWaitForUndo,      \* no edit is asked for while an undo or redo is queued or running
     MaxFailures,  \* writes IndexedDB may refuse (quota, aborted transaction)
     MaxQueue,     \* turns that may wait on saveTail at once
     MaxUndoSteps  \* Undo and Redo presses
@@ -55,6 +58,7 @@ VARIABLES
     persisted,  \* persistedDocumentHash
     disk,       \* the plays record in IndexedDB
     status,     \* localSave.phase
+    settled,    \* settledSave.phase: how the last save to finish ended
     queue,      \* turns waiting on saveTail
     turn,       \* the turn enqueue is running
     undoStack,  \* history.undo, as <<beforeHash, afterHash>> entries
@@ -66,8 +70,8 @@ VARIABLES
     failures,
     undoSteps
 
-vars == <<doc, persisted, disk, status, queue, turn, undoStack, redoStack,
-          sync, made, undone, abandoned, failures, undoSteps>>
+vars == <<doc, persisted, disk, status, settled, queue, turn, undoStack,
+          redoStack, sync, made, undone, abandoned, failures, undoSteps>>
 
 Plays == SUBSET (Edits \cup {Theirs})
 
@@ -89,11 +93,7 @@ Settled == Running \/ queue = <<>>
 
 Demoted(q) == [i \in DOMAIN q |-> [q[i] EXCEPT !.newest = FALSE]]
 
-UndoPending ==
-    \/ turn.kind \in {"undo", "redo"}
-    \/ \E i \in DOMAIN queue : queue[i].kind \in {"undo", "redo"}
-
-\* startSaving(): ++latestSequence, localSave "saving". Then enqueue(task).
+\* enqueueSave(task): ++latestSequence, localSave "saving", enqueue(task).
 AskToSave(t) ==
     /\ status' = "saving"
     /\ turn' = [turn EXCEPT !.newest = FALSE]
@@ -113,11 +113,10 @@ CoachTypes(e) ==
     /\ Settled
     /\ e \notin made
     /\ Len(queue) < MaxQueue
-    /\ EditsWaitForUndo => ~UndoPending
     /\ made' = made \cup {e}
     /\ AskToSave(NewTurn("edit", e, TypedBuild = "in queue", doc \cup {e}, TRUE))
-    /\ UNCHANGED <<doc, persisted, disk, undoStack, redoStack, sync, undone,
-                   abandoned, failures, undoSteps>>
+    /\ UNCHANGED <<doc, persisted, disk, settled, undoStack, redoStack, sync,
+                   undone, abandoned, failures, undoSteps>>
 
 \* dispatchField, the Flip and route-kind buttons: a command built from
 \* editorStore.getSnapshot().document, then applyCommand -> runCommand.
@@ -126,21 +125,24 @@ CoachGestures(e) ==
     /\ e \notin made
     /\ Len(queue) < MaxQueue
     /\ GesturesWaitForSaves => Idle
-    /\ EditsWaitForUndo => ~UndoPending
     /\ made' = made \cup {e}
     /\ AskToSave(NewTurn("edit", e, FALSE, doc \cup {e}, TRUE))
-    /\ UNCHANGED <<doc, persisted, disk, undoStack, redoStack, sync, undone,
-                   abandoned, failures, undoSteps>>
+    /\ UNCHANGED <<doc, persisted, disk, settled, undoStack, redoStack, sync,
+                   undone, abandoned, failures, undoSteps>>
 
-\* undo() / redo() -> stepHistory: enqueued with no sequence yet.
+\* undo() / redo() -> stepHistory -> enqueueSave. Before, it was enqueued
+\* with no sequence yet ("when run").
 CoachSteps(kind) ==
     /\ Settled
     /\ undoSteps < MaxUndoSteps
     /\ Len(queue) < MaxQueue
     /\ undoSteps' = undoSteps + 1
-    /\ queue' = Append(queue, NewTurn(kind, NoMark, TRUE, {}, FALSE))
-    /\ UNCHANGED <<doc, persisted, disk, status, turn, undoStack, redoStack,
-                   sync, made, undone, abandoned, failures>>
+    /\ IF UndoSequence = "when asked"
+       THEN AskToSave(NewTurn(kind, NoMark, TRUE, {}, TRUE))
+       ELSE /\ queue' = Append(queue, NewTurn(kind, NoMark, TRUE, {}, FALSE))
+            /\ UNCHANGED <<status, turn>>
+    /\ UNCHANGED <<doc, persisted, disk, settled, undoStack, redoStack, sync,
+                   made, undone, abandoned, failures>>
 
 \* retryLocalSave(): only while localSave says "error".
 CoachRetries ==
@@ -148,8 +150,8 @@ CoachRetries ==
     /\ status = "error"
     /\ Len(queue) < MaxQueue
     /\ AskToSave(NewTurn("retry", NoMark, TRUE, {}, TRUE))
-    /\ UNCHANGED <<doc, persisted, disk, undoStack, redoStack, sync, made,
-                   undone, abandoned, failures, undoSteps>>
+    /\ UNCHANGED <<doc, persisted, disk, settled, undoStack, redoStack, sync,
+                   made, undone, abandoned, failures, undoSteps>>
 
 -----------------------------------------------------------------------------
 (* The queue                                                              *)
@@ -159,45 +161,49 @@ CoachRetries ==
 \*     await canonicalSha256(next).
 \*   retryLocalSave: persist(state.getState().document, ...) at once.
 \*   stepHistory: undoStep/redoStep. Empty, or a top entry that does not
-\*     start from documentHash (quarantine), ends the turn; otherwise
+\*     start from documentHash (quarantine), ends the turn, and the newest
+\*     save shows how the last save to finish ended (settleSave); otherwise
 \*     await canonicalSha256(next).
 StartTurn ==
     /\ ~Running
     /\ queue /= <<>>
     /\ queue' = Tail(queue)
-    /\ LET t == Head(queue) IN
+    /\ LET t == Head(queue)
+           Ends == /\ turn' = NoTurn
+                   /\ status' = IF t.newest THEN settled ELSE status
+       IN
        CASE t.kind = "edit" ->
               /\ turn' = [t EXCEPT !.pc = "hashing", !.before = doc,
                                    !.next = IF t.inQueue THEN doc \cup {t.mark}
                                                          ELSE t.snapshot]
-              /\ UNCHANGED <<undoStack, redoStack>>
+              /\ UNCHANGED <<status, undoStack, redoStack>>
          [] t.kind = "retry" ->
               /\ turn' = Send(t, doc)
-              /\ UNCHANGED <<undoStack, redoStack>>
+              /\ UNCHANGED <<status, undoStack, redoStack>>
          [] t.kind \in {"undo", "redo"} ->
               LET stack == IF t.kind = "undo" THEN undoStack ELSE redoStack
               IN IF stack = <<>>
-                 THEN /\ turn' = NoTurn
+                 THEN /\ Ends
                       /\ UNCHANGED <<undoStack, redoStack>>
                  ELSE LET entry == stack[Len(stack)]
                           from == IF t.kind = "undo" THEN entry[2] ELSE entry[1]
                           to == IF t.kind = "undo" THEN entry[1] ELSE entry[2]
                       IN IF from /= doc
-                         THEN /\ turn' = NoTurn
+                         THEN /\ Ends
                               /\ undoStack' = <<>>
                               /\ redoStack' = <<>>
                          ELSE /\ turn' = [t EXCEPT !.pc = "hashing",
                                                    !.before = doc, !.next = to,
                                                    !.entry = entry]
-                              /\ UNCHANGED <<undoStack, redoStack>>
-    /\ UNCHANGED <<doc, persisted, disk, status, sync, made, undone, abandoned,
-                   failures, undoSteps>>
+                              /\ UNCHANGED <<status, undoStack, redoStack>>
+    /\ UNCHANGED <<doc, persisted, disk, settled, sync, made, undone,
+                   abandoned, failures, undoSteps>>
 
 \* The hash resolves.
 \*   runCommand: recordUndoEntry (a no-op edit records nothing);
 \*     documentHash = afterHash; showDocument(next); persist(...).
-\*   stepHistory: startSaving(requestedAtMs) only now; history =
-\*     result.history; showDocument(result.document); persist(...).
+\*   stepHistory: history = result.history; showDocument(result.document);
+\*     persist(...). "when run" called startSaving only here.
 ShowAndSend ==
     /\ turn.pc = "hashing"
     /\ doc' = turn.next
@@ -208,30 +214,32 @@ ShowAndSend ==
                       /\ redoStack' = <<>>
               /\ turn' = Send(turn, turn.next)
               /\ UNCHANGED <<status, queue, undone>>
-         [] turn.kind = "undo" ->
-              /\ undoStack' = SubSeq(undoStack, 1, Len(undoStack) - 1)
-              /\ redoStack' = Append(redoStack, turn.entry)
-              /\ undone' = undone \cup (turn.entry[2] \ turn.entry[1])
-              /\ status' = "saving"
-              /\ queue' = Demoted(queue)
-              /\ turn' = [Send(turn, turn.next) EXCEPT !.newest = TRUE]
-         [] turn.kind = "redo" ->
-              /\ redoStack' = SubSeq(redoStack, 1, Len(redoStack) - 1)
-              /\ undoStack' = Append(undoStack, turn.entry)
-              /\ undone' = undone \ (turn.entry[2] \ turn.entry[1])
-              /\ status' = "saving"
-              /\ queue' = Demoted(queue)
-              /\ turn' = [Send(turn, turn.next) EXCEPT !.newest = TRUE]
-    /\ UNCHANGED <<persisted, disk, sync, made, abandoned, failures, undoSteps>>
+         [] turn.kind \in {"undo", "redo"} ->
+              /\ IF turn.kind = "undo"
+                 THEN /\ undoStack' = SubSeq(undoStack, 1, Len(undoStack) - 1)
+                      /\ redoStack' = Append(redoStack, turn.entry)
+                      /\ undone' = undone \cup (turn.entry[2] \ turn.entry[1])
+                 ELSE /\ redoStack' = SubSeq(redoStack, 1, Len(redoStack) - 1)
+                      /\ undoStack' = Append(undoStack, turn.entry)
+                      /\ undone' = undone \ (turn.entry[2] \ turn.entry[1])
+              /\ IF UndoSequence = "when asked"
+                 THEN /\ turn' = Send(turn, turn.next)
+                      /\ UNCHANGED <<status, queue>>
+                 ELSE /\ status' = "saving"
+                      /\ queue' = Demoted(queue)
+                      /\ turn' = [Send(turn, turn.next) EXCEPT !.newest = TRUE]
+    /\ UNCHANGED <<persisted, disk, settled, sync, made, abandoned, failures,
+                   undoSteps>>
 
 \* repository.commitPlay's transaction, then persist() handling the outcome.
 \* A stale expected hash throws StaleLocalPlayError; no expected hash skips
 \* the check. On success persistedDocumentHash = receipt.documentHash.
-\* localSave changes only for the newest save.
+\* settleSave records every outcome; localSave shows only the newest save's.
 Commit ==
     /\ turn.pc = "committing"
     /\ LET fresh == turn.expected = NoRecord \/ turn.expected = disk
-           Told(outcome) == status' = IF turn.newest THEN outcome ELSE status
+           Told(outcome) == /\ settled' = outcome
+                            /\ status' = IF turn.newest THEN outcome ELSE status
        IN \/ /\ fresh
              /\ disk' = turn.next
              /\ persisted' = turn.next
@@ -262,8 +270,8 @@ SyncWritesTheirs ==
     /\ sync' = "written"
     /\ turn' = IF turn.pc = "committing" THEN [turn EXCEPT !.excused = TRUE]
                                          ELSE turn
-    /\ UNCHANGED <<doc, persisted, status, queue, undoStack, redoStack, made,
-                   undone, abandoned, failures, undoSteps>>
+    /\ UNCHANGED <<doc, persisted, status, settled, queue, undoStack, redoStack,
+                   made, undone, abandoned, failures, undoSteps>>
 
 \* onOpenPlayChanged -> canonicalSha256(play).then(revealPersistedPlay).
 \* Not queued. Same Play id, so the history stays.
@@ -275,6 +283,7 @@ Reveal ==
     /\ doc' = {Theirs}
     /\ persisted' = {Theirs}
     /\ status' = "saved"
+    /\ settled' = "saved"
     /\ abandoned' = made
     /\ UNCHANGED <<disk, queue, turn, undoStack, redoStack, made, undone,
                    failures, undoSteps>>
@@ -290,6 +299,7 @@ Init ==
     /\ persisted = IF BootHash = "when stored" THEN disk ELSE {}
     /\ doc = {}
     /\ status = "saved"
+    /\ settled = "saved"
     /\ queue = <<>>
     /\ turn = NoTurn
     /\ undoStack = <<>>
@@ -330,6 +340,7 @@ TypeOK ==
     /\ persisted \in Plays \cup {NoRecord}
     /\ disk \in Plays \cup {NoRecord}
     /\ status \in {"saving", "saved", "error"}
+    /\ settled \in {"saved", "error"}
     /\ Len(queue) <= MaxQueue
     /\ sync \in {"none", "written", "revealed"}
 
@@ -355,6 +366,10 @@ CommitExpectsStoredHash ==
 \* Between sync's write and revealPersistedPlay the screen is behind.
 SavedMeansStored ==
     (Idle /\ made /= {} /\ sync /= "written" /\ status = "saved") => disk = doc
+
+\* "Saving on this device" ends: once every save has run, the status says
+\* saved or failed, even when the newest turn found nothing to write.
+SavingEnds == Idle => status /= "saving"
 
 \* A save lands, on a fresh device too: once the Coach has edited, the Play
 \* on his screen ends up stored on this device.
