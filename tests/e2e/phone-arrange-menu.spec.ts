@@ -1,3 +1,5 @@
+import { type Page } from "@playwright/test";
+
 import { expect, openBlankEditor, test } from "./fixtures";
 
 /**
@@ -11,9 +13,8 @@ import { expect, openBlankEditor, test } from "./fixtures";
  */
 test.use({ viewport: { width: 390, height: 844 } });
 
-test("a phone's Arrange menu fits the app and refuses an illegal set", async ({
-  page,
-}, testInfo) => {
+/** All eleven of Gun Doubles Right picked, and the Arrange menu open. */
+async function openArrange(page: Page) {
   await openBlankEditor(page);
   await page.getByRole("button", { name: "New play", exact: true }).tap();
   await page
@@ -35,6 +36,13 @@ test("a phone's Arrange menu fits the app and refuses an illegal set", async ({
   await arrange.tap();
   const menu = toolbar.getByRole("group", { name: "Arrange" });
   await expect(menu).toBeVisible();
+  return menu;
+}
+
+test("a phone's Arrange menu fits the app and refuses an illegal set", async ({
+  page,
+}, testInfo) => {
+  const menu = await openArrange(page);
 
   const box = (await menu.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
@@ -67,5 +75,36 @@ test("a phone's Arrange menu fits the app and refuses an illegal set", async ({
   await expect(menu.getByText("The line keeps its splits")).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("phone-arrange-menu.png"),
+  });
+});
+
+/**
+ * Held sideways, the stage between the header and the tool row is shorter
+ * than the menu. The stage clips what floats in it, so the menu is fitted
+ * to the stage, not the window, and scrolls inside itself: every row stays
+ * a finger's to take, where before the last ran under the tool row. The
+ * test ends on a screenshot of the menu scrolled to its last row.
+ */
+test.describe("held sideways", () => {
+  test.use({ viewport: { width: 844, height: 390 } });
+
+  test("the Arrange menu fits the stage and every row takes a finger", async ({
+    page,
+  }, testInfo) => {
+    const menu = await openArrange(page);
+    const stage = (await page.locator(".field-wrap").boundingBox())!;
+    const box = (await menu.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(stage.y);
+    expect(box.y + box.height).toBeLessThanOrEqual(stage.y + stage.height);
+    for (const name of ["Group", "Ungroup", "Align depth", "Space evenly"]) {
+      // A trial hover scrolls the row into view and fails if anything else
+      // would take the finger there; it does not need the row enabled.
+      await menu
+        .getByRole("button", { name, exact: true })
+        .hover({ trial: true, timeout: 5_000 });
+    }
+    await page.screenshot({
+      path: testInfo.outputPath("phone-arrange-menu-sideways.png"),
+    });
   });
 });
