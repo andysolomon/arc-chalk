@@ -113,6 +113,19 @@ export default tseslint.config(
     },
   },
   {
+    // Lint fails wherever a switch misses a kind of a union, such as a new
+    // kind of FieldPick, and the error names the missing case. A default
+    // branch does not count, since it would handle a new kind before anyone
+    // chose how.
+    files: ["packages/editor/src/**/*.ts", "apps/web/src/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/switch-exhaustiveness-check": [
+        "error",
+        { considerDefaultExhaustiveForUnions: false },
+      ],
+    },
+  },
+  {
     files: ["apps/web/src/**/*.{ts,tsx}"],
     languageOptions: { globals: globals.browser },
     plugins: {
