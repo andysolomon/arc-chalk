@@ -2,12 +2,12 @@ import {
   canonicalSha256,
   starterPlaybookEnvelope,
   stickThunderPlay,
-  type PlayCommand,
 } from "@chalk/domain";
 import {
   createEditorStore,
   type EditorPersistence,
   type EditorStore,
+  type PlayFieldCommand,
 } from "@chalk/editor";
 import {
   createDexieLocalRepository,
@@ -67,7 +67,10 @@ async function openHarness(): Promise<Harness> {
   };
 }
 
-const rename = (name: string): PlayCommand => ({ kind: "set-play-name", name });
+const rename = (name: string): PlayFieldCommand => ({
+  kind: "set-play-name",
+  name,
+});
 
 async function storedName(harness: Harness): Promise<string | undefined> {
   return (await harness.repository.getPlay(stickThunderPlay.id))?.document.name;
@@ -91,9 +94,9 @@ describe("the save status after an Undo or Redo the Coach asked for behind a sav
     // The third write is the second edit's: the first edit, the Undo, then it.
     harness.refuseCommit(3);
     await Promise.all([
-      store.applyEdit(() => rename("one")),
+      store.applyCommand(rename("one")),
       store.undo(),
-      store.applyEdit(() => rename("two")),
+      store.applyCommand(rename("two")),
     ]);
 
     expect(store.getSnapshot().document.name).toBe("two");
@@ -103,16 +106,16 @@ describe("the save status after an Undo or Redo the Coach asked for behind a sav
 
   it("says the save failed when the edit asked for after a Redo is refused", async () => {
     const { store } = harness;
-    await store.applyEdit(() => rename("one"));
+    await store.applyCommand(rename("one"));
     await store.undo();
     // The fourth write is the second edit's: the first edit, the Undo, the
     // Redo, then it.
     harness.refuseCommit(4);
     await Promise.all([
-      store.applyEdit(() => rename("three")),
+      store.applyCommand(rename("three")),
       store.undo(),
       store.redo(),
-      store.applyEdit(() => rename("two")),
+      store.applyCommand(rename("two")),
     ]);
 
     expect(store.getSnapshot().document.name).toBe("two");
@@ -146,7 +149,7 @@ describe("the save status after an Undo or Redo the Coach asked for behind a sav
 
   it("still says the save failed when the Undo behind the refused write is quarantined", async () => {
     const { store } = harness;
-    await store.applyEdit(() => rename("one"));
+    await store.applyCommand(rename("one"));
     harness.refuseCommit(1);
     // A Play shown without an undo entry leaves the top entry starting from
     // a Play no longer on screen, so the Undo is quarantined.
@@ -163,9 +166,9 @@ describe("the save status after an Undo or Redo the Coach asked for behind a sav
   it("stores what the screen shows when it says saved, after an Undo and an edit asked for together", async () => {
     const { store } = harness;
     await Promise.all([
-      store.applyEdit(() => rename("one")),
+      store.applyCommand(rename("one")),
       store.undo(),
-      store.applyEdit(() => rename("two")),
+      store.applyCommand(rename("two")),
     ]);
 
     expect(store.getSnapshot().localSave.phase).toBe("saved");

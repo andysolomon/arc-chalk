@@ -222,6 +222,10 @@ import {
   type PaintLoopSample,
   type LabelAppearance,
   type PlayerAppearance,
+  repeatableIds,
+  type ApplyCommandOptions,
+  type BuildEdit,
+  type CreateId,
 } from "@chalk/editor";
 import {
   buildPathStrokes,
@@ -3783,13 +3787,6 @@ export function ChalkApp({
     selection.length === 1 && selection[0]?.kind === "label"
       ? editor.document.labels.find(({ id }) => id === selection[0]!.id)
       : undefined;
-  const runLabelCommand = (
-    command: PlayCommand | undefined,
-    options?: { coalesce?: boolean },
-  ): void => {
-    if (!command) return;
-    void editorStore.applyCommand(command, options).catch(() => undefined);
-  };
   /**
    * What the Coaching fields show: the committed value, unless the Coach has
    * the caret in one of them, in which case what he has typed.
@@ -4051,12 +4048,6 @@ export function ChalkApp({
     publishLiveVisualsRef.current(model);
   };
   /**
-   * A panel action that also moves what the Coach is working on: giving a man
-   * another line selects it, forking a stem narrows to the fork. The insert is
-   * registered as pending for the same reason a drawn route is — the selection
-   * must survive the instant before the save lands.
-   */
-  /**
    * Entities a command is about to make, held as pending until the commit
    * lands. Kept in one stable callback so reaching the ref stays out of
    * render, however the command arrived.
@@ -4066,20 +4057,88 @@ export function ChalkApp({
       pendingInsertsRef.current.add(id);
     }
   }, []);
-
-  const runPanelCommand = (
-    command: PlayCommand | undefined,
-    next: Partial<FieldInteractionModel>,
+  /**
+   * Entities the preview made that the build in the queue did not, because
+   * an edit ahead of it changed the Play. They will never arrive, so they
+   * stop holding the selection open.
+   */
+  const dropUnmadeInserts = (
+    shown: PlayCommand,
+    landed: PlayCommand | undefined,
   ): void => {
-    if (!command) return;
+    const made = new Set(landed ? insertedEntityIds(landed) : []);
+    const unmade = [...insertedEntityIds(shown)].filter((id) => !made.has(id));
+    if (unmade.length === 0) return;
+    for (const id of unmade) pendingInsertsRef.current.delete(id);
+    const pruned = pruneFieldSelection(
+      interactionRef.current,
+      editorStore.getSnapshot().document,
+      pendingInsertsRef.current,
+    );
+    if (pruned !== interactionRef.current) {
+      interactionRef.current = pruned;
+      setInteraction(pruned);
+    }
+  };
+
+  /**
+   * An edit built from the Play: what a gesture, a panel button or a menu
+   * item does. It goes to the save queue as a builder and runs against the
+   * Play as it stands when its turn comes, so it never puts back what an
+   * edit still saving changed (FindingGestureDuringSave). It is built once
+   * now as well, against the Play on screen, and that build comes back for
+   * what the shell shows at once: a toast, a selection, the entities held
+   * as pending. Both builds get the same new ids from `repeatableIds`.
+   */
+  const queueBuiltEdit = <Built,>(
+    build: (document: PlayDocument, createId: CreateId) => Built,
+    commandOf: (built: Built) => PlayCommand | undefined,
+    {
+      broadcast = false,
+      ...options
+    }: ApplyCommandOptions & { readonly broadcast?: boolean } = {},
+  ): Built => {
+    const ids = repeatableIds();
+    const built = build(editorStore.getSnapshot().document, ids.create);
+    const command = commandOf(built);
+    if (!command) return built;
     markInsertsPending(command);
-    focusInteraction(next);
+    // The sibling Plays get what landed, not the preview built from a Play
+    // an edit still saving has not reached.
+    let landed: PlayCommand | undefined;
     void editorStore
-      .applyCommand(command)
+      .applyEdit((document) => {
+        landed = commandOf(build(document, ids.again()));
+        return landed;
+      }, options)
       .then(() => {
-        playbook.maybeBroadcast(command);
+        dropUnmadeInserts(command, landed);
+        if (broadcast && landed) playbook.maybeBroadcast(landed);
       })
       .catch(() => undefined);
+    return built;
+  };
+  const queueEdit = (
+    build: BuildEdit,
+    options?: ApplyCommandOptions & { readonly broadcast?: boolean },
+  ): PlayCommand | undefined =>
+    queueBuiltEdit(build, (command) => command, options);
+  /**
+   * A panel action that also moves what the Coach is working on: giving a
+   * man another line selects it, forking a stem narrows to the fork. The
+   * insert is held as pending for the same reason a drawn route is: the
+   * selection must survive the instant before the save lands.
+   */
+  const runPanelEdit = (
+    build: BuildEdit,
+    next:
+      | Partial<FieldInteractionModel>
+      | ((command: PlayCommand) => Partial<FieldInteractionModel>),
+  ): PlayCommand | undefined => {
+    const command = queueEdit(build, { broadcast: true });
+    if (command)
+      focusInteraction(typeof next === "function" ? next(command) : next);
+    return command;
   };
   /**
    * An option picked in the inspector is the answer (product request
@@ -4121,27 +4180,24 @@ export function ChalkApp({
    * then a curl is doing exactly that.
    */
   const runQuickCall = (presetKey: string, kind: "route" | "line"): void => {
-    const document = editorStore.getSnapshot().document;
+    const shown = editorStore.getSnapshot().document;
     const playerId = pickedItems(interactionRef.current.pick).find(
       (item) => item.kind === "player",
     )?.id;
     if (playerId === undefined) return;
     putInspectorAway();
-    const command =
-      kind === "route"
-        ? applyPlayerRoutePresetCommand(document, playerId, presetKey, () =>
-            createStableId("path"),
-          )
-        : applyLinePresetCommand(
-            document,
-            [playerId],
-            presetKey,
-            createStableId,
-          );
+    const command = runPanelEdit(
+      (document, createId) =>
+        kind === "route"
+          ? applyPlayerRoutePresetCommand(document, playerId, presetKey, () =>
+              createId("path"),
+            )
+          : applyLinePresetCommand(document, [playerId], presetKey, createId),
+      {},
+    );
     if (kind === "route") {
-      sayKeptName(command, document, baseRouteOf(document, playerId)?.id);
+      sayKeptName(command, shown, baseRouteOf(shown, playerId)?.id);
     }
-    runPanelCommand(command, {});
   };
   /**
    * A call off a catalogue put on a line the Coach has picked out. A route is
@@ -4151,28 +4207,31 @@ export function ChalkApp({
    * go through different commands.
    */
   const runLinePreset = (pathId: string, presetKey: string): void => {
-    const document = editorStore.getSnapshot().document;
-    const line = document.paths.find(({ id }) => id === pathId);
+    const shown = editorStore.getSnapshot().document;
+    const route = shown.paths.find(({ id }) => id === pathId)?.kind === "route";
     putInspectorAway();
-    const command =
-      line?.kind === "route"
-        ? applyRoutePresetCommand(document, pathId, presetKey)
-        : applyLinePresetCommand(
-            document,
-            line ? [line.playerId] : [],
-            presetKey,
-            createStableId,
-          );
-    if (line?.kind === "route") sayKeptName(command, document, pathId);
-    runPanelCommand(command, {
-      pick: {
-        kind: "items",
-        items:
-          line?.kind === "route"
+    const command = runPanelEdit(
+      (document, createId) => {
+        const line = document.paths.find(({ id }) => id === pathId);
+        return line?.kind === "route"
+          ? applyRoutePresetCommand(document, pathId, presetKey)
+          : applyLinePresetCommand(
+              document,
+              line ? [line.playerId] : [],
+              presetKey,
+              createId,
+            );
+      },
+      {
+        pick: {
+          kind: "items",
+          items: route
             ? [{ kind: "path", id: pathId }]
             : pickedItems(interactionRef.current.pick),
+        },
       },
-    });
+    );
+    if (route) sayKeptName(command, shown, pathId);
   };
   /**
    * The original offers the draw-a-route dot on the selected or hovered
@@ -4240,22 +4299,30 @@ export function ChalkApp({
     swallowRestOfPress(inspectorRef);
   };
   const dispatchField = (event: FieldInteractionEvent): void => {
-    const document = editorStore.getSnapshot().document;
     const previous = interactionRef.current;
-    // The scene is only consulted for hit tests, so build it on demand.
-    let renderScene: RenderScene | undefined;
-    const result = fieldInteraction(previous, event, {
-      document,
-      get scene() {
-        renderScene ??= buildRenderScene(document, { presentation });
-        return renderScene;
-      },
+    const context = {
       screenScale: fieldScreenScale(),
       snap: { enabled: snapEnabled, grid: "off" },
       tool: interactionTool(activeTool),
       depthWindow: fieldDepthWindow(scene.viewport),
-      createId: createStableId,
-    });
+    } as const;
+    // Run on the Play on screen for the model the Coach sees at once, and
+    // again on the Play its turn in the save queue finds, for the command.
+    const interact = (document: PlayDocument, createId: CreateId) => {
+      // The scene is only consulted for hit tests, so build it on demand.
+      let renderScene: RenderScene | undefined;
+      return fieldInteraction(previous, event, {
+        ...context,
+        document,
+        get scene() {
+          renderScene ??= buildRenderScene(document, { presentation });
+          return renderScene;
+        },
+        createId,
+      });
+    };
+    const ids = repeatableIds();
+    const result = interact(editorStore.getSnapshot().document, ids.create);
     interactionRef.current = result.model;
     const hold =
       !result.command &&
@@ -4269,11 +4336,17 @@ export function ChalkApp({
     }
     if (result.command) {
       pendingCommitPaintRef.current = true;
-      markInsertsPending(result.command);
+      const shown = result.command;
+      markInsertsPending(shown);
+      let landed: PlayCommand | undefined;
       void editorStore
-        .applyCommand(result.command)
+        .applyEdit((document) => {
+          landed = interact(document, ids.again()).command;
+          return landed;
+        })
         .then(() => {
-          playbook.maybeBroadcast(result.command!);
+          dropUnmadeInserts(shown, landed);
+          if (landed) playbook.maybeBroadcast(landed);
         })
         .catch(() => undefined);
     }
@@ -4564,18 +4637,21 @@ export function ChalkApp({
     const defenderId = coverPickingFor();
     setCoverPick(undefined);
     if (defenderId === undefined) return;
-    const document = editorStore.getSnapshot().document;
+    const shown = editorStore.getSnapshot().document;
     const reach = fieldHitOptions(pointerType).playerRadiusPx;
     const scale = fieldScreenScale();
     let picked: { readonly id: string; readonly px: number } | undefined;
-    for (const { player } of coverableReceivers(document)) {
+    for (const { player } of coverableReceivers(shown)) {
       const px = screenDistancePx(player.position, point, scale);
       if (px <= reach && (!picked || px < picked.px)) {
         picked = { id: player.id, px };
       }
     }
     if (!picked) return;
-    runLabelCommand(coverReceiverCommand(document, defenderId, picked.id));
+    const receiverId = picked.id;
+    queueEdit((document) =>
+      coverReceiverCommand(document, defenderId, receiverId),
+    );
   };
   const onFieldPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     // The hand holding a Pencil rests on the glass. While the tip is down,
@@ -4962,7 +5038,9 @@ export function ChalkApp({
       // that the names the lines gave went with them (issue #153). Its Undo
       // takes all of it back in one step.
       setToast(clearedWords(command));
-      void editorStore.applyCommand(command).catch(() => undefined);
+      void editorStore
+        .applyEdit((document) => playErasureCommand(document, erasure))
+        .catch(() => undefined);
     };
   };
 
@@ -5088,32 +5166,33 @@ export function ChalkApp({
   const alignAction = (
     alignment: PlayerAlignment,
   ): (() => void) | undefined => {
-    const command = alignPlayersCommand(
-      editor.document,
-      selectedPlayerIds,
-      alignment,
-    );
-    if (!command) return undefined;
+    if (!alignPlayersCommand(editor.document, selectedPlayerIds, alignment))
+      return undefined;
     return () => {
-      void editorStore.applyCommand(command).catch(() => undefined);
+      void editorStore
+        .applyEdit((document) =>
+          alignPlayersCommand(document, selectedPlayerIds, alignment),
+        )
+        .catch(() => undefined);
     };
   };
   const groupAction = ((): (() => void) | undefined => {
-    const command = groupSelectionCommand(
-      editor.document,
-      selection,
-      createStableId,
-    );
-    if (!command) return undefined;
+    if (!groupSelectionCommand(editor.document, selection, createStableId))
+      return undefined;
     return () => {
-      void editorStore.applyCommand(command).catch(() => undefined);
+      void editorStore
+        .applyEdit((document) =>
+          groupSelectionCommand(document, selection, createStableId),
+        )
+        .catch(() => undefined);
     };
   })();
   const ungroupAction = ((): (() => void) | undefined => {
-    const command = ungroupSelectionCommand(editor.document, selection);
-    if (!command) return undefined;
+    if (!ungroupSelectionCommand(editor.document, selection)) return undefined;
     return () => {
-      void editorStore.applyCommand(command).catch(() => undefined);
+      void editorStore
+        .applyEdit((document) => ungroupSelectionCommand(document, selection))
+        .catch(() => undefined);
     };
   })();
   /** The one line the Coach has picked out, for the verbs that need just one. */
@@ -5123,10 +5202,11 @@ export function ChalkApp({
       : undefined;
   const reverseAction = ((): (() => void) | undefined => {
     if (!lonePathId) return undefined;
-    const command = reverseRouteCommand(editor.document, lonePathId);
-    if (!command) return undefined;
+    if (!reverseRouteCommand(editor.document, lonePathId)) return undefined;
     return () => {
-      void editorStore.applyCommand(command).catch(() => undefined);
+      void editorStore
+        .applyEdit((document) => reverseRouteCommand(document, lonePathId))
+        .catch(() => undefined);
     };
   })();
   /**
@@ -5135,7 +5215,6 @@ export function ChalkApp({
    * so nothing is captured while the panel is being drawn.
    */
   const addDepthMarker = (): void => {
-    const document = editorStore.getSnapshot().document;
     const model = interactionRef.current;
     const picked = pickedItems(model.pick);
     const pathId =
@@ -5144,19 +5223,20 @@ export function ChalkApp({
         : undefined;
     if (!pathId) return;
     const segment = routePart(model.pick).segment;
-    const command = addDepthLabelCommand(
-      document,
-      pathId,
-      segment === undefined ? undefined : segment + 1,
-      createStableId,
-    );
-    if (!command) return;
-    const [labelId] = insertedEntityIds(command);
-    runPanelCommand(
-      command,
-      labelId
-        ? { pick: { kind: "items", items: [{ kind: "label", id: labelId }] } }
-        : {},
+    runPanelEdit(
+      (document, createId) =>
+        addDepthLabelCommand(
+          document,
+          pathId,
+          segment === undefined ? undefined : segment + 1,
+          createId,
+        ),
+      (command) => {
+        const [labelId] = insertedEntityIds(command);
+        return labelId
+          ? { pick: { kind: "items", items: [{ kind: "label", id: labelId }] } }
+          : {};
+      },
     );
   };
   const depthLabelAction = ((): (() => void) | undefined => {
@@ -5210,23 +5290,19 @@ export function ChalkApp({
     // On an offensive play the call is the shadow: a hidden shadow he just
     // chose a look for comes back, or the pick would land unseen.
     if (editor.document.unit !== "defense") showShadow();
-    const { command, result } = applyDefensiveCallCommand(
-      editor.document,
-      call,
-      createStableId,
-      { withAssignments: callAssignments },
-    );
     setToast({
       name: call.formation.name,
       text: callAssignments
         ? "— alignment and assignments"
         : "— alignment only",
     });
-    runPanelCommand(command, {
-      pick: { kind: "items", items: [] },
-      drawing: undefined,
-    });
-    void result;
+    runPanelEdit(
+      (document, createId) =>
+        applyDefensiveCallCommand(document, call, createId, {
+          withAssignments: callAssignments,
+        }).command,
+      { pick: { kind: "items", items: [] }, drawing: undefined },
+    );
   };
 
   /**
@@ -5253,18 +5329,17 @@ export function ChalkApp({
   const runConcept = (key: string): void => {
     const concept = stockConcepts.find((value) => value.key === key);
     if (!concept) return;
-    const document = editorStore.getSnapshot().document;
-    const { command, cleared, count } = applyConceptCommand(
-      document,
-      concept,
-      createStableId,
+    const { command, cleared, count } = queueBuiltEdit(
+      (document, createId) => applyConceptCommand(document, concept, createId),
+      (built) => built.command,
+      { broadcast: true },
     );
     if (!command) return;
     setToast({
       name: concept.name,
       text: cleared ? "— routes cleared" : `— ${count} routes drawn`,
     });
-    runPanelCommand(command, {
+    focusInteraction({
       pick: { kind: "items", items: [] },
       drawing: undefined,
     });
@@ -5307,19 +5382,20 @@ export function ChalkApp({
     [editor.document, linemen],
   );
   const runLineCall = (key: string): void => {
-    const document = editorStore.getSnapshot().document;
-    const command =
-      key === SCREEN_LINE_CALL
-        ? applyScreenLineCommand(document, createStableId)
-        : applyLinePresetCommand(
-            document,
-            linemenOf(document).map((player) => player.id),
-            key,
-            createStableId,
-          );
     // The selection is left where it was: picking the line would swap in
     // another panel and unmount the very buttons just pressed.
-    if (command) runPanelCommand(command, {});
+    runPanelEdit(
+      (document, createId) =>
+        key === SCREEN_LINE_CALL
+          ? applyScreenLineCommand(document, createId)
+          : applyLinePresetCommand(
+              document,
+              linemenOf(document).map((player) => player.id),
+              key,
+              createId,
+            ),
+      {},
+    );
   };
 
   /**
@@ -5327,12 +5403,10 @@ export function ChalkApp({
    * a line call, the selection is left where it was.
    */
   const runCoverageCall = (key: string): void => {
-    const command = applyCoverageCallCommand(
-      editorStore.getSnapshot().document,
-      key,
-      createStableId,
+    runPanelEdit(
+      (document, createId) => applyCoverageCallCommand(document, key, createId),
+      {},
     );
-    if (command) runPanelCommand(command, {});
   };
 
   /**
@@ -5340,12 +5414,11 @@ export function ChalkApp({
    * zones the men sent leave are refilled as the edit settles.
    */
   const runLinebackerCall = (key: string): void => {
-    const command = applyLinebackerCallCommand(
-      editorStore.getSnapshot().document,
-      key,
-      createStableId,
+    runPanelEdit(
+      (document, createId) =>
+        applyLinebackerCallCommand(document, key, createId),
+      {},
     );
-    if (command) runPanelCommand(command, {});
   };
 
   /** What each of the defense's unit calls does when one is picked (ADR 0075). */
@@ -5354,12 +5427,10 @@ export function ChalkApp({
   > = {
     coverage: runCoverageCall,
     front: (key) => {
-      const command = applyFrontCallCommand(
-        editorStore.getSnapshot().document,
-        key,
-        createStableId,
+      runPanelEdit(
+        (document, createId) => applyFrontCallCommand(document, key, createId),
+        {},
       );
-      if (command) runPanelCommand(command, {});
     },
     linebackers: runLinebackerCall,
   };
@@ -5386,16 +5457,17 @@ export function ChalkApp({
    * from the render that offered the button.
    */
   const spotTheBall = (spot: BallSpot): void => {
-    const { command, tightened } = spotBallCommand(
-      editorStore.getSnapshot().document,
-      spot,
+    const { command, tightened } = queueBuiltEdit(
+      (document) => spotBallCommand(document, spot),
+      (built) => built.command,
+      { broadcast: true },
     );
     if (!command) return;
     setToast({
       name: ballSpotNames[spot],
       text: tightened ? "— boundary splits tightened to stay in bounds" : "",
     });
-    runPanelCommand(command, {
+    focusInteraction({
       pick: { kind: "items", items: [] },
       drawing: undefined,
     });
@@ -5442,10 +5514,11 @@ export function ChalkApp({
     if (inspectorFloats && !phoneWorkspace) setInspectorOpen(false);
     // On a defensive play the formation is the shadow (ADR 0053).
     if (editor.document.unit === "defense") showShadow();
-    const { command, result } = applyFormationCommand(
-      editor.document,
-      formation,
-      createStableId,
+    const { command, result } = queueBuiltEdit(
+      (document, createId) =>
+        applyFormationCommand(document, formation, createId),
+      (built) => built.command,
+      { broadcast: true },
     );
     const { plan } = result;
     const parts = [
@@ -5464,16 +5537,18 @@ export function ChalkApp({
       name: formation.name,
       text: parts.length > 0 ? `— ${parts.join(", ")}` : "— already aligned",
     });
-    runPanelCommand(command, {
-      pick: {
-        kind: "items",
-        items: result.addedPlayerIds.map((id) => ({
-          kind: "player" as const,
-          id,
-        })),
-      },
-      drawing: undefined,
-    });
+    if (command) {
+      focusInteraction({
+        pick: {
+          kind: "items",
+          items: result.addedPlayerIds.map((id) => ({
+            kind: "player" as const,
+            id,
+          })),
+        },
+        drawing: undefined,
+      });
+    }
   };
 
   /**
@@ -5515,18 +5590,23 @@ export function ChalkApp({
     side: PlayerSideOfBall,
     target: AlignmentResetTarget,
   ): void => {
-    const document = editorStore.getSnapshot().document;
-    const { command, result } = resetAlignmentCommand(
-      document,
-      side,
-      target,
-      allFormations,
-      defensiveCalls,
+    const { unit } = editorStore.getSnapshot().document;
+    const { command, result } = queueBuiltEdit(
+      (document) =>
+        resetAlignmentCommand(
+          document,
+          side,
+          target,
+          allFormations,
+          defensiveCalls,
+        ),
+      (built) => built.command,
+      { broadcast: true },
     );
     if (!command || !result) return;
     setOverlay(null);
     // Putting the shadow back is asking to see it.
-    if (side !== document.unit) showShadow();
+    if (side !== unit) showShadow();
     const men = result.movedCount === 1 ? "1 man" : `${result.movedCount} men`;
     setToast({
       name: result.alignment.name,
@@ -5537,7 +5617,7 @@ export function ChalkApp({
             ? `— base, ${men} moved`
             : `— ${men} back in place`,
     });
-    runPanelCommand(command, {
+    focusInteraction({
       pick: { kind: "items", items: [] },
       drawing: undefined,
     });
@@ -5548,14 +5628,14 @@ export function ChalkApp({
    * whatever order they are stored in. Grey and inert come from one answer.
    */
   const reorderAction = (direction: 1 | -1): (() => void) | undefined => {
-    const command = reorderSelectionCommand(
-      editor.document,
-      selection,
-      direction,
-    );
-    if (!command) return undefined;
+    if (!reorderSelectionCommand(editor.document, selection, direction))
+      return undefined;
     return () => {
-      void editorStore.applyCommand(command).catch(() => undefined);
+      void editorStore
+        .applyEdit((document) =>
+          reorderSelectionCommand(document, selection, direction),
+        )
+        .catch(() => undefined);
     };
   };
 
@@ -6008,10 +6088,9 @@ export function ChalkApp({
     sendBackward: reorderAction(-1),
     toggleSnapping: () => setSnapEnabled((enabled) => !enabled),
     flipStrength: () => {
-      const command = flipStrengthCommand(editorStore.getSnapshot().document);
-      if (command) {
-        void editorStore.applyCommand(command).catch(() => undefined);
-      }
+      void editorStore
+        .applyEdit((document) => flipStrengthCommand(document))
+        .catch(() => undefined);
     },
     alignDepth: alignAction("depth"),
     alignSplits: alignAction("splits"),
@@ -6329,14 +6408,15 @@ export function ChalkApp({
       }
       if (meta && !typing && key === "g") {
         event.preventDefault();
-        const document = editorStore.getSnapshot().document;
         const selection = pickedItems(interactionRef.current.pick);
-        const command = event.shiftKey
-          ? ungroupSelectionCommand(document, selection)
-          : groupSelectionCommand(document, selection, createStableId);
-        if (command) {
-          void editorStore.applyCommand(command).catch(() => undefined);
-        }
+        const ungroup = event.shiftKey;
+        void editorStore
+          .applyEdit((document) =>
+            ungroup
+              ? ungroupSelectionCommand(document, selection)
+              : groupSelectionCommand(document, selection, createStableId),
+          )
+          .catch(() => undefined);
         return;
       }
       if (meta && !typing && (key === "]" || key === "[")) {
@@ -6707,11 +6787,21 @@ export function ChalkApp({
     return {
       summary: fix.summary,
       apply: () => {
+        // Said for the fix that landed, if any did.
+        let landed: ReturnType<typeof formationFix>;
         void editorStore
-          .applyCommand(fix.command)
-          .then(() =>
-            setToast({ name: "Formation fixed", text: `— ${fix.summary}` }),
-          )
+          .applyEdit((document) => {
+            landed = formationFix(document);
+            return landed?.command;
+          })
+          .then(() => {
+            if (landed) {
+              setToast({
+                name: "Formation fixed",
+                text: `— ${landed.summary}`,
+              });
+            }
+          })
           .catch(() => undefined);
       },
     };
@@ -6848,9 +6938,9 @@ export function ChalkApp({
       concepts={playbook.snapshot.concepts}
       formations={allFormations}
       onAddPlayType={addPlayType}
-      onApply={(command) => {
+      onApply={(build) => {
         void editorStore
-          .applyCommand(command)
+          .applyEdit(build)
           .then(() => playbook.refresh())
           .catch(() => undefined);
       }}
@@ -7981,24 +8071,30 @@ export function ChalkApp({
         formation ? "offense" : "defense",
         await openBookFieldProfile(),
       );
-      const document = editorStore.getSnapshot().document;
-      const { command, result } = formation
-        ? applyFormationCommand(document, formation, createStableId)
-        : applyDefensiveCallCommand(document, call!, createStableId, {
-            withAssignments: callAssignments,
-          });
+      const { command, result } = queueBuiltEdit(
+        (document, createId) =>
+          formation
+            ? applyFormationCommand(document, formation, createId)
+            : applyDefensiveCallCommand(document, call!, createId, {
+                withAssignments: callAssignments,
+              }),
+        (built) => built.command,
+        { broadcast: true },
+      );
       const name = formation?.name ?? call!.formation.name;
       setToast({ name, text: "— a new play in it" });
-      runPanelCommand(command, {
-        pick: {
-          kind: "items",
-          items: result.addedPlayerIds.map((id) => ({
-            kind: "player" as const,
-            id,
-          })),
-        },
-        drawing: undefined,
-      });
+      if (command) {
+        focusInteraction({
+          pick: {
+            kind: "items",
+            items: result.addedPlayerIds.map((id) => ({
+              kind: "player" as const,
+              id,
+            })),
+          },
+          drawing: undefined,
+        });
+      }
       void playbook.refresh();
       goToView("Editor");
     };
@@ -8282,23 +8378,23 @@ export function ChalkApp({
 
   if (activeView === "Tips") {
     const applyTip = (tip: DefensiveTip) => {
-      const before = editorStore.getSnapshot().document;
-      let next = before;
-      for (const adjustment of tip.adjustments ?? []) {
-        const command = defensiveAdjustmentCommand(
-          next,
-          undefined,
-          adjustment,
-          createStableId,
-        );
-        if (command) next = applyPlayCommand(next, command);
-      }
-      const command = diffPlayDocuments(before, next, tip.title);
-      if (command.commands.length)
-        runPanelCommand(command, {
-          pick: { kind: "items", items: [] },
-          drawing: undefined,
-        });
+      runPanelEdit(
+        (before, createId) => {
+          let next = before;
+          for (const adjustment of tip.adjustments ?? []) {
+            const command = defensiveAdjustmentCommand(
+              next,
+              undefined,
+              adjustment,
+              createId,
+            );
+            if (command) next = applyPlayCommand(next, command);
+          }
+          const command = diffPlayDocuments(before, next, tip.title);
+          return command.commands.length ? command : undefined;
+        },
+        { pick: { kind: "items", items: [] }, drawing: undefined },
+      );
       goToView("Editor");
       setToast({
         name: tip.title,
@@ -8589,7 +8685,7 @@ export function ChalkApp({
                 onAdjustDefense={(ids) => setDefenseAdjustmentScope(ids)}
                 document={editor.document}
                 selection={selection}
-                onCommand={(command) => runPanelCommand(command, {})}
+                onEdit={(build) => runPanelEdit(build, {})}
               />
             ) : null}
             {picking ? (
@@ -8789,12 +8885,8 @@ export function ChalkApp({
                   }}
                   onAtSnap={(atSnap) => {
                     putInspectorAway();
-                    runLabelCommand(
-                      setMotionAtSnapCommand(
-                        editor.document,
-                        selectedPath.id,
-                        atSnap,
-                      ),
+                    queueEdit((document) =>
+                      setMotionAtSnapCommand(document, selectedPath.id, atSnap),
                     );
                   }}
                   onDelete={() =>
@@ -8813,12 +8905,12 @@ export function ChalkApp({
                   }}
                   onType={(key) => {
                     putInspectorAway();
-                    runLabelCommand(
+                    queueEdit((document, createId) =>
                       applyMotionCallCommand(
-                        editor.document,
+                        document,
                         selectedPath.playerId,
                         key,
-                        () => createStableId("path"),
+                        () => createId("path"),
                       ),
                     );
                   }}
@@ -8846,13 +8938,14 @@ export function ChalkApp({
                   scopeBadge={playbook.scopeBadge}
                   nodeIndex={pickedPart.node}
                   onAddChoice={() =>
-                    runPanelCommand(
-                      addRouteChoiceCommand(
-                        editor.document,
-                        selectedPath.id,
-                        pickedPart.node,
-                        fieldDepthWindow(scene.viewport),
-                      ),
+                    runPanelEdit(
+                      (document) =>
+                        addRouteChoiceCommand(
+                          document,
+                          selectedPath.id,
+                          pickedPart.node,
+                          fieldDepthWindow(scene.viewport),
+                        ),
                       {
                         // The Coach lands on the fork he just made, the way
                         // the original narrows to it.
@@ -8883,49 +8976,46 @@ export function ChalkApp({
                   backLabel={backLabel}
                   onDeselect={stepBack}
                   onFlip={() =>
-                    runLabelCommand(
-                      flipRouteCommand(editor.document, selectedPath.id),
+                    queueEdit((document) =>
+                      flipRouteCommand(document, selectedPath.id),
                     )
                   }
-                  onRemoveChoice={() =>
-                    runPanelCommand(
-                      pickedPart.branch === undefined
-                        ? undefined
-                        : removeRouteChoiceCommand(
-                            editor.document,
-                            selectedPath.id,
-                            pickedPart.branch,
-                          ),
+                  onRemoveChoice={() => {
+                    const branch = pickedPart.branch;
+                    if (branch === undefined) return;
+                    runPanelEdit(
+                      (document) =>
+                        removeRouteChoiceCommand(
+                          document,
+                          selectedPath.id,
+                          branch,
+                        ),
                       {
                         pick: {
                           kind: "items",
                           items: [{ kind: "path", id: selectedPath.id }],
                         },
                       },
-                    )
-                  }
+                    );
+                  }}
                   onKind={(kind) => {
                     putInspectorAway();
-                    runLabelCommand(
-                      setRouteKindCommand(
-                        editor.document,
-                        selectedPath.id,
-                        kind,
-                      ),
+                    queueEdit((document) =>
+                      setRouteKindCommand(document, selectedPath.id, kind),
                     );
                   }}
                   onStraighten={() =>
-                    runLabelCommand(
-                      straightenRouteCommand(editor.document, selectedPath.id, {
+                    queueEdit((document) =>
+                      straightenRouteCommand(document, selectedPath.id, {
                         branchIndex: pickedPart.branch,
                       }),
                     )
                   }
                   onStyle={(style) => {
                     putInspectorAway();
-                    runLabelCommand(
+                    queueEdit((document) =>
                       setRouteStyleCommand(
-                        editor.document,
+                        document,
                         selectedPath.id,
                         {
                           branchIndex: pickedPart.branch,
@@ -8986,9 +9076,9 @@ export function ChalkApp({
                   onCover={(receiverId) => {
                     setCoverPick(undefined);
                     putInspectorAway();
-                    runLabelCommand(
+                    queueEdit((document) =>
                       coverReceiverCommand(
-                        editor.document,
+                        document,
                         selectedPlayer.id,
                         receiverId,
                       ),
@@ -9010,13 +9100,14 @@ export function ChalkApp({
                   onHoverLine={hoverLine}
                   onAddMotion={(key) => {
                     putInspectorAway();
-                    runPanelCommand(
-                      applyMotionCallCommand(
-                        editor.document,
-                        selectedPlayer.id,
-                        key,
-                        () => createStableId("path"),
-                      ),
+                    runPanelEdit(
+                      (document, createId) =>
+                        applyMotionCallCommand(
+                          document,
+                          selectedPlayer.id,
+                          key,
+                          () => createId("path"),
+                        ),
                       // He stays picked, the way a quick route leaves him:
                       // the row that names his motion takes the buttons'
                       // place, and his route is still his to give.
@@ -9025,12 +9116,13 @@ export function ChalkApp({
                   }}
                   onAddAlternate={() => {
                     const id = createStableId("path");
-                    runPanelCommand(
-                      addAlternateRouteCommand(
-                        editor.document,
-                        selectedPlayer.id,
-                        () => id,
-                      ),
+                    runPanelEdit(
+                      (document) =>
+                        addAlternateRouteCommand(
+                          document,
+                          selectedPlayer.id,
+                          () => id,
+                        ),
                       // The new stem is his to shape, so he lands on it.
                       {
                         pick: { kind: "items", items: [{ kind: "path", id }] },
@@ -9039,12 +9131,8 @@ export function ChalkApp({
                   }}
                   onAppearance={(appearance) => {
                     putInspectorAway();
-                    runLabelCommand(
-                      setPlayerCommand(
-                        editor.document,
-                        selectedPlayer.id,
-                        appearance,
-                      ),
+                    queueEdit((document) =>
+                      setPlayerCommand(document, selectedPlayer.id, appearance),
                     );
                   }}
                   freeDraw={freeDraw}
@@ -9053,24 +9141,21 @@ export function ChalkApp({
                   onDraw={(kind) => startDrawingFrom(selectedPlayer.id, kind)}
                   onFreeDraw={setFreeDrawing}
                   onFlip={() =>
-                    runLabelCommand(
-                      flipPlayerLinesCommand(
-                        editor.document,
-                        selectedPlayer.id,
-                      ),
+                    queueEdit((document) =>
+                      flipPlayerLinesCommand(document, selectedPlayer.id),
                     )
                   }
                   onQuickCall={runQuickCall}
                   onRemoveLine={(pathId) =>
-                    runLabelCommand(
+                    queueEdit((document) =>
                       // A motion taken off him puts his routes back on his
                       // stance, the way deleting it on the field does.
-                      editor.document.paths.find(({ id }) => id === pathId)
-                        ?.kind === "motion"
-                        ? buildDeleteCommand(editor.document, [
+                      document.paths.find(({ id }) => id === pathId)?.kind ===
+                      "motion"
+                        ? buildDeleteCommand(document, [
                             { kind: "path", id: pathId },
                           ])
-                        : deletePathsCommand(editor.document, [pathId]),
+                        : deletePathsCommand(document, [pathId]),
                     )
                   }
                   onSelectLine={(pathId) =>
@@ -9117,9 +9202,9 @@ export function ChalkApp({
                   label={selectedLabel}
                   onAppearance={(appearance) => {
                     putInspectorAway();
-                    runLabelCommand(
+                    queueEdit((document) =>
                       setLabelAppearanceCommand(
-                        editor.document,
+                        document,
                         selectedLabel.id,
                         appearance,
                       ),
@@ -9130,12 +9215,8 @@ export function ChalkApp({
                   onDeselect={stepBack}
                   onRole={(role) => {
                     putInspectorAway();
-                    runLabelCommand(
-                      applyLabelRoleCommand(
-                        editor.document,
-                        selectedLabel.id,
-                        role,
-                      ),
+                    queueEdit((document) =>
+                      applyLabelRoleCommand(document, selectedLabel.id, role),
                     );
                   }}
                   onText={(text) => {
@@ -9400,7 +9481,7 @@ export function ChalkApp({
         <DefensiveAdjustmentsDialog
           document={editor.document}
           selectedIds={defenseAdjustmentScope}
-          onCommand={(command) => runPanelCommand(command, {})}
+          onEdit={(build) => runPanelEdit(build, {})}
           onClose={() => setDefenseAdjustmentScope(null)}
           onTips={() => {
             setDefenseAdjustmentScope(null);

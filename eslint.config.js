@@ -10,6 +10,10 @@ const passTheErrorOn =
 const focusMessage =
   "Opening a panel must not raise the tablet keyboard (#59, #87). Focus a field only from the handler of a Coach action that asked to type: call askToType in that handler and useFocusWhenAsked on the field, from apps/web/src/components/ask-to-type.ts.";
 const effectHook = "/^use(Layout|Insertion)?Effect$/";
+const buildInTheQueue =
+  "Build the command inside the builder, from the document applyEdit passes in. A command built from the Play on screen carries whole entities as they were, so behind an edit still saving it puts back what that edit changed (FindingGestureDuringSave, 4d7994b, b41f13d). In chalk-app.tsx, queueEdit builds it both ways for you.";
+const editBuilder =
+  "CallExpression[callee.property.name='applyEdit'] > :matches(ArrowFunctionExpression, FunctionExpression)";
 
 /**
  * Every no-restricted-syntax rule, with the files it covers and the files it
@@ -78,6 +82,23 @@ const restrictedSyntax = [
         ].join(""),
         message:
           "Close a panel on a press past it with useDismissOnPressOutside from apps/web/src/components/page-press.ts. A press listener on the page written by hand heard the press after a field handle had stopped it, so the panel stayed open (#240), and it caught the press that had just opened the panel (#211).",
+      },
+    ],
+  },
+  {
+    files: ["apps/**/*.{ts,tsx}", "packages/**/*.ts", "tests/**/*.ts"],
+    rules: [
+      {
+        selector: `${editBuilder}[params.length=0]`,
+        message: `An applyEdit builder that takes no document returns a command built before it was queued. ${buildInTheQueue}`,
+      },
+      {
+        selector: `${editBuilder} > Identifier.params[name=/^_/]`,
+        message: `An applyEdit builder whose document is named to be ignored returns a command built before it was queued. ${buildInTheQueue}`,
+      },
+      {
+        selector: `${editBuilder} MemberExpression[property.name='document']:matches([object.callee.property.name='getSnapshot'], [object.name='editor'])`,
+        message: `An applyEdit builder that reads the Play on screen builds from the Play as it was. ${buildInTheQueue}`,
       },
     ],
   },

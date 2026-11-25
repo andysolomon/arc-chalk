@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   coverableReceivers,
-  createStableId,
   defensiveReadKeys,
   defenderCoachingActions,
   type PlayCommand,
@@ -12,6 +11,7 @@ import {
 import {
   defensiveAdjustmentCommand,
   defensiveAdjustmentTargets,
+  type BuildEdit,
   type DefensiveAdjustment,
 } from "@chalk/editor";
 
@@ -164,13 +164,17 @@ function ReadControls({
 export function DefensiveAdjustmentsDialog({
   document,
   selectedIds,
-  onCommand,
+  onEdit,
   onClose,
   onTips,
 }: {
   document: PlayDocument;
   selectedIds: readonly string[];
-  onCommand: (command: PlayCommand | undefined) => void;
+  /**
+   * Queues the edit, built again from the Play its turn finds, and hands
+   * back the build made now from the Play on screen.
+   */
+  onEdit: (build: BuildEdit) => PlayCommand | undefined;
   onClose: () => void;
   onTips: () => void;
 }) {
@@ -188,13 +192,9 @@ export function DefensiveAdjustmentsDialog({
     dialog.current?.showModal();
   }, []);
   const run = (action: DefensiveAdjustment) => {
-    const command = defensiveAdjustmentCommand(
-      document,
-      ids,
-      action,
-      createStableId,
+    const command = onEdit((document, createId) =>
+      defensiveAdjustmentCommand(document, ids, action, createId),
     );
-    onCommand(command);
     setNotice(
       command?.kind === "batch"
         ? (command.label ?? "Adjustment applied")

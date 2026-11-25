@@ -46,7 +46,8 @@ export function PlayClassificationControl({
   concepts: readonly Concept[];
   formations: readonly Formation[];
   onAddPlayType: (name: string, unit: PlayUnit) => Promise<AddPlayTypeOutcome>;
-  onApply: (command: PlayCommand) => void;
+  /** Takes an edit built from the Play its turn in the save queue finds. */
+  onApply: (build: (document: PlayDocument) => PlayCommand | undefined) => void;
   onDismiss: () => void;
   onToggle: () => void;
   open: boolean;
@@ -113,7 +114,7 @@ function ClassificationPanel({
   concepts: readonly Concept[];
   formations: readonly Formation[];
   onAddPlayType: (name: string, unit: PlayUnit) => Promise<AddPlayTypeOutcome>;
-  onApply: (command: PlayCommand) => void;
+  onApply: (build: (document: PlayDocument) => PlayCommand | undefined) => void;
   onDismiss: () => void;
   play: PlayDocument;
   playbook: Playbook;
@@ -133,17 +134,19 @@ function ClassificationPanel({
 
   const chooseType = (playType: PlayTypeDefinition | undefined) => {
     setNotice(undefined);
-    const plan = reclassifyPlay(
-      play,
-      {
-        unit: play.unit,
-        ...(playType
-          ? { playType: { id: playType.id, name: playType.name } }
-          : {}),
-      },
-      context,
+    onApply(
+      (document) =>
+        reclassifyPlay(
+          document,
+          {
+            unit: document.unit,
+            ...(playType
+              ? { playType: { id: playType.id, name: playType.name } }
+              : {}),
+          },
+          context,
+        )?.command,
     );
-    if (plan) onApply(plan.command);
     onDismiss();
   };
 

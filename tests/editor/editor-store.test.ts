@@ -188,7 +188,14 @@ describe("EditorStore edits built against the Play they will land on", () => {
       createMutationId: () => "mutation_none",
       monotonicNow: () => 0,
     });
-    await expect(store.applyEdit(() => undefined)).resolves.toBeUndefined();
+    // Naming the Play what it is already named.
+    await expect(
+      store.applyEdit((document) =>
+        document.name === stickThunderPlay.name
+          ? undefined
+          : { kind: "set-play-name", name: stickThunderPlay.name },
+      ),
+    ).resolves.toBeUndefined();
     expect(store.getSnapshot().undo.canUndo).toBe(false);
   });
 });
