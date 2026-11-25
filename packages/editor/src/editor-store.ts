@@ -90,6 +90,13 @@ export type LocalSaveState =
       readonly reason: string;
     };
 
+/** A save the Coach asked for, waiting in the queue for its turn. */
+interface PendingSave {
+  /** Which request this is. Only the newest one's outcome reaches the status. */
+  readonly sequence: number;
+  readonly requestedAtMs: number;
+}
+
 export interface EditorUndoState extends UndoAvailability {
   readonly quarantineReason?: string;
 }
@@ -341,15 +348,21 @@ export function createEditorStore({
     : undefined;
   let latestSequence = 0;
   let saveTail: Promise<void> = Promise.resolve();
+  /**
+   * How the last save to finish ended, whether or not the status showed it.
+   * A turn that turns out to write nothing shows it, since that save is
+   * then the newest one that wrote.
+   */
+  let settledSave: LocalSaveState = {
+    phase: "saved",
+    documentHash: initialDocumentHash,
+    budgetMs: saveBudgetMs,
+  };
 
   const state = createStore<EditorSnapshot>(() => ({
     document,
     draftPlayName: document.name,
-    localSave: {
-      phase: "saved",
-      documentHash: initialDocumentHash,
-      budgetMs: saveBudgetMs,
-    },
+    localSave: settledSave,
     undo: undoAvailability(history, initialDocumentHash),
     versions: [...initialVersions],
   }));
@@ -364,25 +377,26 @@ export function createEditorStore({
     }));
   };
 
-  const startSaving = (
-    requestedAtMs = monotonicNow(),
-  ): { sequence: number; requestedAtMs: number } => {
-    const sequence = ++latestSequence;
-    state.setState((current) => ({
-      ...current,
-      localSave: {
-        phase: "saving",
-        documentHash: current.localSave.documentHash,
-        budgetMs: saveBudgetMs,
-      },
-    }));
-    return { sequence, requestedAtMs };
+  /**
+   * Records how a save ended, and shows it unless the Coach asked for a
+   * newer save since. Saves run in the order he asked for them, so the
+   * newest one asked for is the last to finish.
+   */
+  const settleSave = (outcome: LocalSaveState, sequence: number): void => {
+    settledSave = outcome;
+    if (sequence !== latestSequence) return;
+    state.setState((current) => ({ ...current, localSave: outcome }));
+  };
+
+  /** A Play shown as already stored: saved, whatever was showing before. */
+  const showSettled = (outcome: LocalSaveState): void => {
+    settledSave = outcome;
+    state.setState((current) => ({ ...current, localSave: outcome }));
   };
 
   const persist = async (
     committedDocument: PlayDocument,
-    sequence: number,
-    requestedAtMs: number,
+    { sequence, requestedAtMs }: PendingSave,
     committedHistory: UndoHistory | undefined,
   ): Promise<EditorCommitOutcome> => {
     try {
@@ -399,19 +413,17 @@ export function createEditorStore({
       const durationMs = Math.max(0, monotonicNow() - requestedAtMs);
       const withinBudget = durationMs < saveBudgetMs;
       persistedDocumentHash = receipt.documentHash;
-      if (sequence === latestSequence) {
-        state.setState((current) => ({
-          ...current,
-          localSave: {
-            phase: "saved",
-            documentHash: receipt.documentHash,
-            budgetMs: saveBudgetMs,
-            savedAtMs: receipt.committedAtMs,
-            durationMs,
-            withinBudget,
-          },
-        }));
-      }
+      settleSave(
+        {
+          phase: "saved",
+          documentHash: receipt.documentHash,
+          budgetMs: saveBudgetMs,
+          savedAtMs: receipt.committedAtMs,
+          durationMs,
+          withinBudget,
+        },
+        sequence,
+      );
       return {
         ok: true,
         documentHash: receipt.documentHash,
@@ -424,18 +436,16 @@ export function createEditorStore({
       const reason = describeFailure(error);
       // The status bar shows two words; the console keeps the whole story.
       console.error("Chalk could not save the Play on this device.", error);
-      if (sequence === latestSequence) {
-        state.setState((current) => ({
-          ...current,
-          localSave: {
-            phase: "error",
-            documentHash: persistedDocumentHash ?? documentHash,
-            budgetMs: saveBudgetMs,
-            durationMs,
-            reason,
-          },
-        }));
-      }
+      settleSave(
+        {
+          phase: "error",
+          documentHash: persistedDocumentHash ?? documentHash,
+          budgetMs: saveBudgetMs,
+          durationMs,
+          reason,
+        },
+        sequence,
+      );
       return { ok: false, durationMs };
     }
   };
@@ -453,6 +463,30 @@ export function createEditorStore({
     return outcome;
   };
 
+  /**
+   * Queues a turn that may write the Play. It takes its save sequence now,
+   * when the Coach asks, not when the turn runs: a sequence taken later
+   * would outrank an edit he asked for after it, and that edit's failed
+   * write would never reach the status.
+   */
+  const enqueueSave = <Result>(
+    task: (save: PendingSave) => Promise<Result>,
+  ): Promise<Result> => {
+    const save: PendingSave = {
+      sequence: ++latestSequence,
+      requestedAtMs: monotonicNow(),
+    };
+    state.setState((current) => ({
+      ...current,
+      localSave: {
+        phase: "saving",
+        documentHash: current.localSave.documentHash,
+        budgetMs: saveBudgetMs,
+      },
+    }));
+    return enqueue(() => task(save));
+  };
+
   const showDocument = (next: PlayDocument): void => {
     state.setState((current) => ({
       ...current,
@@ -468,9 +502,8 @@ export function createEditorStore({
   const runCommand = (
     build: (document: PlayDocument) => PlayCommand,
     options: ApplyCommandOptions = {},
-  ): Promise<EditorCommitOutcome> => {
-    const { sequence, requestedAtMs } = startSaving();
-    return enqueue(async () => {
+  ): Promise<EditorCommitOutcome> =>
+    enqueueSave(async (save) => {
       const before = state.getState().document;
       const { command, settled } = withManCoverageSettled(
         before,
@@ -507,9 +540,8 @@ export function createEditorStore({
       documentHash = afterHash;
       showDocument(next);
       publishUndo();
-      return persist(next, sequence, requestedAtMs, history);
+      return persist(next, save, history);
     });
-  };
 
   const applyCommand = (
     command: PlayCommand,
@@ -550,12 +582,11 @@ export function createEditorStore({
     nextDocument: PlayDocument,
   ): Promise<EditorCommitOutcome> => {
     const committedDocument = playDocumentSchema.parse(nextDocument);
-    const { sequence, requestedAtMs } = startSaving();
-    return enqueue(async () => {
+    return enqueueSave(async (save) => {
       documentHash = await canonicalSha256(committedDocument);
       showDocument(committedDocument);
       publishUndo();
-      return persist(committedDocument, sequence, requestedAtMs, history);
+      return persist(committedDocument, save, history);
     });
   };
 
@@ -563,8 +594,7 @@ export function createEditorStore({
     nextDocument: PlayDocument,
   ): Promise<EditorCommitOutcome> => {
     const adopted = playDocumentSchema.parse(nextDocument);
-    const { sequence, requestedAtMs } = startSaving();
-    return enqueue(async () => {
+    return enqueueSave(async (save) => {
       if (adopted.id !== state.getState().document.id) {
         history = createUndoHistory(adopted.id, wallClockNow());
         persistedDocumentHash = undefined;
@@ -573,7 +603,7 @@ export function createEditorStore({
       showDocument(adopted);
       publishUndo();
       state.setState((current) => ({ ...current, versions: [] }));
-      return persist(adopted, sequence, requestedAtMs, history);
+      return persist(adopted, save, history);
     });
   };
 
@@ -586,14 +616,7 @@ export function createEditorStore({
       showDocument(shown);
       publishUndo();
       publishVersions([]);
-      state.setState((current) => ({
-        ...current,
-        localSave: {
-          phase: "saved",
-          documentHash,
-          budgetMs: saveBudgetMs,
-        },
-      }));
+      showSettled({ phase: "saved", documentHash, budgetMs: saveBudgetMs });
     });
 
   const openStoredPlay = (input: {
@@ -629,47 +652,38 @@ export function createEditorStore({
     persistedDocumentHash = persistedHash;
     showDocument(revealed);
     publishUndo();
-    state.setState((current) => ({
-      ...current,
-      localSave: {
-        phase: "saved",
-        documentHash: persistedHash,
-        budgetMs: saveBudgetMs,
-      },
-    }));
+    showSettled({
+      phase: "saved",
+      documentHash: persistedHash,
+      budgetMs: saveBudgetMs,
+    });
   };
 
   const stepHistory = (
     direction: "undo" | "redo",
-  ): Promise<EditorUndoOutcome> => {
-    const requestedAtMs = monotonicNow();
-    return enqueue(async () => {
+  ): Promise<EditorUndoOutcome> =>
+    enqueueSave(async (save) => {
       const current = state.getState().document;
       const nowMs = wallClockNow();
       const step = direction === "undo" ? undoStep : redoStep;
       const result = await step(history, current, documentHash, nowMs);
-      if (result.status === "empty") return { status: "empty" };
-      if (result.status === "quarantined") {
+      if (result.status !== "applied") {
+        // Nothing to write, so the status goes back to the save before it.
+        settleSave(settledSave, save.sequence);
+        if (result.status === "empty") return { status: "empty" };
         history = result.history;
         publishUndo(result.reason);
         return { status: "quarantined", reason: result.reason };
       }
 
-      const { sequence } = startSaving(requestedAtMs);
       history = result.history;
       documentHash =
         direction === "undo" ? result.entry.beforeHash : result.entry.afterHash;
       showDocument(result.document);
       publishUndo();
-      const commit = await persist(
-        result.document,
-        sequence,
-        requestedAtMs,
-        history,
-      );
+      const commit = await persist(result.document, save, history);
       return { status: "applied", entry: result.entry, commit };
     });
-  };
 
   return {
     getSnapshot: state.getState,
@@ -711,9 +725,8 @@ export function createEditorStore({
       if (state.getState().localSave.phase !== "error") {
         return Promise.resolve(undefined);
       }
-      const { sequence, requestedAtMs } = startSaving();
-      return enqueue(() =>
-        persist(state.getState().document, sequence, requestedAtMs, history),
+      return enqueueSave((save) =>
+        persist(state.getState().document, save, history),
       );
     },
     undo: () => stepHistory("undo"),
