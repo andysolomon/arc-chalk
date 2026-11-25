@@ -11,7 +11,7 @@ import {
   type PlayDocument,
   type Player,
 } from "@chalk/domain";
-import { applyCoverageCallCommand, buildMoveCommand } from "./commands";
+import { applyCoverageCallCommand, placeMen } from "./commands";
 
 /** A football action is offered only when every selected player can take it. */
 export function selectionAssignmentOptions(
@@ -109,16 +109,26 @@ export function tripsSelectionCommand(
     document.fieldProfile.widthYards / 2 - sign * ball - 2,
   );
   const spots = [width, width * 0.6, width * 0.3];
-  let next = document;
-  order.forEach((id, index) => {
-    const man = next.players.find((man) => man.id === id)!;
-    const move = buildMoveCommand(next, [{ kind: "player", id }], {
-      lateralYards: ball + sign * spots[index]! - man.position.lateralYards,
-      depthYards: (index === 0 ? -1 : -2) - man.position.depthYards,
-    });
-    if (move) next = applyPlayCommand(next, move);
-  });
-  next = designate(next, ids, "trips", `Trips ${side}`, createId, order);
+  const placed = placeMen(
+    document,
+    new Map(
+      order.map((id, index) => [
+        id,
+        {
+          lateralYards: ball + sign * spots[index]!,
+          depthYards: index === 0 ? -1 : -2,
+        },
+      ]),
+    ),
+  );
+  const next = designate(
+    placed,
+    ids,
+    "trips",
+    `Trips ${side}`,
+    createId,
+    order,
+  );
   return diffPlayDocuments(document, next, `Trips ${side}`);
 }
 

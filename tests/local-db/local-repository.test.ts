@@ -465,8 +465,9 @@ describe("ChalkLocalRepository", () => {
         indexedDB,
         IDBKeyRange,
         storage: {
-          persisted: () => Promise.reject(new Error("blocked")),
-          estimate: () => Promise.reject(new Error("blocked")),
+          persisted: () =>
+            Promise.reject(new DOMException("blocked", "SecurityError")),
+          estimate: () => Promise.reject(new TypeError("opaque origin")),
         },
       }),
     );

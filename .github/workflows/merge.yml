@@ -107,12 +107,35 @@ jobs:
       - name: Installed shell
         run: bun run test:pwa
 
+  models:
+    name: Models
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.19
+
+      # The script downloads TLA+ tools 1.8.0 and refuses a jar whose sha256
+      # differs from the one it pins. It needs no installed packages.
+      - name: Model-check every TLA+ model
+        run: bun run check:models
+
   # The one required status check in branch protection. GitHub counts a skipped
   # job as passing, so this must always run, and it fails unless every job above
   # succeeded. Together those jobs cover everything in `bun run check`.
   merge-gate:
     name: Merge Gate
-    needs: [quality, browser, parity]
+    needs: [quality, browser, parity, models]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:

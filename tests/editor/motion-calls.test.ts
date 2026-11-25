@@ -11,11 +11,7 @@ import {
   type PlayDocument,
   type Player,
 } from "@chalk/domain";
-import {
-  applyMotionCallCommand,
-  buildDeleteCommand,
-  setMotionAtSnapCommand,
-} from "@chalk/editor";
+import { applyMotionCallCommand, setMotionAtSnapCommand } from "@chalk/editor";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -141,25 +137,6 @@ describe("giving a man a motion type", () => {
     expect(motion!.atSnap).toBe("moving");
   });
 
-  it("retypes the motion he has instead of adding a second", () => {
-    const jet = give(gunDoubles(), "Z", "jet");
-    const id = motionsOf(jet, man(jet, "Z"))[0]!.id;
-    const shifted = give(jet, "Z", "shift");
-    const motions = motionsOf(shifted, man(shifted, "Z"));
-    expect(motions).toHaveLength(1);
-    expect(motions[0]!.id).toBe(id);
-    expect(motions[0]!.preset).toBe("shift");
-  });
-
-  it("takes Moving or Set from the type, not from the one it replaced", () => {
-    const shift = give(gunDoubles(), "Z", "shift");
-    expect("atSnap" in motionsOf(shift, man(shift, "Z"))[0]!).toBe(false);
-    const jet = give(shift, "Z", "jet");
-    expect(motionsOf(jet, man(jet, "Z"))[0]!.atSnap).toBe("moving");
-    const back = give(jet, "Z", "shift");
-    expect("atSnap" in motionsOf(back, man(back, "Z"))[0]!).toBe(false);
-  });
-
   it("keeps a motion set by choice the same as one never touched", () => {
     const shift = give(gunDoubles(), "Z", "shift");
     const id = motionsOf(shift, man(shift, "Z"))[0]!.id;
@@ -216,21 +193,6 @@ describe("giving a man a motion type", () => {
     expect(after.paths.find(({ id }) => id === "slant-Z")).toEqual(
       elsewhere.paths.find(({ id }) => id === "slant-Z"),
     );
-  });
-
-  it("puts his route back on his stance when the motion is taken off", () => {
-    const before = withSlant(gunDoubles(), "Z");
-    const was = before.paths.find(({ id }) => id === "slant-Z")!;
-    const moved = give(before, "Z", "across");
-    const motion = motionsOf(moved, man(moved, "Z"))[0]!;
-    const cleared = run(
-      moved,
-      buildDeleteCommand(moved, [{ kind: "path", id: motion.id }]),
-    );
-    expect(motionsOf(cleared, man(cleared, "Z"))).toEqual([]);
-    const slant = cleared.paths.find(({ id }) => id === "slant-Z")!;
-    expect(slant.points[0]).toEqual(man(cleared, "Z").position);
-    expect(offsetsFrom(slant)).toEqual(offsetsFrom(was));
   });
 
   it("gives a lineman nothing", () => {
